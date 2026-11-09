@@ -1,25 +1,26 @@
 package top.customizr.system.model;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
+import top.customizr.system.repository.UserRepository;
 
-import jakarta.persistence.Entity;
 import java.util.UUID;
 
 @Entity
-@Table(name="user")
+@Table(name="users")
+@Getter @Setter
 public class User {
 
-    @Column @Getter @Id
-    private final UUID userId;
-    @Column @Getter @Setter
+    @Id @Setter(AccessLevel.NONE) @Column
+    private UUID userId;
+    @Column
     private String name;
-    @Column @Getter @Setter
+    @Column @Enumerated(EnumType.STRING)
     private Role role;
 
+    protected User() {}
 
     public User(Role role, String name) {
         this.role = role;
