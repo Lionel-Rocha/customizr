@@ -34,6 +34,7 @@ class Master {
     class Campaign {
         UUID campaignId
         String name
+        String code
         create()
         read()
         update()
@@ -55,6 +56,9 @@ class Master {
     }
 
     class Membership {
+        UUID id
+        User user
+        Campaign campaign,
         Role role
     }
 
