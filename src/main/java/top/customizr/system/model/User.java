@@ -1,12 +1,12 @@
 package top.customizr.system.model;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
-import top.customizr.system.repository.UserRepository;
+import top.customizr.system.security.PasswordConverter;
 
-import java.util.Optional;
 import java.util.UUID;
 
 @Entity
@@ -18,11 +18,23 @@ public class User {
     private UUID userId;
     @Column
     private String name;
+    @Column
+    @Convert(converter = PasswordConverter.class)
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
+    private String password;
 
     protected User() {}
 
-    public User(String name) {
+    @PrePersist
+    private void ensureId() {
+        if (userId == null) {
+            userId = UUID.randomUUID();
+        }
+    }
+
+    public User(String name, String password) {
         this.name = name;
+        this.password = password;
         this.userId = UUID.randomUUID();
     }
 

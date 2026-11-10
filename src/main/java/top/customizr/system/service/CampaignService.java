@@ -31,11 +31,9 @@ public class CampaignService {
         this.campaignSourceRepository = campaignSourceRepository;
     }
 
-    public Campaign createCampaign(String name) {
-        //0. pegar o user pelo uuid
-
-        User user = userRepository.findAll().getFirst();
-        User master = userRepository.findById(user.getUserId()).orElseThrow(() -> new EntityNotFoundException("Usuário não encontrado"));
+    public Campaign createCampaign(String name, String username) {
+        //0. pegar o user logado pelo nome (vem do JWT)
+        User master = userRepository.findByName(username).orElseThrow(() -> new EntityNotFoundException("Usuário não encontrado"));
 
         // 1. Instanciar a Entidade usando o Factory Method ou Construtor
         Campaign campaign = new Campaign(name, master);

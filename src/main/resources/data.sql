@@ -22,7 +22,8 @@ CREATE TYPE role AS ENUM ('PLAYER', 'MASTER', 'SPECTATOR');
 --);
 
 -- 3. Inserts (Atenção às aspas simples e ao preenchimento do role)
-INSERT INTO users (user_id, name) VALUES (random_uuid(),'O Escriba');
+INSERT INTO users (user_id, name, password) VALUES (random_uuid(),'O Escriba','$2a$10$Dyo3wtgUn8ZEIelFrPtSee4LLZs0YcvEmAf7icBDs4H6MwHnvW8BG');
+INSERT INTO users (user_id, name, password) VALUES (random_uuid(), 'O Artífice','$2a$10$JzYPmAQbgwuR7J55AzK.hOrBkC80lBWR0ejwV9XbRMWLKDMsRHQPu');
 
 INSERT INTO source (id, name, code) VALUES (random_uuid(), 'Player''s Handbook (2024)', 'XPHB');
 -- Note o "Player''s" com duas aspas simples para escapar a aspa simples no SQL.

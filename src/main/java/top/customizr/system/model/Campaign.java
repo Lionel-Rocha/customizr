@@ -44,10 +44,6 @@ public class Campaign {
         this.code = UUID.randomUUID().toString().substring(0, 8).toUpperCase();
     }
 
-    public void enableSource(Source source){
-        this.sourceConfigs.add(new CampaignSourceConfig(this, source, true));
-    }
-
     @Override
     public String toString() {
         return "Campaign{" +
