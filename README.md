@@ -31,6 +31,10 @@ class Master {
 <<interface>>
 }
 
+class Player{ 
+    <<interface>>
+}
+
     class Campaign {
         UUID campaignId
         String name
@@ -41,6 +45,7 @@ class Master {
         delete()
         «masterOnly» invite()
         acceptInvite()
+        «masterOnly» assignRole(userId)
         «masterOnly» createWorld()
     }
 
@@ -48,6 +53,7 @@ class Master {
         <<enumeration>>
         PLAYER
         MASTER
+        SPECTATOR
     }
 
     class User {
@@ -73,10 +79,10 @@ class Master {
         String name
         String mapUrl
         String masterInfo
-        <<masterOnly>> create()
+        «masterOnly» create()
         read()
-        <<masterOnly>> update()
-        <<masterOnly>> delete()
+        «masterOnly» update()
+        «masterOnly» delete()
     }
 
     class Country {
@@ -139,10 +145,51 @@ class Master {
         NPC innkeeper
         Enum type ("Squalid", "Poor", "Modest", "Comfortable", "Wealthy", "Aristocratic")
     }
-    
-    class Bastion{
+
+    class Bastion {
+        UUID bastionId
         Player owner
-        Int level
+        int level
+        int maxRooms
+        «masterOnly» create(owner)
+        «playerOnly» buildRoom(roomTypeId)
+        «playerOnly» removeRoom(roomId)
+        readRooms()
+    }
+
+    class Room {
+        UUID roomId
+        String name
+        RoomSize size
+        «playerOnly» upgrade()
+        «playerOnly» demolish()
+    }
+
+    class RoomType {
+        UUID roomTypeId
+        String name
+        String description
+        RoomSize defaultSize
+        read()
+    }
+
+    class RoomSize {
+        <<enumeration>>
+        CRAMPED
+        ROOMY
+        VAST
+    }
+
+    class Source {
+        UUID sourceId
+        String name
+        String code
+    }
+
+    class CampaignSourceConfig {
+        bool enabled
+        «masterOnly» disable()
+        «masterOnly» enable()
     }
 
     class NPC {
@@ -188,6 +235,7 @@ class Master {
     }
 
     class Inventory {
+        int platinum
         int gold
         int silver
         int copper
@@ -217,6 +265,7 @@ class Master {
 
     class Currency {
         <<enumeration>>
+        PLATINUM
         GOLD
         SILVER
         COPPER
@@ -340,4 +389,17 @@ class Master {
     Country ..|> EncyclopediaReferenceable
     Point   ..|> EncyclopediaReferenceable
 
+    %% Relações Bastion
+    Bastion "1" *-- "1..*" Room : possui
+    Room "0..*" --> "1" RoomType : é do tipo
+    RoomType "0..*" --> "1" Source : originado de
+    Campaign "1" *-- "0..*" CampaignSourceConfig : configura
+    CampaignSourceConfig "0..*" --> "1" Source : referencia
+    Room --> RoomSize
+
+    Item "0..*" --> "1" Source : originado de
+    RoomType "0..*" --> "1" Source : originado de
+    
+    %% A campanha configura quais sources estão ativas
+    CampaignSourceConfig "0..*" --> "1" Source : referencia
 `````
