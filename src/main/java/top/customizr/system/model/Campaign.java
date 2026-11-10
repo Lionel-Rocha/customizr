@@ -7,9 +7,7 @@ import lombok.Setter;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
-import java.util.Date;
-import java.util.Random;
-import java.util.UUID;
+import java.util.*;
 
 @Entity
 @Table(name = "Campaign")
@@ -33,14 +31,21 @@ public class Campaign {
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
+    @OneToMany(mappedBy = "campaign", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<CampaignSourceConfig> sourceConfigs = new ArrayList<>();
+
     protected Campaign() {}
 
-    public Campaign(String name, User master, String code) {
+    public Campaign(String name, User master) {
         this.id = UUID.randomUUID();
         this.name = name;
         this.master = master;
         this.createdAt = LocalDateTime.now();
         this.code = UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+    }
+
+    public void enableSource(Source source){
+        this.sourceConfigs.add(new CampaignSourceConfig(this, source, true));
     }
 
     @Override

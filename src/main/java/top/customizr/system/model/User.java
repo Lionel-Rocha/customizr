@@ -14,14 +14,14 @@ import java.util.UUID;
 @Getter @Setter
 public class User {
 
-    @Id @Setter(AccessLevel.NONE) @Column
+    @Id @Setter(AccessLevel.NONE) @Column(name="user_id")
     private UUID userId;
     @Column
     private String name;
 
     protected User() {}
 
-    public User(Role role, String name) {
+    public User(String name) {
         this.name = name;
         this.userId = UUID.randomUUID();
     }

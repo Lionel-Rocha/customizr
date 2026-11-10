@@ -27,62 +27,191 @@ Banco de dados: PostgreSQL
 
 ```mermaid
 classDiagram
-class Master {
-<<interface>>
-}
-
-class Player{ 
-    <<interface>>
-}
-
-    class Campaign {
-        UUID campaignId
-        String name
-        String code
-        create()
-        read()
-        update()
-        delete()
-        «masterOnly» invite()
-        acceptInvite()
-        «masterOnly» assignRole(userId)
-        «masterOnly» createWorld()
+    %% === INTERFACES ===
+    class Master {
+        <<interface>>
+    }
+    class EncyclopediaReferenceable {
+        <<interface>>
+        UUID getReferenceId()
+        String getDisplayName()
     }
 
+    %% === ENUMS ===
     class Role {
         <<enumeration>>
         PLAYER
         MASTER
         SPECTATOR
     }
+    class SheetType {
+        <<enumeration>>
+        PLAYER
+        NPC
+        MOB
+    }
+    class PointType {
+        <<enumeration>>
+        SHOP
+        INN
+        BASTION
+        TOURISTIC
+        OTHER
+    }
+    class RoomSize {
+        <<enumeration>>
+        CRAMPED
+        ROOMY
+        VAST
+    }
+    class Currency {
+        <<enumeration>>
+        PLATINUM
+        GOLD
+        SILVER
+        COPPER
+    }
+    class OrderStatus {
+        <<enumeration>>
+        MADE
+        RECEIVED
+    }
+    class EntryType {
+        <<enumeration>>
+        PERSON
+        PLACE
+        HISTORICAL_FACT
+        OTHER
+    }
 
+    %% === CONTAS E ACESSO ===
     class User {
         UUID userId
         String name
-        create()
-        read()
         update()
         delete()
     }
-
     note for User "{selfOnly} update() e delete() exigem principal.userId == self.userId"
 
     class Membership {
         UUID id
-        User user
-        Campaign campaign,
-        Role role
     }
 
+    class Campaign {
+        UUID campaignId
+        String name
+        String code
+        invite()
+        acceptInvite()
+        assignRole(userId)
+        createWorld()
+        addSource()
+    }
+
+    User "1" -- "0..*" Membership
+    Membership "0..*" -- "1" Campaign
+    Membership --> Role
+
+    %% === PERSONAGENS E FICHAS ===
+    class Player {
+        UUID playerId
+        String name
+    }
+
+    class Character {
+        UUID characterId
+        String name
+    }
+
+    class Sheet {
+        UUID sheetId
+    }
+
+    class Attribute {
+        int str
+        int dex
+        int con
+        int int
+        int wis
+        int cha
+        int hp
+        int ac
+        getModifier(String ability)
+    }
+
+    %% Conexões de Personagens (PCs e NPCs na campanha, Mobs soltos)
+    Campaign "1" o-- "0..*" Character : possui PCs e NPCs
+    User "1" -- "0..1" Player : é jogador
+    Player "1" *-- "1" Character : controla
+    Character "1" *-- "1" Sheet : tem ficha
+    Sheet "1" *-- "1" Attribute : tem atributos
+    Sheet --> SheetType
+
+    %% === REGRAS DE D&D (5e e 5.5) ===
+    class Species {
+        UUID speciesId
+        String name
+        Size size
+        String source
+        Trait[] traits
+    }
+
+    class Background {
+        UUID backgroundId
+        String name
+        String source
+    }
+
+    class AbilityScoreIncrease {
+        String ability
+        int amount
+    }
+    
+    Species "1" o-- "0..*" AbilityScoreIncrease : possui (apenas 5e)
+    Background "1" o-- "0..*" AbilityScoreIncrease : possui (apenas 5.5)
+    
+    Character "0..*" --> "1" Species
+    Character "0..*" --> "1" Background
+
+    class Feat {
+        UUID featId
+        String name
+        String source
+        String category
+    }
+
+    class Prerequisite {
+        <<interface>>
+    }
+    class AbilityPrerequisite {
+        String ability
+        int minimumScore
+    }
+    class FeatPrerequisite {
+        UUID requiredFeatId
+    }
+    class LevelPrerequisite {
+        int minimumLevel
+    }
+    class SpeciesPrerequisite {
+        UUID requiredSpeciesId
+    }
+
+    Feat "1" *-- "0..*" Prerequisite
+    Prerequisite <|.. AbilityPrerequisite
+    Prerequisite <|.. FeatPrerequisite
+    Prerequisite <|.. LevelPrerequisite
+    Prerequisite <|.. SpeciesPrerequisite
+
+    Sheet "0..*" --> "0..*" Feat : possui
+    Background "0..1" --> "0..1" Feat : dá um Feat (5.5)
+
+    %% === MUNDO E GEOGRAFIA ===
     class World {
         UUID id
         String name
         String mapUrl
         String masterInfo
-        «masterOnly» create()
-        read()
-        «masterOnly» update()
-        «masterOnly» delete()
     }
 
     class Country {
@@ -93,10 +222,6 @@ class Player{
         String mapUrl
         float worldMapX
         float worldMapY
-        «masterOnly» create(name, mapUrl)
-        read()
-        «masterOnly» update(countryId)
-        «masterOnly» delete(countryId)
     }
 
     class City {
@@ -105,150 +230,20 @@ class Player{
         String cityMapUrl
         float countryMapX
         float countryMapY
-        «masterOnly» create(name, country)
-        read(cityId)
-        readAll()
-        «masterOnly» update(cityId)
-        «masterOnly» delete(cityId)
-        «masterOnly» addPoint(pointId, cityId, x, y)
     }
 
     class Point {
         UUID pointId
         String name
-        PointType type
         float cityMapX
         float cityMapY
-        <<masterOnly>> create(name, city, type)
-        read()
-        <<masterOnly>> update(pointId)
-        <<masterOnly>> delete(pointId)
     }
 
-    class PointType {
-        <<enumeration>>
-        SHOP
-        INN
-        BASTION
-        TOURISTIC
-        OTHER
-    }
-
-    class Shop {
-        NPC shopkeeper
-        sell(item)
-        buy(item)
-        «masterOnly» applyDiscount(item)
-    }
-    
-    class Inn{
-        NPC innkeeper
-        Enum type ("Squalid", "Poor", "Modest", "Comfortable", "Wealthy", "Aristocratic")
-    }
-
-    class Bastion {
-        UUID bastionId
-        Player owner
-        int level
-        int maxRooms
-        «masterOnly» create(owner)
-        «playerOnly» buildRoom(roomTypeId)
-        «playerOnly» removeRoom(roomId)
-        readRooms()
-    }
-
-    class Room {
-        UUID roomId
-        String name
-        RoomSize size
-        «playerOnly» upgrade()
-        «playerOnly» demolish()
-    }
-
-    class RoomType {
-        UUID roomTypeId
-        String name
-        String description
-        RoomSize defaultSize
-        read()
-    }
-
-    class RoomSize {
-        <<enumeration>>
-        CRAMPED
-        ROOMY
-        VAST
-    }
-
-    class Source {
-        UUID sourceId
-        String name
-        String code
-    }
-
-    class CampaignSourceConfig {
-        bool enabled
-        «masterOnly» disable()
-        «masterOnly» enable()
-    }
-
-    class NPC {
-        UUID npcId
-        String name
-        String photoUrl
-        String personality
-        String notes
-        String masterInformation
-        «masterOnly» make(name)
-    }
-
-    class Stock {
-        UUID stockId
-        Array~[Item, int]~ items
-    }
-
-    class Item {
-        UUID id
-        String name
-        String source
-        Rarity rarity
-        Type type
-        String description
-        bool custom
-        Category category
-        String link
-        float price
-        «masterOnly» create(name, rarity, type, price)
-        read(id)
-        readAll()
-        «masterOnly» update(id)
-        «masterOnly» delete(id)
-    }
-
-    class Player {
-        UUID playerId
-        String name
-        create()
-        read()
-        update()
-        «masterOnly» delete()
-    }
-
-    class Inventory {
-        int platinum
-        int gold
-        int silver
-        int copper
-        readAllEntries()
-    }
-
-    class InventoryEntry {
-        Item item
-        int quantity
-        addEntry()
-        removeEntry()
-        readEntry()
-    }
+    Campaign "1" o-- "0..*" World
+    World "1" o-- "1..*" Country
+    Country "1" o-- "0..*" City
+    City "1" o-- "0..*" Point
+    Point --> PointType
 
     class CityConnection {
         UUID id
@@ -257,149 +252,152 @@ class Player{
         bool hasTrain
         bool hasShip
         float price
-        Currency currency
-        createConnection(cityOne, cityTwo)
-        removeConnection(id)
-        readAllFromCountry()
     }
-
-    class Currency {
-        <<enumeration>>
-        PLATINUM
-        GOLD
-        SILVER
-        COPPER
-    }
-
-    class Order {
-        UUID orderId
-        int quantity
-        OrderStatus status
-        float price
-        Date createDate
-        Date receiveDate
-        calculatePrice()
-        make()
-        receive()
-    }
-
-    class OrderStatus {
-        <<enumeration>>
-        MADE
-        RECEIVED
-    }
-
-    class EntryType {
-        <<enumeration>>
-        PERSON
-        PLACE
-        HISTORICAL_FACT
-        OTHER
-    }
-
-    class Encyclopedia {
-        UUID id
-        add(entry)
-        remove(entry)
-    }
-
-    class EncyclopediaEntry {
-        UUID id
-        EntryType entryType
-        String entryName
-        String information
-        bool visible
-        changeVisibility()
-    }
-
-    class EncyclopediaReferenceable {
-        <<interface>>
-        UUID getReferenceId()
-        String getDisplayName()
-    }
-
-    class MasterGuard {
-        assertCanManage(User user, Campaign campaign)
-        boolean canManage(User user, Campaign campaign)
-    }
-
-    %% Capability marker
-    Campaign ..|> Master
-    Country  ..|> Master
-    City     ..|> Master
-    Shop     ..|> Master
-    NPC      ..|> Master
-    Item     ..|> Master
-    Player   ..|> Master
-
-    %% Autorização
-    MasterGuard --> Membership : verifica role
-    MasterGuard --> Master     : valida alvo «masterOnly»
-
-    %% User x Campaign x Role
-    User "1" -- "0..*" Membership
-    Membership "0..*" -- "1" Campaign
-    Membership --> Role
-
-    %% Hierarquia geográfica
-    Campaign "1" o-- "0..*" World
-    World    "1" o-- "1..*" Country
-    Country  "1" o-- "0..*" City
-    City     "1" o-- "0..*" Point
-
-    %% Conexão não-dirigida
     City "0..*" -- "0..*" City : connection
     CityConnection .. City : «association class»
     CityConnection --> Currency
 
-    %% Point / Shop
+    %% === PONTOS DE INTERESSE ===
     Point <|-- Shop
-    Point --> PointType
-    Point <|-- Bastion
     Point <|-- Inn
+    Point <|-- Bastion
 
-    %% Shop
-    Shop "1" --> "1" NPC : vendor
+    class Shop {
+        NPC shopkeeper
+    }
+    class Inn {
+        NPC innkeeper
+        String type
+    }
+    class Bastion {
+        UUID bastionId
+        int level
+        int maxRooms
+    }
+
+    %% === NPCs ===
+    class NPC {
+        UUID npcId
+        String name
+        String photoUrl
+        String personality
+        String notes
+        String masterInformation
+    }
+    Campaign "1" o-- "0..*" NPC
+    NPC "1" o-- "0..1" Sheet : pode ter ficha
+    Shop --> NPC
+    Inn --> NPC
+
+    %% === LOJAS E ITENS ===
+    class Stock {
+        UUID stockId
+    }
+    class Item {
+        UUID id
+        String name
+        String source
+        String rarity
+        String type
+        bool custom
+        String category
+        String link
+        float price
+    }
+    class Order {
+        UUID orderId
+        int quantity
+        float price
+    }
+
     Shop "1" *-- "1" Stock
     Shop "1" o-- "0..*" Order
-
-    %% Stock (array de pares)
     Stock "1" o-- "0..*" Item : contém
-
-    %% Player / Inventory
-    Player "1" *-- "1" Inventory
-    Inventory "1" *-- "0..*" InventoryEntry
-    InventoryEntry --> Item
-    Player "1" *-- "0..1" Bastion
- 
-    %% Order
     Order "0..*" --> "1" Item
     Order "0..*" --> "1" Player
     Order --> OrderStatus
 
-    %% Enciclopédia
-    Campaign "1" o-- "0..*" NPC
-    Campaign "1" o-- "0..*" Item
+    %% === INVENTÁRIO ===
+    class Inventory {
+        int platinum
+        int gold
+        int silver
+        int copper
+    }
+    class InventoryEntry {
+        Item item
+        int quantity
+    }
+    Player "1" *-- "1" Inventory
+    Inventory "1" *-- "0..*" InventoryEntry
+    InventoryEntry --> Item
+
+    %% === BASTION E SALAS ===
+    Player "1" *-- "0..1" Bastion
+    Bastion "1" *-- "1..*" Room
+    class Room {
+        UUID roomId
+        String name
+    }
+    class RoomType {
+        UUID roomTypeId
+        String name
+        String description
+    }
+    Room "0..*" --> "1" RoomType
+    Room --> RoomSize
+    RoomType --> RoomSize
+
+    %% === GERENCIAMENTO DE FONTES ===
+    class Source {
+        UUID sourceId
+        String name
+        String code
+        int year
+    }
+    class CampaignSourceConfig {
+        bool enabled
+    }
+    Campaign "1" *-- "0..*" CampaignSourceConfig
+    CampaignSourceConfig "0..*" --> "1" Source
+    Item "0..*" --> "1" Source
+    RoomType "0..*" --> "1" Source
+
+    %% === ENCICLOPÉDIA ===
+    class Encyclopedia {
+        UUID id
+    }
+    class EncyclopediaEntry {
+        UUID id
+        String entryName
+        String information
+        bool visible
+    }
     Campaign "1" *-- "1" Encyclopedia
     Encyclopedia "1" *-- "0..*" EncyclopediaEntry
     EncyclopediaEntry --> EntryType
-    EncyclopediaEntry "1" --> "0..1" EncyclopediaReferenceable : references
-    NPC     ..|> EncyclopediaReferenceable
-    City    ..|> EncyclopediaReferenceable
-    Country ..|> EncyclopediaReferenceable
-    Point   ..|> EncyclopediaReferenceable
-
-    %% Relações Bastion
-    Bastion "1" *-- "1..*" Room : possui
-    Room "0..*" --> "1" RoomType : é do tipo
-    RoomType "0..*" --> "1" Source : originado de
-    Campaign "1" *-- "0..*" CampaignSourceConfig : configura
-    CampaignSourceConfig "0..*" --> "1" Source : referencia
-    Room --> RoomSize
-
-    Item "0..*" --> "1" Source : originado de
-    RoomType "0..*" --> "1" Source : originado de
     
-    %% A campanha configura quais sources estão ativas
-    CampaignSourceConfig "0..*" --> "1" Source : referencia
+    %% Referências da Enciclopédia
+    EncyclopediaEntry "1" --> "0..1" EncyclopediaReferenceable : references
+    NPC ..|> EncyclopediaReferenceable
+    City ..|> EncyclopediaReferenceable
+    Country ..|> EncyclopediaReferenceable
+    Point ..|> EncyclopediaReferenceable
+
+    %% === SEGURANÇA E CAPACIDADES ===
+    class MasterGuard {
+        assertCanManage(User user, Campaign campaign)
+        boolean canManage(User user, Campaign campaign)
+    }
+    MasterGuard --> Membership : verifica role
+    MasterGuard --> Master : valida alvo
+
+    Campaign ..|> Master
+    Country ..|> Master
+    City ..|> Master
+    Shop ..|> Master
+    NPC ..|> Master
+    Item ..|> Master
+    Player ..|> Master
+
 `````
