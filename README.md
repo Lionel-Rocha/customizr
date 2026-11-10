@@ -53,7 +53,13 @@ class Master {
     class User {
         UUID userId
         String name
+        create()
+        read()
+        update()
+        delete()
     }
+
+    note for User "{selfOnly} update() e delete() exigem principal.userId == self.userId"
 
     class Membership {
         UUID id
@@ -64,17 +70,23 @@ class Master {
 
     class World {
         UUID id
+        String name
         String mapUrl
-        create()
+        String masterInfo
+        <<masterOnly>> create()
+        read()
+        <<masterOnly>> update()
+        <<masterOnly>> delete()
     }
 
     class Country {
         UUID countryId
         String name
         String info
+        String masterInfo
         String mapUrl
-        float x
-        float y
+        float worldMapX
+        float worldMapY
         «masterOnly» create(name, mapUrl)
         read()
         «masterOnly» update(countryId)
@@ -99,22 +111,38 @@ class Master {
         UUID pointId
         String name
         PointType type
-        float x
-        float y
+        float cityMapX
+        float cityMapY
+        <<masterOnly>> create(name, city, type)
+        read()
+        <<masterOnly>> update(pointId)
+        <<masterOnly>> delete(pointId)
     }
 
     class PointType {
         <<enumeration>>
         SHOP
+        INN
+        BASTION
         TOURISTIC
         OTHER
     }
 
     class Shop {
-        UUID shopId
+        NPC shopkeeper
         sell(item)
         buy(item)
         «masterOnly» applyDiscount(item)
+    }
+    
+    class Inn{
+        NPC innkeeper
+        Enum type ("Squalid", "Poor", "Modest", "Comfortable", "Wealthy", "Aristocratic")
+    }
+    
+    class Bastion{
+        Player owner
+        Int level
     }
 
     class NPC {
@@ -278,6 +306,8 @@ class Master {
     %% Point / Shop
     Point <|-- Shop
     Point --> PointType
+    Point <|-- Bastion
+    Point <|-- Inn
 
     %% Shop
     Shop "1" --> "1" NPC : vendor
@@ -291,7 +321,8 @@ class Master {
     Player "1" *-- "1" Inventory
     Inventory "1" *-- "0..*" InventoryEntry
     InventoryEntry --> Item
-
+    Player "1" *-- "0..1" Bastion
+ 
     %% Order
     Order "0..*" --> "1" Item
     Order "0..*" --> "1" Player
