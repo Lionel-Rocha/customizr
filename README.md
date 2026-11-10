@@ -139,7 +139,49 @@ classDiagram
         getModifier(String ability)
     }
 
-    %% Conexões de Personagens (PCs e NPCs na campanha, Mobs soltos)
+    class Party {
+        UUID partyId
+        String name
+        int maxSize
+    }
+
+    Party "1" *-- "2..*" Character : contém
+
+    class CharacterClass {
+        UUID id
+        int level
+    }
+    class DndClass {
+        String key
+        String name
+        int hitDie
+        String primaryAbility
+    }
+    class Subclass {
+        String key
+        String name
+    }
+    class ClassFeature {
+        String key
+        String name
+        String description
+        FeatureType type
+    }
+    class FeatureProgression {
+        UUID id
+        int level
+        String detail
+    }
+
+    Character "1" *-- "0..*" CharacterClass : possui
+    CharacterClass "0..*" --> "1" DndClass : estuda
+    CharacterClass "1*" --> "1" Subclass : escolhe
+    DndClass "1" *-- "0..*" ClassFeature : define
+    DndClass "1" o-- "0..*" Subclass : possui
+    Subclass "1" *-- "0..*" ClassFeature : define
+    ClassFeature "1" *-- "1..*" FeatureProgression : escala em
+
+%% Conexões de Personagens (PCs e NPCs na campanha, Mobs soltos)
     Campaign "1" o-- "0..*" Character : possui PCs e NPCs
     User "1" -- "0..1" Player : é jogador
     Player "1" *-- "1" Character : controla
