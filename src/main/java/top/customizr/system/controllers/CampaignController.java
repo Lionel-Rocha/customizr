@@ -1,13 +1,14 @@
 package top.customizr.system.controllers;
 
 import org.springframework.http.ResponseEntity;
+
 import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
+import top.customizr.system.dto.AddSourceRequest;
 import top.customizr.system.dto.CreateCampaignRequest;
 import top.customizr.system.dto.UpdateCampaignRequest;
 import top.customizr.system.model.Campaign;
-import top.customizr.system.repository.CampaignRepository;
 import top.customizr.system.service.CampaignService;
 
 import java.net.URI;
@@ -25,9 +26,9 @@ public class CampaignController {
 
     @PostMapping("/create")
     public ResponseEntity<Void> create(@RequestBody CreateCampaignRequest request) {
+
         Campaign created = campaignService.createCampaign(
-                request.name(),
-                request.uuid()
+                request.name()
         );
 
         URI location = ServletUriComponentsBuilder
@@ -58,7 +59,9 @@ public class CampaignController {
     }
 
     @PostMapping("/addSource")
-    public ResponseEntity<Void> addSource(){
+    public ResponseEntity<Void> addSource(@RequestBody AddSourceRequest request){
 
+        campaignService.addSource(request);
+        return ResponseEntity.noContent().build();
     }
 }
