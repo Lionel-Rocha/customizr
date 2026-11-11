@@ -101,13 +101,21 @@ classDiagram
         UUID campaignId
         String name
         String code
-        invite()
+        CRUD()
+        addSource(campaign, source)
+        invite(userId)
         acceptInvite()
         assignRole(userId)
-        createWorld()
-        addSource()
+        createWorld(campaign)
+    }
+    
+    class Invite {
+        Campaign campaign,
+        User user,
+        Role role
     }
 
+    User "1" <-- "1" Invite
     User "1" -- "0..*" Membership
     Membership "0..*" -- "1" Campaign
     Membership --> Role

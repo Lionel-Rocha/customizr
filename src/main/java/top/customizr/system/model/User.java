@@ -14,7 +14,7 @@ import java.util.UUID;
 @Getter @Setter
 public class User {
 
-    @Id @Setter(AccessLevel.NONE) @Column(name="user_id")
+    @Id @Setter(AccessLevel.NONE) @Column(name="user_id") @Getter
     private UUID userId;
     @Column
     private String name;

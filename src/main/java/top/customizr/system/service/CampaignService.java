@@ -1,19 +1,16 @@
 package top.customizr.system.service;
 
 import jakarta.persistence.EntityNotFoundException;
+import jakarta.transaction.Transactional;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 import top.customizr.system.dto.AddSourceRequest;
 import top.customizr.system.dto.UpdateCampaignRequest;
-import top.customizr.system.model.Campaign;
-import top.customizr.system.model.CampaignSourceConfig;
-import top.customizr.system.model.Source;
-import top.customizr.system.model.User;
-import top.customizr.system.repository.CampaignRepository;
-import top.customizr.system.repository.CampaignSourceRepository;
-import top.customizr.system.repository.SourceRepository;
-import top.customizr.system.repository.UserRepository;
+import top.customizr.system.model.*;
+import top.customizr.system.repository.*;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -23,12 +20,16 @@ public class CampaignService {
     private final UserRepository userRepository;
     private final SourceRepository sourceRepository;
     private final CampaignSourceRepository campaignSourceRepository;
+    private final InviteRepository inviteRepository;
+    private MembershipRepository membershipRepository;
 
-    public CampaignService(CampaignRepository campaignRepository, UserRepository userRepository, SourceRepository sourceRepository, CampaignSourceRepository campaignSourceRepository) {
+    public CampaignService(CampaignRepository campaignRepository, UserRepository userRepository, SourceRepository sourceRepository, CampaignSourceRepository campaignSourceRepository, InviteRepository inviteRepository,MembershipRepository membershipRepository) {
         this.campaignRepository = campaignRepository;
         this.userRepository = userRepository;
         this.sourceRepository = sourceRepository;
         this.campaignSourceRepository = campaignSourceRepository;
+        this.inviteRepository = inviteRepository;
+        this.membershipRepository = membershipRepository;
     }
 
     public Campaign createCampaign(String name, String username) {
@@ -91,4 +92,53 @@ public class CampaignService {
         return "Livro " + source.getName() + " adicionado à campanha " + campaign.getName() + ".";
     }
 
+    public String invite(UUID campaignId, Role role, UserDetails loggedUser, String invitedUsername) {
+        Campaign campaign = campaignRepository.findById(campaignId)
+                .orElseThrow(() -> new EntityNotFoundException("Campanha não encontrada"));
+
+        // O usuário logado é o mestre que está convidando
+        User master = userRepository.findByName(loggedUser.getUsername())
+                .orElseThrow(() -> new EntityNotFoundException("Usuário logado não encontrado"));
+
+        // Verifica se o logado é o mestre da campanha
+        if (!campaign.getMaster().getUserId().equals(master.getUserId())) {
+            return "Você não pode convidar para essa campanha.";
+        }
+
+        // Busca o usuário que será convidado (pelo nome passado no DTO)
+        User invitedUser = userRepository.findByName(invitedUsername)
+                .orElseThrow(() -> new EntityNotFoundException("Usuário não encontrado com o nome: " + invitedUsername));
+
+        Invite invite = new Invite(campaign, invitedUser, role);
+        inviteRepository.save(invite);
+        return "Convite enviado para " + invitedUser.getName();
+    }
+
+    @Transactional
+    public String acceptInvite(UUID campaignId, UserDetails loggedUser) {
+        // 1. Achar a campanha
+        Campaign campaign = campaignRepository.findById(campaignId)
+                .orElseThrow(() -> new EntityNotFoundException("Campanha não encontrada"));
+
+        String username = loggedUser.getUsername();
+        Optional<User> user = userRepository.findByName(username);
+        // 2. Verificar se tem um convite pendente com essa campanha e esse player
+        Optional<Invite> inviteOpt = inviteRepository.findByCampaignIdAndInvitedUserUserId(campaign.getId(), user.get().getUserId());
+        // 3. Se não tiver convite, recusa
+        if (inviteOpt.isEmpty()) {
+            throw new EntityNotFoundException("Você não possui um convite para esta campanha.");
+        }
+
+        // 4. Se tiver, aceita (criar membership e apagar o convite)
+        Invite currentInvite = inviteOpt.get();
+
+        // Cria a Membership passando as ENTIDADES (como definimos anteriormente)
+        Membership membership = new Membership(user.get().getUserId(), campaign.getId(), currentInvite.getRole());
+        membershipRepository.save(membership);
+
+        // Apagar o convite depois de aceito para não duplicar
+        inviteRepository.delete(currentInvite);
+
+        return "Convite aceito com sucesso! Bem-vindo à campanha " + campaign.getName() + ".";
+    }
 }

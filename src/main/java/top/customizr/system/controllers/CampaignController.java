@@ -7,9 +7,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
-import top.customizr.system.dto.AddSourceRequest;
-import top.customizr.system.dto.CreateCampaignRequest;
-import top.customizr.system.dto.UpdateCampaignRequest;
+import top.customizr.system.dto.*;
 import top.customizr.system.model.Campaign;
 import top.customizr.system.service.CampaignService;
 
@@ -27,7 +25,7 @@ public class CampaignController {
     }
 
     @PostMapping("/create")
-    public ResponseEntity<Void> create(@RequestBody @NonNull CreateCampaignRequest request, @AuthenticationPrincipal UserDetails userLogado) {
+    public ResponseEntity<UUID> create(@RequestBody @NonNull CreateCampaignRequest request, @AuthenticationPrincipal UserDetails userLogado) {
         Campaign created = campaignService.createCampaign(
                 request.name(),
                 userLogado.getUsername()
@@ -39,7 +37,7 @@ public class CampaignController {
                 .buildAndExpand(created.getId())
                 .toUri();
 
-        return ResponseEntity.created(location).build();
+        return ResponseEntity.status(200).body(created.getId());
     }
 
     @PatchMapping("/update/{id}")
@@ -67,15 +65,18 @@ public class CampaignController {
     }
 
     @PostMapping("/invite")
-    public String inviteUser(@RequestBody UUID user){
-        //1. cria um convite no banco de dados
-        return "abc";
+    public ResponseEntity<String> inviteUser(@RequestBody @NonNull InviteRequest request, @AuthenticationPrincipal UserDetails userLogado){
+        campaignService.invite(request.campaignId(), request.role(), userLogado, request.username());
+        String response = "Usuário " + request.username() + " convidado com o papel " + request.role();
+
+        return ResponseEntity.status(200).body(response);
+
     }
 
     @PostMapping("/accept-invite")
-    public String acceptInvite(@RequestBody UUID inviteCode){
-        //1. o usuário que recebeu o invite que tem que aceitar. Então vai pegar o current User
-        //passado pelo JWT e vai aceitar se tiver um convite com aquele código
-        return "abc";
+    public ResponseEntity<String> acceptInvite(@RequestBody AcceptInviteRequest request, @AuthenticationPrincipal UserDetails loggedUser){
+        campaignService.acceptInvite(request.campaignId(), loggedUser);
+        String response = "Usuário " + loggedUser.getUsername() + " aceitou o convite.";
+        return ResponseEntity.status(200).body(response);
     }
 }
