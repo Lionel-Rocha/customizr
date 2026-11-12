@@ -133,7 +133,7 @@ public class CampaignService {
         Invite currentInvite = inviteOpt.get();
 
         // Cria a Membership passando as ENTIDADES (como definimos anteriormente)
-        Membership membership = new Membership(user.get().getUserId(), campaign.getId(), currentInvite.getRole());
+        Membership membership = new Membership(campaign.getId(), user.get().getUserId(), currentInvite.getRole());
         membershipRepository.save(membership);
 
         // Apagar o convite depois de aceito para não duplicar

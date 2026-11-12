@@ -103,9 +103,8 @@ classDiagram
         String code
         CRUD()
         addSource(campaign, source)
-        invite(userId)
-        acceptInvite()
-        assignRole(userId)
+        invite(userId, role)
+        acceptInvite(campaign)
         createWorld(campaign)
     }
     
@@ -124,11 +123,17 @@ classDiagram
     class Player {
         UUID playerId
         String name
+        createCharacter()
+        readCharacter(playerId)
+        updateCharacter(playerId)
+        deleteCharacter(playerId)
+        
     }
 
     class Character {
         UUID characterId
         String name
+        Enum status
     }
 
     class Sheet {
@@ -151,43 +156,60 @@ classDiagram
         UUID partyId
         String name
         int maxSize
+        <<masterOnly>> createParty(name)
+        enterParty(partyId)
+        abandonParty(partyId)
+        readParty(partyId)
     }
 
     Party "1" *-- "2..*" Character : contém
-
+    Character --> CharacterStatus
     class CharacterClass {
         UUID id
         int level
     }
-    class DndClass {
-        String key
-        String name
-        int hitDie
-        String primaryAbility
-    }
-    class Subclass {
-        String key
-        String name
-    }
-    class ClassFeature {
-        String key
-        String name
-        String description
-        FeatureType type
-    }
-    class FeatureProgression {
-        UUID id
-        int level
-        String detail
+    
+    enum CharacterStatus {
+        ALIVE
+        DEAD
+        RETIRED
     }
 
-    Character "1" *-- "0..*" CharacterClass : possui
-    CharacterClass "0..*" --> "1" DndClass : estuda
-    CharacterClass "1*" --> "1" Subclass : escolhe
-    DndClass "1" *-- "0..*" ClassFeature : define
-    DndClass "1" o-- "0..*" Subclass : possui
-    Subclass "1" *-- "0..*" ClassFeature : define
-    ClassFeature "1" *-- "1..*" FeatureProgression : escala em
+    class ClassDefinition {
+        UUID id
+        String name
+        int hitDie
+        int subclassUnlockLevel
+        Source source
+    }
+    class SubclassDefinition {
+        UUID id
+        String name
+        Source source
+    }
+    class FeatureDefinition {
+        UUID id
+        String name
+        String description
+        Source source
+    }
+    class ClassFeatureGrant {
+        UUID id
+        int level
+    }
+    class SubclassFeatureGrant {
+        UUID id
+        int level
+    }
+
+    Sheet "1" *-- "0..*" CharacterClass : class levels
+    CharacterClass "0..*" --> "1" ClassDefinition : uses
+    CharacterClass "0..*" --> "0..1" SubclassDefinition : chooses
+    ClassDefinition "1" o-- "0..*" SubclassDefinition : offers
+    ClassDefinition "1" *-- "0..*" ClassFeatureGrant : grants
+    ClassFeatureGrant "0..*" --> "1" FeatureDefinition : references
+    SubclassDefinition "1" *-- "0..*" SubclassFeatureGrant : grants
+    SubclassFeatureGrant "0..*" --> "1" FeatureDefinition : references
 
 %% Conexões de Personagens (PCs e NPCs na campanha, Mobs soltos)
     Campaign "1" o-- "0..*" Character : possui PCs e NPCs
@@ -223,11 +245,18 @@ classDiagram
     Character "0..*" --> "1" Species
     Character "0..*" --> "1" Background
 
-    class Feat {
-        UUID featId
+    class FeatDefinition {
+        UUID id
         String name
-        String source
+        String description
         String category
+        Source source
+    }
+
+    class CharacterFeat {
+        UUID id
+        int characterLevel
+        String choices
     }
 
     class Prerequisite {
@@ -240,6 +269,9 @@ classDiagram
     class FeatPrerequisite {
         UUID requiredFeatId
     }
+    class FeaturePrerequisite {
+        UUID requiredFeatureId
+    }
     class LevelPrerequisite {
         int minimumLevel
     }
@@ -247,14 +279,18 @@ classDiagram
         UUID requiredSpeciesId
     }
 
-    Feat "1" *-- "0..*" Prerequisite
+    FeatDefinition "1" *-- "0..*" Prerequisite
     Prerequisite <|.. AbilityPrerequisite
     Prerequisite <|.. FeatPrerequisite
+    Prerequisite <|.. FeaturePrerequisite
     Prerequisite <|.. LevelPrerequisite
     Prerequisite <|.. SpeciesPrerequisite
 
-    Sheet "0..*" --> "0..*" Feat : possui
-    Background "0..1" --> "0..1" Feat : dá um Feat (5.5)
+    FeatPrerequisite "0..*" --> "1" FeatDefinition : requires
+    FeaturePrerequisite "0..*" --> "1" FeatureDefinition : requires
+    Sheet "1" *-- "0..*" CharacterFeat : records
+    CharacterFeat "0..*" --> "1" FeatDefinition : selects
+    Background "0..1" --> "0..1" FeatDefinition : grants a feat (5.5)
 
     %% === MUNDO E GEOGRAFIA ===
     class World {
@@ -364,7 +400,7 @@ classDiagram
     Shop "1" o-- "0..*" Order
     Stock "1" o-- "0..*" Item : contém
     Order "0..*" --> "1" Item
-    Order "0..*" --> "1" Player
+    Order "0..*" --> "1" Character
     Order --> OrderStatus
 
     %% === INVENTÁRIO ===
@@ -378,12 +414,12 @@ classDiagram
         Item item
         int quantity
     }
-    Player "1" *-- "1" Inventory
+    Character "1" *-- "1" Inventory
     Inventory "1" *-- "0..*" InventoryEntry
     InventoryEntry --> Item
 
     %% === BASTION E SALAS ===
-    Player "1" *-- "0..1" Bastion
+    Character "1" *-- "0..1" Bastion
     Bastion "1" *-- "1..*" Room
     class Room {
         UUID roomId
