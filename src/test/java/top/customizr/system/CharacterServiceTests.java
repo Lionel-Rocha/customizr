@@ -99,6 +99,21 @@ class CharacterServiceTests {
     }
 
     @Test
+    void sqlSeedCreatesCampaignWithEscribaAsMasterAndArtificeAsPlayer() {
+        Campaign seededCampaign = campaignRepository.findAll().stream()
+                .filter(candidate -> candidate.getName().equals("Campanha de O Escriba"))
+                .findFirst()
+                .orElseThrow();
+        User player = userRepository.findByName("O Artífice").orElseThrow();
+
+        assertEquals("O Escriba", seededCampaign.getMaster().getName());
+        assertEquals(Role.PLAYER, membershipRepository
+                .findByCampaignIdAndUserId(seededCampaign.getId(), player.getUserId())
+                .orElseThrow()
+                .getRole());
+    }
+
+    @Test
     void persistsClassAndSubclassFeaturesWithCharacterSubclassChoiceLevel() {
         Feature classFeature = featureRepository.save(
                 new Feature("Fighting Style", "", "Combat", FeatureType.CHOICE, null));

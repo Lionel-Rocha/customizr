@@ -30,7 +30,7 @@ public class Sheet {
 
     protected Sheet() {}
 
-    Sheet(Character character) {
+    public Sheet(Character character) {
         this.sheetId = UUID.randomUUID();
         this.character = character;
     }

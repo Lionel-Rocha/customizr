@@ -18,6 +18,7 @@ import top.customizr.system.dto.UpdateCharacterRequest;
 import top.customizr.system.service.CharacterService;
 
 import java.net.URI;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -68,5 +69,12 @@ public class CharacterController {
     ) {
         characterService.delete(id, loggedUser.getUsername());
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/{campaignId}/characters")
+    public List<CharacterResponse> campaignCharacters(@PathVariable UUID campaignId) {
+        return characterService.listCampaignCharacters(campaignId).stream()
+                .map(CharacterResponse::from)
+                .toList();
     }
 }

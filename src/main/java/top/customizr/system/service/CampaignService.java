@@ -7,10 +7,14 @@ import org.springframework.stereotype.Service;
 import top.customizr.system.dto.AddSourceRequest;
 import top.customizr.system.dto.UpdateCampaignRequest;
 import top.customizr.system.model.*;
+import top.customizr.system.model.Character;
 import top.customizr.system.repository.*;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -44,9 +48,49 @@ public class CampaignService {
     }
 
 
-    public Campaign readCampaign(UUID id){
+    public List<Campaign> getAllMasterCampaigns(UserDetails loggedUser){
+        UUID userId = findUser(loggedUser).getUserId();
+        List<Campaign> campaigns = new ArrayList<>(campaignRepository.findByMaster_UserId(userId));
+        campaigns.addAll(campaignRepository.findCampaignsByUserIdAndRole(userId, Role.MASTER));
+        return campaigns;
+    }
+
+    public List<Campaign> getAllPlayerCampaigns(UserDetails loggedUser){
+        UUID userId = findUser(loggedUser).getUserId();
+        return campaignRepository.findCampaignsByUserIdAndRole(userId, Role.PLAYER);
+    }
+
+    public List<Campaign> getAllSpectatorCampaigns(UserDetails loggedUser){
+        UUID userId = findUser(loggedUser).getUserId();
+        return campaignRepository.findCampaignsByUserIdAndRole(userId, Role.SPECTATOR);
+    }
+
+    public List<Campaign> allUserCampaigns(UserDetails loggedUser){
+        List<Campaign> spectator = getAllSpectatorCampaigns(loggedUser);
+        List<Campaign> player = getAllPlayerCampaigns(loggedUser);
+        List<Campaign> master = getAllMasterCampaigns(loggedUser);
+
+        List<Campaign> all = new ArrayList<>();
+        Set<UUID> campaignIds = new HashSet<>();
+        for (List<Campaign> campaigns : List.of(spectator, player, master)) {
+            for (Campaign campaign : campaigns) {
+                if (campaignIds.add(campaign.getId())) {
+                    all.add(campaign);
+                }
+            }
+        }
+        return all;
+    }
+
+    private User findUser(UserDetails loggedUser) {
+        return userRepository.findByName(loggedUser.getUsername())
+                .orElseThrow(() -> new EntityNotFoundException("Usuário não encontrado"));
+    }
+
+    public Optional<Campaign> readCampaign(String code){
         //1. pegar a campanha pelo id
-        Campaign campaign = campaignRepository.findById(id).orElseThrow();
+        Optional<Campaign> campaign = campaignRepository.findCampaignByCode(code);
+        //Campaign campaign = campaignRepository.findById(id).orElseThrow();
         return campaign;
     }
 
@@ -141,4 +185,6 @@ public class CampaignService {
 
         return "Convite aceito com sucesso! Bem-vindo à campanha " + campaign.getName() + ".";
     }
+
+
 }

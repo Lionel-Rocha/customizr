@@ -7,6 +7,7 @@ import lombok.Getter;
 @Entity
 public class Source {
     @Id
+    @Getter
     private UUID id;
 
     @Getter

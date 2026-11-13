@@ -137,7 +137,9 @@ classDiagram
     }
 
     class Sheet {
-        UUID sheetId
+        UUID sheetId,
+        Character character,
+        CharacterClass[] classes
     }
 
     class Attribute {

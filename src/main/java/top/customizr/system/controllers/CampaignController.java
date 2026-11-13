@@ -12,6 +12,8 @@ import top.customizr.system.model.Campaign;
 import top.customizr.system.service.CampaignService;
 
 import java.net.URI;
+import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @RestController
@@ -52,20 +54,25 @@ public class CampaignController {
         return ResponseEntity.noContent().build();  // 204
     }
 
-    @GetMapping("/{id}")
-    public Campaign readCampaign(@PathVariable UUID id){
-        Campaign campaign = campaignService.readCampaign(id);
+    @GetMapping("/")
+    public List<Campaign> allUserCampaigns(@AuthenticationPrincipal UserDetails loggedUser) {
+        return campaignService.allUserCampaigns(loggedUser);
+    }
+
+    @GetMapping("/{code}")
+    public Optional<Campaign> readCampaign(@PathVariable String code) {
+        Optional<Campaign> campaign = campaignService.readCampaign(code);
         return campaign;
     }
 
     @PostMapping("/addSource")
-    public ResponseEntity<Void> addSource(@RequestBody AddSourceRequest request){
+    public ResponseEntity<Void> addSource(@RequestBody AddSourceRequest request) {
         campaignService.addSource(request);
         return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/invite")
-    public ResponseEntity<String> inviteUser(@RequestBody @NonNull InviteRequest request, @AuthenticationPrincipal UserDetails userLogado){
+    public ResponseEntity<String> inviteUser(@RequestBody @NonNull InviteRequest request, @AuthenticationPrincipal UserDetails userLogado) {
         campaignService.invite(request.campaignId(), request.role(), userLogado, request.username());
         String response = "Usuário " + request.username() + " convidado com o papel " + request.role();
 
@@ -74,9 +81,10 @@ public class CampaignController {
     }
 
     @PostMapping("/accept-invite")
-    public ResponseEntity<String> acceptInvite(@RequestBody AcceptInviteRequest request, @AuthenticationPrincipal UserDetails loggedUser){
+    public ResponseEntity<String> acceptInvite(@RequestBody AcceptInviteRequest request, @AuthenticationPrincipal UserDetails loggedUser) {
         campaignService.acceptInvite(request.campaignId(), loggedUser);
         String response = "Usuário " + loggedUser.getUsername() + " aceitou o convite.";
         return ResponseEntity.status(200).body(response);
     }
 }
+

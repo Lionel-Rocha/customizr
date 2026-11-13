@@ -4,6 +4,8 @@ import jakarta.transaction.Transactional;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.server.ResponseStatusException;
 import top.customizr.system.dto.CharacterResponse;
 import top.customizr.system.dto.CreateCharacterRequest;
@@ -18,6 +20,7 @@ import top.customizr.system.repository.CharacterRepository;
 import top.customizr.system.repository.MembershipRepository;
 import top.customizr.system.repository.UserRepository;
 
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -109,5 +112,11 @@ public class CharacterService {
         if (name == null || name.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Character name is required");
         }
+    }
+
+
+    public List<Character> listCampaignCharacters(UUID campaignId){
+        List<Character> characters = characterRepository.allCampaignCharacters(campaignId);
+        return characters;
     }
 }
