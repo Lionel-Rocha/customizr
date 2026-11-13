@@ -41,6 +41,10 @@ public class Character {
     @JoinColumn(name = "owner_id", nullable = false)
     private User owner;
 
+    @ManyToOne
+    @JoinColumn(name = "party_id")
+    private Party party;
+
     @OneToOne(mappedBy = "character", cascade = CascadeType.ALL, orphanRemoval = true, optional = false)
     private Sheet sheet;
 
@@ -53,5 +57,9 @@ public class Character {
         this.campaign = campaign;
         this.owner = owner;
         this.sheet = new Sheet(this);
+    }
+
+    void setParty(Party party) {
+        this.party = party;
     }
 }

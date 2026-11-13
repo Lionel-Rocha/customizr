@@ -9,7 +9,10 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.Getter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
+import java.util.Map;
 import java.util.UUID;
 
 @Entity
@@ -23,7 +26,7 @@ public class Feature {
     @Column(nullable = false)
     private String name;
 
-    @Column(length = 4000)
+    @Column(columnDefinition = "text")
     private String description;
 
     private String category;
@@ -36,14 +39,35 @@ public class Feature {
     @JoinColumn(name = "source_id")
     private Source source;
 
+    @Column(name = "source_code")
+    private String sourceCode;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "json")
+    private Map<String, Object> metadata;
+
     protected Feature() {}
 
     public Feature(String name, String description, String category, FeatureType type, Source source) {
+        this(name, description, category, type, source, source == null ? null : source.getCode(), null);
+    }
+
+    public Feature(
+            String name,
+            String description,
+            String category,
+            FeatureType type,
+            Source source,
+            String sourceCode,
+            Map<String, Object> metadata
+    ) {
         this.featureId = UUID.randomUUID();
         this.name = name;
         this.description = description;
         this.category = category;
         this.type = type;
         this.source = source;
+        this.sourceCode = sourceCode;
+        this.metadata = metadata;
     }
 }

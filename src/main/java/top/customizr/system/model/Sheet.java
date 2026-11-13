@@ -1,6 +1,7 @@
 package top.customizr.system.model;
 
 import jakarta.persistence.CascadeType;
+import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
@@ -28,6 +29,9 @@ public class Sheet {
     @OneToMany(mappedBy = "sheet", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<CharacterClass> classes = new ArrayList<>();
 
+    @Embedded
+    private Attributes attributes;
+
     protected Sheet() {}
 
     public Sheet(Character character) {
@@ -44,5 +48,9 @@ public class Sheet {
         CharacterClass characterClass = new CharacterClass(this, dndClass, level);
         classes.add(characterClass);
         return characterClass;
+    }
+
+    public void updateAttributes(Attributes attributes) {
+        this.attributes = attributes;
     }
 }

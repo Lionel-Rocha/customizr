@@ -8,12 +8,18 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
+import top.customizr.system.dto.AddCharacterClassRequest;
+import top.customizr.system.dto.AddFeatRequest;
 import top.customizr.system.dto.CharacterResponse;
+import top.customizr.system.dto.CharacterSheetResponse;
+import top.customizr.system.dto.ChooseSubclassRequest;
 import top.customizr.system.dto.CreateCharacterRequest;
+import top.customizr.system.dto.UpdateAttributesRequest;
 import top.customizr.system.dto.UpdateCharacterRequest;
 import top.customizr.system.service.CharacterService;
 
@@ -69,6 +75,52 @@ public class CharacterController {
     ) {
         characterService.delete(id, loggedUser.getUsername());
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{id}/classes")
+    public CharacterSheetResponse addClass(
+            @PathVariable UUID id,
+            @RequestBody AddCharacterClassRequest request,
+            @AuthenticationPrincipal UserDetails loggedUser
+    ) {
+        return characterService.addClass(id, request, loggedUser.getUsername());
+    }
+
+    @PostMapping("/{id}/classes/{characterClassId}/subclass")
+    public CharacterSheetResponse addSubclass(
+            @PathVariable UUID id,
+            @PathVariable UUID characterClassId,
+            @RequestBody ChooseSubclassRequest request,
+            @AuthenticationPrincipal UserDetails loggedUser
+    ) {
+        return characterService.addSubclass(id, characterClassId, request, loggedUser.getUsername());
+    }
+
+    @PostMapping("/{id}/classes/{characterClassId}/feats")
+    public CharacterSheetResponse addFeat(
+            @PathVariable UUID id,
+            @PathVariable UUID characterClassId,
+            @RequestBody AddFeatRequest request,
+            @AuthenticationPrincipal UserDetails loggedUser
+    ) {
+        return characterService.addFeat(id, characterClassId, request, loggedUser.getUsername());
+    }
+
+    @PutMapping("/{id}/attributes")
+    public CharacterSheetResponse updateAttributes(
+            @PathVariable UUID id,
+            @RequestBody UpdateAttributesRequest request,
+            @AuthenticationPrincipal UserDetails loggedUser
+    ) {
+        return characterService.updateAttributes(id, request, loggedUser.getUsername());
+    }
+
+    @GetMapping("/{id}/sheet")
+    public CharacterSheetResponse getCharacterSheet(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal UserDetails loggedUser
+    ) {
+        return characterService.getCharacterSheet(id, loggedUser.getUsername());
     }
 
     @GetMapping("/{campaignId}/characters")

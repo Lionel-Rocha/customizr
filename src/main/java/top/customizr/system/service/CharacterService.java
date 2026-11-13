@@ -4,20 +4,31 @@ import jakarta.transaction.Transactional;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.server.ResponseStatusException;
+import top.customizr.system.dto.AddCharacterClassRequest;
+import top.customizr.system.dto.AddFeatRequest;
 import top.customizr.system.dto.CharacterResponse;
+import top.customizr.system.dto.CharacterSheetResponse;
+import top.customizr.system.dto.ChooseSubclassRequest;
 import top.customizr.system.dto.CreateCharacterRequest;
+import top.customizr.system.dto.UpdateAttributesRequest;
 import top.customizr.system.dto.UpdateCharacterRequest;
 import top.customizr.system.model.Campaign;
 import top.customizr.system.model.Character;
+import top.customizr.system.model.CharacterClass;
+import top.customizr.system.model.DndClass;
+import top.customizr.system.model.Attributes;
+import top.customizr.system.model.Feature;
 import top.customizr.system.model.Membership;
 import top.customizr.system.model.Role;
+import top.customizr.system.model.Subclass;
 import top.customizr.system.model.User;
 import top.customizr.system.repository.CampaignRepository;
 import top.customizr.system.repository.CharacterRepository;
+import top.customizr.system.repository.DndClassRepository;
+import top.customizr.system.repository.FeatureRepository;
 import top.customizr.system.repository.MembershipRepository;
+import top.customizr.system.repository.SubclassRepository;
 import top.customizr.system.repository.UserRepository;
 
 import java.util.List;
@@ -30,17 +41,26 @@ public class CharacterService {
     private final CampaignRepository campaignRepository;
     private final MembershipRepository membershipRepository;
     private final UserRepository userRepository;
+    private final DndClassRepository dndClassRepository;
+    private final SubclassRepository subclassRepository;
+    private final FeatureRepository featureRepository;
 
     public CharacterService(
             CharacterRepository characterRepository,
             CampaignRepository campaignRepository,
             MembershipRepository membershipRepository,
-            UserRepository userRepository
+            UserRepository userRepository,
+            DndClassRepository dndClassRepository,
+            SubclassRepository subclassRepository,
+            FeatureRepository featureRepository
     ) {
         this.characterRepository = characterRepository;
         this.campaignRepository = campaignRepository;
         this.membershipRepository = membershipRepository;
         this.userRepository = userRepository;
+        this.dndClassRepository = dndClassRepository;
+        this.subclassRepository = subclassRepository;
+        this.featureRepository = featureRepository;
     }
 
     @Transactional
@@ -91,9 +111,123 @@ public class CharacterService {
         characterRepository.delete(character);
     }
 
+    @Transactional
+    public CharacterSheetResponse addClass(
+            UUID characterId,
+            AddCharacterClassRequest request,
+            String username
+    ) {
+        if (request == null || request.classId() == null) {
+            throw badRequest("Class ID is required");
+        }
+        Character character = findManageableCharacter(characterId, username);
+        DndClass dndClass = dndClassRepository.findById(request.classId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Class not found"));
+        try {
+            character.getSheet().addClass(dndClass, request.level());
+        } catch (IllegalArgumentException ex) {
+            throw badRequest(ex.getMessage());
+        }
+        return CharacterSheetResponse.from(character);
+    }
+
+    @Transactional
+    public CharacterSheetResponse addSubclass(
+            UUID characterId,
+            UUID characterClassId,
+            ChooseSubclassRequest request,
+            String username
+    ) {
+        if (request == null || request.subclassId() == null) {
+            throw badRequest("Subclass ID is required");
+        }
+        Character character = findManageableCharacter(characterId, username);
+        CharacterClass characterClass = findCharacterClass(character, characterClassId);
+        Subclass subclass = subclassRepository.findById(request.subclassId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Subclass not found"));
+        try {
+            characterClass.chooseSubclass(subclass, request.chosenAtLevel());
+        } catch (IllegalArgumentException | IllegalStateException ex) {
+            throw badRequest(ex.getMessage());
+        }
+        return CharacterSheetResponse.from(character);
+    }
+
+    @Transactional
+    public CharacterSheetResponse addFeat(
+            UUID characterId,
+            UUID characterClassId,
+            AddFeatRequest request,
+            String username
+    ) {
+        if (request == null || request.featureId() == null) {
+            throw badRequest("Feature ID is required");
+        }
+        Character character = findManageableCharacter(characterId, username);
+        CharacterClass characterClass = findCharacterClass(character, characterClassId);
+        Feature feature = featureRepository.findById(request.featureId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Feature not found"));
+        try {
+            characterClass.selectFeature(feature, request.selectedAtLevel());
+        } catch (IllegalArgumentException ex) {
+            throw badRequest(ex.getMessage());
+        }
+        return CharacterSheetResponse.from(character);
+    }
+
+    @Transactional
+    public CharacterSheetResponse updateAttributes(
+            UUID characterId,
+            UpdateAttributesRequest request,
+            String username
+    ) {
+        if (request == null) {
+            throw badRequest("Ability scores are required");
+        }
+        Character character = findManageableCharacter(characterId, username);
+        try {
+            character.getSheet().updateAttributes(new Attributes(
+                    request.strength(),
+                    request.dexterity(),
+                    request.constitution(),
+                    request.intelligence(),
+                    request.wisdom(),
+                    request.charisma()
+            ));
+        } catch (IllegalArgumentException ex) {
+            throw badRequest(ex.getMessage());
+        }
+        return CharacterSheetResponse.from(character);
+    }
+
+    @Transactional
+    public CharacterSheetResponse getCharacterSheet(UUID characterId, String username) {
+        return CharacterSheetResponse.from(findManageableCharacter(characterId, username));
+    }
+
     private Character findCharacter(UUID characterId) {
         return characterRepository.findById(characterId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Character not found"));
+    }
+
+    private Character findManageableCharacter(UUID characterId, String username) {
+        Character character = findCharacter(characterId);
+        assertCanManage(character, username);
+        return character;
+    }
+
+    private CharacterClass findCharacterClass(Character character, UUID characterClassId) {
+        if (characterClassId == null) {
+            throw badRequest("Character class ID is required");
+        }
+        return character.getSheet().getClasses().stream()
+                .filter(characterClass -> characterClass.getId().equals(characterClassId))
+                .findFirst()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Character class not found"));
+    }
+
+    private ResponseStatusException badRequest(String message) {
+        return new ResponseStatusException(HttpStatus.BAD_REQUEST, message);
     }
 
     private void assertCanManage(Character character, String username) {
@@ -119,4 +253,13 @@ public class CharacterService {
         List<Character> characters = characterRepository.allCampaignCharacters(campaignId);
         return characters;
     }
+
+    //addClass
+    //addSubclass
+    //addFeat
+    //updateAttributes
+    //getCharacterSheet (gets all information about this character: class, subclass, feats, attributes, party).
+
+
+
 }
