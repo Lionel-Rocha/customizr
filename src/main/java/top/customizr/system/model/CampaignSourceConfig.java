@@ -30,4 +30,16 @@ public class CampaignSourceConfig {
         this.source = source;
         this.enabled = enabled;
     }
+
+    public UUID getId() {
+        return id;
+    }
+
+    public Source getSource() {
+        return source;
+    }
+
+    public boolean isEnabled() {
+        return enabled;
+    }
 }
