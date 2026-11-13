@@ -171,12 +171,13 @@ classDiagram
         int level
     }
     
-    enum CharacterStatus {
+    class CharacterStatus {
+        <<enumeration>>
         ALIVE
         DEAD
         RETIRED
     }
-
+    
     class ClassDefinition {
         UUID id
         String name
