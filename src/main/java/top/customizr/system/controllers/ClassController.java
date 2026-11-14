@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import top.customizr.system.dto.AddSubclassFeatureResponse;
 import top.customizr.system.dto.DndClassResponse;
 import top.customizr.system.dto.ImportClassesResponse;
 import top.customizr.system.service.ClassService;
@@ -28,6 +29,12 @@ public class ClassController {
     @ResponseStatus(HttpStatus.CREATED)
     public ImportClassesResponse importClasses(@RequestBody JsonNode payload) {
         return classService.importClasses(payload);
+    }
+
+    @PostMapping("/subclass-features")
+    @ResponseStatus(HttpStatus.CREATED)
+    public AddSubclassFeatureResponse addSubclassFeature(@RequestBody JsonNode payload) {
+        return classService.addSubclassFeature(payload);
     }
 
     @GetMapping("/all")

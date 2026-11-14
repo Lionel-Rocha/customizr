@@ -9,6 +9,7 @@ import jakarta.transaction.Transactional;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
+import top.customizr.system.dto.AddSubclassFeatureResponse;
 import top.customizr.system.dto.DndClassResponse;
 import top.customizr.system.dto.ImportClassesResponse;
 import top.customizr.system.model.DndClass;
@@ -19,6 +20,7 @@ import top.customizr.system.model.Subclass;
 import top.customizr.system.repository.DndClassRepository;
 import top.customizr.system.repository.FeatureRepository;
 import top.customizr.system.repository.SourceRepository;
+import top.customizr.system.repository.SubclassRepository;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -32,17 +34,20 @@ public class ClassService {
     private final DndClassRepository dndClassRepository;
     private final FeatureRepository featureRepository;
     private final SourceRepository sourceRepository;
+    private final SubclassRepository subclassRepository;
     private final ObjectMapper objectMapper;
 
     public ClassService(
             DndClassRepository dndClassRepository,
             FeatureRepository featureRepository,
             SourceRepository sourceRepository,
+            SubclassRepository subclassRepository,
             ObjectMapper objectMapper
     ) {
         this.dndClassRepository = dndClassRepository;
         this.featureRepository = featureRepository;
         this.sourceRepository = sourceRepository;
+        this.subclassRepository = subclassRepository;
         this.objectMapper = objectMapper;
     }
 
@@ -137,6 +142,66 @@ public class ClassService {
         }
 
         return new ImportClassesResponse(imported, skipped);
+    }
+
+    @Transactional
+    public AddSubclassFeatureResponse addSubclassFeature(JsonNode payload) {
+        if (payload == null || !payload.isObject()) {
+            throw badRequest("A subclass feature object is required");
+        }
+
+        String className = text(payload, "className");
+        String classSource = text(payload, "classSource");
+        String subclassShortName = text(payload, "subclassShortName");
+        String subclassSource = text(payload, "subclassSource");
+        String featureName = text(payload, "name");
+        JsonNode levelNode = payload.get("level");
+        if (isBlank(className) || isBlank(classSource) || isBlank(subclassShortName)) {
+            throw badRequest("className, classSource, and subclassShortName are required");
+        }
+        if (isBlank(featureName)) {
+            throw badRequest("Feature name is required");
+        }
+        if (levelNode == null || !levelNode.canConvertToInt()
+                || levelNode.asInt() < 1 || levelNode.asInt() > 20) {
+            throw badRequest("Feature level must be between 1 and 20");
+        }
+
+        DndClass dndClass = dndClassRepository.findByClassNameAndSourceCode(className, classSource)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Class not found"));
+        List<Subclass> matchingSubclasses = dndClass.getSubclasses().stream()
+                .filter(subclass -> subclassShortName.equals(subclass.getShortName()))
+                .filter(subclass -> isBlank(subclassSource)
+                        || subclassSource.equals(subclass.getSourceCode()))
+                .toList();
+        if (matchingSubclasses.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Subclass not found");
+        }
+        if (matchingSubclasses.size() > 1) {
+            throw badRequest("subclassSource is required to identify the subclass");
+        }
+
+        Subclass subclass = matchingSubclasses.getFirst();
+        int level = levelNode.asInt();
+        if (level < subclass.getUnlockLevel()) {
+            throw badRequest("Feature level cannot be before the subclass unlock level");
+        }
+
+        Feature feature = createFeature(payload, "subclass");
+        featureRepository.save(feature);
+        String choiceGroup = choiceGroup(payload, feature);
+        subclass.addFeature(feature, level, choiceGroup);
+        subclassRepository.save(subclass);
+
+        return new AddSubclassFeatureResponse(
+                feature.getFeatureId(),
+                subclass.getSubclassId(),
+                feature.getName(),
+                feature.getSourceCode(),
+                level,
+                feature.getDescription(),
+                choiceGroup
+        );
     }
 
     @Transactional
@@ -398,6 +463,14 @@ public class ClassService {
     private String text(JsonNode node, String field) {
         JsonNode value = node == null ? null : node.get(field);
         return value == null || value.isNull() ? null : value.asText();
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
+    private ResponseStatusException badRequest(String message) {
+        return new ResponseStatusException(HttpStatus.BAD_REQUEST, message);
     }
 
     private Optional<Integer> optionalInt(JsonNode node, String field) {

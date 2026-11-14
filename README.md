@@ -23,17 +23,70 @@ Back-end: Spring Boot
 Front-end: Angular.js
 Banco de dados: PostgreSQL
 
-# TO-DOs
-[] Itens
-[] Personagens
-[] Party
-[] Chat
-[] Enciclopédia
-[] NPCs
-[] Lojas
-[] Interface
-[] Melhorar o README
-[] etc...
+# TO-DO / Roadmap
+
+A ordem prioriza uma primeira versão jogável e segura; depois, os recursos avançados de criação de mundo.
+
+## P0 — Completar e estabilizar o núcleo
+
+1. [ ] Expor as funcionalidades que já têm serviço/modelo, mas ainda não têm API completa.
+   - [ ] Implementar `ItemController` para criar, consultar, pesquisar, atualizar e excluir itens.
+   - [ ] Criar endpoints para inventários de personagens, parties e NPCs: consultar, adicionar/remover itens e atualizar dinheiro.
+   - [ ] Criar endpoints para NPCs: listar por campanha, consultar, atualizar e excluir.
+2. [ ] Completar a experiência de party.
+   - [ ] Consultar party e seus membros; respeitar `maxSize` e as regras de campanha.
+   - [ ] Consultar e usar o inventário compartilhado da party pela API e pela interface.
+3. [ ] Fechar regras de acesso e testes dos fluxos principais.
+   - [ ] Garantir que apenas membros da campanha acessem seus dados e que ações de mestre sejam exclusivas do mestre.
+   - [ ] Cobrir com testes os fluxos de campanha, convite, personagem, party, inventário e importação, incluindo erros e permissões.
+   - [ ] Padronizar respostas de erro e validação dos endpoints.
+4. [ ] Completar e corrigir a ficha do personagem.
+   - [ ] Corrigir e testar o mapeamento de Sabedoria e Inteligência ao atualizar atributos.
+   - [ ] Adicionar pontos de vida, classe de armadura e demais valores derivados necessários à ficha.
+   - [ ] Adicionar imagem de perfil para personagem e NPC, com armazenamento de imagens em vez de depender apenas de URLs externas.
+
+## P1 — Tornar personagens e conteúdo jogáveis
+
+5. [ ] Importar conteúdo de jogo por JSON.
+   - [ ] Importar itens, validando campos e fonte, e retornar um relatório de itens importados, ignorados e inválidos.
+   - [ ] Permitir importar e atualizar conteúdo sem criar duplicatas.
+   - [ ] Expandir a importação para espécies, antecedentes, magias, talentos e monstros.
+6. [ ] Completar a criação e progressão de personagens.
+   - [ ] Implementar espécies e antecedentes, incluindo características e aumentos de atributos.
+   - [ ] Implementar progressão de nível, pontos de vida e benefícios recebidos por nível.
+   - [ ] Implementar magias: catálogo, listas por classe, espaços, conhecidas/preparadas e seleção na ficha.
+   - [ ] Implementar talentos e seus pré-requisitos de atributos, nível, espécie, talento e característica.
+7. [ ] Completar NPCs e monstros.
+   - [ ] Criar fichas de NPC e monstro, com estatísticas, características, imagem e inventário opcional.
+   - [ ] Controlar quais informações do NPC ficam visíveis para jogadores e quais são exclusivas do mestre.
+
+## P2 — Ferramentas de criação de mundo
+
+8. [ ] Implementar a hierarquia de mundo: mundo, país, cidade e pontos de interesse, com operações de criação, consulta, atualização e exclusão.
+   - [ ] Adicionar mapas, coordenadas e pins para países, cidades e pontos de interesse.
+   - [ ] Implementar conexões entre cidades com distâncias, meios de transporte, duração e custo.
+9. [ ] Implementar a enciclopédia da campanha.
+   - [ ] Criar, editar, consultar, pesquisar e ocultar/mostrar entradas.
+   - [ ] Vincular entradas a NPCs, cidades, países e pontos de interesse.
+10. [ ] Implementar lojas e economia.
+    - [ ] Criar lojas com estoque e permitir compra e venda de itens.
+    - [ ] Criar encomendas de itens, estados do pedido e módulo de entrega.
+    - [ ] Suportar moedas de platina, ouro, prata e cobre, além de conversões e preços.
+11. [ ] Implementar bastiões e salas.
+    - [ ] Criar bastiões de personagens, com nível, limite de salas e tipos de sala.
+    - [ ] Aplicar requisitos, tamanhos e efeitos de cada tipo de sala.
+
+## P3 — Recursos adicionais e acabamento
+
+12. [ ] Implementar chat por campanha, com histórico e acesso restrito aos participantes.
+13. [ ] Completar a interface web para campanhas, personagens, parties, inventários, mapas, enciclopédia e lojas.
+    - [ ] Tornar a interface responsiva e acessível.
+    - [ ] Adicionar buscas, filtros e paginação onde houver listas grandes.
+14. [ ] Sincronizar README, diagrama de classes e tabela de rotas com o comportamento real da aplicação.
+15. [ ] Preparar a aplicação para uso contínuo.
+    - [ ] Adicionar métricas e logs para localizar lentidão e erros.
+    - [ ] Revisar consultas para evitar N+1 e adicionar paginação/cache quando necessário.
+    - [ ] Definir migrações de banco, backups e exportação/importação de campanhas.
 
 # Rotas atuais
 
@@ -63,6 +116,7 @@ Abaixo estão todos os endpoints atualmente expostos pelo backend da aplicação
 | `GET` | `/character/{id}/sheet` | Consulta a ficha completa do personagem. |
 | `GET` | `/character/{campaignId}/characters` | Lista os personagens de uma campanha. |
 | `POST` | `/class/import` | Importa classes a partir de um payload JSON. |
+| `POST` | `/class/subclass-features` | Adiciona uma feature a uma subclasse existente. |
 | `GET` | `/class/all` | Lista as classes disponíveis. |
 | `POST` | `/party/campaign/{campaignId}` | Cria uma party dentro da campanha. |
 | `PUT` | `/party/{partyId}/characters/{characterId}` | Adiciona um personagem à party. |

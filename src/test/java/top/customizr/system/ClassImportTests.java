@@ -88,4 +88,46 @@ class ClassImportTests {
         assertEquals(2, secondImport.skipped().size());
         assertEquals("Already imported", secondImport.skipped().getFirst().reason());
     }
+
+    @Test
+    void addsFeatureToAnAlreadyImportedSubclass() throws Exception {
+        String classPayload = """
+                {
+                  "class": [{
+                    "name": "Feature Endpoint Test Class",
+                    "source": "TST",
+                    "hd": {"number": 1, "faces": 8},
+                    "classFeatures": [{
+                      "classFeature": "Test Subclass|TST|3",
+                      "gainSubclassFeature": true
+                    }]
+                  }],
+                  "subclass": [{
+                    "name": "Feature Endpoint Test Subclass",
+                    "shortName": "FeatureTest",
+                    "className": "Feature Endpoint Test Class",
+                    "classSource": "TST",
+                    "source": "TST",
+                    "subclassFeatures": []
+                  }]
+                }
+                """;
+        classService.importClasses(objectMapper.readTree(classPayload));
+
+        var feature = classService.addSubclassFeature(objectMapper.readTree("""
+                {
+                  "name": "Feature Endpoint Test Feature",
+                  "className": "Feature Endpoint Test Class",
+                  "classSource": "TST",
+                  "subclassShortName": "FeatureTest",
+                  "subclassSource": "TST",
+                  "source": "TST",
+                  "level": 3,
+                  "entries": ["Added after class import."]
+                }
+                """));
+
+        assertEquals("Feature Endpoint Test Feature", feature.name());
+        assertEquals(3, feature.level());
+    }
 }
