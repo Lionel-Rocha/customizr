@@ -30,10 +30,10 @@ public class PlayerService {
 
     @Transactional
     public Sheet createCharacter(String name, UUID campaignId, UserDetails loggedUser) {
-        CharacterResponse created = characterService.create(
+        CharacterResponse created = CharacterResponse.from(characterService.create(
                 new CreateCharacterRequest(campaignId, name),
                 loggedUser.getUsername()
-        );
+        ));
         Character character = characterRepository.findById(created.characterId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Character not found"));
         return character.getSheet();

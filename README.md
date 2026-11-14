@@ -23,6 +23,54 @@ Back-end: Spring Boot
 Front-end: Angular.js
 Banco de dados: PostgreSQL
 
+# TO-DOs
+[] Itens
+[] Personagens
+[] Party
+[] Chat
+[] Enciclopédia
+[] NPCs
+[] Lojas
+[] Interface
+[] Melhorar o README
+[] etc...
+
+# Rotas atuais
+
+Abaixo estão todos os endpoints atualmente expostos pelo backend da aplicação. A maioria das rotas autenticadas exige um token JWT no header `Authorization: Bearer <token>`.
+
+| Método | Rota | Descrição |
+|---|---|---|
+| `POST` | `/api/auth/login` | Autentica o usuário e retorna um token JWT. |
+| `POST` | `/user/create` | Cria um usuário. |
+| `GET` | `/user/{userId}` | Consulta um usuário pelo ID. |
+| `POST` | `/campaign/create` | Cria uma campanha. |
+| `PATCH` | `/campaign/update/{id}` | Atualiza uma campanha. |
+| `DELETE` | `/campaign/{id}` | Exclui uma campanha. |
+| `GET` | `/campaign/` | Lista as campanhas do usuário autenticado. |
+| `GET` | `/campaign/{code}` | Consulta uma campanha pelo código. |
+| `POST` | `/campaign/addSource` | Adiciona uma fonte à campanha. |
+| `POST` | `/campaign/invite` | Convida um usuário para a campanha. |
+| `POST` | `/campaign/accept-invite` | Aceita um convite para campanha. |
+| `POST` | `/character/create` | Cria um personagem. |
+| `GET` | `/character/{id}` | Consulta um personagem. |
+| `PATCH` | `/character/update/{id}` | Atualiza um personagem. |
+| `DELETE` | `/character/{id}` | Exclui um personagem. |
+| `POST` | `/character/{id}/classes` | Adiciona uma classe ao personagem. |
+| `POST` | `/character/{id}/classes/{characterClassId}/subclass` | Escolhe uma subclasse para a classe do personagem. |
+| `POST` | `/character/{id}/classes/{characterClassId}/feats` | Adiciona um talento/feat à classe do personagem. |
+| `PUT` | `/character/{id}/attributes` | Atualiza os atributos do personagem. |
+| `GET` | `/character/{id}/sheet` | Consulta a ficha completa do personagem. |
+| `GET` | `/character/{campaignId}/characters` | Lista os personagens de uma campanha. |
+| `POST` | `/class/import` | Importa classes a partir de um payload JSON. |
+| `GET` | `/class/all` | Lista as classes disponíveis. |
+| `POST` | `/party/campaign/{campaignId}` | Cria uma party dentro da campanha. |
+| `PUT` | `/party/{partyId}/characters/{characterId}` | Adiciona um personagem à party. |
+| `DELETE` | `/party/{partyId}/characters/{characterId}` | Remove um personagem da party. |
+| `POST` | `/source/create` | Cria uma fonte de conteúdo. |
+| `GET` | `/source/{code}` | Consulta uma fonte pelo código. |
+| `GET` | `/source/all` | Lista todas as fontes disponíveis. |
+
 # Diagrama de classes
 
 ```mermaid

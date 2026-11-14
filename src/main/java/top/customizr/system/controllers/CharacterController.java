@@ -12,7 +12,6 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import top.customizr.system.dto.AddCharacterClassRequest;
 import top.customizr.system.dto.AddFeatRequest;
 import top.customizr.system.dto.CharacterResponse;
@@ -21,9 +20,11 @@ import top.customizr.system.dto.ChooseSubclassRequest;
 import top.customizr.system.dto.CreateCharacterRequest;
 import top.customizr.system.dto.UpdateAttributesRequest;
 import top.customizr.system.dto.UpdateCharacterRequest;
+import top.customizr.system.model.Character;
+import top.customizr.system.model.Inventory;
 import top.customizr.system.service.CharacterService;
+import top.customizr.system.service.InventoryService;
 
-import java.net.URI;
 import java.util.List;
 import java.util.UUID;
 
@@ -32,23 +33,23 @@ import java.util.UUID;
 public class CharacterController {
 
     private final CharacterService characterService;
-
-    public CharacterController(CharacterService characterService) {
+    private final InventoryService inventoryService;
+    public CharacterController(CharacterService characterService, InventoryService inventoryService) {
         this.characterService = characterService;
+        this.inventoryService = inventoryService;
     }
 
     @PostMapping("/create")
-    public ResponseEntity<CharacterResponse> create(
+    public ResponseEntity<String> create(
             @RequestBody CreateCharacterRequest request,
             @AuthenticationPrincipal UserDetails loggedUser
     ) {
-        CharacterResponse character = characterService.create(request, loggedUser.getUsername());
-        URI location = ServletUriComponentsBuilder
-                .fromCurrentContextPath()
-                .path("/character/{id}")
-                .buildAndExpand(character.characterId())
-                .toUri();
-        return ResponseEntity.created(location).body(character);
+        Character character = characterService.create(request, loggedUser.getUsername());
+        Inventory inventory = inventoryService.getOrCreateCharacterInventory(character);
+        if (character.getCharacterId() == inventory.getCharacter().getCharacterId()){
+            return ResponseEntity.status(201).body("Personagem " + character.getName() + " criado com sucesso!");
+        }
+        return ResponseEntity.status(500).body("Deu ruim");
     }
 
     @GetMapping("/{id}")

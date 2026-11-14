@@ -23,13 +23,7 @@ import top.customizr.system.model.Membership;
 import top.customizr.system.model.Role;
 import top.customizr.system.model.Subclass;
 import top.customizr.system.model.User;
-import top.customizr.system.repository.CampaignRepository;
-import top.customizr.system.repository.CharacterRepository;
-import top.customizr.system.repository.DndClassRepository;
-import top.customizr.system.repository.FeatureRepository;
-import top.customizr.system.repository.MembershipRepository;
-import top.customizr.system.repository.SubclassRepository;
-import top.customizr.system.repository.UserRepository;
+import top.customizr.system.repository.*;
 
 import java.util.List;
 import java.util.UUID;
@@ -44,6 +38,7 @@ public class CharacterService {
     private final DndClassRepository dndClassRepository;
     private final SubclassRepository subclassRepository;
     private final FeatureRepository featureRepository;
+    private final InventoryRepository inventoryRepository;
 
     public CharacterService(
             CharacterRepository characterRepository,
@@ -52,7 +47,8 @@ public class CharacterService {
             UserRepository userRepository,
             DndClassRepository dndClassRepository,
             SubclassRepository subclassRepository,
-            FeatureRepository featureRepository
+            FeatureRepository featureRepository,
+            InventoryRepository inventoryRepository
     ) {
         this.characterRepository = characterRepository;
         this.campaignRepository = campaignRepository;
@@ -61,10 +57,11 @@ public class CharacterService {
         this.dndClassRepository = dndClassRepository;
         this.subclassRepository = subclassRepository;
         this.featureRepository = featureRepository;
+        this.inventoryRepository = inventoryRepository;
     }
 
     @Transactional
-    public CharacterResponse create(CreateCharacterRequest request, String username) {
+    public Character create(CreateCharacterRequest request, String username) {
         requireName(request == null ? null : request.name());
         if (request.campaignId() == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Campaign ID is required");
@@ -85,7 +82,7 @@ public class CharacterService {
         }
 
         Character character = characterRepository.save(new Character(request.name().trim(), campaign, owner));
-        return CharacterResponse.from(character);
+        return character;
     }
 
     @Transactional
