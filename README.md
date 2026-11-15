@@ -23,6 +23,16 @@ Back-end: Spring Boot
 Front-end: Angular.js
 Banco de dados: PostgreSQL
 
+# Execução com Docker e ngrok
+
+O Compose deste repositório inicia o PostgreSQL, o backend, o frontend e um gateway. O ngrok publica o gateway em uma URL: páginas são encaminhadas ao Angular e as rotas da API (`/api`, `/user`, `/campaign`, `/character`, `/party`, `/source` e `/class`) ao backend.
+
+1. Copie `.env.example` para `.env` e preencha `NGROK_AUTHTOKEN` e `JWT_SECRET`. Ajuste `FRONTEND_PATH` se o frontend não estiver em `C:/Users/user/WebstormProjects/customizr-front`.
+2. Na pasta deste repositório, execute `docker compose up --build`.
+3. Consulte a URL pública do ngrok com `docker compose logs -f ngrok`. O gateway também estará disponível localmente em `http://localhost:8081`.
+
+O banco de dados usa um volume Docker persistente e não publica sua porta no host.
+
 # TO-DO / Roadmap
 
 A ordem prioriza uma primeira versão jogável e segura; depois, os recursos avançados de criação de mundo.
@@ -118,6 +128,8 @@ Abaixo estão todos os endpoints atualmente expostos pelo backend da aplicação
 | `POST` | `/class/import` | Importa classes a partir de um payload JSON. |
 | `POST` | `/class/subclass-features` | Adiciona uma feature a uma subclasse existente. |
 | `GET` | `/class/all` | Lista as classes disponíveis. |
+| `POST` | `/item/import` | Importa novos itens a partir de um dump JSON. |
+| `POST` | `/item/update-from-dump` | Cria ou atualiza itens existentes a partir de um dump JSON. |
 | `POST` | `/party/campaign/{campaignId}` | Cria uma party dentro da campanha. |
 | `PUT` | `/party/{partyId}/characters/{characterId}` | Adiciona um personagem à party. |
 | `DELETE` | `/party/{partyId}/characters/{characterId}` | Remove um personagem da party. |

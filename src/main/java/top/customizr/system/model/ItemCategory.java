@@ -9,5 +9,6 @@ public enum ItemCategory {
     TRINKETS,
     POISONS,
     TOOLS,
-    FIREARMS_EXPLOSIVES
+    WONDROUS_ITEM,
+    AMMUNITION_EXPLOSIVES
 }
