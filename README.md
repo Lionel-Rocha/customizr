@@ -137,6 +137,29 @@ Abaixo estão todos os endpoints atualmente expostos pelo backend da aplicação
 | `GET` | `/source/{code}` | Consulta uma fonte pelo código. |
 | `GET` | `/source/all` | Lista todas as fontes disponíveis. |
 
+## Atualização de itens por dump JSON
+
+`POST /item/update-from-dump` recebe um objeto com um array `item`. Cada item é identificado por `name` e `source`: se já existir, é atualizado; caso contrário, é criado. Itens inválidos, fontes não habilitadas ou fontes ainda não cadastradas são retornados em `skipped`.
+
+```json
+{
+  "item": [
+    {
+      "name": "Exemplo de item",
+      "source": "XPHB",
+      "rarity": "uncommon",
+      "wondrous": true,
+      "referenceLink": "https://example.com/item",
+      "priceGp": 50
+    }
+  ]
+}
+```
+
+`referenceLink` (ou `link`) e `priceGp` (ou `value`, em moedas de cobre) são opcionais; quando ausentes, os valores existentes são preservados. A resposta contém listas `created`, `updated` e `skipped`. Cada item criado ou atualizado inclui `id`, `name` e `source`; cada item ignorado inclui `name`, `source` e o motivo.
+
+O endpoint é implementado por `ItemController.updateFromDump(JsonNode)`, que delega a `ItemService.updateFromDump(JsonNode)`. O serviço valida o dump e processa cada entrada; `updateOne(...)` faz o upsert por nome e fonte. O resultado é representado por `UpdateItemsFromDumpResponse`, com os registros `ProcessedItem` e `SkippedItem`.
+
 # Diagrama de classes
 
 ```mermaid
@@ -507,6 +530,35 @@ classDiagram
         String link
         float price
     }
+    class ItemController {
+        updateFromDump(JsonNode payload)
+    }
+    class ItemService {
+        importFromDump(JsonNode payload)
+        updateFromDump(JsonNode payload)
+        updateOne(JsonNode entry, String name, String sourceCode)
+        firstText(JsonNode entry, String... fields)
+        parsePrice(JsonNode entry)
+    }
+    class UpdateItemsFromDumpResponse {
+        List~ProcessedItem~ created
+        List~ProcessedItem~ updated
+        List~SkippedItem~ skipped
+    }
+    class ProcessedItem {
+        UUID id
+        String name
+        String source
+    }
+    class SkippedItem {
+        String name
+        String source
+        String reason
+    }
+    ItemController --> ItemService : delega
+    ItemService --> UpdateItemsFromDumpResponse : retorna
+    UpdateItemsFromDumpResponse *-- ProcessedItem
+    UpdateItemsFromDumpResponse *-- SkippedItem
     class Order {
         UUID orderId
         int quantity
