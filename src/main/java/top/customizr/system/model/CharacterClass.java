@@ -5,6 +5,8 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
@@ -14,6 +16,8 @@ import lombok.Getter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.UUID;
 
 @Entity
@@ -47,6 +51,15 @@ public class CharacterClass {
     @OneToMany(mappedBy = "characterClass", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<CharacterFeatureSelection> featureSelections = new ArrayList<>();
 
+    @ManyToMany
+    @JoinTable(
+            name = "character_class_prepared_spells",
+            joinColumns = @JoinColumn(name = "character_class_id"),
+            inverseJoinColumns = @JoinColumn(name = "spell_id"),
+            uniqueConstraints = @UniqueConstraint(columnNames = {"character_class_id", "spell_id"})
+    )
+    private Set<Spell> preparedSpells = new LinkedHashSet<>();
+
     protected CharacterClass() {}
 
     CharacterClass(Sheet sheet, DndClass dndClass, int level) {
@@ -66,6 +79,21 @@ public class CharacterClass {
             throw new IllegalArgumentException("Class level cannot be lower than a selected feature's level");
         }
         this.level = level;
+    }
+
+    public void prepareSpell(Spell spell) {
+        if (spell == null || !dndClass.getAvailableSpells().contains(spell)) {
+            throw new IllegalArgumentException("Spell is not available to this class");
+        }
+        if (!preparedSpells.add(spell)) {
+            throw new IllegalArgumentException("Spell is already prepared");
+        }
+    }
+
+    public void unprepareSpell(UUID spellId) {
+        if (spellId == null || !preparedSpells.removeIf(spell -> spellId.equals(spell.getSpellId()))) {
+            throw new IllegalArgumentException("Spell is not prepared");
+        }
     }
 
     public void chooseSubclass(Subclass subclass, int chosenAtLevel) {

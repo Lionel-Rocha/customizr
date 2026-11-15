@@ -25,7 +25,7 @@ Banco de dados: PostgreSQL
 
 # Execução com Docker e ngrok
 
-O Compose deste repositório inicia o PostgreSQL, o backend, o frontend e um gateway. O ngrok publica o gateway em uma URL: páginas são encaminhadas ao Angular e as rotas da API (`/api`, `/user`, `/campaign`, `/character`, `/party`, `/source` e `/class`) ao backend.
+O Compose deste repositório inicia o PostgreSQL, o backend, o frontend e um gateway. O ngrok publica o gateway em uma URL: páginas são encaminhadas ao Angular e as rotas da API (`/api`, `/user`, `/campaign`, `/character`, `/party`, `/source`, `/class`, `/item` e `/spell`) ao backend.
 
 1. Copie `.env.example` para `.env` e preencha `NGROK_AUTHTOKEN` e `JWT_SECRET`. Ajuste `FRONTEND_PATH` se o frontend não estiver em `C:/Users/user/WebstormProjects/customizr-front`.
 2. Na pasta deste repositório, execute `docker compose up --build`.
@@ -40,7 +40,7 @@ A ordem prioriza uma primeira versão jogável e segura; depois, os recursos ava
 ## P0 — Completar e estabilizar o núcleo
 
 1. [ ] Expor as funcionalidades que já têm serviço/modelo, mas ainda não têm API completa.
-   - [ ] Implementar `ItemController` para criar, consultar, pesquisar, atualizar e excluir itens.
+   - [x] Implementar `ItemController` para criar, consultar, pesquisar, atualizar e excluir itens.
    - [ ] Criar endpoints para inventários de personagens, parties e NPCs: consultar, adicionar/remover itens e atualizar dinheiro.
    - [ ] Criar endpoints para NPCs: listar por campanha, consultar, atualizar e excluir.
 2. [ ] Completar a experiência de party.
@@ -128,8 +128,21 @@ Abaixo estão todos os endpoints atualmente expostos pelo backend da aplicação
 | `POST` | `/class/import` | Importa classes a partir de um payload JSON. |
 | `POST` | `/class/subclass-features` | Adiciona uma feature a uma subclasse existente. |
 | `GET` | `/class/all` | Lista as classes disponíveis. |
+| `POST` | `/item/create` | Cria um item. |
+| `GET` | `/item/{itemId}` | Consulta um item pelo ID. |
+| `GET` | `/item/all` | Lista todos os itens. |
+| `GET` | `/item/source/{sourceId}` | Lista os itens de uma fonte. |
+| `GET` | `/item/search?name={name}` | Pesquisa itens pelo nome. |
+| `PUT` | `/item/update/{itemId}` | Atualiza um item. |
+| `DELETE` | `/item/{itemId}` | Exclui um item. |
 | `POST` | `/item/import` | Importa novos itens a partir de um dump JSON. |
 | `POST` | `/item/update-from-dump` | Cria ou atualiza itens existentes a partir de um dump JSON. |
+| `POST` | `/spell/create` | Cria uma magia. |
+| `GET` | `/spell/{id}` | Consulta uma magia pelo ID. |
+| `GET` | `/spell/all` | Lista todas as magias. |
+| `GET` | `/spell/search?name={name}` | Pesquisa magias pelo nome. |
+| `PUT` | `/spell/update/{id}` | Atualiza uma magia. |
+| `DELETE` | `/spell/{id}` | Exclui uma magia; retorna conflito se ela estiver vinculada a classes ou fichas. |
 | `POST` | `/party/campaign/{campaignId}` | Cria uma party dentro da campanha. |
 | `PUT` | `/party/{partyId}/characters/{characterId}` | Adiciona um personagem à party. |
 | `DELETE` | `/party/{partyId}/characters/{characterId}` | Remove um personagem da party. |
@@ -159,6 +172,34 @@ Abaixo estão todos os endpoints atualmente expostos pelo backend da aplicação
 `referenceLink` (ou `link`) e `priceGp` (ou `value`, em moedas de cobre) são opcionais; quando ausentes, os valores existentes são preservados. A resposta contém listas `created`, `updated` e `skipped`. Cada item criado ou atualizado inclui `id`, `name` e `source`; cada item ignorado inclui `name`, `source` e o motivo.
 
 O endpoint é implementado por `ItemController.updateFromDump(JsonNode)`, que delega a `ItemService.updateFromDump(JsonNode)`. O serviço valida o dump e processa cada entrada; `updateOne(...)` faz o upsert por nome e fonte. O resultado é representado por `UpdateItemsFromDumpResponse`, com os registros `ProcessedItem` e `SkippedItem`.
+
+## Magias e conjuração
+
+`Spell` representa uma magia do catálogo. `DndClass` mantém a lista `availableSpells` permitida para a classe; cada `CharacterClass` da ficha mantém sua própria lista editável `preparedSpells`, que só aceita magias dessa lista. `prepareSpell` adiciona uma escolha e `unprepareSpell` permite removê-la.
+
+Os espaços são calculados, não armazenados: `Sheet.getSpellSlots()` usa `SpellSlotCalculator` para combinar níveis de conjuradores completos, metade e um terço (arredondados para baixo) e calcular separadamente os espaços de Pact Magic. Cada resultado `SpellSlotCount` indica o conjunto (`STANDARD` ou `PACT`), nível da magia e quantidade total. A lista de preparadas representa as escolhas atuais do jogador; não representa espaços gastos. O limite de magias preparadas por classe ainda não é calculado automaticamente.
+
+`Spell` tem os campos obrigatórios `description` e `duration`. `duration` é um objeto com `amount`, `unit` e `concentration`: use `amount: 0` com `unit: "INSTANTANEOUS"` para duração instantânea; unidades temporizadas são `"ROUND"`, `"MINUTE"`, `"HOUR"` e `"DAY"` com valor positivo. Para concentração sem limite temporal, use `"CONCENTRATION"` com valor `0`; para concentração limitada, use uma unidade temporizada e `concentration: true`.
+
+```json
+{
+  "name": "Exemplo de magia",
+  "sourceId": "00000000-0000-0000-0000-000000000001",
+  "spellSchool": "Evocation",
+  "level": "FIRST",
+  "castingTime": "Action",
+  "rangeFt": 60,
+  "components": ["Visual", "Somatic"],
+  "duration": {
+    "amount": 1,
+    "unit": "MINUTE",
+    "concentration": true
+  },
+  "description": "Descrição da magia."
+}
+```
+
+`SpellController` expõe o CRUD do catálogo por `/spell`: criação e atualização recebem `name`, `sourceId`, `spellSchool`, `level`, `castingTime`, `rangeFt`, `components`, `duration` e `description` em JSON. A pesquisa recebe `name` como parâmetro. O serviço valida a fonte e a unicidade de nome por fonte; a exclusão retorna conflito se a magia estiver permitida por uma classe ou preparada em uma ficha.
 
 # Diagrama de classes
 
@@ -277,6 +318,7 @@ classDiagram
         UUID sheetId,
         Character character,
         CharacterClass[] classes
+        getSpellSlots()
     }
 
     class Attribute {
@@ -306,7 +348,11 @@ classDiagram
     class CharacterClass {
         UUID id
         int level
+        Set~Spell~ preparedSpells
+        prepareSpell(Spell)
+        unprepareSpell(UUID spellId)
     }
+    Sheet ..> SpellSlotCalculator : consulta slots
     
     class CharacterStatus {
         <<enumeration>>
@@ -315,12 +361,19 @@ classDiagram
         RETIRED
     }
     
-    class ClassDefinition {
-        UUID id
-        String name
+    class DndClass {
+        UUID classId
+        String className
         int hitDie
+        int hitDieNumber
         int subclassUnlockLevel
         Source source
+        String casterProgression
+        String preparedSpells
+        String preparedSpellsChange
+        Set~Spell~ availableSpells
+        addAvailableSpell(Spell)
+        removeAvailableSpell(UUID spellId)
     }
     class SubclassDefinition {
         UUID id
@@ -343,13 +396,110 @@ classDiagram
     }
 
     Sheet "1" *-- "0..*" CharacterClass : class levels
-    CharacterClass "0..*" --> "1" ClassDefinition : uses
+    CharacterClass "0..*" --> "1" DndClass : uses
     CharacterClass "0..*" --> "0..1" SubclassDefinition : chooses
-    ClassDefinition "1" o-- "0..*" SubclassDefinition : offers
-    ClassDefinition "1" *-- "0..*" ClassFeatureGrant : grants
+    DndClass "1" o-- "0..*" SubclassDefinition : offers
+    DndClass "1" *-- "0..*" ClassFeatureGrant : grants
     ClassFeatureGrant "0..*" --> "1" FeatureDefinition : references
     SubclassDefinition "1" *-- "0..*" SubclassFeatureGrant : grants
     SubclassFeatureGrant "0..*" --> "1" FeatureDefinition : references
+    DndClass "0..*" -- "0..*" Spell : permite
+    CharacterClass "0..*" -- "0..*" Spell : preparadas
+
+    class Spell {
+        UUID spellId
+        String name
+        SpellSchool school
+        SpellLevel level
+        Time castingTime
+        int rangeFt
+        Set~Components~ components
+        Duration duration
+        String description
+        Source source
+    }
+    class Duration {
+        int amount
+        DurationUnit unit
+        bool concentration
+    }
+    class DurationUnit {
+        <<enumeration>>
+        INSTANTANEOUS
+        ROUND
+        MINUTE
+        CONCENTRATION
+        HOUR
+        DAY
+    }
+    class SpellSlotCalculator {
+        calculate(List~CharacterClass~) : List~SpellSlotCount~
+    }
+    class SpellService {
+        create(String name, String school, String level, String castingTime, int rangeFt, String[] components, Duration duration, UUID sourceId, String description)
+        read(UUID spellId)
+        listAll()
+        search(String name)
+        update(UUID spellId, String name, SpellSchool school, SpellLevel level, Time castingTime, int rangeFt, Set~Components~ components, Duration duration, UUID sourceId, String description)
+        delete(UUID spellId)
+    }
+    class SpellController {
+        createSpell(SpellCreationRequest request)
+        getSpell(UUID id)
+        allSpells()
+        search(String name)
+        updateSpell(UUID id, SpellCreationRequest request)
+        deleteSpell(UUID id)
+    }
+    class SpellCreationRequest {
+        String name
+        UUID sourceId
+        String spellSchool
+        String level
+        String castingTime
+        int rangeFt
+        String[] components
+        SpellDurationRequest duration
+        String description
+    }
+    class SpellDurationRequest {
+        int amount
+        DurationUnit unit
+        bool concentration
+        toModel()
+    }
+    class SpellRepository {
+        findByNameAndSource_Id(String name, UUID sourceId)
+        findByNameContainingIgnoreCase(String name)
+    }
+    class SpellSlotCount {
+        SpellSlotPool pool
+        String className
+        int spellLevel
+        int totalSlots
+    }
+    class SpellcastingProgression {
+        <<enumeration>>
+        NONE
+        FULL
+        HALF
+        THIRD
+        PACT
+    }
+    class SpellSlotPool {
+        <<enumeration>>
+        STANDARD
+        PACT
+    }
+    DndClass --> SpellcastingProgression
+    Spell *-- Duration
+    Duration --> DurationUnit
+    SpellSlotCalculator ..> CharacterClass : calcula por nível
+    SpellSlotCalculator ..> SpellSlotCount : retorna
+    SpellService --> SpellRepository : CRUD
+    SpellController --> SpellService : delega
+    SpellService ..> Spell : valida e atualiza
+    SpellService ..> Source : valida fonte
 
 %% Conexões de Personagens (PCs e NPCs na campanha, Mobs soltos)
     Campaign "1" o-- "0..*" Character : possui PCs e NPCs
@@ -616,6 +766,7 @@ classDiagram
     Campaign "1" *-- "0..*" CampaignSourceConfig
     CampaignSourceConfig "0..*" --> "1" Source
     Item "0..*" --> "1" Source
+    Spell "0..*" --> "1" Source
     RoomType "0..*" --> "1" Source
 
     %% === ENCICLOPÉDIA ===

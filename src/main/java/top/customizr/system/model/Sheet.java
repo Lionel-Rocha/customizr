@@ -8,6 +8,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 import lombok.Getter;
 
 import java.util.ArrayList;
@@ -48,6 +49,11 @@ public class Sheet {
         CharacterClass characterClass = new CharacterClass(this, dndClass, level);
         classes.add(characterClass);
         return characterClass;
+    }
+
+    @Transient
+    public List<SpellSlotCount> getSpellSlots() {
+        return SpellSlotCalculator.calculate(classes);
     }
 
     public void updateAttributes(Attributes attributes) {

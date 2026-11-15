@@ -5,6 +5,8 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
@@ -15,7 +17,9 @@ import org.hibernate.type.SqlTypes;
 import java.util.Map;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Entity
@@ -72,6 +76,14 @@ public class DndClass {
     @OneToMany(mappedBy = "dndClass", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ClassFeature> features = new ArrayList<>();
 
+    @ManyToMany
+    @JoinTable(
+            name = "class_spells",
+            joinColumns = @JoinColumn(name = "class_id"),
+            inverseJoinColumns = @JoinColumn(name = "spell_id")
+    )
+    private Set<Spell> availableSpells = new LinkedHashSet<>();
+
     protected DndClass() {}
 
     public DndClass(String className, int hitDie, int subclassUnlockLevel, Source source) {
@@ -119,6 +131,23 @@ public class DndClass {
         this.preparedSpells = preparedSpells;
         this.preparedSpellsChange = preparedSpellsChange;
         this.metadata = metadata;
+    }
+
+    public SpellcastingProgression getSpellcastingProgression() {
+        return SpellcastingProgression.from(casterProgression);
+    }
+
+    public void addAvailableSpell(Spell spell) {
+        if (spell == null) {
+            throw new IllegalArgumentException("Spell is required");
+        }
+        availableSpells.add(spell);
+    }
+
+    public void removeAvailableSpell(UUID spellId) {
+        if (spellId == null || !availableSpells.removeIf(spell -> spellId.equals(spell.getSpellId()))) {
+            throw new IllegalArgumentException("Spell is not available to this class");
+        }
     }
 
     public Subclass addSubclass(String name, int unlockLevel, Source source) {
