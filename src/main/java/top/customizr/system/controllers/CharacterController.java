@@ -20,6 +20,10 @@ import top.customizr.system.dto.ChooseSubclassRequest;
 import top.customizr.system.dto.CreateCharacterRequest;
 import top.customizr.system.dto.UpdateAttributesRequest;
 import top.customizr.system.dto.UpdateCharacterRequest;
+import top.customizr.system.dto.CharacterImportResponse;
+import top.customizr.system.service.CharacterImportService;
+import top.customizr.system.dto.UpdateCombatStatsRequest;
+import top.customizr.system.dto.HitPointChangeRequest;
 import top.customizr.system.model.Character;
 import top.customizr.system.model.Inventory;
 import top.customizr.system.service.CharacterService;
@@ -34,9 +38,33 @@ public class CharacterController {
 
     private final CharacterService characterService;
     private final InventoryService inventoryService;
-    public CharacterController(CharacterService characterService, InventoryService inventoryService) {
+    private final CharacterImportService characterImportService;
+    public CharacterController(CharacterService characterService, InventoryService inventoryService,
+                               CharacterImportService characterImportService) {
         this.characterService = characterService;
         this.inventoryService = inventoryService;
+        this.characterImportService = characterImportService;
+    }
+
+    /**
+     * Importa um personagem de arquivo: ator do Foundry VTT (dnd5e), JSON do D&D Beyond ou PDF preenchivel.
+     * multipart/form-data com {@code file} e {@code campaignId}.
+     */
+    @PostMapping(value = "/import", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<CharacterImportResponse> importCharacter(
+            @org.springframework.web.bind.annotation.RequestParam UUID campaignId,
+            @org.springframework.web.bind.annotation.RequestParam("file") org.springframework.web.multipart.MultipartFile file,
+            @AuthenticationPrincipal UserDetails loggedUser
+    ) throws java.io.IOException {
+        CharacterImportResponse imported = characterImportService.importCharacter(
+                campaignId, file.getOriginalFilename(), file.getBytes(), loggedUser.getUsername());
+        Character character = characterService.listCampaignCharacters(campaignId).stream()
+                .filter(c -> c.getCharacterId().equals(imported.characterId()))
+                .findFirst().orElse(null);
+        if (character != null) {
+            inventoryService.getOrCreateCharacterInventory(character);
+        }
+        return ResponseEntity.status(201).body(imported);
     }
 
     @PostMapping("/create")
@@ -114,6 +142,24 @@ public class CharacterController {
             @AuthenticationPrincipal UserDetails loggedUser
     ) {
         return characterService.updateAttributes(id, request, loggedUser.getUsername());
+    }
+
+    @PutMapping("/{id}/combat")
+    public CharacterSheetResponse updateCombatStats(
+            @PathVariable UUID id,
+            @RequestBody UpdateCombatStatsRequest request,
+            @AuthenticationPrincipal UserDetails loggedUser
+    ) {
+        return characterService.updateCombatStats(id, request, loggedUser.getUsername());
+    }
+
+    @PostMapping("/{id}/hp")
+    public CharacterSheetResponse changeHitPoints(
+            @PathVariable UUID id,
+            @RequestBody HitPointChangeRequest request,
+            @AuthenticationPrincipal UserDetails loggedUser
+    ) {
+        return characterService.changeHitPoints(id, request, loggedUser.getUsername());
     }
 
     @GetMapping("/{id}/sheet")

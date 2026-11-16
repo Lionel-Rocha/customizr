@@ -71,10 +71,10 @@ class CharacterServiceTests {
 
     @Test
     void createsReadsUpdatesAndDeletesOwnedCharacter() {
-        CharacterResponse created = characterService.create(
+        CharacterResponse created = CharacterResponse.from(characterService.create(
                 new CreateCharacterRequest(campaign.getId(), "Aria"),
                 player.getName()
-        );
+        ));
 
         assertEquals("Aria", characterService.read(created.characterId(), player.getName()).name());
         assertEquals("Aria the Brave", characterService.update(

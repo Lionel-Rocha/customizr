@@ -31,10 +31,14 @@ public class Duration {
         if ((unit == DurationUnit.INSTANTANEOUS || unit == DurationUnit.CONCENTRATION) && amount != 0) {
             throw new IllegalArgumentException("Instantaneous and unbounded concentration durations use amount 0");
         }
+        if ((unit == DurationUnit.UNTIL_DISPELLED || unit == DurationUnit.SPECIAL) && amount != 0) {
+            throw new IllegalArgumentException("Until dispelled and special durations use amount 0");
+        }
         if (unit == DurationUnit.INSTANTANEOUS && concentration) {
             throw new IllegalArgumentException("Instantaneous duration cannot require concentration");
         }
-        if (unit != DurationUnit.INSTANTANEOUS && unit != DurationUnit.CONCENTRATION && amount < 1) {
+        if (unit != DurationUnit.INSTANTANEOUS && unit != DurationUnit.CONCENTRATION
+                && unit != DurationUnit.UNTIL_DISPELLED && unit != DurationUnit.SPECIAL && amount < 1) {
             throw new IllegalArgumentException("Duration amount must be positive");
         }
         if (unit == DurationUnit.CONCENTRATION && !concentration) {

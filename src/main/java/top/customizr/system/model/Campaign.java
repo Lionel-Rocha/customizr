@@ -39,6 +39,22 @@ public class Campaign {
     @OneToMany(mappedBy = "campaign", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Character> characters = new ArrayList<>();
 
+    @JsonIgnore
+    @OneToMany(mappedBy = "campaign", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ChatMessage> chatMessages = new ArrayList<>();
+
+    @JsonIgnore
+    @OneToMany(mappedBy = "campaign", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<World> worlds = new ArrayList<>();
+
+    @JsonIgnore
+    @OneToOne(mappedBy = "campaign", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Encyclopedia encyclopedia;
+
+    @JsonIgnore
+    @OneToMany(mappedBy = "campaign", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ImageAsset> images = new ArrayList<>();
+
     protected Campaign() {}
 
     public Campaign(String name, User master) {

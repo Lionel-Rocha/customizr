@@ -41,7 +41,7 @@ class SpellcastingModelTests {
         Duration duration = new Duration(1, DurationUnit.MINUTE, true);
         Spell available = new Spell(
                 "Test Spell", SpellSchool.Evocation, SpellLevel.FIRST, Time.Action,
-                60, Set.of(Components.Visual), duration, source, "description"
+                60, Set.of(Components.Verbal), duration, source, "description"
         );
         assertEquals(duration, available.getDuration());
         Spell unavailable = new Spell(

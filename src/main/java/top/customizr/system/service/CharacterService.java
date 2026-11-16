@@ -13,6 +13,8 @@ import top.customizr.system.dto.ChooseSubclassRequest;
 import top.customizr.system.dto.CreateCharacterRequest;
 import top.customizr.system.dto.UpdateAttributesRequest;
 import top.customizr.system.dto.UpdateCharacterRequest;
+import top.customizr.system.dto.UpdateCombatStatsRequest;
+import top.customizr.system.dto.HitPointChangeRequest;
 import top.customizr.system.model.Campaign;
 import top.customizr.system.model.Character;
 import top.customizr.system.model.CharacterClass;
@@ -192,6 +194,43 @@ public class CharacterService {
                     request.charisma()
             ));
         } catch (IllegalArgumentException ex) {
+            throw badRequest(ex.getMessage());
+        }
+        return CharacterSheetResponse.from(character);
+    }
+
+    @Transactional
+    public CharacterSheetResponse updateCombatStats(
+            UUID characterId,
+            UpdateCombatStatsRequest request,
+            String username
+    ) {
+        if (request == null) {
+            throw badRequest("Combat stats are required");
+        }
+        Character character = findManageableCharacter(characterId, username);
+        try {
+            character.getSheet().updateCombatStats(
+                    request.hpMax(), request.hpCurrent(), request.hpTemp(), request.armorClass(), request.speedFt());
+        } catch (IllegalArgumentException ex) {
+            throw badRequest(ex.getMessage());
+        }
+        return CharacterSheetResponse.from(character);
+    }
+
+    @Transactional
+    public CharacterSheetResponse changeHitPoints(UUID characterId, HitPointChangeRequest request, String username) {
+        if (request == null || request.type() == null) {
+            throw badRequest("Hit point change type is required");
+        }
+        Character character = findManageableCharacter(characterId, username);
+        try {
+            switch (request.type()) {
+                case DAMAGE -> character.getSheet().applyDamage(request.amount());
+                case HEALING -> character.getSheet().heal(request.amount());
+                case TEMPORARY -> character.getSheet().grantTemporaryHp(request.amount());
+            }
+        } catch (IllegalArgumentException | IllegalStateException ex) {
             throw badRequest(ex.getMessage());
         }
         return CharacterSheetResponse.from(character);

@@ -5,5 +5,11 @@ public enum Time {
     OneMinute,
     BonusAction,
     Reaction,
-    Ritual
+    Ritual,
+    // Tempos de conjuracao que aparecem nas magias do 5etools (adicionados na importacao)
+    TenMinutes,
+    OneHour,
+    EightHours,
+    TwelveHours,
+    TwentyFourHours
 }

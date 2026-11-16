@@ -10,4 +10,6 @@ import java.util.UUID;
 @Repository
 public interface MembershipRepository extends JpaRepository<Membership, UUID> {
     Optional<Membership> findByCampaignIdAndUserId(UUID campaignId, UUID userId);
+
+    java.util.List<Membership> findByCampaignId(UUID campaignId);
 }

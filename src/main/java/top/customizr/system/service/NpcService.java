@@ -26,14 +26,17 @@ public class NpcService {
     private final InventoryRepository inventoryRepository;
     private final MembershipRepository membershipRepository;
     private final UserRepository userRepository;
+    private final top.customizr.system.repository.MonsterRepository monsterRepository;
 
     public NpcService(
             NpcRepository npcRepository,
             CampaignRepository campaignRepository,
             InventoryRepository inventoryRepository,
             MembershipRepository membershipRepository,
-            UserRepository userRepository
+            UserRepository userRepository,
+            top.customizr.system.repository.MonsterRepository monsterRepository
     ) {
+        this.monsterRepository = monsterRepository;
         this.npcRepository = npcRepository;
         this.campaignRepository = campaignRepository;
         this.inventoryRepository = inventoryRepository;
@@ -94,6 +97,16 @@ public class NpcService {
             throw badRequest(ex.getMessage());
         }
         return NpcResponse.from(npcRepository.save(npc), true);
+    }
+
+    /** Liga (ou desliga, com null) a ficha de monstro que o NPC usa. So o mestre. */
+    @Transactional
+    public NpcResponse useStatBlock(UUID npcId, UUID monsterId, String username) {
+        NPC npc = findNpc(npcId);
+        requireCampaignMaster(npc.getCampaign(), username);
+        npc.useStatBlock(monsterId == null ? null : monsterRepository.findById(monsterId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Monster not found")));
+        return NpcResponse.from(npc, true);
     }
 
     @Transactional

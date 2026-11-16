@@ -24,17 +24,38 @@ public class InventoryService {
     private final ItemRepository itemRepository;
     private final NpcRepository npcRepository;
     private final InventoryAccessService inventoryAccessService;
+    private final top.customizr.system.repository.CharacterRepository characterRepository;
 
     public InventoryService(
             InventoryRepository inventoryRepository,
             ItemRepository itemRepository,
             NpcRepository npcRepository,
-            InventoryAccessService inventoryAccessService
+            InventoryAccessService inventoryAccessService,
+            top.customizr.system.repository.CharacterRepository characterRepository
     ) {
         this.inventoryRepository = inventoryRepository;
         this.itemRepository = itemRepository;
         this.npcRepository = npcRepository;
         this.inventoryAccessService = inventoryAccessService;
+        this.characterRepository = characterRepository;
+    }
+
+    /**
+     * Personagem que o usuario logado usa pra mexer no inventario: tem que ser dele
+     * (ou o mestre da campanha agindo por ele).
+     */
+    @Transactional
+    public Character actorFor(UUID characterId, String username) {
+        if (characterId == null) {
+            throw badRequest("Actor character ID is required");
+        }
+        Character actor = characterRepository.findById(characterId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Character not found"));
+        if (!actor.getOwner().getName().equals(username)
+                && !actor.getCampaign().getMaster().getName().equals(username)) {
+            throw new org.springframework.security.access.AccessDeniedException("This character is not yours");
+        }
+        return actor;
     }
 
     @Transactional

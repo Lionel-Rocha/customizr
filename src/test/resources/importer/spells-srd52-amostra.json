@@ -1,0 +1,404 @@
+{
+ "spell": [
+  {
+   "name": "Fireball",
+   "source": "XPHB",
+   "page": 274,
+   "srd52": true,
+   "basicRules2024": true,
+   "referenceSources": [
+    "DrDe-SD",
+    "FFotR",
+    "HotB",
+    "UtHftLH"
+   ],
+   "level": 3,
+   "school": "V",
+   "time": [
+    {
+     "number": 1,
+     "unit": "action"
+    }
+   ],
+   "range": {
+    "type": "point",
+    "distance": {
+     "type": "feet",
+     "amount": 150
+    }
+   },
+   "components": {
+    "v": true,
+    "s": true,
+    "m": "a ball of bat guano and sulfur"
+   },
+   "duration": [
+    {
+     "type": "instant"
+    }
+   ],
+   "entries": [
+    "A bright streak flashes from you to a point you choose within range and then blossoms with a low roar into a fiery explosion. Each creature in a 20-foot-radius {@variantrule Sphere [Area of Effect]|XPHB|Sphere} centered on that point makes a Dexterity saving throw, taking {@damage 8d6} Fire damage on a failed save or half as much damage on a successful one.",
+    "Flammable objects in the area that aren't being worn or carried start {@hazard burning|XPHB}."
+   ],
+   "entriesHigherLevel": [
+    {
+     "type": "entries",
+     "name": "Using a Higher-Level Spell Slot",
+     "entries": [
+      "The damage increases by {@scaledamage 8d6|3-9|1d6} for each spell slot level above 3."
+     ]
+    }
+   ],
+   "damageInflict": [
+    "fire"
+   ],
+   "savingThrow": [
+    "dexterity"
+   ],
+   "miscTags": [
+    "BO",
+    "OBJ"
+   ],
+   "areaTags": [
+    "S"
+   ],
+   "hasFluffImages": true
+  },
+  {
+   "name": "Alarm",
+   "source": "XPHB",
+   "page": 239,
+   "srd52": true,
+   "basicRules2024": true,
+   "referenceSources": [
+    "DrDe-BD"
+   ],
+   "level": 1,
+   "school": "A",
+   "time": [
+    {
+     "number": 1,
+     "unit": "minute"
+    }
+   ],
+   "range": {
+    "type": "point",
+    "distance": {
+     "type": "feet",
+     "amount": 30
+    }
+   },
+   "components": {
+    "v": true,
+    "s": true,
+    "m": "a bell and silver wire"
+   },
+   "duration": [
+    {
+     "type": "timed",
+     "duration": {
+      "type": "hour",
+      "amount": 8
+     }
+    }
+   ],
+   "meta": {
+    "ritual": true
+   },
+   "entries": [
+    "You set an alarm against intrusion. Choose a door, a window, or an area within range that is no larger than a 20-foot {@variantrule Cube [Area of Effect]|XPHB|Cube}. Until the spell ends, an alarm alerts you whenever a creature touches or enters the warded area. When you cast the spell, you can designate creatures that won't set off the alarm. You also choose whether the alarm is audible or mental:",
+    {
+     "type": "list",
+     "style": "list-hang-notitle",
+     "items": [
+      {
+       "type": "item",
+       "name": "Audible Alarm",
+       "entries": [
+        "The alarm produces the sound of a handbell for 10 seconds within 60 feet of the warded area."
+       ]
+      },
+      {
+       "type": "item",
+       "name": "Mental Alarm",
+       "entries": [
+        "You are alerted by a mental ping if you are within 1 mile of the warded area. This ping awakens you if you're asleep."
+       ]
+      }
+     ]
+    }
+   ],
+   "areaTags": [
+    "C"
+   ]
+  },
+  {
+   "name": "Burning Hands",
+   "source": "XPHB",
+   "page": 248,
+   "srd52": true,
+   "basicRules2024": true,
+   "referenceSources": [
+    "UtHftLH"
+   ],
+   "level": 1,
+   "school": "V",
+   "time": [
+    {
+     "number": 1,
+     "unit": "action"
+    }
+   ],
+   "range": {
+    "type": "cone",
+    "distance": {
+     "type": "feet",
+     "amount": 15
+    }
+   },
+   "components": {
+    "v": true,
+    "s": true
+   },
+   "duration": [
+    {
+     "type": "instant"
+    }
+   ],
+   "entries": [
+    "A thin sheet of flames shoots forth from you. Each creature in a 15-foot {@variantrule Cone [Area of Effect]|XPHB|Cone} makes a Dexterity saving throw, taking {@damage 3d6} Fire damage on a failed save or half as much damage on a successful one.",
+    "Flammable objects in the {@variantrule Cone [Area of Effect]|XPHB|Cone} that aren't being worn or carried start {@hazard burning|XPHB}."
+   ],
+   "entriesHigherLevel": [
+    {
+     "type": "entries",
+     "name": "Using a Higher-Level Spell Slot",
+     "entries": [
+      "The damage increases by {@scaledamage 3d6|1-9|1d6} for each spell slot level above 1."
+     ]
+    }
+   ],
+   "damageInflict": [
+    "fire"
+   ],
+   "savingThrow": [
+    "dexterity"
+   ],
+   "miscTags": [
+    "BO",
+    "OBJ"
+   ],
+   "areaTags": [
+    "N"
+   ]
+  },
+  {
+   "name": "Arcane Lock",
+   "source": "XPHB",
+   "page": 242,
+   "srd52": true,
+   "basicRules2024": true,
+   "referenceSources": [
+    "DrDe-TDoN"
+   ],
+   "level": 2,
+   "school": "A",
+   "time": [
+    {
+     "number": 1,
+     "unit": "action"
+    }
+   ],
+   "range": {
+    "type": "point",
+    "distance": {
+     "type": "touch"
+    }
+   },
+   "components": {
+    "v": true,
+    "s": true,
+    "m": {
+     "text": "gold dust worth 25+ GP, which the spell consumes",
+     "cost": 2500,
+     "consume": true
+    }
+   },
+   "duration": [
+    {
+     "type": "permanent",
+     "ends": [
+      "dispel"
+     ]
+    }
+   ],
+   "entries": [
+    "You touch a closed door, window, gate, container, or hatch and magically lock it for the duration. This lock can't be unlocked by any nonmagical means. You and any creatures you designate when you cast the spell can open and close the object despite the lock. You can also set a password that, when spoken within 5 feet of the object, unlocks it for 1 minute."
+   ],
+   "miscTags": [
+    "OBJ"
+   ]
+  },
+  {
+   "name": "Counterspell",
+   "source": "XPHB",
+   "page": 258,
+   "srd52": true,
+   "basicRules2024": true,
+   "referenceSources": [
+    "DrDe-TDoN",
+    "UtHftLH"
+   ],
+   "level": 3,
+   "school": "A",
+   "time": [
+    {
+     "number": 1,
+     "unit": "reaction",
+     "condition": "which you take when you see a creature within 60 feet of yourself casting a spell with Verbal, Somatic, or Material components"
+    }
+   ],
+   "range": {
+    "type": "point",
+    "distance": {
+     "type": "feet",
+     "amount": 60
+    }
+   },
+   "components": {
+    "s": true
+   },
+   "duration": [
+    {
+     "type": "instant"
+    }
+   ],
+   "entries": [
+    "You attempt to interrupt a creature in the process of casting a spell. The creature makes a Constitution saving throw. On a failed save, the spell dissipates with no effect, and the action, {@variantrule Bonus Action|XPHB}, or {@variantrule Reaction|XPHB} used to cast it is wasted. If that spell was cast with a spell slot, the slot isn't expended."
+   ],
+   "savingThrow": [
+    "constitution"
+   ],
+   "miscTags": [
+    "SGT"
+   ]
+  },
+  {
+   "name": "Clairvoyance",
+   "source": "XPHB",
+   "page": 250,
+   "srd52": true,
+   "basicRules2024": true,
+   "referenceSources": [
+    "DrDe-TFV"
+   ],
+   "level": 3,
+   "school": "D",
+   "time": [
+    {
+     "number": 10,
+     "unit": "minute"
+    }
+   ],
+   "range": {
+    "type": "point",
+    "distance": {
+     "type": "miles",
+     "amount": 1
+    }
+   },
+   "components": {
+    "v": true,
+    "s": true,
+    "m": {
+     "text": "a focus worth 100+ GP, either a jeweled horn for hearing or a glass eye for seeing",
+     "cost": 10000
+    }
+   },
+   "duration": [
+    {
+     "type": "timed",
+     "duration": {
+      "type": "minute",
+      "amount": 10
+     },
+     "concentration": true
+    }
+   ],
+   "entries": [
+    "You create an {@condition Invisible|XPHB} sensor within range in a location familiar to you (a place you have visited or seen before) or in an obvious location that is unfamiliar to you (such as behind a door, around a corner, or in a grove of trees). The intangible, invulnerable sensor remains in place for the duration.",
+    "When you cast the spell, choose seeing or hearing. You can use the chosen sense through the sensor as if you were in its space. As a {@variantrule Bonus Action|XPHB}, you can switch between seeing and hearing.",
+    "A creature that sees the sensor (such as a creature benefiting from {@spell See Invisibility|XPHB} or {@sense Truesight|XPHB}) sees a luminous orb about the size of your fist."
+   ],
+   "miscTags": [
+    "UA",
+    "UBA"
+   ]
+  },
+  {
+   "name": "Acid Splash",
+   "source": "XPHB",
+   "page": 239,
+   "srd52": true,
+   "basicRules2024": true,
+   "level": 0,
+   "school": "V",
+   "time": [
+    {
+     "number": 1,
+     "unit": "action"
+    }
+   ],
+   "range": {
+    "type": "point",
+    "distance": {
+     "type": "feet",
+     "amount": 60
+    }
+   },
+   "components": {
+    "v": true,
+    "s": true
+   },
+   "duration": [
+    {
+     "type": "instant"
+    }
+   ],
+   "entries": [
+    "You create an acidic bubble at a point within range, where it explodes in a 5-foot-radius {@variantrule Sphere [Area of Effect]|XPHB|Sphere}. Each creature in that {@variantrule Sphere [Area of Effect]|XPHB|Sphere} must succeed on a Dexterity saving throw or take {@damage 1d6} Acid damage."
+   ],
+   "entriesHigherLevel": [
+    {
+     "type": "entries",
+     "name": "Cantrip Upgrade",
+     "entries": [
+      "The damage increases by {@damage 1d6} when you reach levels 5 ({@damage 2d6}), 11 ({@damage 3d6}), and 17 ({@damage 4d6})."
+     ]
+    }
+   ],
+   "scalingLevelDice": {
+    "label": "Acid damage",
+    "scaling": {
+     "1": "1d6",
+     "5": "2d6",
+     "11": "3d6",
+     "17": "4d6"
+    }
+   },
+   "damageInflict": [
+    "acid"
+   ],
+   "savingThrow": [
+    "dexterity"
+   ],
+   "miscTags": [
+    "SCL"
+   ],
+   "areaTags": [
+    "MT"
+   ]
+  }
+ ]
+}

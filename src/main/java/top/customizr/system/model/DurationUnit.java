@@ -7,5 +7,7 @@ public enum DurationUnit {
     CONCENTRATION,
     HOUR,
     DAY,
-    UNTIL_DISPELLED
+    UNTIL_DISPELLED,
+    /** "Especial" no livro (a duracao depende do texto da magia). */
+    SPECIAL
 }

@@ -18,7 +18,8 @@ public record CharacterSheetResponse(
         UUID ownerId,
         List<CharacterClassInfo> classes,
         AttributesResponse attributes,
-        PartyInfo party
+        PartyInfo party,
+        CombatInfo combat
 ) {
     public static CharacterSheetResponse from(Character character) {
         return new CharacterSheetResponse(
@@ -31,8 +32,38 @@ public record CharacterSheetResponse(
                 character.getSheet().getAttributes() == null
                         ? null
                         : AttributesResponse.from(character.getSheet().getAttributes()),
-                character.getParty() == null ? null : PartyInfo.from(character.getParty())
+                character.getParty() == null ? null : PartyInfo.from(character.getParty()),
+                CombatInfo.from(character.getSheet())
         );
+    }
+
+    /** PV, CA e o que sai das regras (nivel, proficiencia, iniciativa, percepcao passiva, PV sugerido). */
+    public record CombatInfo(
+            Integer hpMax,
+            Integer hpCurrent,
+            Integer hpTemp,
+            Integer armorClass,
+            Integer speedFt,
+            int totalLevel,
+            int proficiencyBonus,
+            int initiative,
+            int passivePerception,
+            Integer suggestedHpMax
+    ) {
+        private static CombatInfo from(top.customizr.system.model.Sheet sheet) {
+            return new CombatInfo(
+                    sheet.getHpMax(),
+                    sheet.getHpCurrent(),
+                    sheet.getHpTemp(),
+                    sheet.getArmorClass(),
+                    sheet.getSpeedFt(),
+                    sheet.getTotalLevel(),
+                    sheet.getProficiencyBonus(),
+                    sheet.getInitiative(),
+                    sheet.getPassivePerception(),
+                    sheet.getSuggestedHpMax()
+            );
+        }
     }
 
     public record CharacterClassInfo(

@@ -39,45 +39,45 @@ A ordem prioriza uma primeira versão jogável e segura; depois, os recursos ava
 
 ## P0 — Completar e estabilizar o núcleo
 
-1. [ ] Expor as funcionalidades que já têm serviço/modelo, mas ainda não têm API completa.
+1. [x] Expor as funcionalidades que já têm serviço/modelo, mas ainda não têm API completa.
    - [x] Implementar `ItemController` para criar, consultar, pesquisar, atualizar e excluir itens.
-   - [ ] Criar endpoints para inventários de personagens, parties e NPCs: consultar, adicionar/remover itens e atualizar dinheiro.
-   - [ ] Criar endpoints para NPCs: listar por campanha, consultar, atualizar e excluir.
+   - [x] Criar endpoints para inventários de personagens, parties e NPCs: consultar, adicionar/remover itens e atualizar dinheiro.
+   - [x] Criar endpoints para NPCs: listar por campanha, consultar, atualizar e excluir.
 2. [ ] Completar a experiência de party.
-   - [ ] Consultar party e seus membros; respeitar `maxSize` e as regras de campanha.
-   - [ ] Consultar e usar o inventário compartilhado da party pela API e pela interface.
+   - [x] Consultar party e seus membros; respeitar `maxSize` e as regras de campanha.
+   - [ ] Consultar e usar o inventário compartilhado da party pela API e pela interface. *(API pronta em `/inventory`; falta a interface.)*
 3. [ ] Fechar regras de acesso e testes dos fluxos principais.
    - [ ] Garantir que apenas membros da campanha acessem seus dados e que ações de mestre sejam exclusivas do mestre.
    - [ ] Cobrir com testes os fluxos de campanha, convite, personagem, party, inventário e importação, incluindo erros e permissões.
    - [ ] Padronizar respostas de erro e validação dos endpoints.
 4. [ ] Completar e corrigir a ficha do personagem.
-   - [ ] Corrigir e testar o mapeamento de Sabedoria e Inteligência ao atualizar atributos.
-   - [ ] Adicionar pontos de vida, classe de armadura e demais valores derivados necessários à ficha.
-   - [ ] Adicionar imagem de perfil para personagem e NPC, com armazenamento de imagens em vez de depender apenas de URLs externas.
+   - [x] Corrigir e testar o mapeamento de Sabedoria e Inteligência ao atualizar atributos.
+   - [x] Adicionar pontos de vida, classe de armadura e demais valores derivados necessários à ficha.
+   - [ ] Adicionar imagem de perfil para personagem e NPC, com armazenamento de imagens em vez de depender apenas de URLs externas. *(Armazenamento pronto em `/image`; o NPC já aceita a URL em `photoUrl`; falta o campo de retrato no personagem.)*
 
 ## P1 — Tornar personagens e conteúdo jogáveis
 
 5. [ ] Importar conteúdo de jogo por JSON.
    - [ ] Importar itens, validando campos e fonte, e retornar um relatório de itens importados, ignorados e inválidos.
    - [ ] Permitir importar e atualizar conteúdo sem criar duplicatas.
-   - [ ] Expandir a importação para espécies, antecedentes, magias, talentos e monstros.
+   - [x] Expandir a importação para espécies, antecedentes, magias, talentos e monstros.
 6. [ ] Completar a criação e progressão de personagens.
    - [ ] Implementar espécies e antecedentes, incluindo características e aumentos de atributos.
    - [ ] Implementar progressão de nível, pontos de vida e benefícios recebidos por nível.
    - [ ] Implementar magias: catálogo, listas por classe, espaços, conhecidas/preparadas e seleção na ficha.
    - [ ] Implementar talentos e seus pré-requisitos de atributos, nível, espécie, talento e característica.
 7. [ ] Completar NPCs e monstros.
-   - [ ] Criar fichas de NPC e monstro, com estatísticas, características, imagem e inventário opcional.
-   - [ ] Controlar quais informações do NPC ficam visíveis para jogadores e quais são exclusivas do mestre.
+   - [x] Criar fichas de NPC e monstro, com estatísticas, características, imagem e inventário opcional.
+   - [x] Controlar quais informações do NPC ficam visíveis para jogadores e quais são exclusivas do mestre.
 
 ## P2 — Ferramentas de criação de mundo
 
-8. [ ] Implementar a hierarquia de mundo: mundo, país, cidade e pontos de interesse, com operações de criação, consulta, atualização e exclusão.
-   - [ ] Adicionar mapas, coordenadas e pins para países, cidades e pontos de interesse.
+8. [x] Implementar a hierarquia de mundo: mundo, país, cidade e pontos de interesse, com operações de criação, consulta, atualização e exclusão.
+   - [x] Adicionar mapas, coordenadas e pins para países, cidades e pontos de interesse.
    - [ ] Implementar conexões entre cidades com distâncias, meios de transporte, duração e custo.
-9. [ ] Implementar a enciclopédia da campanha.
-   - [ ] Criar, editar, consultar, pesquisar e ocultar/mostrar entradas.
-   - [ ] Vincular entradas a NPCs, cidades, países e pontos de interesse.
+9. [x] Implementar a enciclopédia da campanha.
+   - [x] Criar, editar, consultar, pesquisar e ocultar/mostrar entradas.
+   - [x] Vincular entradas a NPCs, cidades, países e pontos de interesse.
 10. [ ] Implementar lojas e economia.
     - [ ] Criar lojas com estoque e permitir compra e venda de itens.
     - [ ] Criar encomendas de itens, estados do pedido e módulo de entrega.
@@ -88,7 +88,7 @@ A ordem prioriza uma primeira versão jogável e segura; depois, os recursos ava
 
 ## P3 — Recursos adicionais e acabamento
 
-12. [ ] Implementar chat por campanha, com histórico e acesso restrito aos participantes.
+12. [x] Implementar chat por campanha, com histórico e acesso restrito aos participantes.
 13. [ ] Completar a interface web para campanhas, personagens, parties, inventários, mapas, enciclopédia e lojas.
     - [ ] Tornar a interface responsiva e acessível.
     - [ ] Adicionar buscas, filtros e paginação onde houver listas grandes.
@@ -149,6 +149,50 @@ Abaixo estão todos os endpoints atualmente expostos pelo backend da aplicação
 | `POST` | `/source/create` | Cria uma fonte de conteúdo. |
 | `GET` | `/source/{code}` | Consulta uma fonte pelo código. |
 | `GET` | `/source/all` | Lista todas as fontes disponíveis. |
+| `PUT` | `/character/{id}/combat` | Define PV máximo/atual/temporário, CA e deslocamento (campos nulos ficam como estão). |
+| `POST` | `/character/{id}/hp` | Dano (gasta o PV temporário primeiro), cura (até o máximo) ou PV temporário. |
+| `POST` | `/character/import` | Importa personagem (multipart `file` + `campaignId`): Foundry VTT dnd5e, D&D Beyond JSON ou PDF preenchível. |
+| `GET` | `/party/{partyId}` | Consulta a party e os membros (membros da campanha). |
+| `GET` | `/party/campaign/{campaignId}` | Lista as parties da campanha. |
+| `PATCH` | `/party/{partyId}/max-size` | Muda o limite de membros (`{"maxSize": 5}`; null = sem limite). |
+| `GET` | `/inventory/character/{characterId}` | Inventários do personagem e da party dele. |
+| `GET` | `/inventory/npc/{npcId}?actorCharacterId=` | Inventário do NPC. |
+| `GET` | `/inventory/{inventoryId}?actorCharacterId=` | Consulta um inventário. |
+| `POST` | `/inventory/{inventoryId}/items` | Adiciona item (`actorCharacterId`, `itemId`, `quantity`). |
+| `DELETE` | `/inventory/{inventoryId}/items/{itemId}?actorCharacterId=&quantity=` | Remove item. |
+| `PATCH` | `/inventory/{inventoryId}/money` | Soma ou tira dinheiro, em po (`actorCharacterId`, `amount`). |
+| `POST` | `/npc/campaign/{campaignId}` | Cria NPC (mestre). |
+| `GET` | `/npc/campaign/{campaignId}` | Lista NPCs (jogadores não recebem `masterInformation`). |
+| `GET` / `PUT` / `DELETE` | `/npc/{id}` | Consulta, atualiza ou exclui um NPC. |
+| `POST` | `/dice/roll` | Rola uma expressão (`2d6+3`, `4d6kh3`, `2d20kl1`) sem registrar no chat. |
+| `POST` | `/chat/campaign/{campaignId}` | Envia mensagem: texto com `[[1d20+5]]`, `/r 1d20+5 Ataque`, `/me ação`, `/w Nome segredo`. |
+| `GET` | `/chat/campaign/{campaignId}?before=&limit=` | Histórico do chat (sussurros só para autor, destinatário e mestre). |
+| `POST` | `/world/campaign/{campaignId}` | Cria um mundo (mestre). |
+| `GET` | `/world/campaign/{campaignId}` | Lista os mundos com países, cidades e pontos. |
+| `POST` | `/world/campaign/{campaignId}/import/azgaar` | Cria mundo, países, cidades e entradas da enciclopédia a partir do JSON "Full" do Azgaar. |
+| `GET` / `PUT` / `DELETE` | `/world/{worldId}` | Consulta, atualiza ou exclui um mundo. |
+| `POST` | `/world/{worldId}/countries` | Adiciona país. |
+| `GET` / `PUT` / `DELETE` | `/world/countries/{countryId}` | País. |
+| `POST` | `/world/countries/{countryId}/cities` | Adiciona cidade. |
+| `GET` / `PUT` / `DELETE` | `/world/cities/{cityId}` | Cidade (com `generatorUrl` para o gerador de cidades do Watabou). |
+| `POST` | `/world/cities/{cityId}/points` | Adiciona ponto de interesse (SHOP, INN, BASTION, TOURISTIC, OTHER). |
+| `PUT` / `DELETE` | `/world/points/{pointId}` | Ponto de interesse. |
+| `POST` | `/encyclopedia/campaign/{campaignId}` | Cria entrada (mestre); pode referenciar NPC, país, cidade ou ponto. |
+| `GET` | `/encyclopedia/campaign/{campaignId}?q=` | Lista e pesquisa entradas (jogadores só veem as visíveis). |
+| `GET` / `PUT` / `DELETE` | `/encyclopedia/{entryId}` | Entrada. |
+| `PATCH` | `/encyclopedia/{entryId}/visibility` | Mostra ou esconde dos jogadores (`{"visible": true}`). |
+| `POST` | `/image` | Envia imagem (multipart `file` + `campaignId`; PNG, JPEG, WebP ou GIF, até 8 MB). |
+| `GET` | `/image/{id}` | Baixa a imagem (membros da campanha). |
+| `POST` | `/content/species/import` | Importa espécies do 5etools (`{"race": [...]}`). |
+| `POST` | `/content/backgrounds/import` | Importa antecedentes do 5etools (`{"background": [...]}`). |
+| `POST` | `/content/feats/import` | Importa talentos do 5etools (`{"feat": [...]}`). |
+| `GET` | `/content/species`, `/content/backgrounds`, `/content/feats` | Lista (ou pesquisa com `?name=`). |
+| `POST` | `/spell/import` | Importa magias do 5etools (`{"spell": [...]}`); cria ou atualiza por nome + fonte. |
+| `POST` | `/spell/class-lists/import` | Liga magias às classes já importadas (arquivo `gendata-spell-source-lookup.json` do 5etools). |
+| `POST` | `/monster/import` | Importa monstros do bestiário do 5etools (`{"monster": [...]}`). |
+| `GET` | `/monster?name=&minCr=&maxCr=` | Lista monstros (filtro por nome e faixa de ND; 1/4 = 0.25). |
+| `GET` | `/monster/{id}` | Ficha completa do monstro (texto já legível). |
+| `PUT` | `/npc/{id}/stat-block` | Faz o NPC usar uma ficha de monstro (`{"monsterId": "..."}`; null desliga). |
 
 ## Atualização de itens por dump JSON
 
@@ -200,6 +244,43 @@ Os espaços são calculados, não armazenados: `Sheet.getSpellSlots()` usa `Spel
 ```
 
 `SpellController` expõe o CRUD do catálogo por `/spell`: criação e atualização recebem `name`, `sourceId`, `spellSchool`, `level`, `castingTime`, `rangeFt`, `components`, `duration` e `description` em JSON. A pesquisa recebe `name` como parâmetro. O serviço valida a fonte e a unicidade de nome por fonte; a exclusão retorna conflito se a magia estiver permitida por uma classe ou preparada em uma ficha.
+
+# Mesclagem com a mesa (antigo Embertale)
+
+A parte da mesa de jogo, desenvolvida à parte em JavaFX, foi trazida para cá no padrão deste projeto: entidades JPA em `model/`, serviços com checagem de mestre/membro, DTOs `record` e testes com H2. O que entrou:
+
+* **Ficha:** a troca de INT/SAB ao salvar atributos foi corrigida (o construtor de `Attributes` recebia SAB antes de INT). Agora a ficha tem PV (máximo, atual, temporário), CA e deslocamento, além de valores derivados (nível total, proficiência, iniciativa, percepção passiva e PV sugerido pelas classes). Dano e cura seguem as regras de 5e.
+* **Importação de personagem:** aceita o ator do Foundry VTT (dnd5e), JSON do D&D Beyond e PDF preenchível (ficha oficial e "Exportar para PDF" do D&D Beyond). Quando o arquivo não traz PV e CA, eles são calculados como o Foundry faz. As classes são ligadas pelo nome às já importadas.
+* **Dados e chat:** `DiceRoller` (`NdX`, `kh`/`kl`, críticos, `doubleDice`) e chat por campanha com rolagens no meio do texto feitas pelo servidor (não dá para forjar), `/r`, `/me` e sussurros.
+* **Mundo:** mundo, país, cidade e ponto de interesse, como no diagrama, com coordenadas relativas (0 a 1) ao mapa. Inclui importação do Azgaar's Fantasy Map Generator e link para o gerador de cidades do Watabou.
+* **Enciclopédia:** entradas com visibilidade e referência a NPC, país, cidade ou ponto.
+* **Imagens:** guardadas no banco (`bytea`) sem duplicar, com o tipo conferido pelo conteúdo do arquivo.
+* **Conteúdo 5etools:** espécies, antecedentes, talentos, magias e monstros, com o texto já legível (inclusive as marcações de 2024, como `{@actSave con}`, que vira "Constitution Saving Throw:"). Conferido com os arquivos completos: 391 magias do PHB 2024 e 503 monstros do MM 2024, nenhum ignorado.
+* **Magias:** a importação usa o `Spell` dela. O que não cabe nos campos vai no começo da descrição: alcance que não é em pés, área, componente material, ritual, gatilho de reação. Para isso foram acrescentados valores aos enums (nenhum removido): `Time` ganhou `TenMinutes`, `OneHour`, `EightHours`, `TwelveHours` e `TwentyFourHours`; `DurationUnit` ganhou `SPECIAL`. `UNTIL_DISPELLED` e `SPECIAL` passaram a usar quantidade 0, como a instantânea.
+* **Monstros:** catálogo `Monster` (ficha completa, XP e proficiência pelo ND). O NPC pode usar uma ficha de monstro (`statBlock`).
+* **`MasterGuard`:** as regras de acesso do diagrama, usadas pelos serviços novos.
+* **Party e inventário:** `maxSize` na party e controladores de inventário e NPC (os serviços já existiam).
+
+Ficaram de fora por não se encaixarem numa API REST sem uma interface de jogo:
+
+* mapa tático com tokens, neblina e paredes/visão;
+* a "ponte" para jogar sem abrir porta;
+* sons;
+* fichas de Tormenta20 e Ordem Paranormal (este projeto é de D&D 5e).
+
+Isso continua no programa da mesa e pode virar WebSocket mais tarde.
+
+**Observações sobre o código que já existia (não alterado):**
+
+* **Campanhas sem proteção (item 3 do roadmap), deixado para a autora do projeto decidir como fazer.** Estas rotas não conferem quem está pedindo; basta estar logado e saber o ID ou o código da campanha:
+  * `DELETE /campaign/{id}` (`CampaignService.deleteCampaign`): qualquer usuário apaga qualquer campanha, com personagens, chat, mundo e enciclopédia junto (cascata).
+  * `PATCH /campaign/update/{id}` (`updateCampaign`) e `POST /campaign/addSource` (`addSource`): qualquer usuário edita ou liga fontes na campanha dos outros.
+  * `GET /campaign/{code}` (`readCampaign`): qualquer usuário vê uma campanha que não é dele.
+  * `GET /character/{campaignId}/characters` (`listCampaignCharacters`): qualquer usuário lista os personagens de uma campanha da qual não participa.
+
+  Sugestão: receber o usuário logado (`@AuthenticationPrincipal UserDetails`) nessas rotas e usar o `MasterGuard` (`service/MasterGuard.java`), que já faz isso nas partes novas. Apagar, editar e adicionar fonte ficariam com `requireMaster(username, campaign)`; ver a campanha e listar personagens ficariam com `requireMember(username, campaign)`. Quem não puder recebe 403. Vale um teste com um usuário de fora sendo bloqueado e o mestre não.
+* `application.properties` expõe `management.endpoints.web.exposure.include=env`. Se o Actuator for adicionado um dia, isso mostra `JWT_SECRET` e a senha do banco.
+* Os testes `ItemImportTests`, `CharacterServiceTests`, `CharacterSheetServiceTests` e `SpellcastingModelTests` não compilavam ou falhavam e foram ajustados: o `data.sql` agora cria a "Campanha de O Escriba" que o teste esperava.
 
 # Diagrama de classes
 

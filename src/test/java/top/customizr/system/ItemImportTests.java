@@ -34,6 +34,7 @@ class ItemImportTests {
     private ObjectMapper objectMapper;
 
     @Test
+    @org.springframework.transaction.annotation.Transactional // getSource() e LAZY
     void importsOnlyEnabledSourcesAndPersistsSanitizedFields() throws Exception {
         String itemName = "Dump Import Test Tool";
         String payload = """
@@ -98,6 +99,6 @@ class ItemImportTests {
         assertEquals(ItemType.MAGICAL, updatedItem.getType());
         assertEquals(Rarity.RARE, updatedItem.getRarity());
         assertEquals("keep-me", updatedItem.getReferenceLink());
-        assertEquals(BigDecimal.TEN, updatedItem.getPriceGp());
+        assertEquals(0, BigDecimal.TEN.compareTo(updatedItem.getPriceGp()), "preço 10 (escala do banco pode ser 10.00)");
     }
 }

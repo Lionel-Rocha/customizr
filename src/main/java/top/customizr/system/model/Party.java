@@ -31,6 +31,10 @@ public class Party {
     @OneToMany(mappedBy = "party")
     private List<Character> members = new ArrayList<>();
 
+    /** Limite de membros (null = sem limite). */
+    @Column(name = "max_size")
+    private Integer maxSize;
+
     protected Party() {}
 
     public Party(String name, Campaign campaign) {
@@ -50,9 +54,22 @@ public class Party {
             throw new IllegalStateException("Character already belongs to another party");
         }
         if (!members.contains(character)) {
+            if (maxSize != null && members.size() >= maxSize) {
+                throw new IllegalStateException("Party is full (max " + maxSize + " characters)");
+            }
             members.add(character);
             character.setParty(this);
         }
+    }
+
+    public void changeMaxSize(Integer maxSize) {
+        if (maxSize != null && maxSize < 1) {
+            throw new IllegalArgumentException("Party max size must be at least 1");
+        }
+        if (maxSize != null && members.size() > maxSize) {
+            throw new IllegalStateException("Party already has more than " + maxSize + " characters");
+        }
+        this.maxSize = maxSize;
     }
 
     public void removeMember(Character character) {

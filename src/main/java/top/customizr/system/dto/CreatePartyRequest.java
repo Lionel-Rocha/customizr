@@ -1,3 +1,8 @@
 package top.customizr.system.dto;
 
-public record CreatePartyRequest(String name) {}
+/** maxSize null = sem limite. */
+public record CreatePartyRequest(String name, Integer maxSize) {
+    public CreatePartyRequest(String name) {
+        this(name, null);
+    }
+}

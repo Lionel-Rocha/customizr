@@ -65,10 +65,10 @@ class CharacterSheetServiceTests {
         username = "master-" + UUID.randomUUID();
         User master = userRepository.save(new User(username, "password"));
         campaign = campaignRepository.save(new Campaign("Campaign", master));
-        character = characterService.create(
+        character = CharacterResponse.from(characterService.create(
                 new CreateCharacterRequest(campaign.getId(), "Aria"),
                 username
-        );
+        ));
     }
 
     @Test

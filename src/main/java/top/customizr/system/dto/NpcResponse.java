@@ -10,7 +10,9 @@ public record NpcResponse(
         String personality,
         String masterInformation,
         String photoUrl,
-        UUID campaignId
+        UUID campaignId,
+        UUID statBlockId,
+        String statBlockName
 ) {
     public static NpcResponse from(NPC npc, boolean includeMasterInformation) {
         return new NpcResponse(
@@ -19,7 +21,9 @@ public record NpcResponse(
                 npc.getPersonality(),
                 includeMasterInformation ? npc.getMasterInformation() : null,
                 npc.getPhotoUrl(),
-                npc.getCampaign().getId()
+                npc.getCampaign().getId(),
+                npc.getStatBlock() == null ? null : npc.getStatBlock().getId(),
+                npc.getStatBlock() == null ? null : npc.getStatBlock().getName()
         );
     }
 }

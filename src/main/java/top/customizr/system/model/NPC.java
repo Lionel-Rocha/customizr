@@ -16,7 +16,7 @@ import java.util.UUID;
 @Table(name = "npcs")
 @Getter
 @EqualsAndHashCode(of = "id")
-public class NPC {
+public class NPC implements EncyclopediaReferenceable {
 
     @Id
     private UUID id;
@@ -37,7 +37,16 @@ public class NPC {
     @JoinColumn(name = "campaign_id", nullable = false)
     private Campaign campaign;
 
+    /** Ficha de monstro usada por este NPC (opcional), ex.: o "Bandit Captain" do bestiario. */
+    @ManyToOne
+    @JoinColumn(name = "stat_block_id")
+    private Monster statBlock;
+
     protected NPC() {}
+
+    public void useStatBlock(Monster statBlock) {
+        this.statBlock = statBlock;
+    }
 
     public NPC(String name, String personality, String masterInformation, String photoUrl, Campaign campaign) {
         update(name, personality, masterInformation, photoUrl);
@@ -56,5 +65,15 @@ public class NPC {
         this.personality = personality;
         this.masterInformation = masterInformation;
         this.photoUrl = photoUrl;
+    }
+
+    @Override
+    public UUID getReferenceId() {
+        return id;
+    }
+
+    @Override
+    public String getDisplayName() {
+        return name;
     }
 }
