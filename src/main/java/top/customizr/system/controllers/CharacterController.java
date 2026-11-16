@@ -20,6 +20,7 @@ import top.customizr.system.dto.ChooseSubclassRequest;
 import top.customizr.system.dto.CreateCharacterRequest;
 import top.customizr.system.dto.UpdateAttributesRequest;
 import top.customizr.system.dto.UpdateCharacterRequest;
+import top.customizr.system.dto.SheetRequests;
 import top.customizr.system.dto.CharacterImportResponse;
 import top.customizr.system.service.CharacterImportService;
 import top.customizr.system.dto.UpdateCombatStatsRequest;
@@ -39,11 +40,98 @@ public class CharacterController {
     private final CharacterService characterService;
     private final InventoryService inventoryService;
     private final CharacterImportService characterImportService;
+    private final top.customizr.system.service.CharacterSheetService sheetService;
     public CharacterController(CharacterService characterService, InventoryService inventoryService,
-                               CharacterImportService characterImportService) {
+                               CharacterImportService characterImportService,
+                               top.customizr.system.service.CharacterSheetService sheetService) {
         this.characterService = characterService;
         this.inventoryService = inventoryService;
         this.characterImportService = characterImportService;
+        this.sheetService = sheetService;
+    }
+
+    // ------------------------------------------------------------------ ficha completa (CharacterSheetService)
+
+    @PutMapping("/{id}/origin")
+    public CharacterSheetResponse chooseOrigin(@PathVariable UUID id, @RequestBody SheetRequests.Origin request,
+                                               @AuthenticationPrincipal UserDetails loggedUser) {
+        return sheetService.chooseOrigin(id, request, loggedUser.getUsername());
+    }
+
+    @PutMapping("/{id}/proficiencies")
+    public CharacterSheetResponse updateProficiencies(@PathVariable UUID id, @RequestBody SheetRequests.Proficiencies request,
+                                                      @AuthenticationPrincipal UserDetails loggedUser) {
+        return sheetService.updateProficiencies(id, request, loggedUser.getUsername());
+    }
+
+    @PutMapping("/{id}/conditions")
+    public CharacterSheetResponse updateConditions(@PathVariable UUID id, @RequestBody SheetRequests.Conditions request,
+                                                   @AuthenticationPrincipal UserDetails loggedUser) {
+        return sheetService.updateConditions(id, request, loggedUser.getUsername());
+    }
+
+    @PostMapping("/{id}/spell-slots/spend")
+    public CharacterSheetResponse spendSpellSlot(@PathVariable UUID id, @RequestBody SheetRequests.SpendSlot request,
+                                                 @AuthenticationPrincipal UserDetails loggedUser) {
+        return sheetService.spendSpellSlot(id, request, loggedUser.getUsername());
+    }
+
+    @PostMapping("/{id}/rest")
+    public top.customizr.system.dto.RestResponse rest(@PathVariable UUID id, @RequestBody SheetRequests.Rest request,
+                                                      @AuthenticationPrincipal UserDetails loggedUser) {
+        return sheetService.rest(id, request, loggedUser.getUsername());
+    }
+
+    @PostMapping("/{id}/attacks")
+    public CharacterSheetResponse addAttack(@PathVariable UUID id, @RequestBody SheetRequests.Attack request,
+                                            @AuthenticationPrincipal UserDetails loggedUser) {
+        return sheetService.addAttack(id, request, loggedUser.getUsername());
+    }
+
+    @DeleteMapping("/{id}/attacks/{attackId}")
+    public CharacterSheetResponse removeAttack(@PathVariable UUID id, @PathVariable UUID attackId,
+                                               @AuthenticationPrincipal UserDetails loggedUser) {
+        return sheetService.removeAttack(id, attackId, loggedUser.getUsername());
+    }
+
+    @PostMapping("/{id}/attacks/{attackId}/roll")
+    public top.customizr.system.dto.SheetRollResponse rollAttack(@PathVariable UUID id, @PathVariable UUID attackId,
+                                                                 @RequestBody(required = false) SheetRequests.AttackRoll request,
+                                                                 @AuthenticationPrincipal UserDetails loggedUser) {
+        return sheetService.rollAttack(id, attackId, request, loggedUser.getUsername());
+    }
+
+    /** Teste de pericia, atributo, salvaguarda, iniciativa ou contra a morte (toChat = vai pro chat). */
+    @PostMapping("/{id}/roll")
+    public top.customizr.system.dto.SheetRollResponse roll(@PathVariable UUID id, @RequestBody SheetRequests.Roll request,
+                                                           @AuthenticationPrincipal UserDetails loggedUser) {
+        return sheetService.roll(id, request, loggedUser.getUsername());
+    }
+
+    @PostMapping("/{id}/catalog-feats")
+    public CharacterSheetResponse addCatalogFeat(@PathVariable UUID id, @RequestBody SheetRequests.CatalogFeat request,
+                                                 @AuthenticationPrincipal UserDetails loggedUser) {
+        return sheetService.addCatalogFeat(id, request, loggedUser.getUsername());
+    }
+
+    @DeleteMapping("/{id}/catalog-feats/{characterFeatId}")
+    public CharacterSheetResponse removeCatalogFeat(@PathVariable UUID id, @PathVariable UUID characterFeatId,
+                                                    @AuthenticationPrincipal UserDetails loggedUser) {
+        return sheetService.removeCatalogFeat(id, characterFeatId, loggedUser.getUsername());
+    }
+
+    /** So o mestre. Body: {"amount": 300} (negativo tira). */
+    @PostMapping("/{id}/experience")
+    public CharacterSheetResponse gainExperience(@PathVariable UUID id, @RequestBody SheetRequests.Experience request,
+                                                 @AuthenticationPrincipal UserDetails loggedUser) {
+        return sheetService.gainExperience(id, request, loggedUser.getUsername());
+    }
+
+    /** Body: {"portraitUrl": "/image/..."} */
+    @PutMapping("/{id}/portrait")
+    public CharacterSheetResponse changePortrait(@PathVariable UUID id, @RequestBody SheetRequests.Portrait request,
+                                                 @AuthenticationPrincipal UserDetails loggedUser) {
+        return sheetService.changePortrait(id, request, loggedUser.getUsername());
     }
 
     /**

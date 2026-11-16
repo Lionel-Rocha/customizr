@@ -19,7 +19,8 @@ public record CharacterSheetResponse(
         List<CharacterClassInfo> classes,
         AttributesResponse attributes,
         PartyInfo party,
-        CombatInfo combat
+        CombatInfo combat,
+        DetailsInfo details
 ) {
     public static CharacterSheetResponse from(Character character) {
         return new CharacterSheetResponse(
@@ -33,9 +34,87 @@ public record CharacterSheetResponse(
                         ? null
                         : AttributesResponse.from(character.getSheet().getAttributes()),
                 character.getParty() == null ? null : PartyInfo.from(character.getParty()),
-                CombatInfo.from(character.getSheet())
+                CombatInfo.from(character.getSheet()),
+                DetailsInfo.from(character)
         );
     }
+
+    /** Ficha completa: origem, XP, pericias, salvaguardas, condicoes, espacos de magia, dados de vida, ataques. */
+    public record DetailsInfo(
+            String portraitUrl,
+            SimpleRef species,
+            SimpleRef background,
+            int experiencePoints,
+            int levelByExperience,
+            Integer experienceToNextLevel,
+            List<SkillInfo> skills,
+            List<SaveInfo> savingThrows,
+            java.util.Set<top.customizr.system.model.Condition> conditions,
+            int exhaustion,
+            int deathSaveSuccesses,
+            int deathSaveFailures,
+            Integer currentSpeedFt,
+            List<SlotInfo> spellSlots,
+            int hitDiceRemaining,
+            int hitDiceTotal,
+            List<AttackInfo> attacks,
+            List<CatalogFeatInfo> feats
+    ) {
+        private static DetailsInfo from(Character character) {
+            top.customizr.system.model.Sheet sheet = character.getSheet();
+            List<SlotInfo> slots;
+            try {
+                slots = sheet.getSpellSlots().stream()
+                        .map(s -> new SlotInfo(s.pool().name(), s.className(), s.spellLevel(), s.totalSlots(),
+                                sheet.spentSlots(s.pool(), s.spellLevel())))
+                        .toList();
+            } catch (IllegalArgumentException ex) {
+                slots = List.of();
+            }
+            return new DetailsInfo(
+                    character.getPortraitUrl(),
+                    character.getSpecies() == null ? null
+                            : new SimpleRef(character.getSpecies().getId(), character.getSpecies().getName()),
+                    character.getBackground() == null ? null
+                            : new SimpleRef(character.getBackground().getId(), character.getBackground().getName()),
+                    character.getExperiencePoints(),
+                    character.getLevelByExperience(),
+                    character.getExperienceToNextLevel(),
+                    java.util.Arrays.stream(top.customizr.system.model.Skill.values())
+                            .map(s -> new SkillInfo(s, s.getLabel(), s.getAbility(), sheet.skillBonus(s),
+                                    sheet.getSkillProficiencies().contains(s), sheet.getSkillExpertise().contains(s)))
+                            .toList(),
+                    java.util.Arrays.stream(top.customizr.system.model.AbilityScore.values())
+                            .map(a -> new SaveInfo(a, sheet.savingThrowBonus(a), sheet.getSavingThrowProficiencies().contains(a)))
+                            .toList(),
+                    java.util.Set.copyOf(sheet.getConditions()),
+                    sheet.getExhaustion(),
+                    sheet.getDeathSaveSuccesses(),
+                    sheet.getDeathSaveFailures(),
+                    sheet.getCurrentSpeedFt(),
+                    slots,
+                    sheet.getHitDiceRemaining(),
+                    sheet.getTotalLevel(),
+                    sheet.getAttacks().stream().map(a -> new AttackInfo(a.getId(), a.getName(), a.getAttackBonus(),
+                            a.getDamage(), a.getDamageType(), a.getNotes())).toList(),
+                    sheet.getCatalogFeats().stream().map(f -> new CatalogFeatInfo(f.getId(), f.getFeat().getId(),
+                            f.getFeat().getName(), f.getCharacterLevel(), f.getChoices())).toList()
+            );
+        }
+    }
+
+    public record SimpleRef(UUID id, String name) {}
+
+    public record SkillInfo(top.customizr.system.model.Skill skill, String label,
+                            top.customizr.system.model.AbilityScore ability, int bonus, boolean proficient, boolean expertise) {}
+
+    public record SaveInfo(top.customizr.system.model.AbilityScore ability, int bonus, boolean proficient) {}
+
+    public record SlotInfo(String pool, String className, int level, int total, int spent) {}
+
+    public record AttackInfo(UUID id, String name, int attackBonus, String damage, String damageType, String notes) {}
+
+    public record CatalogFeatInfo(UUID id, UUID featId, String name, int characterLevel, String choices) {}
 
     /** PV, CA e o que sai das regras (nivel, proficiencia, iniciativa, percepcao passiva, PV sugerido). */
     public record CombatInfo(

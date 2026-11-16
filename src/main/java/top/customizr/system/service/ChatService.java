@@ -80,6 +80,22 @@ public class ChatService {
         return ChatMessageResponse.from(chatMessageRepository.save(message));
     }
 
+    /** Rolagem feita pela ficha (o servidor ja rolou): vira um cartao ROLL no chat, falando como o personagem. */
+    @Transactional
+    public ChatMessageResponse postRoll(UUID campaignId, UUID characterId, String label, RollResult roll, String extra,
+                                        String username) {
+        Campaign campaign = findCampaign(campaignId);
+        User author = findUser(username);
+        requireCampaignMember(campaign, author);
+        String speaker = speakerName(campaign, author, characterId);
+        String content = InlineRolls.sanitize(label + ": " + roll.detail()
+                + (roll.isCriticalHit() ? " (CRITICAL!)" : roll.isCriticalFail() ? " (critical fail)" : "")
+                + (extra == null ? "" : extra));
+        ChatMessage message = new ChatMessage(campaign, author, speaker, ChatMessageType.ROLL,
+                content.length() > 3900 ? content.substring(0, 3900) : content, null, roll);
+        return ChatMessageResponse.from(chatMessageRepository.save(message));
+    }
+
     /** Mensagens em ordem de envio. {@code before} = pagina anterior (mais antigas que esse instante). */
     @Transactional
     public List<ChatMessageResponse> history(UUID campaignId, LocalDateTime before, Integer limit, String username) {
