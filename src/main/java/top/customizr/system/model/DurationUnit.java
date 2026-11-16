@@ -6,5 +6,6 @@ public enum DurationUnit {
     MINUTE,
     CONCENTRATION,
     HOUR,
-    DAY
+    DAY,
+    UNTIL_DISPELLED
 }

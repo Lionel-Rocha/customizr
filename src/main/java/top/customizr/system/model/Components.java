@@ -1,7 +1,7 @@
 package top.customizr.system.model;
 
 public enum Components {
-    Visual,
+    Verbal,
     Somatic,
     Material
 }
