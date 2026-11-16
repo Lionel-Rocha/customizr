@@ -15,6 +15,7 @@ import org.hibernate.type.SqlTypes;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 @Entity
@@ -52,6 +53,9 @@ public class Subclass {
     @OneToMany(mappedBy = "subclass", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<SubclassFeature> features = new ArrayList<>();
 
+    @OneToMany(mappedBy = "subclass", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<SubclassSpell> spells = new ArrayList<>();
+
     protected Subclass() {}
 
     Subclass(DndClass dndClass, String name, int unlockLevel, Source source) {
@@ -88,5 +92,28 @@ public class Subclass {
 
     public SubclassFeature addFeature(Feature feature, int level) {
         return addFeature(feature, level, null);
+    }
+
+    public boolean addSpellIfMissing(
+            Spell spell,
+            SubclassSpellGrantType grantType,
+            Integer grantedAtLevel,
+            int additionalSpellSet,
+            List<String> path,
+            Map<String, Object> metadata
+    ) {
+        boolean alreadyPresent = spells.stream().anyMatch(grant ->
+                grant.getSpell().getSpellId().equals(spell.getSpellId())
+                        && grant.getGrantType() == grantType
+                        && Objects.equals(grant.getGrantedAtLevel(), grantedAtLevel)
+                        && grant.hasImportLocation(additionalSpellSet, path)
+        );
+        if (alreadyPresent) {
+            return false;
+        }
+
+        SubclassSpell grant = new SubclassSpell(this, spell, grantType, grantedAtLevel, metadata);
+        spells.add(grant);
+        return true;
     }
 }

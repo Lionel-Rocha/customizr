@@ -3,7 +3,12 @@ package top.customizr.system.dto;
 import java.util.List;
 import java.util.UUID;
 
-public record ImportClassesResponse(List<ImportedClass> imported, List<SkippedClass> skipped) {
+public record ImportClassesResponse(
+        List<ImportedClass> imported,
+        List<SkippedClass> skipped,
+        List<UnresolvedSubclassSpell> unresolvedSubclassSpells,
+        int subclassSpellLinksAdded
+) {
     public record ImportedClass(
             UUID classId,
             String name,
@@ -13,4 +18,13 @@ public record ImportClassesResponse(List<ImportedClass> imported, List<SkippedCl
     ) {}
 
     public record SkippedClass(String name, String source, String reason) {}
+
+    public record UnresolvedSubclassSpell(
+            String className,
+            String classSource,
+            String subclassName,
+            String subclassSource,
+            String reference,
+            String reason
+    ) {}
 }

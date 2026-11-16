@@ -9,5 +9,6 @@ import java.util.UUID;
 
 public interface SpellRepository extends JpaRepository<Spell, UUID> {
     Optional<Spell> findByNameAndSource_Id(String name, UUID sourceId);
+    Optional<Spell> findByNameIgnoreCaseAndSource_CodeIgnoreCase(String name, String sourceCode);
     List<Spell> findByNameContainingIgnoreCase(String name);
 }

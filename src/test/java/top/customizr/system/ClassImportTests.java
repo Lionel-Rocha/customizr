@@ -4,8 +4,24 @@ import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.transaction.annotation.Transactional;
 import top.customizr.system.dto.ImportClassesResponse;
+import top.customizr.system.model.Components;
+import top.customizr.system.model.Duration;
+import top.customizr.system.model.DurationUnit;
+import top.customizr.system.model.Source;
+import top.customizr.system.model.Spell;
+import top.customizr.system.model.SpellLevel;
+import top.customizr.system.model.SpellSchool;
+import top.customizr.system.model.SubclassSpellGrantType;
+import top.customizr.system.model.Time;
+import top.customizr.system.repository.DndClassRepository;
+import top.customizr.system.repository.SourceRepository;
+import top.customizr.system.repository.SpellRepository;
 import top.customizr.system.service.ClassService;
+
+import java.util.List;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -17,6 +33,15 @@ class ClassImportTests {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private DndClassRepository dndClassRepository;
+
+    @Autowired
+    private SourceRepository sourceRepository;
+
+    @Autowired
+    private SpellRepository spellRepository;
 
     @Test
     void importsCompleteClassesRetainsMetadataAndSkipsDuplicatesAndIncompleteEntries() throws Exception {
@@ -129,5 +154,93 @@ class ClassImportTests {
 
         assertEquals("Feature Endpoint Test Feature", feature.name());
         assertEquals(3, feature.level());
+    }
+
+    @Test
+    @Transactional
+    void importsSubclassPreparedAndInnateSpellLinksAndReportsMissingSpells() throws Exception {
+        Source spellSource = sourceRepository.save(new Source("Subclass Spell Test Source", "SPLTST"));
+        spellRepository.save(new Spell(
+                "Test Spell",
+                SpellSchool.Evocation,
+                SpellLevel.FIRST,
+                Time.Action,
+                60,
+                Set.<Components>of(),
+                new Duration(1, DurationUnit.MINUTE, false),
+                spellSource,
+                "A spell used by the import test."
+        ));
+
+        String payload = """
+                {
+                  "class": [{
+                    "name": "Spell Import Test Class",
+                    "source": "TST",
+                    "hd": {"number": 1, "faces": 8},
+                    "classFeatures": [{
+                      "classFeature": "Test Subclass|TST|3",
+                      "gainSubclassFeature": true
+                    }]
+                  }],
+                  "subclass": [{
+                    "name": "Spell Import Test Subclass",
+                    "shortName": "SpellTest",
+                    "className": "Spell Import Test Class",
+                    "classSource": "TST",
+                    "source": "TST",
+                    "additionalSpells": [{
+                      "prepared": {"3": ["Test Spell|spltst", "Missing Spell|SPLTST"]},
+                      "innate": {"5": {"daily": {"1": ["Test Spell|spltst"]}}}
+                    }]
+                  }]
+                }
+                """;
+        ImportClassesResponse response = classService.importClasses(objectMapper.readTree(payload));
+
+        assertEquals(1, response.imported().size());
+        assertEquals(2, response.subclassSpellLinksAdded());
+        assertEquals(1, response.unresolvedSubclassSpells().size());
+        assertEquals("Missing Spell|SPLTST", response.unresolvedSubclassSpells().getFirst().reference());
+
+        var dndClass = dndClassRepository.findByClassNameAndSourceCode(
+                "Spell Import Test Class", "TST"
+        ).orElseThrow();
+        var spellGrants = dndClass.getSubclasses().getFirst().getSpells();
+        assertEquals(2, spellGrants.size());
+        var preparedGrant = spellGrants.stream()
+                .filter(grant -> grant.getGrantType() == SubclassSpellGrantType.PREPARED)
+                .findFirst().orElseThrow();
+        assertEquals("Test Spell", preparedGrant.getSpell().getName());
+        assertEquals(3, preparedGrant.getGrantedAtLevel());
+        assertEquals(List.of("3"), preparedGrant.getMetadata().get("path"));
+        var innateGrant = spellGrants.stream()
+                .filter(grant -> grant.getGrantType() == SubclassSpellGrantType.INNATE)
+                .findFirst().orElseThrow();
+        assertEquals(5, innateGrant.getGrantedAtLevel());
+        assertEquals(List.of("5", "daily", "1"), innateGrant.getMetadata().get("path"));
+
+        spellRepository.save(new Spell(
+                "Missing Spell",
+                SpellSchool.Evocation,
+                SpellLevel.FIRST,
+                Time.Action,
+                60,
+                Set.<Components>of(),
+                new Duration(1, DurationUnit.MINUTE, false),
+                spellSource,
+                "The spell added before the second import."
+        ));
+
+        ImportClassesResponse secondImport = classService.importClasses(objectMapper.readTree(payload));
+        assertEquals(1, secondImport.skipped().size());
+        assertEquals("Already imported", secondImport.skipped().getFirst().reason());
+        assertEquals(1, secondImport.subclassSpellLinksAdded());
+        assertEquals(0, secondImport.unresolvedSubclassSpells().size());
+        assertEquals(3, spellGrants.size());
+
+        ImportClassesResponse thirdImport = classService.importClasses(objectMapper.readTree(payload));
+        assertEquals(0, thirdImport.subclassSpellLinksAdded());
+        assertEquals(3, spellGrants.size());
     }
 }

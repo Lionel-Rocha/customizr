@@ -9,4 +9,5 @@ import java.util.UUID;
 public interface DndClassRepository extends JpaRepository<DndClass, UUID> {
     Optional<DndClass> findByClassNameAndSourceCode(String className, String sourceCode);
     boolean existsByAvailableSpells_SpellId(UUID spellId);
+    DndClass findByClassName(String className);
 }
