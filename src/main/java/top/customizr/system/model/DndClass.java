@@ -137,6 +137,10 @@ public class DndClass {
         return SpellcastingProgression.from(casterProgression);
     }
 
+    public void updateImportMetadata(Map<String, Object> metadata) {
+        this.metadata = metadata;
+    }
+
     public void addAvailableSpell(Spell spell) {
         if (spell == null) {
             throw new IllegalArgumentException("Spell is required");

@@ -7,6 +7,8 @@ public record ImportClassesResponse(
         List<ImportedClass> imported,
         List<SkippedClass> skipped,
         List<UnresolvedSubclassSpell> unresolvedSubclassSpells,
+        int subclassesAdded,
+        int subclassFeaturesAdded,
         int subclassSpellLinksAdded
 ) {
     public record ImportedClass(

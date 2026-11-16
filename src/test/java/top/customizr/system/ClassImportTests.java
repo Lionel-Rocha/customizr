@@ -243,4 +243,70 @@ class ClassImportTests {
         assertEquals(0, thirdImport.subclassSpellLinksAdded());
         assertEquals(3, spellGrants.size());
     }
+
+    @Test
+    @Transactional
+    void reimportAddsMissingSubclassAndFeaturesWithoutDuplicatingThem() throws Exception {
+        String initialPayload = """
+                {
+                  "class": [{
+                    "name": "Subclass Sync Test Class",
+                    "source": "TST",
+                    "hd": {"number": 1, "faces": 8},
+                    "classFeatures": [{
+                      "classFeature": "Test Subclass|TST|3",
+                      "gainSubclassFeature": true
+                    }]
+                  }]
+                }
+                """;
+        classService.importClasses(objectMapper.readTree(initialPayload));
+
+        String updatedPayload = """
+                {
+                  "class": [{
+                    "name": "Subclass Sync Test Class",
+                    "source": "TST",
+                    "hd": {"number": 1, "faces": 8},
+                    "classFeatures": [{
+                      "classFeature": "Test Subclass|TST|3",
+                      "gainSubclassFeature": true
+                    }]
+                  }],
+                  "subclass": [{
+                    "name": "Test Subclass",
+                    "shortName": "TestSubclass",
+                    "className": "Subclass Sync Test Class",
+                    "classSource": "TST",
+                    "source": "TST",
+                    "subclassFeatures": ["Test Subclass Feature|TST|3"]
+                  }],
+                  "subclassFeature": [{
+                    "name": "Test Subclass Feature",
+                    "className": "Subclass Sync Test Class",
+                    "classSource": "TST",
+                    "subclassShortName": "TestSubclass",
+                    "subclassSource": "TST",
+                    "source": "TST",
+                    "level": 3,
+                    "entries": ["A feature added during reimport."]
+                  }]
+                }
+                """;
+
+        ImportClassesResponse secondImport = classService.importClasses(objectMapper.readTree(updatedPayload));
+        assertEquals(1, secondImport.subclassesAdded());
+        assertEquals(1, secondImport.subclassFeaturesAdded());
+
+        ImportClassesResponse thirdImport = classService.importClasses(objectMapper.readTree(updatedPayload));
+        assertEquals(0, thirdImport.subclassesAdded());
+        assertEquals(0, thirdImport.subclassFeaturesAdded());
+
+        var dndClass = dndClassRepository.findByClassNameAndSourceCode(
+                "Subclass Sync Test Class", "TST"
+        ).orElseThrow();
+        assertEquals(1, dndClass.getSubclasses().size());
+        assertEquals(1, dndClass.getSubclasses().getFirst().getFeatures().size());
+        assertEquals(1, ((List<?>) dndClass.getMetadata().get("subclass")).size());
+    }
 }

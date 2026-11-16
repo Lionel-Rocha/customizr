@@ -94,6 +94,16 @@ public class Subclass {
         return addFeature(feature, level, null);
     }
 
+    public void updateFromImport(String name, String sourceCode, Source source, Map<String, Object> metadata) {
+        if (name == null || name.isBlank()) {
+            throw new IllegalArgumentException("Subclass name is required");
+        }
+        this.name = name;
+        this.sourceCode = sourceCode;
+        this.source = source;
+        this.metadata = metadata;
+    }
+
     public boolean addSpellIfMissing(
             Spell spell,
             SubclassSpellGrantType grantType,

@@ -27,7 +27,9 @@ import top.customizr.system.repository.SubclassRepository;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -35,7 +37,7 @@ import java.util.UUID;
 @Service
 public class ClassService {
 
-    private record SubclassImportResult(int count, int spellLinksAdded) {}
+    private record SubclassImportResult(int count, int featuresAdded, int spellLinksAdded) {}
 
     private final DndClassRepository dndClassRepository;
     private final FeatureRepository featureRepository;
@@ -73,14 +75,17 @@ public class ClassService {
         List<ImportClassesResponse.ImportedClass> imported = new ArrayList<>();
         List<ImportClassesResponse.SkippedClass> skipped = new ArrayList<>();
         List<ImportClassesResponse.UnresolvedSubclassSpell> unresolvedSubclassSpells = new ArrayList<>();
+        int subclassesAdded = 0;
+        int subclassFeaturesAdded = 0;
         int subclassSpellLinksAdded = 0;
 
         for (JsonNode classEntry : classEntries) {
             String name = text(classEntry, "name");
             String sourceCode = text(classEntry, "source");
-            String incompleteReason = getIncompleteReason(classEntry, sourceCode, subclassEntries);
-            if (incompleteReason != null) {
-                skipped.add(new ImportClassesResponse.SkippedClass(name, sourceCode, incompleteReason));
+            if (name == null || name.isBlank() || sourceCode == null || sourceCode.isBlank()) {
+                skipped.add(new ImportClassesResponse.SkippedClass(
+                        name, sourceCode, "Class name and source are required"
+                ));
                 continue;
             }
 
@@ -88,14 +93,28 @@ public class ClassService {
                     subclassEntries,
                     row -> matchesClass(row, name, sourceCode)
             );
+            List<JsonNode> matchingSubclassFeatures = matchingRows(
+                    subclassFeatureEntries,
+                    row -> matchesClass(row, name, sourceCode)
+            );
             Optional<DndClass> existingClass = dndClassRepository.findByClassNameAndSourceCode(name, sourceCode);
             if (existingClass.isPresent()) {
-                subclassSpellLinksAdded += syncSubclassSpells(
+                SubclassImportResult syncResult = syncSubclasses(
                         existingClass.get(),
                         matchingSubclasses,
+                        matchingSubclassFeatures,
                         unresolvedSubclassSpells
                 );
+                subclassesAdded += syncResult.count();
+                subclassFeaturesAdded += syncResult.featuresAdded();
+                subclassSpellLinksAdded += syncResult.spellLinksAdded();
                 skipped.add(new ImportClassesResponse.SkippedClass(name, sourceCode, "Already imported"));
+                continue;
+            }
+
+            String incompleteReason = getIncompleteReason(classEntry, sourceCode, subclassEntries);
+            if (incompleteReason != null) {
+                skipped.add(new ImportClassesResponse.SkippedClass(name, sourceCode, incompleteReason));
                 continue;
             }
 
@@ -106,11 +125,6 @@ public class ClassService {
                     classFeatureEntries,
                     row -> matchesClass(row, name, sourceCode)
             );
-            List<JsonNode> matchingSubclassFeatures = matchingRows(
-                    subclassFeatureEntries,
-                    row -> matchesClass(row, name, sourceCode)
-            );
-
             ObjectNode metadata = objectMapper.createObjectNode();
             metadata.set("class", classEntry.deepCopy());
             metadata.set("classFeature", toArray(matchingClassFeatures));
@@ -157,6 +171,8 @@ public class ClassService {
                     subclassResult.count(),
                     matchingClassFeatures.size()
             ));
+            subclassesAdded += subclassResult.count();
+            subclassFeaturesAdded += subclassResult.featuresAdded();
             subclassSpellLinksAdded += subclassResult.spellLinksAdded();
         }
 
@@ -164,6 +180,8 @@ public class ClassService {
                 imported,
                 skipped,
                 unresolvedSubclassSpells,
+                subclassesAdded,
+                subclassFeaturesAdded,
                 subclassSpellLinksAdded
         );
     }
@@ -212,7 +230,7 @@ public class ClassService {
         }
 
         Feature feature = createFeature(payload, "subclass");
-        featureRepository.save(feature);
+        feature = featureRepository.save(feature);
         String choiceGroup = choiceGroup(payload, feature);
         subclass.addFeature(feature, level, choiceGroup);
         subclassRepository.save(subclass);
@@ -301,7 +319,39 @@ public class ClassService {
             List<ImportClassesResponse.UnresolvedSubclassSpell> unresolvedSpells
     ) {
         int count = 0;
+        int featuresAdded = 0;
         int spellLinksAdded = 0;
+        for (JsonNode subclassEntry : subclassEntries) {
+            String name = text(subclassEntry, "name");
+            String shortName = text(subclassEntry, "shortName");
+            if (name == null || shortName == null) {
+                continue;
+            }
+
+            List<JsonNode> featureEntries = subclassFeatureEntries.stream()
+                    .filter(feature -> matchesSubclassFeature(feature, subclassEntry))
+                    .toList();
+            Subclass subclass = createSubclass(dndClass, subclassEntry, featureEntries, classUnlockLevel);
+            featuresAdded += importSubclassFeatures(subclass, featureEntries, false);
+            spellLinksAdded += importSubclassSpells(
+                    dndClass, subclass, subclassEntry, unresolvedSpells, null
+            );
+            count++;
+        }
+        return new SubclassImportResult(count, featuresAdded, spellLinksAdded);
+    }
+
+    private SubclassImportResult syncSubclasses(
+            DndClass dndClass,
+            List<JsonNode> subclassEntries,
+            List<JsonNode> subclassFeatureEntries,
+            List<ImportClassesResponse.UnresolvedSubclassSpell> unresolvedSpells
+    ) {
+        int subclassesAdded = 0;
+        int featuresAdded = 0;
+        int spellLinksAdded = 0;
+        updateSubclassMetadata(dndClass, subclassEntries, subclassFeatureEntries);
+
         for (JsonNode subclassEntry : subclassEntries) {
             String name = text(subclassEntry, "name");
             String shortName = text(subclassEntry, "shortName");
@@ -310,78 +360,135 @@ public class ClassService {
                 continue;
             }
 
-            List<JsonNode> featureEntries = subclassFeatureEntries.stream()
-                    .filter(feature -> matchesSubclassFeature(feature, subclassEntry))
-                    .toList();
-            int unlockLevel = featureEntries.stream()
-                    .map(feature -> optionalInt(feature, "level"))
-                    .filter(Optional::isPresent)
-                    .map(Optional::get)
-                    .min(Comparator.naturalOrder())
-                    .orElse(classUnlockLevel);
-
-            ObjectNode subclassMetadata = objectMapper.createObjectNode();
-            subclassMetadata.set("subclass", subclassEntry.deepCopy());
-            subclassMetadata.set("subclassFeature", toArray(featureEntries));
-            Source source = sourceCode == null ? null : findSource(sourceCode);
-            Subclass subclass = dndClass.addSubclass(
-                    name,
-                    shortName,
-                    sourceCode,
-                    unlockLevel,
-                    source,
-                    toMap(subclassMetadata)
-            );
-
-            for (JsonNode featureEntry : featureEntries) {
-                Feature feature = createFeature(featureEntry, "subclass");
-                featureRepository.save(feature);
-                subclass.addFeature(
-                        feature,
-                        featureEntry.path("level").asInt(),
-                        choiceGroup(featureEntry, feature)
-                );
-            }
-            spellLinksAdded += importSubclassSpells(
-                    dndClass, subclass, subclassEntry, unresolvedSpells, null
-            );
-            count++;
-        }
-        return new SubclassImportResult(count, spellLinksAdded);
-    }
-
-    private int syncSubclassSpells(
-            DndClass dndClass,
-            List<JsonNode> subclassEntries,
-            List<ImportClassesResponse.UnresolvedSubclassSpell> unresolvedSpells
-    ) {
-        int spellLinksAdded = 0;
-        for (JsonNode subclassEntry : subclassEntries) {
-            String shortName = text(subclassEntry, "shortName");
-            String sourceCode = text(subclassEntry, "source");
             List<Subclass> matchingSubclasses = dndClass.getSubclasses().stream()
                     .filter(subclass -> Objects.equals(subclass.getShortName(), shortName))
                     .filter(subclass -> Objects.equals(subclass.getSourceCode(), sourceCode))
                     .toList();
 
-            if (matchingSubclasses.size() == 1) {
+            if (matchingSubclasses.size() > 1) {
                 spellLinksAdded += importSubclassSpells(
                         dndClass,
-                        matchingSubclasses.getFirst(),
+                        null,
                         subclassEntry,
                         unresolvedSpells,
-                        null
+                        "Multiple matching subclasses found"
                 );
+                continue;
+            }
+
+            List<JsonNode> featureEntries = subclassFeatureEntries.stream()
+                    .filter(feature -> matchesSubclassFeature(feature, subclassEntry))
+                    .toList();
+            Subclass subclass;
+            if (matchingSubclasses.isEmpty()) {
+                subclass = createSubclass(
+                        dndClass,
+                        subclassEntry,
+                        featureEntries,
+                        dndClass.getSubclassUnlockLevel()
+                );
+                subclassesAdded++;
             } else {
-                String reason = matchingSubclasses.isEmpty()
-                        ? "Subclass not found on imported class"
-                        : "Multiple matching subclasses found";
-                spellLinksAdded += importSubclassSpells(
-                        dndClass, null, subclassEntry, unresolvedSpells, reason
+                subclass = matchingSubclasses.getFirst();
+                subclass.updateFromImport(
+                        name,
+                        sourceCode,
+                        sourceCode == null ? null : findSource(sourceCode),
+                        toMap(subclassMetadata(subclassEntry, featureEntries))
                 );
             }
+
+            featuresAdded += importSubclassFeatures(subclass, featureEntries, true);
+            spellLinksAdded += importSubclassSpells(
+                    dndClass, subclass, subclassEntry, unresolvedSpells, null
+            );
         }
-        return spellLinksAdded;
+        return new SubclassImportResult(subclassesAdded, featuresAdded, spellLinksAdded);
+    }
+
+    private void updateSubclassMetadata(
+            DndClass dndClass,
+            List<JsonNode> subclassEntries,
+            List<JsonNode> subclassFeatureEntries
+    ) {
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        if (dndClass.getMetadata() != null) {
+            metadata.putAll(dndClass.getMetadata());
+        }
+        if (!subclassEntries.isEmpty()) {
+            metadata.put("subclass", subclassEntries.stream().map(this::toMap).toList());
+        }
+        if (!subclassFeatureEntries.isEmpty()) {
+            metadata.put("subclassFeature", subclassFeatureEntries.stream().map(this::toMap).toList());
+        }
+        dndClass.updateImportMetadata(metadata);
+    }
+
+    private Subclass createSubclass(
+            DndClass dndClass,
+            JsonNode subclassEntry,
+            List<JsonNode> featureEntries,
+            int classUnlockLevel
+    ) {
+        String sourceCode = text(subclassEntry, "source");
+        Source source = sourceCode == null ? null : findSource(sourceCode);
+        return dndClass.addSubclass(
+                text(subclassEntry, "name"),
+                text(subclassEntry, "shortName"),
+                sourceCode,
+                subclassUnlockLevel(featureEntries, classUnlockLevel),
+                source,
+                toMap(subclassMetadata(subclassEntry, featureEntries))
+        );
+    }
+
+    private ObjectNode subclassMetadata(JsonNode subclassEntry, List<JsonNode> featureEntries) {
+        ObjectNode metadata = objectMapper.createObjectNode();
+        metadata.set("subclass", subclassEntry.deepCopy());
+        metadata.set("subclassFeature", toArray(featureEntries));
+        return metadata;
+    }
+
+    private int subclassUnlockLevel(List<JsonNode> featureEntries, int classUnlockLevel) {
+        return featureEntries.stream()
+                .map(feature -> optionalInt(feature, "level"))
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .min(Comparator.naturalOrder())
+                .orElse(classUnlockLevel);
+    }
+
+    private int importSubclassFeatures(
+            Subclass subclass,
+            List<JsonNode> featureEntries,
+            boolean skipExisting
+    ) {
+        int featuresAdded = 0;
+        for (JsonNode featureEntry : featureEntries) {
+            if (skipExisting && hasSubclassFeature(subclass, featureEntry)) {
+                continue;
+            }
+            Feature feature = createFeature(featureEntry, "subclass");
+            feature = featureRepository.save(feature);
+            subclass.addFeature(
+                    feature,
+                    featureEntry.path("level").asInt(),
+                    choiceGroup(featureEntry, feature)
+            );
+            featuresAdded++;
+        }
+        return featuresAdded;
+    }
+
+    private boolean hasSubclassFeature(Subclass subclass, JsonNode featureEntry) {
+        String name = text(featureEntry, "name");
+        String sourceCode = text(featureEntry, "source");
+        int level = featureEntry.path("level").asInt();
+        return subclass.getFeatures().stream().anyMatch(grant ->
+                grant.getLevel() == level
+                        && Objects.equals(grant.getFeature().getName(), name)
+                        && Objects.equals(grant.getFeature().getSourceCode(), sourceCode)
+        );
     }
 
     private int importSubclassSpells(
@@ -552,7 +659,7 @@ public class ClassService {
             return;
         }
         Feature feature = createFeature(featureEntry, "class");
-        featureRepository.save(feature);
+        feature = featureRepository.save(feature);
         dndClass.addFeature(
                 feature,
                 levelNode.asInt(),
