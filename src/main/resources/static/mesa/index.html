@@ -70,6 +70,17 @@
     padding: 4px 10px; border-radius: 10px; font-size: 13px; white-space: nowrap; max-width: 90%; overflow: hidden;
     text-overflow: ellipsis; pointer-events: none; /* o clique passa pro mapa */ }
   #map.targeting { cursor: crosshair; }
+  #modal { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: grid; place-items: center; z-index: 20; padding: 16px; }
+  #modalBox { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px; width: min(720px, 100%);
+    max-height: 90vh; overflow: auto; display: grid; gap: 8px; }
+  #modalBox label { display: grid; gap: 2px; font-size: 12px; color: var(--muted); }
+  .grid2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .grid6 { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+  .actRow { display: grid; grid-template-columns: 2fr 1.2fr .8fr 1fr 1.2fr 1.2fr auto; gap: 4px; align-items: center; }
+  .statblock { white-space: pre-wrap; font-size: 13px; }
+  textarea { font: inherit; color: var(--text); background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; min-height: 60px; }
+  @media (max-width: 600px) { .grid6 { grid-template-columns: repeat(3, 1fr); } .actRow { grid-template-columns: 1fr 1fr; } }
   #toast.ok { background: #233A26; border-color: var(--good); }
   #toast { position: fixed; right: 16px; bottom: 16px; max-width: 360px; background: #4A2420; border: 1px solid var(--bad); border-radius: 10px; padding: 10px 12px; }
   @media (max-width: 800px) {
@@ -104,6 +115,9 @@
       <button data-tool="move" class="on">Mover</button>
       <button data-tool="reveal" class="master-only">Revelar</button>
       <button data-tool="hide" class="master-only">Cobrir</button>
+      <button data-tool="wall" class="master-only" title="Arraste para desenhar uma parede">Parede</button>
+      <button data-tool="door" class="master-only" title="Arraste para desenhar uma porta">Porta</button>
+      <button data-tool="erase" class="master-only" title="Clique numa parede ou porta para apagar">Apagar parede</button>
       <button id="center">Centralizar</button>
     </div>
     <div id="hint">arraste seu token · roda = zoom · arraste o fundo para mover o mapa</div>
@@ -120,6 +134,12 @@
         <label class="row" style="flex:0;white-space:nowrap" title="Se acertar, já tira o PV do alvo"><input id="cbApply" type="checkbox" checked style="flex:0"> tirar PV</label>
       </div>
       <div id="cbAttacks" style="display:grid;gap:4px"></div>
+      <div class="row">
+        <select id="cbAbility"><option value="STRENGTH">FOR</option><option value="DEXTERITY">DES</option><option value="CONSTITUTION">CON</option>
+          <option value="INTELLIGENCE">INT</option><option value="WISDOM">SAB</option><option value="CHARISMA">CAR</option></select>
+        <button id="cbCheck">Teste</button><button id="cbSave">Salvaguarda</button>
+      </div>
+      <div class="row"><select id="cbSkill"></select><button id="cbSkillGo">Perícia</button><button id="cbStat" class="master-only">Ficha</button></div>
     </div>
   </div>
   <aside>
@@ -179,6 +199,8 @@
         <h3>Cena</h3>
         <div class="row"><select id="sceneSelect"></select><button id="sceneActivate">Mostrar aos jogadores</button></div>
         <div class="row"><button id="fogToggle">Neblina</button><button id="fogAll">Revelar tudo</button><button id="fogNone">Cobrir tudo</button></div>
+        <div class="row"><button id="visionToggle" title="Cada jogador só vê o que o token dele enxerga">Visão dinâmica</button><button id="wallsClear">Apagar paredes</button></div>
+        <div class="muted" style="font-size:12px">Portas: clique abre/fecha · Shift+clique tranca (mestre).</div>
       </div>
       <form id="sceneForm" class="card">
         <h3>Nova cena</h3>
@@ -191,11 +213,17 @@
         <input id="sceneMap" type="file" accept="image/png,image/jpeg,image/webp,image/gif">
         <button class="primary">Criar cena</button>
       </form>
+      <div class="card">
+        <h3>Monstros da campanha</h3>
+        <div class="row"><button id="monsterBlank" class="primary">Ficha em branco</button><button id="monsterReload">Atualizar</button></div>
+        <div id="monsterList" style="display:grid;gap:4px"></div>
+        <div class="muted" style="font-size:12px">Para partir de um monstro pronto, busque abaixo e use "Copiar".</div>
+      </div>
       <form id="tokenForm" class="card">
         <h3>Pôr token</h3>
         <select id="tokenCharacter"><option value="">— personagem —</option></select>
         <div class="row"><input id="tokenMonsterSearch" placeholder="buscar monstro"><button type="button" id="tokenMonsterGo">Buscar</button></div>
-        <select id="tokenMonster"><option value="">— monstro —</option></select>
+        <div class="row"><select id="tokenMonster"><option value="">— monstro —</option></select><button type="button" id="tokenMonsterCopy" title="Copiar para os monstros da campanha e editar">Copiar</button></div>
         <input id="tokenName" placeholder="nome (opcional)">
         <label class="row"><input id="tokenHidden" type="checkbox" style="flex:0"> oculto dos jogadores</label>
         <button class="primary">Pôr no centro da tela</button>
@@ -204,11 +232,13 @@
         <h3 id="selectedName"></h3>
         <div class="row"><button id="selHide"></button><button id="selDelete">Tirar do mapa</button></div>
         <div class="row"><input id="selHp" type="number" placeholder="PV atual"><button id="selHpSave">Salvar PV</button></div>
+        <div class="row"><input id="selVision" type="number" min="0" placeholder="visão (pés, vazio = sem limite)"><button id="selVisionSave">Salvar visão</button></div>
       </div>
     </div>
   </aside>
 </div>
 <div id="toast" class="hidden"></div>
+<div id="modal" class="hidden"><div id="modalBox"></div></div>
 
 <script>
 'use strict';
@@ -217,7 +247,7 @@
    porque o EventSource do navegador nao manda o header Authorization. */
 const S = { token: null, me: null, campaign: null, master: false, scenes: [], scene: null, images: {},
   view: { tx: 40, ty: 40, z: 1 }, tool: 'move', drag: null, paint: null, pan: null, selected: null,
-  initiative: null, stream: null, targeting: null };
+  initiative: null, stream: null, targeting: null, wallDraw: null, explored: null };
 const $ = id => document.getElementById(id);
 const cv = $('map'), ctx = cv.getContext('2d');
 
@@ -296,6 +326,7 @@ function showScene(scene) {
     for (const s of S.scenes) sel.append(new Option((s.active ? '★ ' : '') + s.name, s.id));
     if (scene) sel.value = scene.id;
     $('fogToggle').classList.toggle('on', !!(scene && scene.fogEnabled));
+    updateVisionButton();
   }
   if (scene && scene.mapUrl) loadImage(scene.mapUrl);
   draw();
@@ -349,6 +380,11 @@ function onEvent(type, d) {
     case 'token_moved':
       if (sc && sc.id === d.sceneId) { const t = sc.tokens.find(t => t.id === d.tokenId); if (t && !(S.drag && S.drag.token === t)) { t.x = d.x; t.y = d.y; draw(); } } break;
     case 'token_removed': if (sc && sc.id === d.sceneId) { sc.tokens = sc.tokens.filter(t => t.id !== d.tokenId); if (S.selected && S.selected.id === d.tokenId) select(null); draw(); } break;
+    case 'walls': {
+      const target = S.scenes.find(x => x.id === d.sceneId); if (target) target.walls = d.walls;
+      if (sc && sc.id === d.sceneId) { sc.walls = d.walls; draw(); }
+      break;
+    }
     case 'initiative': S.initiative = d; renderInitiative(); break;
     case 'initiative_ended': S.initiative = { round: 1, turnIndex: 0, entries: [] }; renderInitiative(); break;
     case 'chat': addChat(d); break;
@@ -414,14 +450,22 @@ function draw() {
   }
   // Mestre ve todos os tokens por cima da neblina; jogador ve os proprios por cima e os outros so nas casas reveladas
   const above = t => S.master || t.ownerId === S.me.userId || !sc.fogEnabled;
-  for (const t of sc.tokens) if (!above(t)) drawToken(t, g);
+  const sight = playerSight(sc); // null = sem visao dinamica pra este usuario
+  const seen = t => !sight || t.ownerId === S.me.userId || canSee(sight, t.x + g * t.sizeCells / 2, t.y + g * t.sizeCells / 2);
+  for (const t of sc.tokens) if (!above(t) && seen(t)) drawToken(t, g);
   if (sc.fogEnabled) {
     const revealed = new Set(sc.revealedCells || []);
     ctx.beginPath(); ctx.rect(-g * 2, -g * 2, w + g * 4, h + g * 4);
     eachCell((c, r) => { if (revealed.has(c + ',' + r)) cellShape(c, r); });
     ctx.fillStyle = S.master ? 'rgba(10,8,7,.55)' : '#0A0807'; ctx.fill('evenodd');
   }
-  for (const t of sc.tokens) if (above(t)) drawToken(t, g);
+  if (sight) drawDarkness(sight, w, h);
+  for (const t of sc.tokens) if (above(t) && seen(t)) drawToken(t, g);
+  drawWalls(sc, sight);
+  if (S.wallDraw) {
+    const d = S.wallDraw; ctx.beginPath(); ctx.moveTo(d.x1, d.y1); ctx.lineTo(d.x2, d.y2);
+    ctx.strokeStyle = S.tool === 'door' ? '#6FBF73' : '#E8A33D'; ctx.lineWidth = 5 / v.z; ctx.setLineDash([10 / v.z, 6 / v.z]); ctx.stroke(); ctx.setLineDash([]);
+  }
   if (S.drag && S.drag.moved) {
     const t = S.drag.token, size = g * t.sizeCells / 2;
     ctx.beginPath(); ctx.moveTo(S.drag.fromX + size, S.drag.fromY + size); ctx.lineTo(t.x + size, t.y + size);
@@ -478,6 +522,9 @@ cv.addEventListener('pointerdown', e => {
   if (!S.scene) return;
   const [x, y] = toWorld(e);
   if (S.master && (S.tool === 'reveal' || S.tool === 'hide')) { S.paint = new Map(); paintAt(x, y); return; }
+  if (S.master && (S.tool === 'wall' || S.tool === 'door')) { const [sx, sy] = snapPoint(x, y); S.wallDraw = { x1: sx, y1: sy, x2: sx, y2: sy }; return; }
+  if (S.master && S.tool === 'erase') { const wall = wallAt(x, y); if (wall) api('/live/scenes/' + S.scene.id + '/walls/' + wall.id, { method: 'DELETE' }).catch(err => toast(err.message)); return; }
+  if (!S.targeting) { const door = doorAt(x, y); if (door) { toggleDoor(door, e.shiftKey); return; } }
   const t = tokenAt(x, y);
   if (S.targeting) { if (t) { const a = S.targeting; stopTargeting(); fireAttack(a, t); } return; }
   if (t) {
@@ -488,10 +535,18 @@ cv.addEventListener('pointerdown', e => {
 });
 window.addEventListener('pointermove', e => {
   if (S.paint) { const [x, y] = toWorld(e); paintAt(x, y); return; }
+  if (S.wallDraw) { const [x, y] = toWorld(e); const [sx, sy] = snapPoint(x, y); S.wallDraw.x2 = sx; S.wallDraw.y2 = sy; draw(); return; }
   if (S.drag) { const [x, y] = toWorld(e); S.drag.token.x = x - S.drag.offX; S.drag.token.y = y - S.drag.offY; S.drag.moved = true; draw(); return; }
   if (S.pan) { S.view.tx = S.pan.tx + e.clientX - S.pan.x; S.view.ty = S.pan.ty + e.clientY - S.pan.y; draw(); }
 });
 window.addEventListener('pointerup', async () => {
+  if (S.wallDraw) {
+    const d = S.wallDraw; S.wallDraw = null; draw();
+    if (Math.hypot(d.x2 - d.x1, d.y2 - d.y1) < 4) return;
+    try { await api('/live/scenes/' + S.scene.id + '/walls', { method: 'POST', body: { walls: [{ x1: d.x1, y1: d.y1, x2: d.x2, y2: d.y2, type: S.tool === 'door' ? 'DOOR' : 'WALL' }] } }); }
+    catch (err) { toast(err.message); }
+    return;
+  }
   if (S.paint) {
     const cells = [...S.paint.values()]; const reveal = S.tool === 'reveal'; S.paint = null;
     try { await api('/live/scenes/' + S.scene.id + '/fog', { method: 'PUT', body: reveal ? { enabled: true, reveal: cells } : { hide: cells } }); } catch (err) { toast(err.message); }
@@ -699,10 +754,12 @@ $('sceneForm').addEventListener('submit', async e => {
 async function loadCharacters() {
   const sel = $('tokenCharacter'); sel.innerHTML = '<option value="">— personagem —</option>';
   for (const c of await api('/character/' + S.campaign.id + '/characters')) sel.append(new Option(c.name, c.characterId));
+  loadCustomMonsters();
 }
 $('tokenMonsterGo').onclick = async () => {
   const sel = $('tokenMonster'); sel.innerHTML = '<option value="">— monstro —</option>';
-  try { for (const m of await api('/monster?name=' + encodeURIComponent($('tokenMonsterSearch').value))) sel.append(new Option(m.name + ' (ND ' + m.challengeRating + ')', m.id)); }
+  try { for (const m of await api('/monster?campaignId=' + S.campaign.id + '&name=' + encodeURIComponent($('tokenMonsterSearch').value)))
+    sel.append(new Option(m.name + (m.challengeRating ? ' (ND ' + m.challengeRating + ')' : '') + (m.custom ? ' · da campanha' : ''), m.id)); }
   catch (err) { toast(err.message); }
 };
 $('tokenForm').addEventListener('submit', async e => {
@@ -725,9 +782,12 @@ function select(t) {
   $('selectedName').textContent = t.name; $('selHide').textContent = t.hidden ? 'Mostrar aos jogadores' : 'Esconder dos jogadores';
   $('selHp').value = t.hpCurrent != null && !t.characterId ? t.hpCurrent : '';
   $('selHp').disabled = $('selHpSave').disabled = !!t.characterId;
+  $('selVision').value = t.visionFt != null ? t.visionFt : '';
 }
 $('selHide').onclick = () => S.selected && api('/live/tokens/' + S.selected.id, { method: 'PUT', body: { hidden: !S.selected.hidden } }).then(t => select(Object.assign(S.selected, t))).catch(err => toast(err.message));
 $('selDelete').onclick = () => S.selected && api('/live/tokens/' + S.selected.id, { method: 'DELETE' }).then(() => select(null)).catch(err => toast(err.message));
+$('selVisionSave').onclick = () => S.selected && api('/live/tokens/' + S.selected.id + '/vision', { method: 'PUT',
+  body: { visionFt: $('selVision').value === '' ? null : Number($('selVision').value) } }).then(() => toast('Visão salva.', true)).catch(err => toast(err.message));
 $('selHpSave').onclick = () => S.selected && api('/live/tokens/' + S.selected.id, { method: 'PUT', body: { hpCurrent: Number($('selHp').value) } }).catch(err => toast(err.message));
 
 // ------------------------------------------------------------------ combate
@@ -815,6 +875,282 @@ $('cbHeal').onclick = () => changeHp('HEALING');
 $('cbTemp').onclick = () => changeHp('TEMPORARY');
 $('cbClose').onclick = () => select(null);
 window.addEventListener('keydown', e => { if (e.key === 'Escape' && S.targeting) stopTargeting(); });
+
+// ------------------------------------------------------------------ paredes e portas
+function snapPoint(x, y) {
+  const sc = S.scene, g = sc.gridSizePx;
+  if (sc.gridType === 'SQUARE') return [Math.round(x / g) * g, Math.round(y / g) * g]; // cantos das casas
+  return [Math.round(x), Math.round(y)];
+}
+function distToSegment(px, py, w) {
+  const dx = w.x2 - w.x1, dy = w.y2 - w.y1, len = dx * dx + dy * dy;
+  const t = len ? Math.max(0, Math.min(1, ((px - w.x1) * dx + (py - w.y1) * dy) / len)) : 0;
+  return Math.hypot(px - (w.x1 + t * dx), py - (w.y1 + t * dy));
+}
+function wallAt(x, y) {
+  let best = null, bestD = 10 / S.view.z;
+  for (const w of S.scene.walls || []) { const d = distToSegment(x, y, w); if (d < bestD) { best = w; bestD = d; } }
+  return best;
+}
+function doorAt(x, y) {
+  const sc = S.scene, sight = playerSight(sc);
+  for (const w of sc.walls || []) {
+    if (w.type !== 'DOOR') continue;
+    const mx = (w.x1 + w.x2) / 2, my = (w.y1 + w.y2) / 2;
+    if (Math.hypot(x - mx, y - my) > Math.max(14, sc.gridSizePx * 0.25)) continue;
+    if (sight && !canSeeDoor(sight, w)) continue;
+    return w;
+  }
+  return null;
+}
+function toggleDoor(w, lock) {
+  const body = lock && S.master ? { locked: !w.locked } : { open: !w.open };
+  if (!S.master && w.locked) return toast('A porta está trancada.');
+  api('/live/walls/' + w.id, { method: 'PATCH', body }).catch(err => toast(err.message));
+}
+function drawWalls(sc, sight) {
+  const z = S.view.z;
+  for (const w of sc.walls || []) {
+    const door = w.type === 'DOOR';
+    if (!S.master && !door) continue; // jogador nao ve o traco das paredes, so o efeito delas
+    if (!S.master && sight && !canSeeDoor(sight, w)) continue;
+    if (S.master) {
+      ctx.beginPath(); ctx.moveTo(w.x1, w.y1); ctx.lineTo(w.x2, w.y2);
+      ctx.strokeStyle = door ? (w.open ? 'rgba(111,191,115,.6)' : '#B5651D') : '#E8A33D';
+      ctx.lineWidth = (door ? 5 : 4) / z; if (door && w.open) ctx.setLineDash([6 / z, 6 / z]); ctx.stroke(); ctx.setLineDash([]);
+    }
+    if (door) { // marcador da porta no meio: clique abre/fecha
+      const mx = (w.x1 + w.x2) / 2, my = (w.y1 + w.y2) / 2, s = Math.max(9, sc.gridSizePx * 0.16);
+      ctx.fillStyle = w.open ? '#2F5E33' : '#5A3A1A'; ctx.strokeStyle = w.locked ? '#E07A5F' : '#FFCF7F'; ctx.lineWidth = 2 / z;
+      ctx.fillRect(mx - s, my - s, s * 2, s * 2); ctx.strokeRect(mx - s, my - s, s * 2, s * 2);
+      ctx.fillStyle = '#F6E9D3'; ctx.font = 700 + ' ' + s * 1.2 + 'px Segoe UI'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(w.locked ? '🔒' : w.open ? '⇋' : '▮', mx, my + 1);
+    }
+  }
+}
+$('visionToggle').onclick = () => S.scene && api('/live/scenes/' + S.scene.id + '/vision', { method: 'PUT', body: { enabled: !S.scene.visionEnabled } })
+  .then(sc => { S.scene.visionEnabled = sc.visionEnabled; updateVisionButton(); toast(sc.visionEnabled ? 'Visão dinâmica ligada.' : 'Visão dinâmica desligada.', true); draw(); })
+  .catch(err => toast(err.message));
+$('wallsClear').onclick = () => S.scene && confirm('Apagar todas as paredes e portas desta cena?')
+  && api('/live/scenes/' + S.scene.id + '/walls', { method: 'DELETE' }).catch(err => toast(err.message));
+function updateVisionButton() { $('visionToggle').classList.toggle('on', !!(S.scene && S.scene.visionEnabled)); }
+
+// ------------------------------------------------------------------ visao (linha de visao calculada aqui, com as paredes)
+function blockingSegments(sc) {
+  return (sc.walls || []).filter(w => w.type === 'WALL' || !w.open);
+}
+/** Poligono do que se ve de (ox, oy): raios ate as pontas das paredes (e um pouco pra cada lado). */
+function visibilityPolygon(ox, oy, walls, w, h) {
+  const m = 4000, segs = walls.map(x => [x.x1, x.y1, x.x2, x.y2]);
+  segs.push([-m, -m, w + m, -m], [w + m, -m, w + m, h + m], [w + m, h + m, -m, h + m], [-m, h + m, -m, -m]);
+  const angles = [];
+  for (const s of segs) for (const [px, py] of [[s[0], s[1]], [s[2], s[3]]]) {
+    const a = Math.atan2(py - oy, px - ox); angles.push(a - 0.0001, a, a + 0.0001);
+  }
+  const pts = [];
+  for (const a of angles) {
+    const dx = Math.cos(a), dy = Math.sin(a); let best = Infinity;
+    for (const s of segs) {
+      const sdx = s[2] - s[0], sdy = s[3] - s[1], den = dx * sdy - dy * sdx;
+      if (Math.abs(den) < 1e-12) continue;
+      const t = ((s[0] - ox) * sdy - (s[1] - oy) * sdx) / den, u = ((s[0] - ox) * dy - (s[1] - oy) * dx) / den;
+      if (t > 0 && u >= 0 && u <= 1 && t < best) best = t;
+    }
+    if (best < Infinity) pts.push([a, ox + dx * best, oy + dy * best]);
+  }
+  pts.sort((p, q) => p[0] - q[0]);
+  return pts.map(p => [p[1], p[2]]);
+}
+function pointInPoly(poly, x, y) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, yi] = poly[i], [xj, yj] = poly[j];
+    if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+/** Jogador com visao dinamica: de onde ele ve (os tokens dele) e ate onde. Mestre: null (ve tudo). */
+function playerSight(sc) {
+  if (!sc || S.master || !sc.visionEnabled) return null;
+  const { w, h } = mapSize(), g = sc.gridSizePx, walls = blockingSegments(sc);
+  const sources = sc.tokens.filter(t => t.ownerId === S.me.userId).map(t => {
+    const x = t.x + g * t.sizeCells / 2, y = t.y + g * t.sizeCells / 2;
+    const r = t.visionFt == null ? Infinity : t.visionFt / sc.feetPerCell * g + g * t.sizeCells / 2;
+    return { x, y, r, poly: visibilityPolygon(x, y, walls, w, h) };
+  });
+  return { sources };
+}
+function canSee(sight, x, y) {
+  return sight.sources.some(s => Math.hypot(x - s.x, y - s.y) <= s.r && pointInPoly(s.poly, x, y));
+}
+/** Porta: ve se enxerga um ponto um pouco antes dela, do lado de quem olha. */
+function canSeeDoor(sight, w) {
+  const mx = (w.x1 + w.x2) / 2, my = (w.y1 + w.y2) / 2;
+  return sight.sources.some(s => {
+    const d = Math.hypot(mx - s.x, my - s.y) || 1, px = mx + (s.x - mx) / d * 3, py = my + (s.y - my) / d * 3;
+    return d <= s.r + 3 && pointInPoly(s.poly, px, py);
+  });
+}
+function traceSight(c, s) {
+  c.beginPath(); s.poly.forEach(([x, y], i) => i ? c.lineTo(x, y) : c.moveTo(x, y)); c.closePath();
+}
+/** Escuro por cima do mapa: o que ve agora fica claro; o que ja viu fica esmaecido; o resto, preto. */
+function drawDarkness(sight, w, h) {
+  const sc = S.scene, k = 0.25;
+  if (!S.explored || S.explored.sceneId !== sc.id) {
+    const c = document.createElement('canvas'); c.width = Math.max(1, Math.ceil(w * k)); c.height = Math.max(1, Math.ceil(h * k));
+    S.explored = { sceneId: sc.id, canvas: c };
+  }
+  const ex = S.explored.canvas.getContext('2d');
+  ex.setTransform(k, 0, 0, k, 0, 0); ex.fillStyle = '#fff';
+  for (const s of sight.sources) {
+    ex.save(); traceSight(ex, s); ex.clip();
+    if (s.r === Infinity) ex.fillRect(-10, -10, w + 20, h + 20); else { ex.beginPath(); ex.arc(s.x, s.y, s.r, 0, Math.PI * 2); ex.fill(); }
+    ex.restore();
+  }
+  if (!S.overlay) S.overlay = document.createElement('canvas');
+  const o = S.overlay; if (o.width !== cv.width || o.height !== cv.height) { o.width = cv.width; o.height = cv.height; }
+  const oc = o.getContext('2d');
+  oc.setTransform(1, 0, 0, 1, 0, 0); oc.globalCompositeOperation = 'source-over'; oc.clearRect(0, 0, o.width, o.height);
+  oc.setTransform(ctx.getTransform()); oc.fillStyle = '#0A0807'; oc.fillRect(-w * 2, -h * 2, w * 5, h * 5);
+  oc.globalCompositeOperation = 'destination-out';
+  oc.globalAlpha = 0.45; oc.drawImage(S.explored.canvas, 0, 0, w, h); oc.globalAlpha = 1;
+  for (const s of sight.sources) {
+    oc.save(); traceSight(oc, s); oc.clip();
+    if (s.r === Infinity) oc.fillRect(-w, -h, w * 3, h * 3); else { oc.beginPath(); oc.arc(s.x, s.y, s.r, 0, Math.PI * 2); oc.fill(); }
+    oc.restore();
+  }
+  oc.globalCompositeOperation = 'source-over';
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(o, 0, 0); ctx.restore();
+}
+
+// ------------------------------------------------------------------ testes do token (monstro pela ficha de monstro)
+const SKILLS = [['ACROBATICS', 'Acrobacia'], ['ANIMAL_HANDLING', 'Lidar com animais'], ['ARCANA', 'Arcanismo'], ['ATHLETICS', 'Atletismo'],
+  ['DECEPTION', 'Enganação'], ['HISTORY', 'História'], ['INSIGHT', 'Intuição'], ['INTIMIDATION', 'Intimidação'], ['INVESTIGATION', 'Investigação'],
+  ['MEDICINE', 'Medicina'], ['NATURE', 'Natureza'], ['PERCEPTION', 'Percepção'], ['PERFORMANCE', 'Atuação'], ['PERSUASION', 'Persuasão'],
+  ['RELIGION', 'Religião'], ['SLEIGHT_OF_HAND', 'Prestidigitação'], ['STEALTH', 'Furtividade'], ['SURVIVAL', 'Sobrevivência']];
+SKILLS.forEach(([v, l]) => $('cbSkill').append(new Option(l, v)));
+function tokenRoll(body) {
+  const t = S.selected; if (!t) return;
+  api('/live/tokens/' + t.id + '/roll', { method: 'POST', body: Object.assign({ mode: $('cbMode').value }, body) })
+    .then(res => toast(res.label + ': ' + res.roll.total + (res.outcome === 'AUTO_FAIL' ? ' (falha automática)' : ''), res.outcome !== 'AUTO_FAIL'))
+    .catch(err => toast(err.message));
+}
+$('cbCheck').onclick = () => tokenRoll({ kind: 'ABILITY', ability: $('cbAbility').value });
+$('cbSave').onclick = () => tokenRoll({ kind: 'SAVE', ability: $('cbAbility').value });
+$('cbSkillGo').onclick = () => tokenRoll({ kind: 'SKILL', skill: $('cbSkill').value });
+$('cbStat').onclick = async () => {
+  const t = S.selected; if (!t || !t.monsterId) return toast('Este token não tem ficha de monstro.');
+  try { showStatBlock(await api('/monster/' + t.monsterId)); } catch (err) { toast(err.message); }
+};
+
+// ------------------------------------------------------------------ fichas de monstro (catalogo e customizadas)
+function closeModal() { $('modal').classList.add('hidden'); $('modalBox').innerHTML = ''; }
+$('modal').addEventListener('pointerdown', e => { if (e.target === $('modal')) closeModal(); });
+function el(tag, attrs = {}, ...kids) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) { if (k === 'text') n.textContent = v; else if (k.startsWith('on')) n[k] = v; else n.setAttribute(k, v); }
+  kids.forEach(k => n.append(k)); return n;
+}
+function mod(v) { const m = Math.floor((v - 10) / 2); return (m >= 0 ? '+' : '') + m; }
+function showStatBlock(m) {
+  const box = $('modalBox'); box.innerHTML = '';
+  const lines = [
+    [m.size, m.creatureType, m.alignment].filter(Boolean).join(' · '),
+    'CA ' + (m.armorClass ?? '—') + (m.armorNote ? ' (' + m.armorNote + ')' : '') + ' · PV ' + (m.hpAverage ?? '—') + (m.hpFormula ? ' (' + m.hpFormula + ')' : '') + ' · ' + (m.speed || ''),
+    ['FOR', 'DES', 'CON', 'INT', 'SAB', 'CAR'].map((l, i) => { const v = [m.strength, m.dexterity, m.constitution, m.intelligence, m.wisdom, m.charisma][i]; return l + ' ' + v + ' (' + mod(v) + ')'; }).join('  '),
+    m.savingThrows && 'Salvaguardas: ' + m.savingThrows, m.skills && 'Perícias: ' + m.skills,
+    m.damageResistances && 'Resistências: ' + m.damageResistances, m.damageImmunities && 'Imunidades: ' + m.damageImmunities,
+    m.damageVulnerabilities && 'Vulnerabilidades: ' + m.damageVulnerabilities, m.conditionImmunities && 'Imune a condições: ' + m.conditionImmunities,
+    m.senses && 'Sentidos: ' + m.senses, m.languages && 'Idiomas: ' + m.languages,
+    'ND ' + (m.challengeRating || '—') + (m.experiencePoints ? ' (' + m.experiencePoints + ' XP)' : ''),
+    m.traits && '\nTraços\n' + m.traits, m.actions && '\nAções\n' + m.actions, m.bonusActions && '\nAções bônus\n' + m.bonusActions,
+    m.reactions && '\nReações\n' + m.reactions, m.legendaryActions && '\nAções lendárias\n' + m.legendaryActions];
+  box.append(el('div', { class: 'row' }, el('h2', { text: m.name, style: 'flex:1;margin:0' }),
+    m.custom ? el('button', { text: 'Editar', onclick: () => openMonsterEditor(m) }) : el('button', { text: 'Copiar e editar', onclick: () => copyMonster(m.id) }),
+    el('button', { text: 'Fechar', onclick: closeModal })));
+  box.append(el('div', { class: 'statblock', text: lines.filter(Boolean).join('\n') }));
+  $('modal').classList.remove('hidden');
+}
+async function copyMonster(id) {
+  try { const m = await api('/monster/' + id + '/copy', { method: 'POST', body: { campaignId: S.campaign.id } }); toast('Copiado: ' + m.name, true); loadCustomMonsters(); openMonsterEditor(m); }
+  catch (err) { toast(err.message); }
+}
+async function loadCustomMonsters() {
+  if (!S.master) return;
+  const box = $('monsterList'); box.innerHTML = '';
+  let list; try { list = (await api('/monster?campaignId=' + S.campaign.id)).filter(m => m.custom); } catch (err) { box.textContent = err.message; return; }
+  if (!list.length) { box.textContent = 'Nenhum monstro customizado ainda.'; return; }
+  for (const m of list) {
+    box.append(el('div', { class: 'atk' }, el('span', { text: m.name + (m.challengeRating ? ' (ND ' + m.challengeRating + ')' : '') }),
+      el('button', { text: 'Ver', onclick: async () => showStatBlock(await api('/monster/' + m.id)) }),
+      el('button', { text: 'Editar', onclick: async () => openMonsterEditor(await api('/monster/' + m.id)) }),
+      el('button', { text: 'Apagar', onclick: () => confirm('Apagar ' + m.name + '?') && api('/monster/' + m.id, { method: 'DELETE' }).then(loadCustomMonsters).catch(err => toast(err.message)) })));
+  }
+}
+$('monsterBlank').onclick = () => openMonsterEditor(null);
+$('monsterReload').onclick = () => loadCustomMonsters();
+$('tokenMonsterCopy').onclick = () => $('tokenMonster').value ? copyMonster($('tokenMonster').value) : toast('Busque e escolha um monstro.');
+
+/** Editor da ficha de monstro: ficha em branco (m = null) ou edicao de um customizado. */
+function openMonsterEditor(m) {
+  m = m || {};
+  const box = $('modalBox'); box.innerHTML = '';
+  const field = (key, label, type = 'text', value = m[key]) => {
+    const input = el(type === 'area' ? 'textarea' : 'input', type === 'area' ? {} : { type });
+    input.value = value ?? ''; input.dataset.key = key; return el('label', { text: label }, input);
+  };
+  box.append(el('div', { class: 'row' }, el('h2', { text: m.id ? 'Editar monstro' : 'Ficha de monstro em branco', style: 'flex:1;margin:0' }),
+    el('button', { text: 'Fechar', onclick: closeModal })));
+  box.append(field('name', 'Nome'));
+  box.append(el('div', { class: 'grid3' }, field('size', 'Tamanho'), field('creatureType', 'Tipo'), field('alignment', 'Tendência')));
+  box.append(el('div', { class: 'grid3' }, field('armorClass', 'CA', 'number'), field('armorNote', 'Armadura'), field('challengeRating', 'ND (ex.: 1/4, 3)')));
+  box.append(el('div', { class: 'grid3' }, field('hpAverage', 'PV', 'number'), field('hpFormula', 'Dados de vida (ex.: 6d8+6)'), field('speed', 'Deslocamento')));
+  box.append(el('div', { class: 'grid6' }, ...[['strength', 'FOR'], ['dexterity', 'DES'], ['constitution', 'CON'], ['intelligence', 'INT'], ['wisdom', 'SAB'], ['charisma', 'CAR']]
+    .map(([k, l]) => field(k, l, 'number', m[k] ?? 10))));
+  box.append(el('div', { class: 'grid2' }, field('savingThrows', 'Salvaguardas (ex.: DEX +5, WIS +3)'), field('skills', 'Perícias (ex.: Perception +4)')));
+  box.append(el('div', { class: 'grid3' }, field('damageResistances', 'Resistências'), field('damageImmunities', 'Imunidades'), field('damageVulnerabilities', 'Vulnerabilidades')));
+  box.append(el('div', { class: 'grid3' }, field('conditionImmunities', 'Imune a condições'), field('senses', 'Sentidos'), field('languages', 'Idiomas')));
+  box.append(field('traits', 'Traços', 'area'));
+  const acts = el('div', { style: 'display:grid;gap:4px' });
+  const addAction = (a = {}) => {
+    const kind = el('select', {}, new Option('Ataque', 'ATTACK'), new Option('Salvaguarda', 'SAVE'), new Option('Só texto', 'OTHER'));
+    kind.value = a.kind || 'ATTACK';
+    const inp = (ph, v, type = 'text') => { const i = el('input', { placeholder: ph, type }); i.value = v ?? ''; return i; };
+    const name = inp('nome', a.name), bonus = inp('bônus/CD', a.kind === 'SAVE' ? a.saveDc : a.attackBonus, 'number');
+    const extra = el('select', {}, new Option('corpo a corpo', 'm'), new Option('à distância', 'r'), ...['STR', 'DEX', 'CON', 'INT', 'WIS', 'CHA'].map(x => new Option(x, x)));
+    extra.value = a.kind === 'SAVE' ? (a.saveAbility || 'DEX') : (a.melee === false ? 'r' : 'm');
+    const damage = inp('dano (1d6+2)', a.damage), dtype = inp('tipo (slashing)', a.damageType);
+    const text = inp('texto extra', a.text);
+    const row = el('div', { class: 'actRow' }, name, kind, bonus, extra, damage, dtype,
+      el('button', { text: '✕', type: 'button', onclick: () => { row.remove(); wrap.remove(); } }));
+    const wrap = el('div', {}, text); text.style.width = '100%';
+    row._read = () => ({ name: name.value, kind: kind.value, attackBonus: kind.value === 'ATTACK' && bonus.value !== '' ? Number(bonus.value) : null,
+      saveDc: kind.value === 'SAVE' && bonus.value !== '' ? Number(bonus.value) : null, melee: kind.value === 'ATTACK' ? extra.value !== 'r' : null,
+      saveAbility: kind.value === 'SAVE' && extra.value.length === 3 ? extra.value : null, damage: damage.value, damageType: dtype.value, text: text.value });
+    acts.append(row, wrap);
+  };
+  (m.customActions && m.customActions.length ? m.customActions : m.id ? [] : [{}]).forEach(addAction);
+  box.append(el('div', { class: 'row' }, el('b', { text: 'Ações', style: 'flex:1' }), el('button', { text: '+ ação', type: 'button', onclick: () => addAction() })));
+  if (m.id && !(m.customActions && m.customActions.length) && m.actions) {
+    box.append(el('div', { class: 'muted', text: 'Ações copiadas do original (continuam valendo na mesa enquanto você não salvar ações novas aqui):\n' + m.actions, style: 'white-space:pre-wrap;font-size:12px' }));
+  }
+  box.append(acts);
+  const save = el('button', { text: 'Salvar ficha', class: 'primary', onclick: async () => {
+    const body = { campaignId: S.campaign.id };
+    box.querySelectorAll('[data-key]').forEach(i => { body[i.dataset.key] = i.type === 'number' ? (i.value === '' ? null : Number(i.value)) : i.value; });
+    const rows = [...acts.querySelectorAll('.actRow')].map(r => r._read()).filter(a => a.name.trim());
+    // ficha copiada sem acoes digitadas: mantem as acoes do original
+    if (rows.length || !(m.id && m.actions && !(m.customActions && m.customActions.length))) body.actions = rows;
+    try {
+      const saved = m.id ? await api('/monster/' + m.id, { method: 'PUT', body: body.actions ? body : Object.assign(body, { actions: null }) })
+        : await api('/monster/custom', { method: 'POST', body });
+      toast('Ficha salva: ' + saved.name, true); closeModal(); loadCustomMonsters();
+    } catch (err) { toast(err.message); }
+  } });
+  box.append(el('div', { class: 'row' }, save));
+  $('modal').classList.remove('hidden');
+}
 
 // ------------------------------------------------------------------ inicio
 S.token = load('customizr_token');

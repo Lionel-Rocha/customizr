@@ -1,7 +1,9 @@
 package top.customizr.system.model;
 
 import jakarta.persistence.Column;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
@@ -134,6 +136,16 @@ public class Monster {
     @Column(columnDefinition = "json")
     private Map<String, Object> metadata;
 
+    /**
+     * Monstro customizado (homebrew) de uma campanha: so quem e da campanha ve, so o mestre edita.
+     * Null = monstro do catalogo (importado do bestiario).
+     */
+    @JsonIgnore
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "campaign_id")
+    @org.hibernate.annotations.OnDelete(action = org.hibernate.annotations.OnDeleteAction.CASCADE)
+    private Campaign campaign;
+
     protected Monster() {}
 
     public Monster(String name, Source source) {
@@ -146,6 +158,23 @@ public class Monster {
         this.id = UUID.randomUUID();
         this.name = name.trim();
         this.source = source;
+    }
+
+    /** Ficha customizada (em branco ou copia) de uma campanha, na fonte homebrew dela. */
+    public static Monster custom(String name, Source source, Campaign campaign) {
+        if (campaign == null) throw new IllegalArgumentException("Campaign is required for a custom monster");
+        Monster monster = new Monster(name, source);
+        monster.campaign = campaign;
+        return monster;
+    }
+
+    public boolean isCustom() {
+        return campaign != null;
+    }
+
+    public void rename(String name) {
+        if (name == null || name.isBlank()) throw new IllegalArgumentException("Monster name is required");
+        this.name = name.trim();
     }
 
     /** Dados basicos. Atributos de 1 a 30, como na ficha de personagem. */

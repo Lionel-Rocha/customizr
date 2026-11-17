@@ -75,6 +75,10 @@ public class Token {
     @Column(name = "hp_max")
     private Integer hpMax;
 
+    /** Alcance da visao em pes (visao no escuro, luz...). Null = enxerga ate onde as paredes deixam. */
+    @Column(name = "vision_ft")
+    private Integer visionFt;
+
     /** Condicoes proprias (NPC/monstro); token de personagem usa as condicoes da ficha. */
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "token_conditions", joinColumns = @JoinColumn(name = "token_id"))
@@ -137,6 +141,13 @@ public class Token {
         }
         if (hpMax != null) this.hpMax = hpMax;
         if (hpCurrent != null) this.hpCurrent = hpCurrent;
+    }
+
+    public void setVisionFt(Integer visionFt) {
+        if (visionFt != null && (visionFt < 0 || visionFt > 10_000)) {
+            throw new IllegalArgumentException("Vision must be between 0 and 10000 feet");
+        }
+        this.visionFt = visionFt;
     }
 
     /** Condicoes valendo: as da ficha (personagem) ou as do proprio token. */

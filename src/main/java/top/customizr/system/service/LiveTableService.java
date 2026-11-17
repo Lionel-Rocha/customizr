@@ -11,6 +11,11 @@ import top.customizr.system.dto.SceneResponse;
 import top.customizr.system.dto.TokenMovedResponse;
 import top.customizr.system.dto.TokenRequest;
 import top.customizr.system.dto.TokenResponse;
+import top.customizr.system.dto.DoorRequest;
+import top.customizr.system.dto.VisionRequest;
+import top.customizr.system.dto.WallRequest;
+import top.customizr.system.dto.WallResponse;
+import top.customizr.system.model.Wall;
 import jakarta.transaction.Transactional;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
@@ -56,11 +61,14 @@ public class LiveTableService {
     private final MonsterRepository monsterRepository;
     private final MasterGuard masterGuard;
     private final LiveEventService events;
+    private final top.customizr.system.repository.WallRepository wallRepository;
 
     public LiveTableService(SceneRepository sceneRepository, TokenRepository tokenRepository,
                             InitiativeTrackerRepository trackerRepository, CampaignRepository campaignRepository,
                             CharacterRepository characterRepository, NpcRepository npcRepository,
-                            MonsterRepository monsterRepository, MasterGuard masterGuard, LiveEventService events) {
+                            MonsterRepository monsterRepository, MasterGuard masterGuard, LiveEventService events,
+                            top.customizr.system.repository.WallRepository wallRepository) {
+        this.wallRepository = wallRepository;
         this.sceneRepository = sceneRepository;
         this.tokenRepository = tokenRepository;
         this.trackerRepository = trackerRepository;
@@ -205,6 +213,13 @@ public class LiveTableService {
         if (r == null) throw badRequest("Position is required");
         double fromX = token.getX();
         double fromY = token.getY();
+        if (!master) {
+            // jogador nao atravessa parede nem porta fechada (do centro de onde esta ao centro de onde vai)
+            double half = scene.getGridSizePx() * token.getSizeCells() / 2.0;
+            if (scene.blockedBetween(fromX + half, fromY + half, r.x() + half, r.y() + half)) {
+                throw badRequest("There is a wall in the way");
+            }
+        }
         valid(() -> { token.moveTo(r.x(), r.y()); return null; });
         TokenMovedResponse moved = new TokenMovedResponse(scene.getId(), token.getId(), token.getX(), token.getY(),
                 scene.distanceFeet(fromX, fromY, token.getX(), token.getY()));
@@ -331,6 +346,97 @@ public class LiveTableService {
     }
 
     // ------------------------------------------------------------------ utilitarios
+
+    // ------------------------------------------------------------------ paredes, portas e visao
+
+    /** Desenha paredes/portas na cena (varias de uma vez). So o mestre. */
+    @Transactional
+    public List<WallResponse> addWalls(UUID sceneId, WallRequest r, String username) {
+        Scene scene = scene(sceneId);
+        masterGuard.requireMaster(username, scene.getCampaign());
+        if (r == null || r.walls() == null || r.walls().isEmpty()) throw badRequest("At least one wall is required");
+        valid(() -> {
+            for (WallRequest.Segment w : r.walls()) {
+                if (w == null) throw new IllegalArgumentException("Empty wall");
+                scene.addWall(w.x1(), w.y1(), w.x2(), w.y2(), w.type());
+            }
+            return null;
+        });
+        return broadcastWalls(scene);
+    }
+
+    @Transactional
+    public List<WallResponse> removeWall(UUID sceneId, UUID wallId, String username) {
+        Scene scene = scene(sceneId);
+        masterGuard.requireMaster(username, scene.getCampaign());
+        if (!scene.removeWall(wallId)) throw notFound("Wall");
+        return broadcastWalls(scene);
+    }
+
+    @Transactional
+    public List<WallResponse> clearWalls(UUID sceneId, String username) {
+        Scene scene = scene(sceneId);
+        masterGuard.requireMaster(username, scene.getCampaign());
+        scene.clearWalls();
+        return broadcastWalls(scene);
+    }
+
+    /** Abre/fecha porta (jogador tambem, se a cena estiver ativa e a porta nao estiver trancada); trancar so o mestre. */
+    @Transactional
+    public WallResponse updateDoor(UUID wallId, DoorRequest r, String username) {
+        Wall wall = wallRepository.findById(wallId).orElseThrow(() -> notFound("Wall"));
+        Scene scene = wall.getScene();
+        User user = masterGuard.user(username);
+        masterGuard.assertMember(user, scene.getCampaign());
+        boolean master = masterGuard.canManage(user, scene.getCampaign());
+        if (r == null) throw badRequest("Request body is required");
+        if (!master) {
+            if (r.locked() != null) throw new AccessDeniedException("Only the master locks doors");
+            if (!scene.isActive()) throw new AccessDeniedException("This scene is not active");
+            if (wall.isLocked()) throw badRequest("The door is locked");
+        }
+        valid(() -> {
+            if (r.locked() != null) wall.setLocked(r.locked());
+            if (r.open() != null) {
+                if (wall.isLocked() && r.open()) throw new IllegalArgumentException("The door is locked");
+                wall.setOpen(r.open());
+            }
+            return null;
+        });
+        broadcastWalls(scene);
+        return WallResponse.from(wall);
+    }
+
+    /** Liga/desliga a visao dinamica da cena. So o mestre. */
+    @Transactional
+    public SceneResponse setSceneVision(UUID sceneId, VisionRequest r, String username) {
+        Scene scene = scene(sceneId);
+        masterGuard.requireMaster(username, scene.getCampaign());
+        if (r == null || r.enabled() == null) throw badRequest("enabled is required");
+        scene.setVisionEnabled(r.enabled());
+        broadcastScene(scene);
+        return SceneResponse.from(scene, true);
+    }
+
+    /** Alcance de visao do token, em pes (null = sem limite). So o mestre. */
+    @Transactional
+    public TokenResponse setTokenVision(UUID tokenId, VisionRequest r, String username) {
+        Token token = token(tokenId);
+        masterGuard.requireMaster(username, token.getScene().getCampaign());
+        if (r == null) throw badRequest("Request body is required");
+        valid(() -> { token.setVisionFt(r.visionFt()); return null; });
+        broadcastToken(token, "token_updated");
+        return TokenResponse.from(token, true);
+    }
+
+    private List<WallResponse> broadcastWalls(Scene scene) {
+        List<WallResponse> walls = scene.getWalls().stream().map(WallResponse::from).toList();
+        Map<String, Object> payload = Map.of("sceneId", scene.getId(), "walls", walls);
+        UUID campaignId = scene.getCampaign().getId();
+        events.publishToMaster(campaignId, "walls", payload);
+        if (scene.isActive()) events.publish(campaignId, "walls", payload, l -> !l.master());
+        return walls;
+    }
 
     private void broadcastScene(Scene scene) {
         UUID campaignId = scene.getCampaign().getId();

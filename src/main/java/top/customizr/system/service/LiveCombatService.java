@@ -8,11 +8,14 @@ import org.springframework.web.server.ResponseStatusException;
 import top.customizr.system.dto.AttackRollRequest;
 import top.customizr.system.dto.ConditionsRequest;
 import top.customizr.system.dto.HitPointChangeRequest;
+import top.customizr.system.dto.SheetRollRequest;
 import top.customizr.system.dto.SheetRollResponse;
 import top.customizr.system.dto.TokenAttackOption;
 import top.customizr.system.dto.TokenAttackRequest;
 import top.customizr.system.dto.TokenAttackResponse;
 import top.customizr.system.dto.TokenResponse;
+import top.customizr.system.model.AbilityScore;
+import top.customizr.system.model.Attributes;
 import top.customizr.system.model.Campaign;
 import top.customizr.system.model.Condition;
 import top.customizr.system.model.DiceRoller;
@@ -21,6 +24,7 @@ import top.customizr.system.model.MonsterAttacks;
 import top.customizr.system.model.RollMode;
 import top.customizr.system.model.RollResult;
 import top.customizr.system.model.SheetAttack;
+import top.customizr.system.model.Skill;
 import top.customizr.system.model.Token;
 import top.customizr.system.model.User;
 import top.customizr.system.repository.TokenRepository;
@@ -31,6 +35,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Combate na mesa: ataque de um token em outro (personagem pela ficha, monstro pela ficha de monstro),
@@ -162,6 +168,106 @@ public class LiveCombatService {
         }
         return new TokenAttackResponse(label, attackRoll, damageRoll, hit, outcome, notes,
                 target == null ? null : target.getId(), target == null ? null : target.getName(), applied, chatId);
+    }
+
+    /**
+     * Teste pelo token: personagem rola pela ficha; monstro/NPC pela ficha de monstro (salvaguardas e pericias
+     * com o bonus escrito na ficha, ou o modificador do atributo). Vai pro chat.
+     */
+    @Transactional
+    public SheetRollResponse roll(UUID tokenId, SheetRollRequest request, String username) {
+        Token token = token(tokenId);
+        requireControl(token, username);
+        if (request == null || request.kind() == null) throw badRequest("Roll kind is required");
+        if (token.getCharacter() != null) {
+            return sheetService.roll(token.getCharacter().getCharacterId(),
+                    new SheetRollRequest(request.kind(), request.skill(), request.ability(), request.mode(), true), username);
+        }
+        Monster stats = token.statBlock();
+        if (stats == null) throw badRequest("This token has no stat block to roll from");
+        List<String> notes = new ArrayList<>();
+        RollMode mode = request.mode() == null ? RollMode.NORMAL : request.mode();
+        Set<Condition> conditions = token.activeConditions();
+        String label;
+        int bonus;
+        String outcome = null;
+        switch (request.kind()) {
+            case SKILL -> {
+                Skill skill = request.skill();
+                if (skill == null) throw badRequest("Skill is required");
+                label = skill.getLabel();
+                Integer written = writtenBonus(stats.getSkills(), skill.getLabel());
+                bonus = written != null ? written : Attributes.modifierOf(score(stats, skill.getAbility()));
+                mode = poisonedCheck(mode, conditions, notes);
+            }
+            case ABILITY -> {
+                AbilityScore ability = requireAbility(request.ability());
+                label = capitalize(ability.getKey()) + " check";
+                bonus = Attributes.modifierOf(score(stats, ability));
+                mode = poisonedCheck(mode, conditions, notes);
+            }
+            case SAVE -> {
+                AbilityScore ability = requireAbility(request.ability());
+                label = capitalize(ability.getKey()) + " save";
+                Integer written = writtenBonus(stats.getSavingThrows(), ability.getKey().substring(0, 3));
+                bonus = written != null ? written : Attributes.modifierOf(score(stats, ability));
+                boolean strDex = ability == AbilityScore.STRENGTH || ability == AbilityScore.DEXTERITY;
+                String failing = names(conditions, EnumSet.of(Condition.PARALYZED, Condition.PETRIFIED,
+                        Condition.STUNNED, Condition.UNCONSCIOUS));
+                if (strDex && !failing.isEmpty()) {
+                    outcome = "AUTO_FAIL";
+                    notes.add("Automatic failure: " + failing);
+                }
+                if (ability == AbilityScore.DEXTERITY && conditions.contains(Condition.RESTRAINED)) {
+                    notes.add("Disadvantage: restrained");
+                    mode = combine(mode, RollMode.DISADVANTAGE);
+                }
+            }
+            case INITIATIVE -> {
+                label = "Initiative";
+                bonus = Attributes.modifierOf(stats.getDexterity());
+            }
+            default -> throw badRequest("Monsters don't make death saves");
+        }
+        RollResult roll = DiceRoller.roll(d20(mode) + signed(bonus));
+        String speaker = token.isHidden() ? "Unseen creature" : token.getName();
+        String extra = (outcome == null ? "" : " | " + outcome) + (notes.isEmpty() ? "" : " (" + String.join("; ", notes) + ")");
+        UUID chatId = chatService.postRoll(token.getScene().getCampaign().getId(), null, speaker + " - " + label,
+                roll, extra, username).id();
+        return new SheetRollResponse(speaker + " - " + label, roll, null, null, outcome, notes, chatId);
+    }
+
+    /** "DEX +6, WIS +7" / "Perception +13, Stealth +6": o bonus de uma entrada, se estiver escrito. */
+    private static Integer writtenBonus(String list, String key) {
+        if (list == null) return null;
+        Matcher m = Pattern.compile("(?i)\\b" + Pattern.quote(key) + "\\s*([+-]\\d+)").matcher(list);
+        return m.find() ? Integer.parseInt(m.group(1)) : null;
+    }
+
+    private static int score(Monster m, AbilityScore ability) {
+        return switch (ability) {
+            case STRENGTH -> m.getStrength();
+            case DEXTERITY -> m.getDexterity();
+            case CONSTITUTION -> m.getConstitution();
+            case INTELLIGENCE -> m.getIntelligence();
+            case WISDOM -> m.getWisdom();
+            case CHARISMA -> m.getCharisma();
+        };
+    }
+
+    private static RollMode poisonedCheck(RollMode mode, Set<Condition> conditions, List<String> notes) {
+        if (!conditions.contains(Condition.POISONED)) return mode;
+        notes.add("Disadvantage: poisoned");
+        return combine(mode, RollMode.DISADVANTAGE);
+    }
+
+    private static AbilityScore requireAbility(AbilityScore ability) {
+        if (ability == null) throw badRequest("Ability is required");
+        return ability;
+    }
+
+    private static String capitalize(String s) {
+        return s.isEmpty() ? s : java.lang.Character.toUpperCase(s.charAt(0)) + s.substring(1);
     }
 
     /** Dano / cura / PV temporario no token. Personagem: vai na ficha. NPC/monstro: no PV do token. */

@@ -1,5 +1,13 @@
 package top.customizr.system.controllers;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import top.customizr.system.dto.MonsterCopyRequest;
+import top.customizr.system.dto.MonsterRequest;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -32,16 +40,44 @@ public class MonsterController {
         return monsterService.importBestiary(payload);
     }
 
-    /** {@code ?name=goblin&minCr=0.25&maxCr=2} */
+    /** {@code ?name=goblin&minCr=0.25&maxCr=2&campaignId=...} (com campaignId vem tambem os customizados da campanha) */
     @GetMapping
     public List<MonsterResponse.Summary> search(@RequestParam(required = false) String name,
                                                 @RequestParam(required = false) Double minCr,
-                                                @RequestParam(required = false) Double maxCr) {
-        return monsterService.search(name, minCr, maxCr);
+                                                @RequestParam(required = false) Double maxCr,
+                                                @RequestParam(required = false) UUID campaignId,
+                                                @AuthenticationPrincipal UserDetails user) {
+        return monsterService.search(name, minCr, maxCr, campaignId, user == null ? null : user.getUsername());
     }
 
     @GetMapping("/{id}")
-    public MonsterResponse read(@PathVariable UUID id) {
-        return monsterService.read(id);
+    public MonsterResponse read(@PathVariable UUID id, @AuthenticationPrincipal UserDetails user) {
+        return monsterService.read(id, user == null ? null : user.getUsername());
+    }
+
+    /** Ficha de monstro customizada (em branco ou preenchida) da campanha. So o mestre. */
+    @PostMapping("/custom")
+    public ResponseEntity<MonsterResponse> createCustom(@RequestBody MonsterRequest request,
+                                                        @AuthenticationPrincipal UserDetails user) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(monsterService.createCustom(request, user.getUsername()));
+    }
+
+    @PutMapping("/{id}")
+    public MonsterResponse updateCustom(@PathVariable UUID id, @RequestBody MonsterRequest request,
+                                        @AuthenticationPrincipal UserDetails user) {
+        return monsterService.updateCustom(id, request, user.getUsername());
+    }
+
+    /** Copia um monstro pra campanha (pra editar a ficha sem mexer no catalogo). */
+    @PostMapping("/{id}/copy")
+    public ResponseEntity<MonsterResponse> copy(@PathVariable UUID id, @RequestBody MonsterCopyRequest request,
+                                                @AuthenticationPrincipal UserDetails user) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(monsterService.copyToCampaign(id, request, user.getUsername()));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteCustom(@PathVariable UUID id, @AuthenticationPrincipal UserDetails user) {
+        monsterService.deleteCustom(id, user.getUsername());
+        return ResponseEntity.noContent().build();
     }
 }

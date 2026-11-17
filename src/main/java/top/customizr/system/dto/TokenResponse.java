@@ -6,7 +6,7 @@ import java.util.UUID;
 public record TokenResponse(UUID id, UUID sceneId, String name, double x, double y, int sizeCells, String imageUrl, boolean hidden,
                             int rotation, UUID characterId, UUID ownerId, UUID npcId, UUID monsterId,
                             Integer hpCurrent, Integer hpMax, java.util.Set<top.customizr.system.model.Condition> conditions,
-                            Integer armorClass) {
+                            Integer armorClass, Integer visionFt) {
 
     /**
      * PV do personagem vem da ficha; dos outros, do token (jogador nao ve PV de monstro/NPC).
@@ -23,6 +23,6 @@ public record TokenResponse(UUID id, UUID sceneId, String name, double x, double
                 master && t.getNpc() != null ? t.getNpc().getId() : null,
                 master && t.getMonster() != null ? t.getMonster().getId() : null,
                 showHp ? hp : null, showHp ? max : null,
-                java.util.Set.copyOf(t.activeConditions()), showHp ? t.armorClass() : null);
+                java.util.Set.copyOf(t.activeConditions()), showHp ? t.armorClass() : null, t.getVisionFt());
     }
 }

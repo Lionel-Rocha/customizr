@@ -1,6 +1,10 @@
 package top.customizr.system.controllers;
 
 import top.customizr.system.dto.ConditionsRequest;
+import top.customizr.system.dto.DoorRequest;
+import top.customizr.system.dto.VisionRequest;
+import top.customizr.system.dto.WallRequest;
+import top.customizr.system.dto.WallResponse;
 import top.customizr.system.dto.FogRequest;
 import top.customizr.system.dto.HitPointChangeRequest;
 import top.customizr.system.dto.FogResponse;
@@ -10,6 +14,8 @@ import top.customizr.system.dto.InitiativeRollRequest;
 import top.customizr.system.dto.MoveTokenRequest;
 import top.customizr.system.dto.SceneRequest;
 import top.customizr.system.dto.SceneResponse;
+import top.customizr.system.dto.SheetRollRequest;
+import top.customizr.system.dto.SheetRollResponse;
 import top.customizr.system.dto.TokenAttackOption;
 import top.customizr.system.dto.TokenAttackRequest;
 import top.customizr.system.dto.TokenAttackResponse;
@@ -125,6 +131,43 @@ public class LiveTableController {
         return ResponseEntity.noContent().build();
     }
 
+    // ------------------------------------------------------------------ paredes, portas e visao
+
+    @PostMapping("/scenes/{sceneId}/walls")
+    public ResponseEntity<List<WallResponse>> addWalls(@PathVariable UUID sceneId, @RequestBody WallRequest request,
+                                                       @AuthenticationPrincipal UserDetails user) {
+        return ResponseEntity.ok(live.addWalls(sceneId, request, user.getUsername()));
+    }
+
+    @DeleteMapping("/scenes/{sceneId}/walls/{wallId}")
+    public ResponseEntity<List<WallResponse>> removeWall(@PathVariable UUID sceneId, @PathVariable UUID wallId,
+                                                         @AuthenticationPrincipal UserDetails user) {
+        return ResponseEntity.ok(live.removeWall(sceneId, wallId, user.getUsername()));
+    }
+
+    @DeleteMapping("/scenes/{sceneId}/walls")
+    public ResponseEntity<List<WallResponse>> clearWalls(@PathVariable UUID sceneId, @AuthenticationPrincipal UserDetails user) {
+        return ResponseEntity.ok(live.clearWalls(sceneId, user.getUsername()));
+    }
+
+    @PatchMapping("/walls/{wallId}")
+    public ResponseEntity<WallResponse> door(@PathVariable UUID wallId, @RequestBody DoorRequest request,
+                                             @AuthenticationPrincipal UserDetails user) {
+        return ResponseEntity.ok(live.updateDoor(wallId, request, user.getUsername()));
+    }
+
+    @PutMapping("/scenes/{sceneId}/vision")
+    public ResponseEntity<SceneResponse> sceneVision(@PathVariable UUID sceneId, @RequestBody VisionRequest request,
+                                                     @AuthenticationPrincipal UserDetails user) {
+        return ResponseEntity.ok(live.setSceneVision(sceneId, request, user.getUsername()));
+    }
+
+    @PutMapping("/tokens/{tokenId}/vision")
+    public ResponseEntity<TokenResponse> tokenVision(@PathVariable UUID tokenId, @RequestBody VisionRequest request,
+                                                     @AuthenticationPrincipal UserDetails user) {
+        return ResponseEntity.ok(live.setTokenVision(tokenId, request, user.getUsername()));
+    }
+
     // ------------------------------------------------------------------ combate
 
     @GetMapping("/tokens/{tokenId}/attacks")
@@ -136,6 +179,13 @@ public class LiveTableController {
     public ResponseEntity<TokenAttackResponse> attack(@PathVariable UUID tokenId, @RequestBody TokenAttackRequest request,
                                                       @AuthenticationPrincipal UserDetails user) {
         return ResponseEntity.ok(combat.attack(tokenId, request, user.getUsername()));
+    }
+
+    /** Teste do token: personagem pela ficha, monstro pela ficha de monstro (kind, ability, skill, mode). */
+    @PostMapping("/tokens/{tokenId}/roll")
+    public ResponseEntity<SheetRollResponse> roll(@PathVariable UUID tokenId, @RequestBody SheetRollRequest request,
+                                                  @AuthenticationPrincipal UserDetails user) {
+        return ResponseEntity.ok(combat.roll(tokenId, request, user.getUsername()));
     }
 
     @PostMapping("/tokens/{tokenId}/hp")

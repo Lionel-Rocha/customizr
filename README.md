@@ -227,6 +227,16 @@ Abaixo estão todos os endpoints atualmente expostos pelo backend da aplicação
 | `POST` | `/live/tokens/{tokenId}/attack` | Ataca outro token (`attackId`, `targetTokenId`, `mode`, `applyDamage`): rola contra a CA do alvo, aplica vantagem/desvantagem pelas condições dos dois, dobra os dados no crítico, tira o PV do alvo (com resistência/imunidade/vulnerabilidade do monstro) e manda pro chat. |
 | `POST` | `/live/tokens/{tokenId}/hp` | Dano, cura ou PV temporário no token (personagem: na ficha; monstro/NPC: no token). |
 | `PUT` | `/live/tokens/{tokenId}/conditions` | Condições do token (personagem: na ficha; monstro/NPC: no token). |
+| `POST` | `/live/tokens/{tokenId}/roll` | Teste pelo token (`kind` ABILITY/SAVE/SKILL/INITIATIVE, `ability`, `skill`, `mode`): personagem pela ficha; monstro pela ficha de monstro (salvaguardas e perícias com o bônus escrito na ficha; paralisado/atordoado/inconsciente/petrificado falham FOR/DES sozinhos). |
+| `POST` | `/live/scenes/{sceneId}/walls` | Desenha paredes/portas (`walls`: segmentos x1,y1,x2,y2 e `type` WALL/DOOR). Só o mestre. |
+| `DELETE` | `/live/scenes/{sceneId}/walls/{wallId}` · `/live/scenes/{sceneId}/walls` | Apaga uma parede / todas. |
+| `PATCH` | `/live/walls/{wallId}` | Porta: `open` (jogador também, se não estiver trancada) e `locked` (só o mestre; trancar fecha). |
+| `PUT` | `/live/scenes/{sceneId}/vision` | Liga/desliga a visão dinâmica da cena (`enabled`). |
+| `PUT` | `/live/tokens/{tokenId}/vision` | Alcance da visão do token em pés (`visionFt`; vazio = até onde as paredes deixam). |
+| `GET` | `/monster?campaignId=` | Com `campaignId`, a busca traz também os monstros customizados da campanha (só pra quem é dela). |
+| `POST` | `/monster/custom` | Ficha de monstro customizada (em branco ou preenchida) na campanha. Só o mestre. As ações (`actions`: ATTACK/SAVE/OTHER) já funcionam no token. |
+| `PUT` / `DELETE` | `/monster/{id}` | Edita / apaga um monstro customizado (os do catálogo não se editam). |
+| `POST` | `/monster/{id}/copy` | Copia um monstro (do catálogo ou da campanha) para os customizados da campanha, pra ajustar. |
 | `GET` | `/live/campaign/{id}/initiative` | Ordem de iniciativa. |
 | `POST` | `/live/campaign/{id}/initiative/roll` | Rola iniciativa dos tokens (ou de todos os visíveis da cena ativa). |
 | `POST` / `DELETE` | `/live/campaign/{id}/initiative/entries[/{entryId}]` | Entrada manual (ex.: ação de covil). |
@@ -354,10 +364,18 @@ A parte da mesa de jogo, desenvolvida à parte em JavaFX, foi trazida para cá n
 * **O que cada um vê:** condições aparecem pra todos; PV e CA de monstro, só o mestre. Jogador só age com o token do próprio personagem e não mira token oculto; monstro oculto atacando aparece no chat como "Unseen creature".
 * **Tela `/mesa`:** barra de PV e marcas de condição nos tokens, e um painel de combate (dano/cura, condições, ataques com "clique no alvo").
 
+**Sexta rodada (monstros jogáveis, paredes e visão):**
+
+* **Monstros customizados:** o mestre cria uma ficha de monstro em branco ou copia uma do catálogo para editar.
+  * Ficam na campanha (fonte própria `HB-xxxxxxxx`); só quem é da campanha vê.
+  * As ações digitadas (ataque, salvaguarda ou só texto) são gravadas no mesmo formato do 5etools, então o token ataca com elas igual aos monstros importados.
+* **Testes do monstro pelo token:** atributo, salvaguarda, perícia e iniciativa pela ficha de monstro, com as condições contando.
+* **Paredes e portas:** o mestre desenha na tela; o jogador não atravessa parede nem porta fechada (o servidor confere); porta abre com um clique, trancada só o mestre abre.
+* **Visão dinâmica:** ligada por cena. Cada jogador só vê o que os tokens dele enxergam (as paredes cortam a visão, e cada token pode ter um alcance em pés); o que já viu fica esmaecido. A linha de visão é calculada na tela, com as paredes que o servidor manda.
+
 Ficaram de fora por não se encaixarem numa API REST sem uma interface de jogo:
 
 * a tela do mapa no front Angular (por enquanto existe a tela simples em `/mesa`, que usa a mesma API);
-* paredes e visão dinâmica;
 * a "ponte" para jogar sem abrir porta;
 * sons;
 * fichas de Tormenta20 e Ordem Paranormal (este projeto é de D&D 5e).

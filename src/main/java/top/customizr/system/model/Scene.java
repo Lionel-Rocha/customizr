@@ -68,6 +68,13 @@ public class Scene {
     @Column(name = "fog_enabled", nullable = false)
     private boolean fogEnabled;
 
+    /** Visao dinamica: cada jogador so ve o que os tokens dele enxergam (paredes bloqueiam). Null = desligada. */
+    @Column(name = "vision_enabled")
+    private Boolean visionEnabled;
+
+    @OneToMany(mappedBy = "scene", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Wall> walls = new ArrayList<>();
+
     /** So uma cena ativa por campanha: e a que os jogadores veem. */
     @Column(nullable = false)
     private boolean active;
@@ -121,6 +128,34 @@ public class Scene {
 
     public void setFogEnabled(boolean fogEnabled) {
         this.fogEnabled = fogEnabled;
+    }
+
+    public boolean isVisionEnabled() {
+        return Boolean.TRUE.equals(visionEnabled);
+    }
+
+    public void setVisionEnabled(boolean visionEnabled) {
+        this.visionEnabled = visionEnabled;
+    }
+
+    public Wall addWall(double x1, double y1, double x2, double y2, Wall.Type type) {
+        if (walls.size() >= 5_000) throw new IllegalArgumentException("Too many walls in this scene");
+        Wall wall = new Wall(this, x1, y1, x2, y2, type);
+        walls.add(wall);
+        return wall;
+    }
+
+    public boolean removeWall(java.util.UUID wallId) {
+        return walls.removeIf(w -> w.getId().equals(wallId));
+    }
+
+    public void clearWalls() {
+        walls.clear();
+    }
+
+    /** O caminho entre dois pontos passa por uma parede ou porta fechada? */
+    public boolean blockedBetween(double ax, double ay, double bx, double by) {
+        return walls.stream().anyMatch(w -> w.blocks() && w.crosses(ax, ay, bx, by));
     }
 
     public void revealCells(Collection<int[]> cells, boolean reveal) {
