@@ -115,6 +115,81 @@ class ClassImportTests {
     }
 
     @Test
+    @Transactional
+    void returnsClassFeaturesAvailableSpellsAndCompleteSubclassDetails() throws Exception {
+        Source spellSource = sourceRepository.save(new Source("Class Detail Test Source", "CDT"));
+        Spell spell = spellRepository.save(new Spell(
+                "Arc Bolt",
+                SpellSchool.Evocation,
+                SpellLevel.FIRST,
+                Time.Action,
+                60,
+                Set.of(Components.VERBAL, Components.SOMATIC),
+                new Duration(1, DurationUnit.MINUTE, false),
+                spellSource,
+                "A bolt of arcane energy."
+        ));
+        String payload = """
+                {
+                  "class": [{
+                    "name": "Detailed Test Wizard",
+                    "source": "TST",
+                    "hd": {"number": 1, "faces": 6},
+                    "classFeatures": [{
+                      "classFeature": "Storm Path|TST|3",
+                      "gainSubclassFeature": true
+                    }]
+                  }],
+                  "classFeature": [{
+                    "name": "Mystic Training",
+                    "className": "Detailed Test Wizard",
+                    "classSource": "TST",
+                    "source": "TST",
+                    "level": 1,
+                    "entries": ["Learn to shape arcane energy."]
+                  }],
+                  "subclass": [{
+                    "name": "Storm Path",
+                    "shortName": "Storm",
+                    "className": "Detailed Test Wizard",
+                    "classSource": "TST",
+                    "source": "TST",
+                    "subclassFeatures": ["Gale Ward|TST|3"],
+                    "additionalSpells": [{
+                      "prepared": {"3": ["Arc Bolt|CDT"]}
+                    }]
+                  }],
+                  "subclassFeature": [{
+                    "name": "Gale Ward",
+                    "className": "Detailed Test Wizard",
+                    "classSource": "TST",
+                    "subclassShortName": "Storm",
+                    "subclassSource": "TST",
+                    "source": "TST",
+                    "level": 3,
+                    "entries": ["A ward of wind surrounds you."]
+                  }]
+                }
+                """;
+        classService.importClasses(objectMapper.readTree(payload));
+
+        var dndClass = dndClassRepository.findByClassNameAndSourceCode(
+                "Detailed Test Wizard", "TST"
+        ).orElseThrow();
+        dndClass.addAvailableSpell(spell);
+        dndClassRepository.save(dndClass);
+
+        var details = classService.getClassDetails(dndClass.getClassId());
+        assertEquals("Mystic Training", details.features().getFirst().name());
+        assertEquals(1, details.availableSpells().size());
+        assertEquals("Arc Bolt", details.availableSpells().getFirst().name());
+        assertEquals("Storm Path", details.subclasses().getFirst().name());
+        assertEquals("Gale Ward", details.subclasses().getFirst().features().getFirst().name());
+        assertEquals("Arc Bolt", details.subclasses().getFirst().spells().getFirst().spell().name());
+        assertEquals(3, details.subclasses().getFirst().spells().getFirst().grantedAtLevel());
+    }
+
+    @Test
     void addsFeatureToAnAlreadyImportedSubclass() throws Exception {
         String classPayload = """
                 {
