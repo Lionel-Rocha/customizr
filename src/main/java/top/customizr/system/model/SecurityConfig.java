@@ -33,6 +33,9 @@ public class SecurityConfig {
         http
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth
+                        // respostas assincronas (transmissao ao vivo /live/.../events) ja foram autorizadas
+                        // na requisicao original; o filtro JWT nao roda de novo nesses despachos
+                        .dispatcherTypeMatchers(jakarta.servlet.DispatcherType.ASYNC).permitAll()
                         .requestMatchers("/h2-console/**").permitAll()
                         .requestMatchers("/error").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.POST, "/user/create").permitAll()

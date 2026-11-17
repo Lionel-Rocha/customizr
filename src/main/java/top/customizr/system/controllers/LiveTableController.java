@@ -1,0 +1,145 @@
+package top.customizr.system.controllers;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import top.customizr.system.dto.LiveDtos;
+import top.customizr.system.service.LiveTableService;
+
+import java.util.List;
+import java.util.UUID;
+
+/**
+ * Mesa ao vivo. Os navegadores abrem GET /live/campaign/{id}/events (text/event-stream, com o
+ * header Authorization) e recebem: scene, scene_deleted, fog, token_added, token_updated,
+ * token_moved, token_removed, initiative, initiative_ended e chat.
+ */
+@RestController
+@RequestMapping("/live")
+public class LiveTableController {
+
+    private final LiveTableService live;
+
+    public LiveTableController(LiveTableService live) {
+        this.live = live;
+    }
+
+    @GetMapping(value = "/campaign/{campaignId}/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter events(@PathVariable UUID campaignId, @AuthenticationPrincipal UserDetails loggedUser) {
+        return live.subscribe(campaignId, loggedUser.getUsername());
+    }
+
+    @PostMapping("/campaign/{campaignId}/scenes")
+    @ResponseStatus(HttpStatus.CREATED)
+    public LiveDtos.SceneView createScene(@PathVariable UUID campaignId, @RequestBody LiveDtos.SceneRequest request,
+                                          @AuthenticationPrincipal UserDetails loggedUser) {
+        return live.createScene(campaignId, request, loggedUser.getUsername());
+    }
+
+    @GetMapping("/campaign/{campaignId}/scenes")
+    public List<LiveDtos.SceneView> listScenes(@PathVariable UUID campaignId, @AuthenticationPrincipal UserDetails loggedUser) {
+        return live.listScenes(campaignId, loggedUser.getUsername());
+    }
+
+    @GetMapping("/scenes/{sceneId}")
+    public LiveDtos.SceneView readScene(@PathVariable UUID sceneId, @AuthenticationPrincipal UserDetails loggedUser) {
+        return live.readScene(sceneId, loggedUser.getUsername());
+    }
+
+    @PutMapping("/scenes/{sceneId}")
+    public LiveDtos.SceneView updateScene(@PathVariable UUID sceneId, @RequestBody LiveDtos.SceneRequest request,
+                                          @AuthenticationPrincipal UserDetails loggedUser) {
+        return live.updateScene(sceneId, request, loggedUser.getUsername());
+    }
+
+    @DeleteMapping("/scenes/{sceneId}")
+    public ResponseEntity<Void> deleteScene(@PathVariable UUID sceneId, @AuthenticationPrincipal UserDetails loggedUser) {
+        live.deleteScene(sceneId, loggedUser.getUsername());
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/scenes/{sceneId}/activate")
+    public LiveDtos.SceneView activateScene(@PathVariable UUID sceneId, @AuthenticationPrincipal UserDetails loggedUser) {
+        return live.activateScene(sceneId, loggedUser.getUsername());
+    }
+
+    @PutMapping("/scenes/{sceneId}/fog")
+    public LiveDtos.FogView updateFog(@PathVariable UUID sceneId, @RequestBody LiveDtos.FogRequest request,
+                                      @AuthenticationPrincipal UserDetails loggedUser) {
+        return live.updateFog(sceneId, request, loggedUser.getUsername());
+    }
+
+    @PostMapping("/scenes/{sceneId}/tokens")
+    @ResponseStatus(HttpStatus.CREATED)
+    public LiveDtos.TokenView addToken(@PathVariable UUID sceneId, @RequestBody LiveDtos.TokenRequest request,
+                                       @AuthenticationPrincipal UserDetails loggedUser) {
+        return live.addToken(sceneId, request, loggedUser.getUsername());
+    }
+
+    @PatchMapping("/tokens/{tokenId}/move")
+    public LiveDtos.TokenMoved moveToken(@PathVariable UUID tokenId, @RequestBody LiveDtos.MoveRequest request,
+                                         @AuthenticationPrincipal UserDetails loggedUser) {
+        return live.moveToken(tokenId, request, loggedUser.getUsername());
+    }
+
+    @PutMapping("/tokens/{tokenId}")
+    public LiveDtos.TokenView updateToken(@PathVariable UUID tokenId, @RequestBody LiveDtos.TokenRequest request,
+                                          @AuthenticationPrincipal UserDetails loggedUser) {
+        return live.updateToken(tokenId, request, loggedUser.getUsername());
+    }
+
+    @DeleteMapping("/tokens/{tokenId}")
+    public ResponseEntity<Void> removeToken(@PathVariable UUID tokenId, @AuthenticationPrincipal UserDetails loggedUser) {
+        live.removeToken(tokenId, loggedUser.getUsername());
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/campaign/{campaignId}/initiative")
+    public LiveDtos.InitiativeView initiative(@PathVariable UUID campaignId, @AuthenticationPrincipal UserDetails loggedUser) {
+        return live.initiative(campaignId, loggedUser.getUsername());
+    }
+
+    /** Body opcional: {"tokenIds": [...]}; vazio = todos os tokens visiveis da cena ativa. */
+    @PostMapping("/campaign/{campaignId}/initiative/roll")
+    public LiveDtos.InitiativeView rollInitiative(@PathVariable UUID campaignId,
+                                                  @RequestBody(required = false) LiveDtos.InitiativeRollRequest request,
+                                                  @AuthenticationPrincipal UserDetails loggedUser) {
+        return live.rollInitiative(campaignId, request, loggedUser.getUsername());
+    }
+
+    @PostMapping("/campaign/{campaignId}/initiative/entries")
+    public LiveDtos.InitiativeView addEntry(@PathVariable UUID campaignId, @RequestBody LiveDtos.InitiativeEntryRequest request,
+                                            @AuthenticationPrincipal UserDetails loggedUser) {
+        return live.addInitiativeEntry(campaignId, request, loggedUser.getUsername());
+    }
+
+    @DeleteMapping("/campaign/{campaignId}/initiative/entries/{entryId}")
+    public LiveDtos.InitiativeView removeEntry(@PathVariable UUID campaignId, @PathVariable UUID entryId,
+                                               @AuthenticationPrincipal UserDetails loggedUser) {
+        return live.removeInitiativeEntry(campaignId, entryId, loggedUser.getUsername());
+    }
+
+    @PostMapping("/campaign/{campaignId}/initiative/next")
+    public LiveDtos.InitiativeView nextTurn(@PathVariable UUID campaignId, @AuthenticationPrincipal UserDetails loggedUser) {
+        return live.nextTurn(campaignId, loggedUser.getUsername());
+    }
+
+    @DeleteMapping("/campaign/{campaignId}/initiative")
+    public ResponseEntity<Void> endCombat(@PathVariable UUID campaignId, @AuthenticationPrincipal UserDetails loggedUser) {
+        live.endCombat(campaignId, loggedUser.getUsername());
+        return ResponseEntity.noContent().build();
+    }
+}

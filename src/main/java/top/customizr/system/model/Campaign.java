@@ -55,6 +55,14 @@ public class Campaign {
     @OneToMany(mappedBy = "campaign", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ImageAsset> images = new ArrayList<>();
 
+    @JsonIgnore
+    @OneToMany(mappedBy = "campaign", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Scene> scenes = new ArrayList<>();
+
+    @JsonIgnore
+    @OneToOne(mappedBy = "campaign", cascade = CascadeType.ALL, orphanRemoval = true)
+    private InitiativeTracker initiativeTracker;
+
     protected Campaign() {}
 
     public Campaign(String name, User master) {

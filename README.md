@@ -53,7 +53,7 @@ A ordem prioriza uma primeira versão jogável e segura; depois, os recursos ava
 4. [ ] Completar e corrigir a ficha do personagem.
    - [x] Corrigir e testar o mapeamento de Sabedoria e Inteligência ao atualizar atributos.
    - [x] Adicionar pontos de vida, classe de armadura e demais valores derivados necessários à ficha.
-   - [ ] Adicionar imagem de perfil para personagem e NPC, com armazenamento de imagens em vez de depender apenas de URLs externas. *(Armazenamento pronto em `/image`; o NPC já aceita a URL em `photoUrl`; falta o campo de retrato no personagem.)*
+   - [x] Adicionar imagem de perfil para personagem e NPC, com armazenamento de imagens em vez de depender apenas de URLs externas.
 
 ## P1 — Tornar personagens e conteúdo jogáveis
 
@@ -62,10 +62,10 @@ A ordem prioriza uma primeira versão jogável e segura; depois, os recursos ava
    - [ ] Permitir importar e atualizar conteúdo sem criar duplicatas.
    - [x] Expandir a importação para espécies, antecedentes, magias, talentos e monstros.
 6. [ ] Completar a criação e progressão de personagens.
-   - [ ] Implementar espécies e antecedentes, incluindo características e aumentos de atributos.
+   - [x] Implementar espécies e antecedentes, incluindo características e aumentos de atributos. *(O personagem aponta para a espécie e o antecedente do catálogo; os aumentos de atributo ficam no texto e não são aplicados sozinhos.)*
    - [ ] Implementar progressão de nível, pontos de vida e benefícios recebidos por nível.
    - [ ] Implementar magias: catálogo, listas por classe, espaços, conhecidas/preparadas e seleção na ficha.
-   - [ ] Implementar talentos e seus pré-requisitos de atributos, nível, espécie, talento e característica.
+   - [ ] Implementar talentos e seus pré-requisitos de atributos, nível, espécie, talento e característica. *(O personagem já escolhe talentos do catálogo; os pré-requisitos ficam em texto e ainda não são conferidos.)*
 7. [ ] Completar NPCs e monstros.
    - [x] Criar fichas de NPC e monstro, com estatísticas, características, imagem e inventário opcional.
    - [x] Controlar quais informações do NPC ficam visíveis para jogadores e quais são exclusivas do mestre.
@@ -81,7 +81,7 @@ A ordem prioriza uma primeira versão jogável e segura; depois, os recursos ava
 10. [ ] Implementar lojas e economia.
     - [ ] Criar lojas com estoque e permitir compra e venda de itens.
     - [ ] Criar encomendas de itens, estados do pedido e módulo de entrega.
-    - [ ] Suportar moedas de platina, ouro, prata e cobre, além de conversões e preços.
+    - [x] Suportar moedas de platina, ouro, prata e cobre, além de conversões e preços.
 11. [ ] Implementar bastiões e salas.
     - [ ] Criar bastiões de personagens, com nível, limite de salas e tipos de sala.
     - [ ] Aplicar requisitos, tamanhos e efeitos de cada tipo de sala.
@@ -96,7 +96,7 @@ A ordem prioriza uma primeira versão jogável e segura; depois, os recursos ava
 15. [ ] Preparar a aplicação para uso contínuo.
     - [ ] Adicionar métricas e logs para localizar lentidão e erros.
     - [ ] Revisar consultas para evitar N+1 e adicionar paginação/cache quando necessário.
-    - [ ] Definir migrações de banco, backups e exportação/importação de campanhas.
+    - [ ] Definir migrações de banco, backups e exportação/importação de campanhas. *(Exportação/importação pronta em `/campaign/{id}/export` e `/campaign/import`; faltam as migrações.)*
 
 # Rotas atuais
 
@@ -193,6 +193,32 @@ Abaixo estão todos os endpoints atualmente expostos pelo backend da aplicação
 | `GET` | `/monster?name=&minCr=&maxCr=` | Lista monstros (filtro por nome e faixa de ND; 1/4 = 0.25). |
 | `GET` | `/monster/{id}` | Ficha completa do monstro (texto já legível). |
 | `PUT` | `/npc/{id}/stat-block` | Faz o NPC usar uma ficha de monstro (`{"monsterId": "..."}`; null desliga). |
+| `PUT` | `/character/{id}/origin` | Espécie e antecedente do catálogo (`speciesId`, `backgroundId`). |
+| `PUT` | `/character/{id}/proficiencies` | Perícias, especialização e salvaguardas (`skills`, `expertise`, `savingThrows`). |
+| `PUT` | `/character/{id}/conditions` | Condições (`BLINDED`, `POISONED`...) e exaustão (0 a 6). |
+| `POST` | `/character/{id}/spell-slots/spend` | Gasta um espaço de magia (`pool`: STANDARD ou PACT, `level`). |
+| `POST` | `/character/{id}/rest` | Descanso curto (gasta `hitDice`) ou longo. |
+| `POST` / `DELETE` | `/character/{id}/attacks[/{attackId}]` | Ataques da ficha (nome, bônus, dano, tipo). |
+| `POST` | `/character/{id}/attacks/{attackId}/roll` | Rola o ataque e o dano (crítico dobra os dados); `targetArmorClass` diz se acertou; `toChat` manda pro chat. |
+| `POST` | `/character/{id}/roll` | Teste de perícia, atributo, salvaguarda, iniciativa ou contra a morte, com as condições e a exaustão aplicadas. |
+| `POST` / `DELETE` | `/character/{id}/catalog-feats[/{id}]` | Talentos do catálogo escolhidos pelo personagem. |
+| `POST` | `/character/{id}/experience` | Dá (ou tira) XP; só o mestre. |
+| `PUT` | `/character/{id}/portrait` | Retrato do personagem (ex.: `/image/{id}`). |
+| `GET` | `/campaign/{id}/export?images=` | Baixa a campanha inteira em JSON (só o mestre). |
+| `POST` | `/campaign/import` | Cria uma campanha nova a partir do JSON exportado; quem importa vira o mestre. |
+| `GET` | `/live/campaign/{id}/events` | Transmissão ao vivo (Server-Sent Events) para os membros da campanha. |
+| `POST` / `GET` | `/live/campaign/{id}/scenes` | Cria cena (mestre) / lista cenas (o jogador só vê a ativa). |
+| `GET` / `PUT` / `DELETE` | `/live/scenes/{sceneId}` | Cena. |
+| `POST` | `/live/scenes/{sceneId}/activate` | Troca a cena que os jogadores veem. |
+| `PUT` | `/live/scenes/{sceneId}/fog` | Neblina: ligar/desligar, revelar ou esconder casas `[coluna, linha]`. |
+| `POST` | `/live/scenes/{sceneId}/tokens` | Põe token (ligado a personagem, NPC ou monstro; pode ser oculto). |
+| `PATCH` | `/live/tokens/{tokenId}/move` | Move token (o dono do personagem ou o mestre); devolve a distância em pés. |
+| `PUT` / `DELETE` | `/live/tokens/{tokenId}` | Edita (nome, tamanho, oculto, PV, giro) ou tira o token. |
+| `GET` | `/live/campaign/{id}/initiative` | Ordem de iniciativa. |
+| `POST` | `/live/campaign/{id}/initiative/roll` | Rola iniciativa dos tokens (ou de todos os visíveis da cena ativa). |
+| `POST` / `DELETE` | `/live/campaign/{id}/initiative/entries[/{entryId}]` | Entrada manual (ex.: ação de covil). |
+| `POST` | `/live/campaign/{id}/initiative/next` | Passa a vez (depois do último, nova rodada). |
+| `DELETE` | `/live/campaign/{id}/initiative` | Fim do combate. |
 
 ## Atualização de itens por dump JSON
 
@@ -261,9 +287,31 @@ A parte da mesa de jogo, desenvolvida à parte em JavaFX, foi trazida para cá n
 * **`MasterGuard`:** as regras de acesso do diagrama, usadas pelos serviços novos.
 * **Party e inventário:** `maxSize` na party e controladores de inventário e NPC (os serviços já existiam).
 
+**Segunda rodada:**
+
+* **Ficha completa:**
+  * espécie e antecedente do catálogo;
+  * perícias, especialização e salvaguardas, com os bônus calculados (a percepção passiva usa a perícia);
+  * condições e exaustão pelas regras de 2024: −2 por nível nos testes de d20 e −5 pés no deslocamento; o nível 6 mata;
+  * testes contra a morte (1 natural vale duas falhas, 20 volta com 1 PV);
+  * espaços de magia gastos, usando o `SpellSlotCalculator` dela;
+  * descansos curto e longo, com dados de vida;
+  * ataques que rolam acerto e dano, talentos do catálogo, XP e retrato.
+
+  As rolagens aplicam as condições sozinhas: envenenado ou amedrontado dá desvantagem, e paralisado falha nas salvaguardas de FOR e DES. Também podem ir direto para o chat.
+* **Moedas:** `Currency` (pl, po, pe, pp, pc) com conversão. O inventário continua guardando em po e mostra a quebra em moedas.
+* **Exportar/importar campanha:** gera um JSON com mundo, enciclopédia, NPCs, personagens, parties, inventários e imagens. A importação cria sempre uma campanha nova, religa o conteúdo do catálogo por nome + fonte e avisa o que não encontrou.
+* **Mesa ao vivo no servidor:**
+  * cenas com mapa, grade quadrada, hexagonal ou sem grade, e neblina por casa;
+  * tokens ligados a personagem, NPC ou monstro, com distância em pés ao mover;
+  * iniciativa com rodadas.
+
+  As mudanças chegam aos navegadores conectados por Server-Sent Events. Token oculto vai só para o mestre, sussurro vai só para quem pode ler, e o jogador só move o token do próprio personagem. Para o envio contínuo funcionar, o `SecurityConfig` passou a liberar o despacho assíncrono (`DispatcherType.ASYNC`); a autorização acontece na requisição original.
+
 Ficaram de fora por não se encaixarem numa API REST sem uma interface de jogo:
 
-* mapa tático com tokens, neblina e paredes/visão;
+* a tela do mapa em si (o servidor já guarda cenas, tokens e neblina e transmite as mudanças; falta a interface no front);
+* paredes e visão dinâmica;
 * a "ponte" para jogar sem abrir porta;
 * sons;
 * fichas de Tormenta20 e Ordem Paranormal (este projeto é de D&D 5e).

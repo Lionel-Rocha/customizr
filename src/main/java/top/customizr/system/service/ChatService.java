@@ -42,14 +42,17 @@ public class ChatService {
     private final CharacterRepository characterRepository;
     private final MembershipRepository membershipRepository;
     private final UserRepository userRepository;
+    private final LiveEventService liveEvents;
 
     public ChatService(
             ChatMessageRepository chatMessageRepository,
             CampaignRepository campaignRepository,
             CharacterRepository characterRepository,
             MembershipRepository membershipRepository,
-            UserRepository userRepository
+            UserRepository userRepository,
+            LiveEventService liveEvents
     ) {
+        this.liveEvents = liveEvents;
         this.chatMessageRepository = chatMessageRepository;
         this.campaignRepository = campaignRepository;
         this.characterRepository = characterRepository;
@@ -77,7 +80,18 @@ public class ChatService {
         } catch (IllegalArgumentException ex) {
             throw badRequest(ex.getMessage());
         }
-        return ChatMessageResponse.from(chatMessageRepository.save(message));
+        return broadcast(chatMessageRepository.save(message));
+    }
+
+    /** Manda a mensagem pros conectados na mesa (sussurro: so autor, destinatario e mestre). */
+    private ChatMessageResponse broadcast(ChatMessage message) {
+        ChatMessageResponse response = ChatMessageResponse.from(message);
+        UUID author = message.getAuthor().getUserId();
+        UUID recipient = message.getRecipient() == null ? null : message.getRecipient().getUserId();
+        liveEvents.publish(message.getCampaign().getId(), "chat", response,
+                l -> message.getType() != ChatMessageType.WHISPER || l.master()
+                        || l.userId().equals(author) || l.userId().equals(recipient));
+        return response;
     }
 
     /** Rolagem feita pela ficha (o servidor ja rolou): vira um cartao ROLL no chat, falando como o personagem. */
@@ -93,7 +107,7 @@ public class ChatService {
                 + (extra == null ? "" : extra));
         ChatMessage message = new ChatMessage(campaign, author, speaker, ChatMessageType.ROLL,
                 content.length() > 3900 ? content.substring(0, 3900) : content, null, roll);
-        return ChatMessageResponse.from(chatMessageRepository.save(message));
+        return broadcast(chatMessageRepository.save(message));
     }
 
     /** Mensagens em ordem de envio. {@code before} = pagina anterior (mais antigas que esse instante). */
