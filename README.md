@@ -65,7 +65,7 @@ A ordem prioriza uma primeira versão jogável e segura; depois, os recursos ava
    - [x] Implementar espécies e antecedentes, incluindo características e aumentos de atributos. *(O personagem aponta para a espécie e o antecedente do catálogo; os aumentos de atributo ficam no texto e não são aplicados sozinhos.)*
    - [ ] Implementar progressão de nível, pontos de vida e benefícios recebidos por nível.
    - [ ] Implementar magias: catálogo, listas por classe, espaços, conhecidas/preparadas e seleção na ficha.
-   - [ ] Implementar talentos e seus pré-requisitos de atributos, nível, espécie, talento e característica. *(O personagem já escolhe talentos do catálogo; os pré-requisitos ficam em texto e ainda não são conferidos.)*
+   - [x] Implementar talentos e seus pré-requisitos de atributos, nível, espécie, talento e característica. *(Pré-requisitos conferidos pela entrada original do 5etools; o mestre pode liberar.)*
 7. [ ] Completar NPCs e monstros.
    - [x] Criar fichas de NPC e monstro, com estatísticas, características, imagem e inventário opcional.
    - [x] Controlar quais informações do NPC ficam visíveis para jogadores e quais são exclusivas do mestre.
@@ -206,6 +206,8 @@ Abaixo estão todos os endpoints atualmente expostos pelo backend da aplicação
 | `PUT` | `/character/{id}/portrait` | Retrato do personagem (ex.: `/image/{id}`). |
 | `GET` | `/campaign/{id}/export?images=` | Baixa a campanha inteira em JSON (só o mestre). |
 | `POST` | `/campaign/import` | Cria uma campanha nova a partir do JSON exportado; quem importa vira o mestre. |
+| `GET` | `/user/me` | Usuário logado (id e nome). |
+| `GET` | `/mesa` | Tela de jogo no navegador (arquivo estático; os dados vêm da API com o token). |
 | `GET` | `/live/campaign/{id}/events` | Transmissão ao vivo (Server-Sent Events) para os membros da campanha. |
 | `POST` / `GET` | `/live/campaign/{id}/scenes` | Cria cena (mestre) / lista cenas (o jogador só vê a ativa). |
 | `GET` / `PUT` / `DELETE` | `/live/scenes/{sceneId}` | Cena. |
@@ -308,9 +310,19 @@ A parte da mesa de jogo, desenvolvida à parte em JavaFX, foi trazida para cá n
 
   As mudanças chegam aos navegadores conectados por Server-Sent Events. Token oculto vai só para o mestre, sussurro vai só para quem pode ler, e o jogador só move o token do próprio personagem. Para o envio contínuo funcionar, o `SecurityConfig` passou a liberar o despacho assíncrono (`DispatcherType.ASYNC`); a autorização acontece na requisição original.
 
+**Terceira rodada:**
+
+* **Tela de jogo em `/mesa`:** login, escolha da campanha, cena com o mapa, grade quadrada ou hexagonal, neblina pintada por casa, tokens arrastáveis com régua em pés, iniciativa e chat. Tudo atualiza ao vivo pela transmissão e tudo passa pela API. O jogador só move os próprios tokens e não vê o que está oculto.
+* **Script `db/manual-migrations/20261117_swap_intelligence_wisdom.sql`:** destroca INT e SAB das fichas já gravadas. Ver `MESCLAGEM.md` para saber quando rodar.
+* **Pré-requisitos dos talentos** (nível, atributo, espécie, outro talento, conjuração) conferidos ao escolher. O mestre pode liberar.
+* **Alinhamento ao padrão do `ClassService`:**
+  * espécies, antecedentes, talentos e monstros guardam `description` crua (com as tags `{@...}`), `metadata` (entrada original), `sourceCode` e `page`, e têm `descriptionText` já legível;
+  * os DTOs ficaram um por arquivo.
+* **Resumo para revisão:** `MESCLAGEM.md`.
+
 Ficaram de fora por não se encaixarem numa API REST sem uma interface de jogo:
 
-* a tela do mapa em si (o servidor já guarda cenas, tokens e neblina e transmite as mudanças; falta a interface no front);
+* a tela do mapa no front Angular (por enquanto existe a tela simples em `/mesa`, que usa a mesma API);
 * paredes e visão dinâmica;
 * a "ponte" para jogar sem abrir porta;
 * sons;
