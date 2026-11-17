@@ -14,6 +14,7 @@ public record InventoryResponse(
         UUID ownerId,
         String ownerName,
         BigDecimal moneyGp,
+        java.util.Map<String, Long> coins,
         List<EntryInfo> entries
 ) {
     public enum OwnerType { CHARACTER, PARTY, NPC }
@@ -41,11 +42,20 @@ public record InventoryResponse(
                 ownerId,
                 ownerName,
                 inventory.getMoneyGp(),
+                coins(inventory.getMoneyGp()),
                 inventory.getEntries().stream()
                         .map(EntryInfo::from)
                         .sorted(Comparator.comparing(EntryInfo::name, String.CASE_INSENSITIVE_ORDER))
                         .toList()
         );
+    }
+
+    /** O dinheiro em moedas: {"pp": 12, "gp": 3, "sp": 4, "cp": 5}. */
+    private static java.util.Map<String, Long> coins(BigDecimal gold) {
+        java.util.Map<String, Long> out = new java.util.LinkedHashMap<>();
+        top.customizr.system.model.Currency.breakdown(gold == null ? BigDecimal.ZERO : gold, true)
+                .forEach((currency, amount) -> out.put(currency.getSymbol(), amount));
+        return out;
     }
 
     public record EntryInfo(UUID itemId, String name, int quantity, BigDecimal priceGp, String rarity) {

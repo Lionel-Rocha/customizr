@@ -93,6 +93,6 @@ public class InventoryController {
             @AuthenticationPrincipal UserDetails loggedUser
     ) {
         Character actor = inventoryService.actorFor(request.actorCharacterId(), loggedUser.getUsername());
-        return InventoryResponse.from(inventoryService.changeMoney(actor, inventoryId, request.amount()));
+        return InventoryResponse.from(inventoryService.changeMoney(actor, inventoryId, request.amountInGold()));
     }
 }

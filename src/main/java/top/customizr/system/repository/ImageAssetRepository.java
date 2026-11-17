@@ -11,4 +11,6 @@ import java.util.UUID;
 @Repository
 public interface ImageAssetRepository extends JpaRepository<ImageAsset, UUID> {
     Optional<ImageAsset> findByCampaignAndSha256(Campaign campaign, String sha256);
+
+    java.util.List<ImageAsset> findByCampaign(Campaign campaign);
 }
