@@ -2,7 +2,7 @@
 
 Este branch (`mesclagem-mesa`) traz para o Customizr o que foi feito no programa de mesa à parte (o antigo "Embertale"), reescrito no padrão deste projeto: entidades JPA em `model/`, serviços com checagem de mestre/membro, DTOs `record` (um por arquivo, `XxxRequest` / `XxxResponse`) e testes com H2. O ponto de partida é o commit `e740c23` ("Consertando import de classes").
 
-* **Testes:** 69, todos passando (antes: 23, com 3 quebrados).
+* **Testes:** 74, todos passando (antes: 23, com 3 quebrados).
 * **Arquivos de exemplo:** o que é do 5etools nos testes são amostras pequenas do SRD 5.2 (licença CC-BY-4.0, atribuição em `src/test/resources/importer/LEIA-ME.txt`).
 * **Fins de linha:** tudo em LF, igual ao resto do repositório.
 
@@ -22,6 +22,8 @@ Este branch (`mesclagem-mesa`) traz para o Customizr o que foi feito no programa
 | `model/Spell.java` | + `metadata` (entrada original do 5etools, só nas importadas) | Mesmo padrão do `Feature`/`DndClass` |
 | `model/Sheet.java`, `model/Character.java` | PV, CA, perícias, condições, espaços gastos, espécie, antecedente, XP, retrato... | Ficha completa (os campos novos aceitam nulo, então fichas antigas continuam carregando) |
 | `model/Party.java`, `dto/CreatePartyRequest.java` | + `maxSize` | Roadmap P0.2 |
+| `model/Token.java`, `dto/TokenResponse.java` | + condições próprias (monstro/NPC); `TokenResponse` + `conditions` e `armorClass` | Combate na mesa |
+| `service/CharacterService.java`, `CharacterSheetService.java` | PV, condições e descanso avisam a mesa ao vivo (`LiveTableService.characterChanged`) | O token mostra o PV da ficha na hora |
 | `model/NPC.java` | + ficha de monstro opcional (`statBlock`) | NPC usando um monstro do bestiário |
 | `model/Campaign.java` | + listas com cascata (chat, mundos, enciclopédia, imagens, cenas, iniciativa) | Apagar a campanha leva tudo junto |
 | `model/SecurityConfig.java` | + `DispatcherType.ASYNC` liberado; + `GET /mesa/**` liberado | A transmissão ao vivo (SSE) responde de forma assíncrona; a tela da mesa é um arquivo estático |
@@ -76,3 +78,5 @@ As tabelas e colunas novas o Hibernate cria sozinho (`ddl-auto=update`). Todas a
 | 8 | Este resumo e os últimos acertos no README |
 | 9 | Traços/características como `Feature`; lista da ficha e cartões no chat; preparar magia; gerador de atributos |
 | 10 | Aba Ficha na tela `/mesa` (lista com Adicionar/Chat, gerador de atributos) e documentação |
+| 11 | Programa de mesa de PC (`mesa-pc/`): código, ponte e scripts, sem o conteúdo dos livros nem os programas montados |
+| 12 | Combate na mesa: ataque de token em token (ficha do personagem ou do monstro), dano/cura, condições, painel na tela `/mesa` |

@@ -1,6 +1,8 @@
 package top.customizr.system.controllers;
 
+import top.customizr.system.dto.ConditionsRequest;
 import top.customizr.system.dto.FogRequest;
+import top.customizr.system.dto.HitPointChangeRequest;
 import top.customizr.system.dto.FogResponse;
 import top.customizr.system.dto.InitiativeEntryRequest;
 import top.customizr.system.dto.InitiativeResponse;
@@ -8,6 +10,9 @@ import top.customizr.system.dto.InitiativeRollRequest;
 import top.customizr.system.dto.MoveTokenRequest;
 import top.customizr.system.dto.SceneRequest;
 import top.customizr.system.dto.SceneResponse;
+import top.customizr.system.dto.TokenAttackOption;
+import top.customizr.system.dto.TokenAttackRequest;
+import top.customizr.system.dto.TokenAttackResponse;
 import top.customizr.system.dto.TokenMovedResponse;
 import top.customizr.system.dto.TokenRequest;
 import top.customizr.system.dto.TokenResponse;
@@ -27,6 +32,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import top.customizr.system.service.LiveCombatService;
 import top.customizr.system.service.LiveTableService;
 
 import java.util.List;
@@ -42,9 +48,11 @@ import java.util.UUID;
 public class LiveTableController {
 
     private final LiveTableService live;
+    private final LiveCombatService combat;
 
-    public LiveTableController(LiveTableService live) {
+    public LiveTableController(LiveTableService live, LiveCombatService combat) {
         this.live = live;
+        this.combat = combat;
     }
 
     @GetMapping(value = "/campaign/{campaignId}/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
@@ -115,6 +123,31 @@ public class LiveTableController {
     public ResponseEntity<Void> removeToken(@PathVariable UUID tokenId, @AuthenticationPrincipal UserDetails loggedUser) {
         live.removeToken(tokenId, loggedUser.getUsername());
         return ResponseEntity.noContent().build();
+    }
+
+    // ------------------------------------------------------------------ combate
+
+    @GetMapping("/tokens/{tokenId}/attacks")
+    public ResponseEntity<List<TokenAttackOption>> attacks(@PathVariable UUID tokenId, @AuthenticationPrincipal UserDetails user) {
+        return ResponseEntity.ok(combat.attacks(tokenId, user.getUsername()));
+    }
+
+    @PostMapping("/tokens/{tokenId}/attack")
+    public ResponseEntity<TokenAttackResponse> attack(@PathVariable UUID tokenId, @RequestBody TokenAttackRequest request,
+                                                      @AuthenticationPrincipal UserDetails user) {
+        return ResponseEntity.ok(combat.attack(tokenId, request, user.getUsername()));
+    }
+
+    @PostMapping("/tokens/{tokenId}/hp")
+    public ResponseEntity<TokenResponse> hitPoints(@PathVariable UUID tokenId, @RequestBody HitPointChangeRequest request,
+                                                   @AuthenticationPrincipal UserDetails user) {
+        return ResponseEntity.ok(combat.changeHitPoints(tokenId, request, user.getUsername()));
+    }
+
+    @PutMapping("/tokens/{tokenId}/conditions")
+    public ResponseEntity<TokenResponse> conditions(@PathVariable UUID tokenId, @RequestBody ConditionsRequest request,
+                                                    @AuthenticationPrincipal UserDetails user) {
+        return ResponseEntity.ok(combat.updateConditions(tokenId, request, user.getUsername()));
     }
 
     @GetMapping("/campaign/{campaignId}/initiative")

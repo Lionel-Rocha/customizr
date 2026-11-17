@@ -341,6 +341,18 @@ public class LiveTableService {
         }
     }
 
+    /** Avisa a mesa que o token mudou (PV, condicoes...). */
+    public void broadcastTokenChange(Token token) {
+        broadcastToken(token, "token_updated");
+    }
+
+    /** A ficha mudou (PV, condicoes, descanso): os tokens desse personagem sao redesenhados na mesa. */
+    @Transactional
+    public void characterChanged(Character character) {
+        if (character == null) return;
+        tokenRepository.findByCharacter(character).forEach(this::broadcastTokenChange);
+    }
+
     private void broadcastToken(Token token, String type) {
         UUID campaignId = token.getScene().getCampaign().getId();
         events.publishToMaster(campaignId, type, TokenResponse.from(token, true));

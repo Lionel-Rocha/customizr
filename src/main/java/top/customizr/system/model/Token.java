@@ -1,7 +1,11 @@
 package top.customizr.system.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
@@ -10,6 +14,8 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.Getter;
 
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -69,6 +75,13 @@ public class Token {
     @Column(name = "hp_max")
     private Integer hpMax;
 
+    /** Condicoes proprias (NPC/monstro); token de personagem usa as condicoes da ficha. */
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "token_conditions", joinColumns = @JoinColumn(name = "token_id"))
+    @Column(name = "condition_name", nullable = false)
+    @Enumerated(EnumType.STRING)
+    private Set<Condition> conditions = new LinkedHashSet<>();
+
     protected Token() {}
 
     Token(Scene scene, String name, double x, double y, Integer sizeCells, String imageUrl, boolean hidden,
@@ -124,6 +137,47 @@ public class Token {
         }
         if (hpMax != null) this.hpMax = hpMax;
         if (hpCurrent != null) this.hpCurrent = hpCurrent;
+    }
+
+    /** Condicoes valendo: as da ficha (personagem) ou as do proprio token. */
+    public Set<Condition> activeConditions() {
+        if (character != null) return character.getSheet().getConditions();
+        return conditions;
+    }
+
+    public void updateConditions(Set<Condition> newConditions) {
+        if (character != null) {
+            character.getSheet().updateConditions(newConditions, null);
+            return;
+        }
+        conditions.clear();
+        if (newConditions != null) conditions.addAll(newConditions);
+    }
+
+    /** CA do alvo: ficha do personagem, ou ficha do monstro (do token ou do NPC). Null se nao tiver. */
+    public Integer armorClass() {
+        if (character != null) return character.getSheet().getArmorClass();
+        Monster stats = statBlock();
+        return stats == null ? null : stats.getArmorClass();
+    }
+
+    /** Ficha de monstro por tras do token (monstro direto ou NPC com ficha). */
+    public Monster statBlock() {
+        return monster != null ? monster : npc != null ? npc.getStatBlock() : null;
+    }
+
+    /** Dano no PV do proprio token (NPC/monstro): nao passa de 0. */
+    public void damage(int amount) {
+        if (amount < 0) throw new IllegalArgumentException("Damage must be positive");
+        if (hpCurrent == null) throw new IllegalStateException("This token has no hit points");
+        hpCurrent = Math.max(0, hpCurrent - amount);
+    }
+
+    /** Cura no PV do proprio token: nao passa do maximo. */
+    public void heal(int amount) {
+        if (amount < 0) throw new IllegalArgumentException("Healing must be positive");
+        if (hpCurrent == null) throw new IllegalStateException("This token has no hit points");
+        hpCurrent = hpMax == null ? hpCurrent + amount : Math.min(hpMax, hpCurrent + amount);
     }
 
     /** Modificador de DES pra iniciativa (ficha do personagem, do NPC ou do monstro). */

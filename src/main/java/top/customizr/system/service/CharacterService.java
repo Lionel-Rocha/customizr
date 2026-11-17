@@ -41,6 +41,7 @@ public class CharacterService {
     private final SubclassRepository subclassRepository;
     private final FeatureRepository featureRepository;
     private final InventoryRepository inventoryRepository;
+    private final LiveTableService liveTable;
 
     public CharacterService(
             CharacterRepository characterRepository,
@@ -50,8 +51,10 @@ public class CharacterService {
             DndClassRepository dndClassRepository,
             SubclassRepository subclassRepository,
             FeatureRepository featureRepository,
-            InventoryRepository inventoryRepository
+            InventoryRepository inventoryRepository,
+            LiveTableService liveTable
     ) {
+        this.liveTable = liveTable;
         this.characterRepository = characterRepository;
         this.campaignRepository = campaignRepository;
         this.membershipRepository = membershipRepository;
@@ -215,6 +218,7 @@ public class CharacterService {
         } catch (IllegalArgumentException ex) {
             throw badRequest(ex.getMessage());
         }
+        liveTable.characterChanged(character);
         return CharacterSheetResponse.from(character);
     }
 
@@ -233,6 +237,7 @@ public class CharacterService {
         } catch (IllegalArgumentException | IllegalStateException ex) {
             throw badRequest(ex.getMessage());
         }
+        liveTable.characterChanged(character);
         return CharacterSheetResponse.from(character);
     }
 

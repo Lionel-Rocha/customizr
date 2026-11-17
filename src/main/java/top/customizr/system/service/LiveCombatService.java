@@ -1,0 +1,343 @@
+package top.customizr.system.service;
+
+import jakarta.transaction.Transactional;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
+import top.customizr.system.dto.AttackRollRequest;
+import top.customizr.system.dto.ConditionsRequest;
+import top.customizr.system.dto.HitPointChangeRequest;
+import top.customizr.system.dto.SheetRollResponse;
+import top.customizr.system.dto.TokenAttackOption;
+import top.customizr.system.dto.TokenAttackRequest;
+import top.customizr.system.dto.TokenAttackResponse;
+import top.customizr.system.dto.TokenResponse;
+import top.customizr.system.model.Campaign;
+import top.customizr.system.model.Condition;
+import top.customizr.system.model.DiceRoller;
+import top.customizr.system.model.Monster;
+import top.customizr.system.model.MonsterAttacks;
+import top.customizr.system.model.RollMode;
+import top.customizr.system.model.RollResult;
+import top.customizr.system.model.SheetAttack;
+import top.customizr.system.model.Token;
+import top.customizr.system.model.User;
+import top.customizr.system.repository.TokenRepository;
+
+import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+import java.util.UUID;
+
+/**
+ * Combate na mesa: ataque de um token em outro (personagem pela ficha, monstro pela ficha de monstro),
+ * dano/cura e condicoes no token. Quem controla o token: o mestre, ou o dono do personagem.
+ * Toda mudanca de PV/condicao vai pra mesa ao vivo, e os ataques vao pro chat.
+ */
+@Service
+public class LiveCombatService {
+
+    /** Condicoes de quem ataca que dao desvantagem no ataque. */
+    private static final Set<Condition> ATTACKER_DISADVANTAGE = EnumSet.of(
+            Condition.POISONED, Condition.FRIGHTENED, Condition.BLINDED, Condition.PRONE, Condition.RESTRAINED);
+    /** Condicoes do alvo que dao vantagem a quem ataca. */
+    private static final Set<Condition> TARGET_GRANTS_ADVANTAGE = EnumSet.of(
+            Condition.BLINDED, Condition.PARALYZED, Condition.PETRIFIED, Condition.RESTRAINED,
+            Condition.STUNNED, Condition.UNCONSCIOUS);
+
+    private final TokenRepository tokenRepository;
+    private final MasterGuard masterGuard;
+    private final CharacterSheetService sheetService;
+    private final CharacterService characterService;
+    private final ChatService chatService;
+    private final LiveTableService liveTable;
+
+    public LiveCombatService(TokenRepository tokenRepository, MasterGuard masterGuard, CharacterSheetService sheetService,
+                             CharacterService characterService, ChatService chatService, LiveTableService liveTable) {
+        this.tokenRepository = tokenRepository;
+        this.masterGuard = masterGuard;
+        this.sheetService = sheetService;
+        this.characterService = characterService;
+        this.chatService = chatService;
+        this.liveTable = liveTable;
+    }
+
+    /** Ataques do token: os da ficha do personagem, ou as acoes da ficha de monstro. */
+    @Transactional
+    public List<TokenAttackOption> attacks(UUID tokenId, String username) {
+        Token token = token(tokenId);
+        requireControl(token, username);
+        if (token.getCharacter() != null) {
+            return token.getCharacter().getSheet().getAttacks().stream().map(TokenAttackOption::from).toList();
+        }
+        return MonsterAttacks.of(token.statBlock()).stream().map(TokenAttackOption::from).toList();
+    }
+
+    @Transactional
+    public TokenAttackResponse attack(UUID tokenId, TokenAttackRequest request, String username) {
+        Token attacker = token(tokenId);
+        boolean master = requireControl(attacker, username);
+        if (request == null || request.attackId() == null || request.attackId().isBlank()) {
+            throw badRequest("attackId is required");
+        }
+        Token target = null;
+        if (request.targetTokenId() != null) {
+            target = token(request.targetTokenId());
+            if (!master && target.isHidden()) throw notFound("Token");
+            if (!target.getScene().getId().equals(attacker.getScene().getId())) {
+                throw badRequest("The target is in another scene");
+            }
+        }
+        List<String> notes = new ArrayList<>();
+        RollMode mode = request.mode() == null ? RollMode.NORMAL : request.mode();
+        Integer targetAc = target == null ? null : target.armorClass();
+
+        String attackName;
+        RollResult attackRoll;
+        RollResult damageRoll;
+        Boolean hit;
+        String outcome;
+        String damageType;
+        if (attacker.getCharacter() != null) {
+            SheetAttack sheetAttack = attacker.getCharacter().getSheet().getAttacks().stream()
+                    .filter(a -> a.getId().toString().equals(request.attackId())).findFirst()
+                    .orElseThrow(() -> notFound("Attack"));
+            // condicoes de quem ataca (envenenado, caido...) a ficha ja aplica; aqui entram invisivel e o alvo
+            mode = withTargetConditions(withInvisibleAttacker(mode, attacker, notes), target, null, notes);
+            SheetRollResponse rolled = sheetService.rollAttack(attacker.getCharacter().getCharacterId(), sheetAttack.getId(),
+                    new AttackRollRequest(mode, targetAc, false), username);
+            notes.addAll(rolled.notes());
+            attackName = sheetAttack.getName();
+            attackRoll = rolled.roll();
+            damageRoll = rolled.damage();
+            hit = rolled.hit();
+            outcome = rolled.outcome();
+            damageType = sheetAttack.getDamageType();
+        } else {
+            MonsterAttacks.Attack action = monsterAttack(attacker, request.attackId());
+            attackName = action.name();
+            damageType = action.damageType();
+            if (action.kind() == MonsterAttacks.Kind.ATTACK) {
+                mode = withAttackerConditions(mode, attacker, notes);
+                mode = withTargetConditions(withInvisibleAttacker(mode, attacker, notes), target, action.melee(), notes);
+                attackRoll = DiceRoller.roll(d20(mode) + signed(action.attackBonus()));
+                boolean critical = attackRoll.isCriticalHit();
+                damageRoll = action.damage() == null || attackRoll.isCriticalFail() ? null
+                        : DiceRoller.roll(critical ? DiceRoller.doubleDice(action.damage()) : action.damage());
+                hit = targetAc == null ? null : !attackRoll.isCriticalFail() && (critical || attackRoll.total() >= targetAc);
+                outcome = critical ? "CRITICAL_HIT" : attackRoll.isCriticalFail() ? "CRITICAL_MISS" : null;
+            } else {
+                // salvaguarda: so o dano e rolado; quem decide (e aplica, se for o caso) e o mestre
+                attackRoll = null;
+                damageRoll = action.damage() == null ? null : DiceRoller.roll(action.damage());
+                hit = null;
+                outcome = null;
+                notes.add("DC " + action.saveDc() + (action.saveAbility() == null ? "" : " " + action.saveAbility()) + " save");
+            }
+        }
+
+        Integer applied = null;
+        boolean apply = request.applyDamage() == null || request.applyDamage();
+        if (apply && target != null && Boolean.TRUE.equals(hit) && damageRoll != null) {
+            applied = applyDamage(target, damageRoll.total(), damageType, notes);
+        }
+
+        // token oculto atacando: o chat nao entrega quem e
+        String label = (attacker.isHidden() ? "Unseen creature" : attacker.getName()) + (target == null ? "" : " -> " + target.getName()) + ": " + attackName
+                + (damageType == null ? "" : " (" + damageType + ")");
+        RollResult shown = attackRoll != null ? attackRoll : damageRoll;
+        UUID chatId = null;
+        if (shown != null) {
+            String extra = (attackRoll != null && damageRoll != null ? " | damage: " + damageRoll.detail() : "")
+                    + (hit == null ? "" : hit ? " | HIT" : " | MISS")
+                    + (outcome == null ? "" : " | " + outcome)
+                    + (applied == null ? "" : " | -" + applied + " HP")
+                    + (notes.isEmpty() ? "" : " (" + String.join("; ", notes) + ")");
+            chatId = chatService.postRoll(attacker.getScene().getCampaign().getId(),
+                    attacker.getCharacter() == null ? null : attacker.getCharacter().getCharacterId(),
+                    label, shown, extra, username).id();
+        }
+        return new TokenAttackResponse(label, attackRoll, damageRoll, hit, outcome, notes,
+                target == null ? null : target.getId(), target == null ? null : target.getName(), applied, chatId);
+    }
+
+    /** Dano / cura / PV temporario no token. Personagem: vai na ficha. NPC/monstro: no PV do token. */
+    @Transactional
+    public TokenResponse changeHitPoints(UUID tokenId, HitPointChangeRequest request, String username) {
+        Token token = token(tokenId);
+        boolean master = requireControl(token, username);
+        if (request == null || request.type() == null) throw badRequest("Hit point change type is required");
+        if (token.getCharacter() != null) {
+            characterService.changeHitPoints(token.getCharacter().getCharacterId(), request, username);
+            return TokenResponse.from(token, master);
+        }
+        try {
+            switch (request.type()) {
+                case DAMAGE -> token.damage(request.amount());
+                case HEALING -> token.heal(request.amount());
+                case TEMPORARY -> throw badRequest("Temporary HP is only tracked on character sheets");
+            }
+        } catch (IllegalArgumentException | IllegalStateException ex) {
+            throw badRequest(ex.getMessage());
+        }
+        liveTable.broadcastTokenChange(token);
+        return TokenResponse.from(token, master);
+    }
+
+    /** Condicoes do token. Personagem: vai na ficha. NPC/monstro: ficam no token. */
+    @Transactional
+    public TokenResponse updateConditions(UUID tokenId, ConditionsRequest request, String username) {
+        Token token = token(tokenId);
+        boolean master = requireControl(token, username);
+        if (request == null) throw badRequest("Request body is required");
+        if (token.getCharacter() != null) {
+            sheetService.updateConditions(token.getCharacter().getCharacterId(), request, username);
+            return TokenResponse.from(token, master);
+        }
+        token.updateConditions(request.conditions());
+        liveTable.broadcastTokenChange(token);
+        return TokenResponse.from(token, master);
+    }
+
+    // ------------------------------------------------------------------ regras
+
+    /** Aplica o dano no alvo, com resistencia/imunidade/vulnerabilidade do monstro. Devolve o que saiu do PV. */
+    private Integer applyDamage(Token target, int amount, String damageType, List<String> notes) {
+        int finalAmount = amount;
+        Monster stats = target.getCharacter() == null ? target.statBlock() : null;
+        if (stats != null && damageType != null) {
+            String type = damageType.toLowerCase(Locale.ROOT);
+            if (mentions(stats.getDamageImmunities(), type)) {
+                finalAmount = 0;
+                notes.add(target.getName() + " is immune to " + type);
+            } else if (mentions(stats.getDamageResistances(), type)) {
+                finalAmount = amount / 2;
+                notes.add(target.getName() + " resists " + type);
+            } else if (mentions(stats.getDamageVulnerabilities(), type)) {
+                finalAmount = amount * 2;
+                notes.add(target.getName() + " is vulnerable to " + type);
+            }
+        }
+        try {
+            if (target.getCharacter() != null) {
+                target.getCharacter().getSheet().applyDamage(finalAmount);
+                liveTable.characterChanged(target.getCharacter());
+                if (target.getCharacter().getSheet().getHpCurrent() == 0) notes.add(target.getName() + " drops to 0 HP");
+            } else if (target.getHpCurrent() != null) {
+                target.damage(finalAmount);
+                liveTable.broadcastTokenChange(target);
+                if (target.getHpCurrent() == 0) notes.add(target.getName() + " drops to 0 HP");
+            } else {
+                notes.add(target.getName() + " has no HP to track");
+                return null;
+            }
+        } catch (IllegalStateException ex) {
+            notes.add(target.getName() + " has no HP to track");
+            return null;
+        }
+        return finalAmount;
+    }
+
+    private static boolean mentions(String list, String type) {
+        return list != null && list.toLowerCase(Locale.ROOT).contains(type);
+    }
+
+    private static RollMode withAttackerConditions(RollMode mode, Token attacker, List<String> notes) {
+        String found = names(attacker.activeConditions(), ATTACKER_DISADVANTAGE);
+        if (found.isEmpty()) return mode;
+        notes.add("Disadvantage: " + found);
+        return combine(mode, RollMode.DISADVANTAGE);
+    }
+
+    private static RollMode withInvisibleAttacker(RollMode mode, Token attacker, List<String> notes) {
+        if (!attacker.activeConditions().contains(Condition.INVISIBLE)) return mode;
+        notes.add("Advantage: attacker invisible");
+        return combine(mode, RollMode.ADVANTAGE);
+    }
+
+    /** Alvo cego/paralisado/contido/atordoado/inconsciente/petrificado: vantagem; invisivel: desvantagem;
+     * caido: vantagem corpo a corpo, desvantagem a distancia (so quando se sabe o tipo do ataque). */
+    private static RollMode withTargetConditions(RollMode mode, Token target, Boolean melee, List<String> notes) {
+        if (target == null) return mode;
+        Set<Condition> conditions = target.activeConditions();
+        String helps = names(conditions, TARGET_GRANTS_ADVANTAGE);
+        if (!helps.isEmpty()) {
+            notes.add("Advantage: target " + helps);
+            mode = combine(mode, RollMode.ADVANTAGE);
+        }
+        if (conditions.contains(Condition.PRONE) && melee != null) {
+            notes.add((melee ? "Advantage" : "Disadvantage") + ": target prone");
+            mode = combine(mode, melee ? RollMode.ADVANTAGE : RollMode.DISADVANTAGE);
+        }
+        if (conditions.contains(Condition.INVISIBLE)) {
+            notes.add("Disadvantage: target invisible");
+            mode = combine(mode, RollMode.DISADVANTAGE);
+        }
+        return mode;
+    }
+
+    /** Vantagem + desvantagem se anulam (mesma regra da ficha). */
+    private static RollMode combine(RollMode a, RollMode b) {
+        if (a == RollMode.NORMAL) return b;
+        if (b == RollMode.NORMAL || a == b) return a;
+        return RollMode.NORMAL;
+    }
+
+    private static String names(Set<Condition> conditions, Set<Condition> filter) {
+        return conditions.stream().filter(filter::contains).map(c -> c.name().toLowerCase(Locale.ROOT)).sorted()
+                .reduce((x, y) -> x + ", " + y).orElse("");
+    }
+
+    private static String d20(RollMode mode) {
+        return switch (mode) {
+            case ADVANTAGE -> "2d20kh1";
+            case DISADVANTAGE -> "2d20kl1";
+            default -> "1d20";
+        };
+    }
+
+    private static String signed(Integer value) {
+        return value == null || value == 0 ? "" : value > 0 ? "+" + value : String.valueOf(value);
+    }
+
+    private MonsterAttacks.Attack monsterAttack(Token attacker, String attackId) {
+        if (!attackId.startsWith("m:")) throw notFound("Attack");
+        int index;
+        try {
+            index = Integer.parseInt(attackId.substring(2));
+        } catch (NumberFormatException ex) {
+            throw notFound("Attack");
+        }
+        return MonsterAttacks.of(attacker.statBlock()).stream().filter(a -> a.index() == index).findFirst()
+                .orElseThrow(() -> notFound("Attack"));
+    }
+
+    // ------------------------------------------------------------------ acesso
+
+    /** Mestre controla tudo; jogador, so o token do proprio personagem. Devolve se e o mestre. */
+    private boolean requireControl(Token token, String username) {
+        Campaign campaign = token.getScene().getCampaign();
+        User user = masterGuard.user(username);
+        if (masterGuard.canManage(user, campaign)) return true;
+        masterGuard.assertMember(user, campaign);
+        if (token.getCharacter() == null || !token.getCharacter().getOwner().getUserId().equals(user.getUserId())) {
+            throw new AccessDeniedException("You can only act with your own character's token");
+        }
+        return false;
+    }
+
+    private Token token(UUID id) {
+        return tokenRepository.findById(id).orElseThrow(() -> notFound("Token"));
+    }
+
+    private static ResponseStatusException notFound(String what) {
+        return new ResponseStatusException(HttpStatus.NOT_FOUND, what + " not found");
+    }
+
+    private static ResponseStatusException badRequest(String message) {
+        return new ResponseStatusException(HttpStatus.BAD_REQUEST, message);
+    }
+}

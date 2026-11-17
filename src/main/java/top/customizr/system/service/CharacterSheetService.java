@@ -62,6 +62,7 @@ public class CharacterSheetService {
     private final FeatDefinitionRepository featRepository;
     private final ChatService chatService;
     private final top.customizr.system.repository.SpellRepository spellRepository;
+    private final LiveTableService liveTable;
 
     public CharacterSheetService(
             CharacterRepository characterRepository,
@@ -69,8 +70,10 @@ public class CharacterSheetService {
             BackgroundRepository backgroundRepository,
             FeatDefinitionRepository featRepository,
             ChatService chatService,
-            top.customizr.system.repository.SpellRepository spellRepository
+            top.customizr.system.repository.SpellRepository spellRepository,
+            LiveTableService liveTable
     ) {
+        this.liveTable = liveTable;
         this.spellRepository = spellRepository;
         this.characterRepository = characterRepository;
         this.speciesRepository = speciesRepository;
@@ -104,6 +107,7 @@ public class CharacterSheetService {
         Character character = manageable(characterId, username);
         requireBody(request);
         valid(() -> { character.getSheet().updateConditions(request.conditions(), request.exhaustion()); return null; });
+        liveTable.characterChanged(character);
         return CharacterSheetResponse.from(character);
     }
 
@@ -122,10 +126,12 @@ public class CharacterSheetService {
         requireBody(request);
         if (request.type() == RestRequest.RestType.LONG) {
             character.getSheet().longRest();
+            liveTable.characterChanged(character);
             return new RestResponse("LONG", List.of(), 0, CharacterSheetResponse.from(character));
         }
         Sheet.ShortRestResult result = valid(() -> character.getSheet().shortRest(request.hitDice(),
                 sides -> ThreadLocalRandom.current().nextInt(1, sides + 1)));
+        liveTable.characterChanged(character);
         return new RestResponse("SHORT", result.rolls(), result.healed(), CharacterSheetResponse.from(character));
     }
 

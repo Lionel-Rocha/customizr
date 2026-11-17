@@ -223,6 +223,10 @@ Abaixo estão todos os endpoints atualmente expostos pelo backend da aplicação
 | `POST` | `/live/scenes/{sceneId}/tokens` | Põe token (ligado a personagem, NPC ou monstro; pode ser oculto). |
 | `PATCH` | `/live/tokens/{tokenId}/move` | Move token (o dono do personagem ou o mestre); devolve a distância em pés. |
 | `PUT` / `DELETE` | `/live/tokens/{tokenId}` | Edita (nome, tamanho, oculto, PV, giro) ou tira o token. |
+| `GET` | `/live/tokens/{tokenId}/attacks` | Ataques do token: os da ficha do personagem, ou as ações da ficha do monstro (lidas da entrada do 5etools: `{@hit}` vira ataque, `{@dc}` vira salvaguarda). |
+| `POST` | `/live/tokens/{tokenId}/attack` | Ataca outro token (`attackId`, `targetTokenId`, `mode`, `applyDamage`): rola contra a CA do alvo, aplica vantagem/desvantagem pelas condições dos dois, dobra os dados no crítico, tira o PV do alvo (com resistência/imunidade/vulnerabilidade do monstro) e manda pro chat. |
+| `POST` | `/live/tokens/{tokenId}/hp` | Dano, cura ou PV temporário no token (personagem: na ficha; monstro/NPC: no token). |
+| `PUT` | `/live/tokens/{tokenId}/conditions` | Condições do token (personagem: na ficha; monstro/NPC: no token). |
 | `GET` | `/live/campaign/{id}/initiative` | Ordem de iniciativa. |
 | `POST` | `/live/campaign/{id}/initiative/roll` | Rola iniciativa dos tokens (ou de todos os visíveis da cena ativa). |
 | `POST` / `DELETE` | `/live/campaign/{id}/initiative/entries[/{entryId}]` | Entrada manual (ex.: ação de covil). |
@@ -337,6 +341,18 @@ A parte da mesa de jogo, desenvolvida à parte em JavaFX, foi trazida para cá n
 * **Magias:** preparar e tirar uma magia na classe, usando o `prepareSpell` existente.
 * **Gerador de atributos:** dados configuráveis (com a rolagem registrada no chat), array padrão e compra de pontos.
 * **Tela `/mesa`:** ganhou a aba **Ficha**, com PV, CA, nível e atributos, o gerador com botão de gravar na ficha, e a lista com os botões "Adicionar" e "Chat".
+
+**Quinta rodada (combate na mesa):**
+
+* **Ataque de token em token:** o personagem usa os ataques da ficha; o monstro, as ações da ficha de monstro (bônus e dano lidos da entrada original do 5etools; dano que só vale "se..." fica de fora).
+* **Regras aplicadas sozinhas:**
+  * a CA do alvo decide se acerta;
+  * condições de quem ataca e do alvo dão vantagem ou desvantagem (cego, caído, contido, invisível, inconsciente...);
+  * o crítico dobra os dados;
+  * resistência, imunidade e vulnerabilidade do monstro mudam o dano.
+* **Na mesa ao vivo:** o PV sai do alvo e todos veem na hora. Mudanças de PV, condições e descanso feitas pela ficha também redesenham os tokens.
+* **O que cada um vê:** condições aparecem pra todos; PV e CA de monstro, só o mestre. Jogador só age com o token do próprio personagem e não mira token oculto; monstro oculto atacando aparece no chat como "Unseen creature".
+* **Tela `/mesa`:** barra de PV e marcas de condição nos tokens, e um painel de combate (dano/cura, condições, ataques com "clique no alvo").
 
 Ficaram de fora por não se encaixarem numa API REST sem uma interface de jogo:
 

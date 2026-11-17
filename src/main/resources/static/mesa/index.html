@@ -58,10 +58,23 @@
   .msg.card { border-color: var(--accent); }
   .msg.card .title { color: var(--accent-2); font-weight: 600; }
   .msg.card .body { white-space: pre-wrap; font-size: 13px; }
+  #combat { position: absolute; right: 10px; bottom: 10px; width: 310px; max-height: 72%; overflow: auto; background: var(--panel);
+    border: 1px solid var(--line); border-radius: 12px; padding: 10px; display: grid; gap: 8px; box-shadow: 0 6px 24px rgba(0,0,0,.4); }
+  .chips { display: flex; flex-wrap: wrap; gap: 4px; }
+  .chip { padding: 2px 8px; font-size: 12px; border-radius: 999px; }
+  .chip.on { background: #5A3A1A; border-color: var(--accent); color: var(--accent-2); }
+  .atk { display: flex; gap: 6px; align-items: center; border: 1px solid var(--line); border-radius: 8px; padding: 4px 6px; }
+  .atk span { flex: 1; font-size: 13px; }
+  .atk small { color: var(--muted); display: block; }
+  #targetHint { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); background: #5A3A1A; border: 1px solid var(--accent);
+    padding: 4px 10px; border-radius: 10px; font-size: 13px; white-space: nowrap; max-width: 90%; overflow: hidden;
+    text-overflow: ellipsis; pointer-events: none; /* o clique passa pro mapa */ }
+  #map.targeting { cursor: crosshair; }
   #toast.ok { background: #233A26; border-color: var(--good); }
   #toast { position: fixed; right: 16px; bottom: 16px; max-width: 360px; background: #4A2420; border: 1px solid var(--bad); border-radius: 10px; padding: 10px 12px; }
   @media (max-width: 800px) {
     #app { grid-template-columns: 1fr; grid-template-rows: 44px 55vh 1fr; }
+    #combat { left: 10px; right: 10px; width: auto; max-height: 60%; }
     aside { border-left: 0; border-top: 1px solid var(--line); }
   }
 </style>
@@ -94,6 +107,20 @@
       <button id="center">Centralizar</button>
     </div>
     <div id="hint">arraste seu token · roda = zoom · arraste o fundo para mover o mapa</div>
+    <div id="targetHint" class="hidden"><span id="targetText">Clique no alvo</span> · Esc cancela</div>
+    <div id="combat" class="hidden">
+      <div class="row"><b id="cbName" style="flex:1"></b><span id="cbHp" class="muted"></span><button id="cbClose" title="Fechar">✕</button></div>
+      <div class="row">
+        <input id="cbAmount" type="number" min="0" placeholder="quanto" style="max-width:80px">
+        <button id="cbDamage">Dano</button><button id="cbHeal">Cura</button><button id="cbTemp">PV temp.</button>
+      </div>
+      <div id="cbConditions" class="chips"></div>
+      <div class="row">
+        <select id="cbMode"><option value="NORMAL">Normal</option><option value="ADVANTAGE">Vantagem</option><option value="DISADVANTAGE">Desvantagem</option></select>
+        <label class="row" style="flex:0;white-space:nowrap" title="Se acertar, já tira o PV do alvo"><input id="cbApply" type="checkbox" checked style="flex:0"> tirar PV</label>
+      </div>
+      <div id="cbAttacks" style="display:grid;gap:4px"></div>
+    </div>
   </div>
   <aside>
     <div class="tabs">
@@ -190,7 +217,7 @@
    porque o EventSource do navegador nao manda o header Authorization. */
 const S = { token: null, me: null, campaign: null, master: false, scenes: [], scene: null, images: {},
   view: { tx: 40, ty: 40, z: 1 }, tool: 'move', drag: null, paint: null, pan: null, selected: null,
-  initiative: null, stream: null };
+  initiative: null, stream: null, targeting: null };
 const $ = id => document.getElementById(id);
 const cv = $('map'), ctx = cv.getContext('2d');
 
@@ -314,7 +341,11 @@ function onEvent(type, d) {
     case 'scene_deleted': S.scenes = S.scenes.filter(s => s.id !== d.sceneId); if (sc && sc.id === d.sceneId) showScene(S.scenes[0] || null); break;
     case 'fog': if (sc && sc.id === d.sceneId) { sc.fogEnabled = d.fogEnabled; sc.revealedCells = d.revealedCells; showScene(sc); } break;
     case 'token_added': case 'token_updated':
-      if (sc && sc.id === d.sceneId) { const i = sc.tokens.findIndex(t => t.id === d.id); if (i >= 0) sc.tokens[i] = d; else sc.tokens.push(d); draw(); } break;
+      if (sc && sc.id === d.sceneId) {
+        const i = sc.tokens.findIndex(t => t.id === d.id); if (i >= 0) sc.tokens[i] = d; else sc.tokens.push(d);
+        if (S.selected && S.selected.id === d.id) { S.selected = d; renderCombatHeader(d); }
+        draw();
+      } break;
     case 'token_moved':
       if (sc && sc.id === d.sceneId) { const t = sc.tokens.find(t => t.id === d.tokenId); if (t && !(S.drag && S.drag.token === t)) { t.x = d.x; t.y = d.y; draw(); } } break;
     case 'token_removed': if (sc && sc.id === d.sceneId) { sc.tokens = sc.tokens.filter(t => t.id !== d.tokenId); if (S.selected && S.selected.id === d.tokenId) select(null); draw(); } break;
@@ -411,6 +442,23 @@ function drawToken(t, g) {
   else { ctx.fillStyle = '#F6E9D3'; ctx.font = 700 + ' ' + rad * 0.9 + 'px Georgia'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText((t.name || '?')[0].toUpperCase(), cx, cy + 1); }
   ctx.lineWidth = S.selected && S.selected.id === t.id ? 4 / S.view.z : 2 / S.view.z;
   ctx.strokeStyle = S.selected && S.selected.id === t.id ? '#FFCF7F' : '#E8A33D'; ctx.stroke();
+  if (t.hpMax) {
+    const ratio = Math.max(0, Math.min(1, t.hpCurrent / t.hpMax)), bw = size * 0.8, bh = Math.max(4, size * 0.08);
+    ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.fillRect(cx - bw / 2, t.y + size - bh - 1, bw, bh);
+    ctx.fillStyle = ratio > 0.5 ? '#6FBF73' : ratio > 0.25 ? '#E8C23D' : '#E07A5F'; ctx.fillRect(cx - bw / 2, t.y + size - bh - 1, bw * ratio, bh);
+    if (t.hpCurrent === 0) { // caido: X por cima
+      ctx.strokeStyle = '#E07A5F'; ctx.lineWidth = 4 / S.view.z; ctx.beginPath();
+      ctx.moveTo(cx - rad * 0.6, cy - rad * 0.6); ctx.lineTo(cx + rad * 0.6, cy + rad * 0.6);
+      ctx.moveTo(cx + rad * 0.6, cy - rad * 0.6); ctx.lineTo(cx - rad * 0.6, cy + rad * 0.6); ctx.stroke();
+    }
+  }
+  (t.conditions || []).slice(0, 4).forEach((c, i) => { // ate 4 marcas de condicao no alto do token
+    const r = Math.max(7, size * 0.13), bx = t.x + size - r - i * r * 1.9, by = t.y + r;
+    ctx.beginPath(); ctx.arc(bx, by, r, 0, Math.PI * 2); ctx.fillStyle = '#5A3A1A'; ctx.fill();
+    ctx.strokeStyle = '#E8A33D'; ctx.lineWidth = 1.5 / S.view.z; ctx.stroke();
+    ctx.fillStyle = '#FFCF7F'; ctx.font = 700 + ' ' + r * 1.1 + 'px Segoe UI'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(conditionLabel(c)[0], bx, by + 1);
+  });
   ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.font = 12 / S.view.z + 'px Segoe UI';
   const label = t.name + (t.hpMax != null ? '  ' + t.hpCurrent + '/' + t.hpMax : '');
   const lw = ctx.measureText(label).width + 8 / S.view.z;
@@ -431,6 +479,7 @@ cv.addEventListener('pointerdown', e => {
   const [x, y] = toWorld(e);
   if (S.master && (S.tool === 'reveal' || S.tool === 'hide')) { S.paint = new Map(); paintAt(x, y); return; }
   const t = tokenAt(x, y);
+  if (S.targeting) { if (t) { const a = S.targeting; stopTargeting(); fireAttack(a, t); } return; }
   if (t) {
     select(t);
     if (S.master || t.ownerId === S.me.userId) { S.drag = { token: t, offX: x - t.x, offY: y - t.y, fromX: t.x, fromY: t.y, moved: false }; return; }
@@ -667,7 +716,9 @@ $('tokenForm').addEventListener('submit', async e => {
   catch (err) { toast(err.message); }
 });
 function select(t) {
+  const changed = !t || !S.selected || S.selected.id !== t.id;
   S.selected = t; draw();
+  renderCombat(t, changed);
   if (!S.master) return;
   $('selectedCard').classList.toggle('hidden', !t);
   if (!t) return;
@@ -678,6 +729,92 @@ function select(t) {
 $('selHide').onclick = () => S.selected && api('/live/tokens/' + S.selected.id, { method: 'PUT', body: { hidden: !S.selected.hidden } }).then(t => select(Object.assign(S.selected, t))).catch(err => toast(err.message));
 $('selDelete').onclick = () => S.selected && api('/live/tokens/' + S.selected.id, { method: 'DELETE' }).then(() => select(null)).catch(err => toast(err.message));
 $('selHpSave').onclick = () => S.selected && api('/live/tokens/' + S.selected.id, { method: 'PUT', body: { hpCurrent: Number($('selHp').value) } }).catch(err => toast(err.message));
+
+// ------------------------------------------------------------------ combate
+const CONDITIONS = [['BLINDED', 'Cego'], ['CHARMED', 'Enfeitiçado'], ['DEAFENED', 'Surdo'], ['FRIGHTENED', 'Amedrontado'],
+  ['GRAPPLED', 'Agarrado'], ['INCAPACITATED', 'Incapacitado'], ['INVISIBLE', 'Invisível'], ['PARALYZED', 'Paralisado'],
+  ['PETRIFIED', 'Petrificado'], ['POISONED', 'Envenenado'], ['PRONE', 'Caído'], ['RESTRAINED', 'Contido'],
+  ['STUNNED', 'Atordoado'], ['UNCONSCIOUS', 'Inconsciente']];
+const conditionLabel = c => (CONDITIONS.find(x => x[0] === c) || [c, c])[1];
+const canControl = t => !!t && (S.master || t.ownerId === S.me.userId);
+
+function renderCombat(t, reloadAttacks) {
+  stopTargeting();
+  $('combat').classList.toggle('hidden', !canControl(t));
+  if (!canControl(t)) return;
+  renderCombatHeader(t);
+  $('cbTemp').classList.toggle('hidden', !t.characterId);
+  if (reloadAttacks) loadAttacks(t);
+}
+function renderCombatHeader(t) {
+  if (!canControl(t)) return;
+  $('cbName').textContent = t.name;
+  $('cbHp').textContent = (t.hpMax != null ? 'PV ' + t.hpCurrent + '/' + t.hpMax : 'sem PV') + (t.armorClass != null ? ' · CA ' + t.armorClass : '');
+  const box = $('cbConditions'); box.innerHTML = '';
+  const active = new Set(t.conditions || []);
+  for (const [code, label] of CONDITIONS) {
+    const b = document.createElement('button'); b.className = 'chip' + (active.has(code) ? ' on' : ''); b.textContent = label;
+    b.onclick = () => {
+      const next = new Set(active); next.has(code) ? next.delete(code) : next.add(code);
+      api('/live/tokens/' + t.id + '/conditions', { method: 'PUT', body: { conditions: [...next] } }).catch(err => toast(err.message));
+    };
+    box.append(b);
+  }
+}
+async function loadAttacks(t) {
+  const box = $('cbAttacks'); box.textContent = 'Carregando ataques...';
+  let attacks;
+  try { attacks = await api('/live/tokens/' + t.id + '/attacks'); } catch (err) { box.textContent = err.message; return; }
+  if (!S.selected || S.selected.id !== t.id) return;
+  box.innerHTML = '';
+  if (!attacks.length) { box.textContent = t.characterId ? 'Sem ataques na ficha.' : 'Sem ataques na ficha do monstro.'; return; }
+  for (const a of attacks) {
+    const row = document.createElement('div'); row.className = 'atk';
+    const info = document.createElement('span'); info.textContent = a.name; info.title = a.text || '';
+    const small = document.createElement('small');
+    small.textContent = (a.kind === 'SAVE' ? 'CD ' + a.saveDc + (a.saveAbility ? ' ' + a.saveAbility : '') : (a.attackBonus >= 0 ? '+' : '') + a.attackBonus)
+      + (a.damage ? ' · ' + a.damage + (a.damageType ? ' ' + a.damageType : '') : '');
+    info.append(small);
+    const go = document.createElement('button'); go.className = 'primary';
+    go.textContent = a.kind === 'SAVE' ? 'Rolar' : 'Atacar';
+    go.onclick = () => a.kind === 'SAVE' ? fireAttack(a, null) : startTargeting(a);
+    row.append(info, go); box.append(row);
+  }
+}
+function startTargeting(a) {
+  S.targeting = a; $('targetText').textContent = a.name + ': clique no alvo';
+  $('targetHint').classList.remove('hidden'); cv.classList.add('targeting');
+  $('combat').classList.add('hidden'); // o painel sai da frente do mapa enquanto escolhe o alvo (tela pequena)
+}
+function stopTargeting() {
+  const was = !!S.targeting;
+  S.targeting = null; $('targetHint').classList.add('hidden'); cv.classList.remove('targeting');
+  if (was && canControl(S.selected)) $('combat').classList.remove('hidden');
+}
+async function fireAttack(a, target) {
+  const t = S.selected; if (!t) return;
+  try {
+    const res = await api('/live/tokens/' + t.id + '/attack', { method: 'POST', body: { attackId: a.id, targetTokenId: target ? target.id : null,
+      mode: $('cbMode').value, applyDamage: $('cbApply').checked } });
+    const parts = [a.name + (target ? ' em ' + target.name : '')];
+    if (res.attackRoll) parts.push('rolou ' + res.attackRoll.total);
+    if (res.hit === true) parts.push(res.outcome === 'CRITICAL_HIT' ? 'CRÍTICO!' : 'acertou');
+    if (res.hit === false) parts.push(res.outcome === 'CRITICAL_MISS' ? 'falha crítica' : 'errou');
+    if (res.damageApplied != null) parts.push('-' + res.damageApplied + ' PV');
+    else if (res.damageRoll && res.hit !== false) parts.push('dano ' + res.damageRoll.total);
+    toast(parts.join(' · '), res.hit !== false);
+  } catch (err) { toast(err.message); }
+}
+function changeHp(type) {
+  const t = S.selected, amount = Number($('cbAmount').value);
+  if (!t || !(amount > 0)) return toast('Diga quanto.');
+  api('/live/tokens/' + t.id + '/hp', { method: 'POST', body: { type, amount } }).then(() => { $('cbAmount').value = ''; }).catch(err => toast(err.message));
+}
+$('cbDamage').onclick = () => changeHp('DAMAGE');
+$('cbHeal').onclick = () => changeHp('HEALING');
+$('cbTemp').onclick = () => changeHp('TEMPORARY');
+$('cbClose').onclick = () => select(null);
+window.addEventListener('keydown', e => { if (e.key === 'Escape' && S.targeting) stopTargeting(); });
 
 // ------------------------------------------------------------------ inicio
 S.token = load('customizr_token');
