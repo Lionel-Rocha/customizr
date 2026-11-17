@@ -75,6 +75,9 @@ public class Scene {
     @OneToMany(mappedBy = "scene", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Wall> walls = new ArrayList<>();
 
+    @OneToMany(mappedBy = "scene", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<AreaTemplate> templates = new ArrayList<>();
+
     /** So uma cena ativa por campanha: e a que os jogadores veem. */
     @Column(nullable = false)
     private boolean active;
@@ -147,6 +150,14 @@ public class Scene {
 
     public boolean removeWall(java.util.UUID wallId) {
         return walls.removeIf(w -> w.getId().equals(wallId));
+    }
+
+    public AreaTemplate addTemplate(AreaTemplate.Shape shape, double x, double y, double angle, int sizeFt, Integer widthFt,
+                                    String label, String color, java.util.UUID ownerId) {
+        if (templates.size() >= 200) throw new IllegalArgumentException("Too many areas in this scene");
+        AreaTemplate template = new AreaTemplate(this, shape, x, y, angle, sizeFt, widthFt, label, color, ownerId);
+        templates.add(template);
+        return template;
     }
 
     public void clearWalls() {

@@ -164,7 +164,7 @@ class MonstersAndWallsTests {
         assertTrue(strength.roll().expression().endsWith("+8"), "FOR 27 -> +8");
 
         combat.updateConditions(dragon.id(), new ConditionsRequest(Set.of(Condition.PARALYZED), null), master);
-        assertEquals("AUTO_FAIL", combat.roll(dragon.id(), new SheetRollRequest(SheetRollRequest.RollKind.SAVE, null,
+        assertEquals("AUTOMATIC_FAILURE", combat.roll(dragon.id(), new SheetRollRequest(SheetRollRequest.RollKind.SAVE, null,
                 AbilityScore.DEXTERITY, null, null), master).outcome());
         assertThrows(AccessDeniedException.class, () -> combat.roll(dragon.id(), new SheetRollRequest(
                 SheetRollRequest.RollKind.ABILITY, null, AbilityScore.STRENGTH, null, null), ana));

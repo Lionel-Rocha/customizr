@@ -12,6 +12,10 @@ import top.customizr.system.dto.TokenMovedResponse;
 import top.customizr.system.dto.TokenRequest;
 import top.customizr.system.dto.TokenResponse;
 import top.customizr.system.dto.DoorRequest;
+import top.customizr.system.dto.MarkersRequest;
+import top.customizr.system.dto.TemplateRequest;
+import top.customizr.system.dto.TemplateResponse;
+import top.customizr.system.dto.TokenPlacementRequest;
 import top.customizr.system.dto.VisionRequest;
 import top.customizr.system.dto.WallRequest;
 import top.customizr.system.dto.WallResponse;
@@ -39,6 +43,7 @@ import top.customizr.system.repository.NpcRepository;
 import top.customizr.system.repository.SceneRepository;
 import top.customizr.system.repository.TokenRepository;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -62,12 +67,15 @@ public class LiveTableService {
     private final MasterGuard masterGuard;
     private final LiveEventService events;
     private final top.customizr.system.repository.WallRepository wallRepository;
+    private final top.customizr.system.repository.AreaTemplateRepository templateRepository;
 
     public LiveTableService(SceneRepository sceneRepository, TokenRepository tokenRepository,
                             InitiativeTrackerRepository trackerRepository, CampaignRepository campaignRepository,
                             CharacterRepository characterRepository, NpcRepository npcRepository,
                             MonsterRepository monsterRepository, MasterGuard masterGuard, LiveEventService events,
-                            top.customizr.system.repository.WallRepository wallRepository) {
+                            top.customizr.system.repository.WallRepository wallRepository,
+                            top.customizr.system.repository.AreaTemplateRepository templateRepository) {
+        this.templateRepository = templateRepository;
         this.wallRepository = wallRepository;
         this.sceneRepository = sceneRepository;
         this.tokenRepository = tokenRepository;
@@ -205,7 +213,7 @@ public class LiveTableService {
         masterGuard.assertMember(user, scene.getCampaign());
         boolean master = masterGuard.canManage(user, scene.getCampaign());
         if (!master) {
-            if (token.getCharacter() == null || !token.getCharacter().getOwner().getUserId().equals(user.getUserId())) {
+            if (!token.controlledBy(user.getUserId())) {
                 throw new AccessDeniedException("You can only move your own character's token");
             }
             if (!scene.isActive()) throw new AccessDeniedException("This scene is not active");
@@ -223,7 +231,7 @@ public class LiveTableService {
         valid(() -> { token.moveTo(r.x(), r.y()); return null; });
         TokenMovedResponse moved = new TokenMovedResponse(scene.getId(), token.getId(), token.getX(), token.getY(),
                 scene.distanceFeet(fromX, fromY, token.getX(), token.getY()));
-        if (token.isHidden()) events.publishToMaster(scene.getCampaign().getId(), "token_moved", moved);
+        if (token.isHiddenFromPlayers()) events.publishToMaster(scene.getCampaign().getId(), "token_moved", moved);
         else events.publish(scene.getCampaign().getId(), "token_moved", moved);
         return moved;
     }
@@ -233,7 +241,7 @@ public class LiveTableService {
         Token token = token(tokenId);
         masterGuard.requireMaster(username, token.getScene().getCampaign());
         requireBody(r);
-        boolean wasHidden = token.isHidden();
+        boolean wasHidden = token.isHiddenFromPlayers();
         valid(() -> {
             token.update(r.name() == null ? token.getName() : r.name(),
                     r.sizeCells() == null ? token.getSizeCells() : r.sizeCells(),
@@ -245,7 +253,7 @@ public class LiveTableService {
             return null;
         });
         UUID campaignId = token.getScene().getCampaign().getId();
-        if (!wasHidden && token.isHidden()) {
+        if (!wasHidden && token.isHiddenFromPlayers()) {
             // pros jogadores o token "some"
             events.publish(campaignId, "token_removed", Map.of("sceneId", token.getScene().getId(), "tokenId", token.getId()),
                     l -> !l.master());
@@ -284,7 +292,7 @@ public class LiveTableService {
                     .filter(t -> t.getScene().getCampaign().getId().equals(campaignId)).toList();
         } else {
             tokens = sceneRepository.findByCampaignOrderByName(campaign).stream().filter(Scene::isActive)
-                    .flatMap(s -> s.getTokens().stream()).filter(t -> !t.isHidden()).toList();
+                    .flatMap(s -> s.getTokens().stream()).filter(t -> !t.isHiddenFromPlayers() && t.getLayer() == top.customizr.system.model.TokenLayer.BATTLE).toList();
         }
         for (Token t : tokens) {
             int bonus = t.initiativeBonus();
@@ -318,7 +326,9 @@ public class LiveTableService {
         Campaign campaign = campaign(campaignId);
         masterGuard.requireMaster(username, campaign);
         InitiativeTracker tracker = tracker(campaign);
+        int roundBefore = tracker.getRound();
         valid(() -> { tracker.next(); return null; });
+        tickMarkers(campaign, tracker, tracker.getRound() != roundBefore);
         return broadcastInitiative(tracker);
     }
 
@@ -362,6 +372,7 @@ public class LiveTableService {
             }
             return null;
         });
+        sceneRepository.flush();
         return broadcastWalls(scene);
     }
 
@@ -429,6 +440,132 @@ public class LiveTableService {
         return TokenResponse.from(token, true);
     }
 
+    // ------------------------------------------------------------------ altura, camada, grupo, marcadores
+
+    /** Altura (dono ou mestre), camada e fichas do token (so o mestre). */
+    @Transactional
+    public TokenResponse updatePlacement(UUID tokenId, TokenPlacementRequest r, String username) {
+        Token token = token(tokenId);
+        Scene scene = token.getScene();
+        User user = masterGuard.user(username);
+        masterGuard.assertMember(user, scene.getCampaign());
+        boolean master = masterGuard.canManage(user, scene.getCampaign());
+        if (r == null) throw badRequest("Request body is required");
+        if (!master && (r.layer() != null || r.memberIds() != null)) {
+            throw new AccessDeniedException("Only the master changes layers and who travels in a token");
+        }
+        if (!master && !token.controlledBy(user.getUserId())) throw new AccessDeniedException("Not your token");
+        boolean wasHidden = token.isHiddenFromPlayers();
+        valid(() -> {
+            if (r.elevationFt() != null) token.setElevationFt(r.elevationFt());
+            if (r.layer() != null) token.setLayer(r.layer());
+            if (r.memberIds() != null) {
+                List<Character> members = r.memberIds().stream().map(id -> characterRepository.findById(id)
+                        .filter(c -> c.getCampaign().getId().equals(scene.getCampaign().getId()))
+                        .orElseThrow(() -> new IllegalArgumentException("Character not found in this campaign: " + id))).toList();
+                token.replaceMembers(members);
+            }
+            return null;
+        });
+        if (!wasHidden && token.isHiddenFromPlayers()) {
+            events.publish(scene.getCampaign().getId(), "token_removed", Map.of("sceneId", scene.getId(), "tokenId", token.getId()),
+                    l -> !l.master());
+        }
+        broadcastToken(token, "token_updated");
+        return TokenResponse.from(token, master);
+    }
+
+    /** Marcadores do token (mestre ou quem controla o token). */
+    @Transactional
+    public TokenResponse updateMarkers(UUID tokenId, MarkersRequest r, String username) {
+        Token token = token(tokenId);
+        User user = masterGuard.user(username);
+        masterGuard.assertMember(user, token.getScene().getCampaign());
+        boolean master = masterGuard.canManage(user, token.getScene().getCampaign());
+        if (!master && !token.controlledBy(user.getUserId())) throw new AccessDeniedException("Not your token");
+        if (r == null || r.markers() == null) throw badRequest("markers is required");
+        valid(() -> {
+            token.replaceMarkers(r.markers().stream().map(m -> {
+                if (m == null) throw new IllegalArgumentException("Empty marker");
+                return new top.customizr.system.model.TokenMarker(m.label(), m.icon(), m.roundsLeft());
+            }).toList());
+            return null;
+        });
+        broadcastToken(token, "token_updated");
+        return TokenResponse.from(token, master);
+    }
+
+    /**
+     * Passou um turno: o token da vez desce a contagem dos marcadores dele. Na virada da rodada, descem tambem
+     * os tokens das cenas ativas que nao estao na iniciativa.
+     */
+    private void tickMarkers(Campaign campaign, InitiativeTracker tracker, boolean newRound) {
+        var current = tracker.current();
+        java.util.Set<UUID> inInitiative = new java.util.HashSet<>();
+        tracker.getEntries().forEach(e -> { if (e.getTokenId() != null) inInitiative.add(e.getTokenId()); });
+        List<Token> ticking = new ArrayList<>();
+        if (current != null && current.getTokenId() != null) tokenRepository.findById(current.getTokenId()).ifPresent(ticking::add);
+        if (newRound) {
+            sceneRepository.findByCampaignOrderByName(campaign).stream().filter(Scene::isActive)
+                    .flatMap(s -> s.getTokens().stream()).filter(t -> !inInitiative.contains(t.getId())).forEach(ticking::add);
+        }
+        for (Token t : ticking) {
+            if (t.getMarkers().isEmpty()) continue;
+            t.tickMarkers();
+            broadcastToken(t, "token_updated");
+        }
+    }
+
+    // ------------------------------------------------------------------ areas de efeito
+
+    /** Coloca uma area no mapa (mestre ou jogador, pra magia de area). */
+    @Transactional
+    public TemplateResponse addTemplate(UUID sceneId, TemplateRequest r, String username) {
+        Scene scene = scene(sceneId);
+        User user = masterGuard.user(username);
+        masterGuard.assertMember(user, scene.getCampaign());
+        boolean master = masterGuard.canManage(user, scene.getCampaign());
+        if (!master && !scene.isActive()) throw new AccessDeniedException("This scene is not active");
+        if (r == null || r.shape() == null || r.x() == null || r.y() == null || r.sizeFt() == null) {
+            throw badRequest("shape, x, y and sizeFt are required");
+        }
+        var template = valid(() -> scene.addTemplate(r.shape(), r.x(), r.y(), r.angle() == null ? 0 : r.angle(), r.sizeFt(),
+                r.widthFt(), r.label(), r.color(), user.getUserId()));
+        sceneRepository.flush(); // grava ja (a area pode ser resolvida no mesmo pedido/transacao)
+        broadcastTemplates(scene);
+        return TemplateResponse.from(template);
+    }
+
+    /** Tira a area (quem colocou ou o mestre). */
+    @Transactional
+    public void removeTemplate(UUID templateId, String username) {
+        var template = templateRepository.findById(templateId).orElseThrow(() -> notFound("Area"));
+        Scene scene = template.getScene();
+        User user = masterGuard.user(username);
+        masterGuard.assertMember(user, scene.getCampaign());
+        if (!masterGuard.canManage(user, scene.getCampaign()) && !template.getOwnerId().equals(user.getUserId())) {
+            throw new AccessDeniedException("Only who placed the area or the master removes it");
+        }
+        scene.getTemplates().remove(template);
+        broadcastTemplates(scene);
+    }
+
+    @Transactional
+    public void clearTemplates(UUID sceneId, String username) {
+        Scene scene = scene(sceneId);
+        masterGuard.requireMaster(username, scene.getCampaign());
+        scene.getTemplates().clear();
+        broadcastTemplates(scene);
+    }
+
+    private void broadcastTemplates(Scene scene) {
+        Map<String, Object> payload = Map.of("sceneId", scene.getId(),
+                "templates", scene.getTemplates().stream().map(TemplateResponse::from).toList());
+        UUID campaignId = scene.getCampaign().getId();
+        events.publishToMaster(campaignId, "templates", payload);
+        if (scene.isActive()) events.publish(campaignId, "templates", payload, l -> !l.master());
+    }
+
     private List<WallResponse> broadcastWalls(Scene scene) {
         List<WallResponse> walls = scene.getWalls().stream().map(WallResponse::from).toList();
         Map<String, Object> payload = Map.of("sceneId", scene.getId(), "walls", walls);
@@ -457,12 +594,13 @@ public class LiveTableService {
     public void characterChanged(Character character) {
         if (character == null) return;
         tokenRepository.findByCharacter(character).forEach(this::broadcastTokenChange);
+        tokenRepository.findByMembersContaining(character).forEach(this::broadcastTokenChange);
     }
 
     private void broadcastToken(Token token, String type) {
         UUID campaignId = token.getScene().getCampaign().getId();
         events.publishToMaster(campaignId, type, TokenResponse.from(token, true));
-        if (!token.isHidden() && token.getScene().isActive()) {
+        if (!token.isHiddenFromPlayers() && token.getScene().isActive()) {
             events.publish(campaignId, type, TokenResponse.from(token, false), l -> !l.master());
         }
     }

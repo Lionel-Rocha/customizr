@@ -2,7 +2,7 @@
 
 Este branch (`mesclagem-mesa`) traz para o Customizr o que foi feito no programa de mesa à parte (o antigo "Embertale"), reescrito no padrão deste projeto: entidades JPA em `model/`, serviços com checagem de mestre/membro, DTOs `record` (um por arquivo, `XxxRequest` / `XxxResponse`) e testes com H2. O ponto de partida é o commit `e740c23` ("Consertando import de classes").
 
-* **Testes:** 78, todos passando (antes: 23, com 3 quebrados).
+* **Testes:** 84, todos passando (antes: 23, com 3 quebrados).
 * **Arquivos de exemplo:** o que é do 5etools nos testes são amostras pequenas do SRD 5.2 (licença CC-BY-4.0, atribuição em `src/test/resources/importer/LEIA-ME.txt`).
 * **Fins de linha:** tudo em LF, igual ao resto do repositório.
 
@@ -23,7 +23,9 @@ Este branch (`mesclagem-mesa`) traz para o Customizr o que foi feito no programa
 | `model/Sheet.java`, `model/Character.java` | PV, CA, perícias, condições, espaços gastos, espécie, antecedente, XP, retrato... | Ficha completa (os campos novos aceitam nulo, então fichas antigas continuam carregando) |
 | `model/Party.java`, `dto/CreatePartyRequest.java` | + `maxSize` | Roadmap P0.2 |
 | `model/Token.java`, `dto/TokenResponse.java` | + condições próprias (monstro/NPC) e alcance de visão; `TokenResponse` + `conditions`, `armorClass` e `visionFt` | Combate e visão na mesa |
-| `model/Scene.java`, `dto/SceneResponse.java` | + paredes/portas (`scene_walls`) e `visionEnabled` | Paredes e visão dinâmica |
+| `model/Scene.java`, `dto/SceneResponse.java` | + paredes/portas (`scene_walls`), `visionEnabled` e áreas de efeito (`scene_templates`) | Paredes, visão e áreas |
+| `model/Token.java` (de novo) | + camada, altura, fichas do token (`token_members`) e marcadores (`token_markers`); "oculto pros jogadores" = oculto ou camada do mestre | Camadas, caravana e marcadores |
+| `service/CharacterSheetService.java` | `roll` virou `roll` (confere acesso) + `rollFor` (a rolagem em si) | A mesa rola a salvaguarda de quem está numa área |
 | `model/Monster.java`, `dto/MonsterResponse.java` | + `campaign` (monstro customizado da campanha); resposta + `campaignId`, `custom`, `customActions` | Ficha de monstro em branco / cópia editável |
 | `MonsterController` | a busca e a leitura passam a olhar quem pede (customizados só pra quem é da campanha) | Homebrew não vaza pra outras campanhas |
 | `service/CharacterService.java`, `CharacterSheetService.java` | PV, condições e descanso avisam a mesa ao vivo (`LiveTableService.characterChanged`) | O token mostra o PV da ficha na hora |
@@ -84,3 +86,4 @@ As tabelas e colunas novas o Hibernate cria sozinho (`ddl-auto=update`). Todas a
 | 11 | Programa de mesa de PC (`mesa-pc/`): código, ponte e scripts, sem o conteúdo dos livros nem os programas montados |
 | 12 | Combate na mesa: ataque de token em token (ficha do personagem ou do monstro), dano/cura, condições, painel na tela `/mesa` |
 | 13 | Monstros customizados (ficha em branco ou cópia), testes do monstro pelo token, paredes/portas e visão dinâmica |
+| 14 | Áreas de efeito com salvaguarda automática, marcadores com duração, altura, camadas e token de grupo (caravana) |

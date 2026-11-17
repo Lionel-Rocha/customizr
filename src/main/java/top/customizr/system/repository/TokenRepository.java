@@ -12,4 +12,7 @@ import java.util.UUID;
 public interface TokenRepository extends JpaRepository<Token, UUID> {
 
     List<Token> findByCharacter(Character character);
+
+    /** Tokens de grupo (caravana) em que a ficha viaja. */
+    List<Token> findByMembersContaining(Character character);
 }

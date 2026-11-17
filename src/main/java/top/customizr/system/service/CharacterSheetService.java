@@ -211,7 +211,15 @@ public class CharacterSheetService {
 
     @Transactional
     public SheetRollResponse roll(UUID characterId, SheetRollRequest request, String username) {
-        Character character = manageable(characterId, username);
+        return rollFor(manageable(characterId, username), request, username);
+    }
+
+    /**
+     * A rolagem em si, sem checar quem pede: usada quando a mesa rola por alguem (ex.: a salvaguarda de quem
+     * esta dentro de uma area de efeito). Quem chama ja conferiu o acesso.
+     */
+    @Transactional
+    public SheetRollResponse rollFor(Character character, SheetRollRequest request, String username) {
         if (request == null || request.kind() == null) throw badRequest("Roll kind is required");
         Sheet sheet = character.getSheet();
         List<String> notes = new ArrayList<>();

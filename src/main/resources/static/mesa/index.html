@@ -81,6 +81,13 @@
   .statblock { white-space: pre-wrap; font-size: 13px; }
   textarea { font: inherit; color: var(--text); background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; min-height: 60px; }
   @media (max-width: 600px) { .grid6 { grid-template-columns: repeat(3, 1fr); } .actRow { grid-template-columns: 1fr 1fr; } }
+  #areaPanel { position: absolute; left: 10px; bottom: 34px; width: 300px; background: var(--panel); border: 1px solid var(--accent);
+    border-radius: 12px; padding: 10px; display: grid; gap: 6px; box-shadow: 0 6px 24px rgba(0,0,0,.4); }
+  #areaOpts { display: flex; gap: 6px; align-items: center; }
+  #areaOpts input, #areaOpts select { padding: 4px 6px; }
+  .member { display: flex; gap: 6px; align-items: center; font-size: 13px; }
+  .member span { flex: 1; }
+  @media (max-width: 800px) { #areaPanel { right: 10px; width: auto; } }
   #toast.ok { background: #233A26; border-color: var(--good); }
   #toast { position: fixed; right: 16px; bottom: 16px; max-width: 360px; background: #4A2420; border: 1px solid var(--bad); border-radius: 10px; padding: 10px 12px; }
   @media (max-width: 800px) {
@@ -118,10 +125,35 @@
       <button data-tool="wall" class="master-only" title="Arraste para desenhar uma parede">Parede</button>
       <button data-tool="door" class="master-only" title="Arraste para desenhar uma porta">Porta</button>
       <button data-tool="erase" class="master-only" title="Clique numa parede ou porta para apagar">Apagar parede</button>
+      <button data-tool="area" title="Arraste para posicionar uma área de efeito (cone, círculo, linha, quadrado)">Área</button>
+      <span id="areaOpts" class="hidden">
+        <select id="areaShape"><option value="CIRCLE">Círculo</option><option value="CONE">Cone</option><option value="LINE">Linha</option><option value="SQUARE">Quadrado</option></select>
+        <input id="areaSize" type="number" min="5" step="5" value="20" title="tamanho em pés (raio, comprimento ou lado)" style="width:64px">
+        <input id="areaLabel" placeholder="nome (ex.: Bola de fogo)" style="width:140px">
+      </span>
+      <select id="layerSelect" class="master-only" title="Camada em que você clica e põe tokens">
+        <option value="BATTLE">Camada: Batalha</option><option value="SCENERY">Camada: Cenário</option>
+        <option value="OVERHEAD">Camada: Acima</option><option value="GM">Camada: Mestre</option>
+      </select>
       <button id="center">Centralizar</button>
     </div>
     <div id="hint">arraste seu token · roda = zoom · arraste o fundo para mover o mapa</div>
     <div id="targetHint" class="hidden"><span id="targetText">Clique no alvo</span> · Esc cancela</div>
+    <div id="areaPanel" class="hidden">
+      <div class="row"><b id="apName" style="flex:1"></b><button id="apClose" title="Fechar">✕</button></div>
+      <div id="apInside" class="muted" style="font-size:12px"></div>
+      <div class="row">
+        <select id="apAbility"><option value="STRENGTH">FOR</option><option value="DEXTERITY" selected>DES</option><option value="CONSTITUTION">CON</option>
+          <option value="INTELLIGENCE">INT</option><option value="WISDOM">SAB</option><option value="CHARISMA">CAR</option></select>
+        <input id="apDc" type="number" placeholder="CD" style="max-width:64px">
+        <input id="apDamage" placeholder="dano (8d6)" style="max-width:90px">
+        <input id="apType" placeholder="tipo" style="max-width:80px">
+      </div>
+      <div class="row">
+        <label class="row" style="flex:0;white-space:nowrap"><input id="apHalf" type="checkbox" checked style="flex:0"> metade se passar</label>
+        <button id="apResolve" class="primary">Resolver</button><button id="apRemove">Tirar</button>
+      </div>
+    </div>
     <div id="combat" class="hidden">
       <div class="row"><b id="cbName" style="flex:1"></b><span id="cbHp" class="muted"></span><button id="cbClose" title="Fechar">✕</button></div>
       <div class="row">
@@ -129,6 +161,17 @@
         <button id="cbDamage">Dano</button><button id="cbHeal">Cura</button><button id="cbTemp">PV temp.</button>
       </div>
       <div id="cbConditions" class="chips"></div>
+      <div id="cbMembers" style="display:grid;gap:4px"></div>
+      <div id="cbMarkers" class="chips"></div>
+      <div class="row">
+        <select id="cbMarkerPreset"></select>
+        <input id="cbMarkerRounds" type="number" min="1" placeholder="rodadas" title="vazio = até tirar" style="max-width:76px">
+        <button id="cbMarkerAdd">Marcar</button>
+      </div>
+      <div class="row">
+        <span class="muted">Altura</span><input id="cbElev" type="number" step="5" style="max-width:76px"><span class="muted">pés</span>
+        <button id="cbElevSave">Salvar</button>
+      </div>
       <div class="row">
         <select id="cbMode"><option value="NORMAL">Normal</option><option value="ADVANTAGE">Vantagem</option><option value="DISADVANTAGE">Desvantagem</option></select>
         <label class="row" style="flex:0;white-space:nowrap" title="Se acertar, já tira o PV do alvo"><input id="cbApply" type="checkbox" checked style="flex:0"> tirar PV</label>
@@ -199,7 +242,7 @@
         <h3>Cena</h3>
         <div class="row"><select id="sceneSelect"></select><button id="sceneActivate">Mostrar aos jogadores</button></div>
         <div class="row"><button id="fogToggle">Neblina</button><button id="fogAll">Revelar tudo</button><button id="fogNone">Cobrir tudo</button></div>
-        <div class="row"><button id="visionToggle" title="Cada jogador só vê o que o token dele enxerga">Visão dinâmica</button><button id="wallsClear">Apagar paredes</button></div>
+        <div class="row"><button id="visionToggle" title="Cada jogador só vê o que o token dele enxerga">Visão dinâmica</button><button id="wallsClear">Apagar paredes</button><button id="areasClear">Tirar áreas</button></div>
         <div class="muted" style="font-size:12px">Portas: clique abre/fecha · Shift+clique tranca (mestre).</div>
       </div>
       <form id="sceneForm" class="card">
@@ -233,6 +276,11 @@
         <div class="row"><button id="selHide"></button><button id="selDelete">Tirar do mapa</button></div>
         <div class="row"><input id="selHp" type="number" placeholder="PV atual"><button id="selHpSave">Salvar PV</button></div>
         <div class="row"><input id="selVision" type="number" min="0" placeholder="visão (pés, vazio = sem limite)"><button id="selVisionSave">Salvar visão</button></div>
+        <div class="row"><select id="selLayer"><option value="BATTLE">Batalha</option><option value="SCENERY">Cenário</option>
+          <option value="OVERHEAD">Acima</option><option value="GM">Mestre</option></select><button id="selLayerSave">Mudar camada</button></div>
+        <div class="muted" style="font-size:12px">Fichas que viajam neste token (caravana, barco, montaria):</div>
+        <div id="selMembers" class="chips"></div>
+        <button id="selMembersSave">Salvar fichas do token</button>
       </div>
     </div>
   </aside>
@@ -247,7 +295,7 @@
    porque o EventSource do navegador nao manda o header Authorization. */
 const S = { token: null, me: null, campaign: null, master: false, scenes: [], scene: null, images: {},
   view: { tx: 40, ty: 40, z: 1 }, tool: 'move', drag: null, paint: null, pan: null, selected: null,
-  initiative: null, stream: null, targeting: null, wallDraw: null, explored: null };
+  initiative: null, stream: null, targeting: null, wallDraw: null, explored: null, areaDraw: null, selectedTemplate: null, pendingArea: null, chars: [] };
 const $ = id => document.getElementById(id);
 const cv = $('map'), ctx = cv.getContext('2d');
 
@@ -380,6 +428,15 @@ function onEvent(type, d) {
     case 'token_moved':
       if (sc && sc.id === d.sceneId) { const t = sc.tokens.find(t => t.id === d.tokenId); if (t && !(S.drag && S.drag.token === t)) { t.x = d.x; t.y = d.y; draw(); } } break;
     case 'token_removed': if (sc && sc.id === d.sceneId) { sc.tokens = sc.tokens.filter(t => t.id !== d.tokenId); if (S.selected && S.selected.id === d.tokenId) select(null); draw(); } break;
+    case 'templates': {
+      const target = S.scenes.find(x => x.id === d.sceneId); if (target) target.templates = d.templates;
+      if (sc && sc.id === d.sceneId) {
+        sc.templates = d.templates;
+        if (S.selectedTemplate && !d.templates.some(t => t.id === S.selectedTemplate.id)) selectTemplate(null);
+        draw();
+      }
+      break;
+    }
     case 'walls': {
       const target = S.scenes.find(x => x.id === d.sceneId); if (target) target.walls = d.walls;
       if (sc && sc.id === d.sceneId) { sc.walls = d.walls; draw(); }
@@ -449,10 +506,12 @@ function draw() {
     ctx.restore();
   }
   // Mestre ve todos os tokens por cima da neblina; jogador ve os proprios por cima e os outros so nas casas reveladas
-  const above = t => S.master || t.ownerId === S.me.userId || !sc.fogEnabled;
+  const above = t => S.master || isMine(t) || !sc.fogEnabled;
   const sight = playerSight(sc); // null = sem visao dinamica pra este usuario
-  const seen = t => !sight || t.ownerId === S.me.userId || canSee(sight, t.x + g * t.sizeCells / 2, t.y + g * t.sizeCells / 2);
-  for (const t of sc.tokens) if (!above(t) && seen(t)) drawToken(t, g);
+  const seen = t => !sight || isMine(t) || canSee(sight, t.x + g * t.sizeCells / 2, t.y + g * t.sizeCells / 2);
+  const ordered = [...sc.tokens].sort((a, b) => LAYER_ORDER[a.layer || 'BATTLE'] - LAYER_ORDER[b.layer || 'BATTLE']);
+  drawTemplates(sc, g);
+  for (const t of ordered) if (!above(t) && seen(t)) drawToken(t, g);
   if (sc.fogEnabled) {
     const revealed = new Set(sc.revealedCells || []);
     ctx.beginPath(); ctx.rect(-g * 2, -g * 2, w + g * 4, h + g * 4);
@@ -460,8 +519,9 @@ function draw() {
     ctx.fillStyle = S.master ? 'rgba(10,8,7,.55)' : '#0A0807'; ctx.fill('evenodd');
   }
   if (sight) drawDarkness(sight, w, h);
-  for (const t of sc.tokens) if (above(t) && seen(t)) drawToken(t, g);
+  for (const t of ordered) if (above(t) && seen(t)) drawToken(t, g);
   drawWalls(sc, sight);
+  if (S.areaDraw) drawTemplateShape(S.areaDraw, true);
   if (S.wallDraw) {
     const d = S.wallDraw; ctx.beginPath(); ctx.moveTo(d.x1, d.y1); ctx.lineTo(d.x2, d.y2);
     ctx.strokeStyle = S.tool === 'door' ? '#6FBF73' : '#E8A33D'; ctx.lineWidth = 5 / v.z; ctx.setLineDash([10 / v.z, 6 / v.z]); ctx.stroke(); ctx.setLineDash([]);
@@ -476,10 +536,12 @@ function draw() {
 }
 
 function drawToken(t, g) {
+  const layer = t.layer || 'BATTLE';
+  if (layer === 'SCENERY' || layer === 'OVERHEAD') return drawProp(t, g);
   const size = g * t.sizeCells, cx = t.x + size / 2, cy = t.y + size / 2, rad = size / 2 * 0.9;
-  ctx.save(); ctx.globalAlpha = t.hidden ? 0.45 : 1;
+  ctx.save(); ctx.globalAlpha = t.hidden || layer === 'GM' ? 0.45 : 1;
   ctx.beginPath(); ctx.arc(cx, cy, rad, 0, Math.PI * 2);
-  ctx.fillStyle = t.ownerId === S.me.userId ? '#2F5E33' : t.characterId ? '#3B4F6B' : '#6B2F2A'; ctx.fill();
+  ctx.fillStyle = isMine(t) ? '#2F5E33' : t.characterId || (t.members && t.members.length) ? '#3B4F6B' : '#6B2F2A'; ctx.fill();
   const img = t.imageUrl && S.images[t.imageUrl];
   if (t.imageUrl && !img) loadImage(t.imageUrl);
   if (img && img !== 'loading') { ctx.save(); ctx.clip(); ctx.drawImage(img, cx - rad, cy - rad, rad * 2, rad * 2); ctx.restore(); }
@@ -501,10 +563,29 @@ function drawToken(t, g) {
     ctx.beginPath(); ctx.arc(bx, by, r, 0, Math.PI * 2); ctx.fillStyle = '#5A3A1A'; ctx.fill();
     ctx.strokeStyle = '#E8A33D'; ctx.lineWidth = 1.5 / S.view.z; ctx.stroke();
     ctx.fillStyle = '#FFCF7F'; ctx.font = 700 + ' ' + r * 1.1 + 'px Segoe UI'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(conditionLabel(c)[0], bx, by + 1);
+    ctx.fillText(CONDITION_ICONS[c] || conditionLabel(c)[0], bx, by + 1);
   });
+  (t.markers || []).slice(0, 4).forEach((m, i) => { // marcadores no lado esquerdo
+    const r = Math.max(7, size * 0.13), bx = t.x + r, by = t.y + r + i * r * 1.9;
+    ctx.beginPath(); ctx.arc(bx, by, r, 0, Math.PI * 2); ctx.fillStyle = '#26324A'; ctx.fill();
+    ctx.strokeStyle = '#8FB3FF'; ctx.lineWidth = 1.5 / S.view.z; ctx.stroke();
+    ctx.fillStyle = '#F6E9D3'; ctx.font = 700 + ' ' + r * 1.1 + 'px Segoe UI'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(m.icon || m.label[0], bx, by + 1);
+    if (m.roundsLeft != null) { ctx.font = 700 + ' ' + r * 0.8 + 'px Segoe UI'; ctx.fillStyle = '#FFCF7F'; ctx.fillText(m.roundsLeft, bx + r, by + r * 0.8); }
+  });
+  const badgeFont = 700 + ' ' + Math.max(10, size * 0.16) + 'px Segoe UI';
+  if (t.elevationFt) { // altura no canto de baixo
+    ctx.font = badgeFont; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+    const text = (t.elevationFt > 0 ? '↑' : '↓') + Math.abs(t.elevationFt), tw = ctx.measureText(text).width + 6;
+    ctx.fillStyle = 'rgba(38,50,74,.9)'; ctx.fillRect(t.x, t.y + size - Math.max(10, size * 0.16) - 8, tw, Math.max(10, size * 0.16) + 4);
+    ctx.fillStyle = '#8FB3FF'; ctx.fillText(text, t.x + 3, t.y + size - 6);
+  }
+  if (t.members && t.members.length) { // caravana: quantas fichas viajam
+    ctx.font = badgeFont; ctx.textAlign = 'right'; ctx.textBaseline = 'bottom'; ctx.fillStyle = '#FFCF7F';
+    ctx.fillText('👥' + t.members.length, t.x + size - 2, t.y + size - 6);
+  }
   ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.font = 12 / S.view.z + 'px Segoe UI';
-  const label = t.name + (t.hpMax != null ? '  ' + t.hpCurrent + '/' + t.hpMax : '');
+  const label = t.name + (t.hpMax != null ? '  ' + t.hpCurrent + '/' + t.hpMax : '') + (layer === 'GM' ? ' (mestre)' : '');
   const lw = ctx.measureText(label).width + 8 / S.view.z;
   ctx.fillStyle = 'rgba(27,20,17,.8)'; ctx.fillRect(cx - lw / 2, t.y + size + 2 / S.view.z, lw, 16 / S.view.z);
   ctx.fillStyle = '#F6E9D3'; ctx.fillText(label, cx, t.y + size + 4 / S.view.z);
@@ -515,7 +596,13 @@ function drawToken(t, g) {
 function toWorld(e) { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left - S.view.tx) / S.view.z, (e.clientY - r.top - S.view.ty) / S.view.z]; }
 function tokenAt(x, y) {
   const sc = S.scene; if (!sc) return null;
-  for (let i = sc.tokens.length - 1; i >= 0; i--) { const t = sc.tokens[i], s = sc.gridSizePx * t.sizeCells; if (x >= t.x && y >= t.y && x <= t.x + s && y <= t.y + s) return t; }
+  // so a camada ativa responde ao clique (mestre escolhe; jogador clica so na de batalha)
+  const layer = S.master ? $('layerSelect').value : 'BATTLE';
+  for (let i = sc.tokens.length - 1; i >= 0; i--) {
+    const t = sc.tokens[i], s = sc.gridSizePx * t.sizeCells;
+    if ((t.layer || 'BATTLE') !== layer) continue;
+    if (x >= t.x && y >= t.y && x <= t.x + s && y <= t.y + s) return t;
+  }
   return null;
 }
 cv.addEventListener('pointerdown', e => {
@@ -524,22 +611,26 @@ cv.addEventListener('pointerdown', e => {
   if (S.master && (S.tool === 'reveal' || S.tool === 'hide')) { S.paint = new Map(); paintAt(x, y); return; }
   if (S.master && (S.tool === 'wall' || S.tool === 'door')) { const [sx, sy] = snapPoint(x, y); S.wallDraw = { x1: sx, y1: sy, x2: sx, y2: sy }; return; }
   if (S.master && S.tool === 'erase') { const wall = wallAt(x, y); if (wall) api('/live/scenes/' + S.scene.id + '/walls/' + wall.id, { method: 'DELETE' }).catch(err => toast(err.message)); return; }
+  if (S.tool === 'area') { const [sx, sy] = snapPoint(x, y); S.areaDraw = areaDraft(sx, sy); draw(); return; }
   if (!S.targeting) { const door = doorAt(x, y); if (door) { toggleDoor(door, e.shiftKey); return; } }
   const t = tokenAt(x, y);
   if (S.targeting) { if (t) { const a = S.targeting; stopTargeting(); fireAttack(a, t); } return; }
   if (t) {
     select(t);
-    if (S.master || t.ownerId === S.me.userId) { S.drag = { token: t, offX: x - t.x, offY: y - t.y, fromX: t.x, fromY: t.y, moved: false }; return; }
+    if (S.master || isMine(t)) { S.drag = { token: t, offX: x - t.x, offY: y - t.y, fromX: t.x, fromY: t.y, moved: false }; return; }
   }
+  if (!t && !S.targeting) { const area = templateAt(x, y); if (area) { selectTemplate(area); return; } }
   S.pan = { x: e.clientX, y: e.clientY, tx: S.view.tx, ty: S.view.ty };
 });
 window.addEventListener('pointermove', e => {
   if (S.paint) { const [x, y] = toWorld(e); paintAt(x, y); return; }
+  if (S.areaDraw) { const [x, y] = toWorld(e); S.areaDraw.angle = Math.atan2(y - S.areaDraw.y, x - S.areaDraw.x) * 180 / Math.PI; draw(); return; }
   if (S.wallDraw) { const [x, y] = toWorld(e); const [sx, sy] = snapPoint(x, y); S.wallDraw.x2 = sx; S.wallDraw.y2 = sy; draw(); return; }
   if (S.drag) { const [x, y] = toWorld(e); S.drag.token.x = x - S.drag.offX; S.drag.token.y = y - S.drag.offY; S.drag.moved = true; draw(); return; }
   if (S.pan) { S.view.tx = S.pan.tx + e.clientX - S.pan.x; S.view.ty = S.pan.ty + e.clientY - S.pan.y; draw(); }
 });
 window.addEventListener('pointerup', async () => {
+  if (S.areaDraw) { const d = S.areaDraw; S.areaDraw = null; await placeTemplate(d); return; }
   if (S.wallDraw) {
     const d = S.wallDraw; S.wallDraw = null; draw();
     if (Math.hypot(d.x2 - d.x1, d.y2 - d.y1) < 4) return;
@@ -753,7 +844,8 @@ $('sceneForm').addEventListener('submit', async e => {
 });
 async function loadCharacters() {
   const sel = $('tokenCharacter'); sel.innerHTML = '<option value="">— personagem —</option>';
-  for (const c of await api('/character/' + S.campaign.id + '/characters')) sel.append(new Option(c.name, c.characterId));
+  S.chars = await api('/character/' + S.campaign.id + '/characters');
+  for (const c of S.chars) sel.append(new Option(c.name, c.characterId));
   loadCustomMonsters();
 }
 $('tokenMonsterGo').onclick = async () => {
@@ -769,7 +861,12 @@ $('tokenForm').addEventListener('submit', async e => {
   const body = { name: $('tokenName').value || null, x, y, hidden: $('tokenHidden').checked,
     characterId: $('tokenCharacter').value || null, monsterId: $('tokenCharacter').value ? null : ($('tokenMonster').value || null) };
   if (!body.name && !body.characterId && !body.monsterId) return toast('Escolha um personagem, um monstro ou dê um nome.');
-  try { const t = await api('/live/scenes/' + S.scene.id + '/tokens', { method: 'POST', body }); const [sx, sy] = snap(t); t.x = sx; t.y = sy; await api('/live/tokens/' + t.id + '/move', { method: 'PATCH', body: { x: sx, y: sy } }); $('tokenForm').reset(); }
+  try {
+    const t = await api('/live/scenes/' + S.scene.id + '/tokens', { method: 'POST', body }); const [sx, sy] = snap(t); t.x = sx; t.y = sy;
+    await api('/live/tokens/' + t.id + '/move', { method: 'PATCH', body: { x: sx, y: sy } });
+    if ($('layerSelect').value !== 'BATTLE') await api('/live/tokens/' + t.id + '/placement', { method: 'PUT', body: { layer: $('layerSelect').value } });
+    $('tokenForm').reset();
+  }
   catch (err) { toast(err.message); }
 });
 function select(t) {
@@ -783,7 +880,18 @@ function select(t) {
   $('selHp').value = t.hpCurrent != null && !t.characterId ? t.hpCurrent : '';
   $('selHp').disabled = $('selHpSave').disabled = !!t.characterId;
   $('selVision').value = t.visionFt != null ? t.visionFt : '';
+  $('selLayer').value = t.layer || 'BATTLE';
+  const box = $('selMembers'); box.innerHTML = '';
+  const members = new Set((t.members || []).map(m => m.characterId));
+  for (const c of S.chars || []) {
+    const b = document.createElement('button'); b.className = 'chip' + (members.has(c.characterId) ? ' on' : ''); b.textContent = c.name;
+    b.dataset.id = c.characterId; b.onclick = () => b.classList.toggle('on'); box.append(b);
+  }
 }
+$('selLayerSave').onclick = () => S.selected && api('/live/tokens/' + S.selected.id + '/placement', { method: 'PUT', body: { layer: $('selLayer').value } })
+  .then(() => toast('Camada mudada.', true)).catch(err => toast(err.message));
+$('selMembersSave').onclick = () => S.selected && api('/live/tokens/' + S.selected.id + '/placement', { method: 'PUT',
+  body: { memberIds: [...$('selMembers').querySelectorAll('.chip.on')].map(b => b.dataset.id) } }).then(() => toast('Fichas do token salvas.', true)).catch(err => toast(err.message));
 $('selHide').onclick = () => S.selected && api('/live/tokens/' + S.selected.id, { method: 'PUT', body: { hidden: !S.selected.hidden } }).then(t => select(Object.assign(S.selected, t))).catch(err => toast(err.message));
 $('selDelete').onclick = () => S.selected && api('/live/tokens/' + S.selected.id, { method: 'DELETE' }).then(() => select(null)).catch(err => toast(err.message));
 $('selVisionSave').onclick = () => S.selected && api('/live/tokens/' + S.selected.id + '/vision', { method: 'PUT',
@@ -796,7 +904,9 @@ const CONDITIONS = [['BLINDED', 'Cego'], ['CHARMED', 'Enfeitiçado'], ['DEAFENED
   ['PETRIFIED', 'Petrificado'], ['POISONED', 'Envenenado'], ['PRONE', 'Caído'], ['RESTRAINED', 'Contido'],
   ['STUNNED', 'Atordoado'], ['UNCONSCIOUS', 'Inconsciente']];
 const conditionLabel = c => (CONDITIONS.find(x => x[0] === c) || [c, c])[1];
-const canControl = t => !!t && (S.master || t.ownerId === S.me.userId);
+/** Token do jogador: o do personagem dele, ou um token de grupo (caravana) em que viaja uma ficha dele. */
+const isMine = t => !!t && (t.ownerId === S.me.userId || (t.members || []).some(m => m.ownerId === S.me.userId));
+const canControl = t => !!t && (S.master || isMine(t));
 
 function renderCombat(t, reloadAttacks) {
   stopTargeting();
@@ -809,6 +919,7 @@ function renderCombat(t, reloadAttacks) {
 function renderCombatHeader(t) {
   if (!canControl(t)) return;
   $('cbName').textContent = t.name;
+  renderTokenExtras(t);
   $('cbHp').textContent = (t.hpMax != null ? 'PV ' + t.hpCurrent + '/' + t.hpMax : 'sem PV') + (t.armorClass != null ? ' · CA ' + t.armorClass : '');
   const box = $('cbConditions'); box.innerHTML = '';
   const active = new Set(t.conditions || []);
@@ -836,9 +947,12 @@ async function loadAttacks(t) {
       + (a.damage ? ' · ' + a.damage + (a.damageType ? ' ' + a.damageType : '') : '');
     info.append(small);
     const go = document.createElement('button'); go.className = 'primary';
-    go.textContent = a.kind === 'SAVE' ? 'Rolar' : 'Atacar';
-    go.onclick = () => a.kind === 'SAVE' ? fireAttack(a, null) : startTargeting(a);
-    row.append(info, go); box.append(row);
+    go.textContent = a.kind === 'SAVE' ? 'Área' : 'Atacar';
+    go.title = a.kind === 'SAVE' ? 'Posicione a área no mapa: todos dentro fazem a salvaguarda' : '';
+    go.onclick = () => a.kind === 'SAVE' ? startAreaFromAction(t, a) : startTargeting(a);
+    row.append(info, go);
+    if (a.kind === 'SAVE') { const only = document.createElement('button'); only.textContent = 'Rolar'; only.title = 'Só rolar o dano'; only.onclick = () => fireAttack(a, null); row.append(only); }
+    box.append(row);
   }
 }
 function startTargeting(a) {
@@ -973,7 +1087,7 @@ function pointInPoly(poly, x, y) {
 function playerSight(sc) {
   if (!sc || S.master || !sc.visionEnabled) return null;
   const { w, h } = mapSize(), g = sc.gridSizePx, walls = blockingSegments(sc);
-  const sources = sc.tokens.filter(t => t.ownerId === S.me.userId).map(t => {
+  const sources = sc.tokens.filter(t => isMine(t)).map(t => {
     const x = t.x + g * t.sizeCells / 2, y = t.y + g * t.sizeCells / 2;
     const r = t.visionFt == null ? Infinity : t.visionFt / sc.feetPerCell * g + g * t.sizeCells / 2;
     return { x, y, r, poly: visibilityPolygon(x, y, walls, w, h) };
@@ -1033,7 +1147,7 @@ SKILLS.forEach(([v, l]) => $('cbSkill').append(new Option(l, v)));
 function tokenRoll(body) {
   const t = S.selected; if (!t) return;
   api('/live/tokens/' + t.id + '/roll', { method: 'POST', body: Object.assign({ mode: $('cbMode').value }, body) })
-    .then(res => toast(res.label + ': ' + res.roll.total + (res.outcome === 'AUTO_FAIL' ? ' (falha automática)' : ''), res.outcome !== 'AUTO_FAIL'))
+    .then(res => toast(res.label + ': ' + res.roll.total + (res.outcome === 'AUTOMATIC_FAILURE' ? ' (falha automática)' : ''), res.outcome !== 'AUTOMATIC_FAILURE'))
     .catch(err => toast(err.message));
 }
 $('cbCheck').onclick = () => tokenRoll({ kind: 'ABILITY', ability: $('cbAbility').value });
@@ -1151,6 +1265,196 @@ function openMonsterEditor(m) {
   box.append(el('div', { class: 'row' }, save));
   $('modal').classList.remove('hidden');
 }
+
+// ------------------------------------------------------------------ camadas, icones, marcadores
+const LAYER_ORDER = { SCENERY: 0, BATTLE: 1, OVERHEAD: 2, GM: 3 };
+const CONDITION_ICONS = { BLINDED: '🙈', CHARMED: '💘', DEAFENED: '🙉', FRIGHTENED: '😱', GRAPPLED: '✊', INCAPACITATED: '🚫',
+  INVISIBLE: '👻', PARALYZED: '🧊', PETRIFIED: '🗿', POISONED: '🤢', PRONE: '🛌', RESTRAINED: '⛓', STUNNED: '😵', UNCONSCIOUS: '💤' };
+const MARKER_PRESETS = [['🧠', 'Concentração'], ['✨', 'Abençoado'], ['🎯', 'Marcado'], ['🔥', 'Em chamas'], ['🛡', 'Protegido'],
+  ['⚡', 'Acelerado'], ['🐌', 'Lento'], ['🩸', 'Sangrando'], ['🌀', 'Confuso'], ['❄', 'Congelado'], ['⭐', 'Outro...']];
+MARKER_PRESETS.forEach(([icon, label], i) => $('cbMarkerPreset').append(new Option(icon + ' ' + label, i)));
+
+/** Objeto do cenario ou "acima" (telhado, copa): imagem quadrada, sem PV nem nome pros jogadores. */
+function drawProp(t, g) {
+  const size = g * t.sizeCells, img = t.imageUrl && S.images[t.imageUrl];
+  if (t.imageUrl && !img) loadImage(t.imageUrl);
+  ctx.save(); ctx.globalAlpha = t.hidden ? 0.45 : 1;
+  if (img && img !== 'loading') ctx.drawImage(img, t.x, t.y, size, size);
+  else { ctx.fillStyle = t.layer === 'OVERHEAD' ? 'rgba(60,80,50,.85)' : 'rgba(90,70,50,.85)'; ctx.fillRect(t.x, t.y, size, size); }
+  if (S.master) {
+    ctx.strokeStyle = S.selected && S.selected.id === t.id ? '#FFCF7F' : 'rgba(232,163,61,.5)'; ctx.lineWidth = 2 / S.view.z;
+    ctx.setLineDash([6 / S.view.z, 4 / S.view.z]); ctx.strokeRect(t.x, t.y, size, size); ctx.setLineDash([]);
+    ctx.fillStyle = '#F6E9D3'; ctx.font = 11 / S.view.z + 'px Segoe UI'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillText(t.name + (t.layer === 'OVERHEAD' ? ' (acima)' : ' (cenário)'), t.x + 3 / S.view.z, t.y + 3 / S.view.z);
+  }
+  ctx.restore();
+}
+
+function renderTokenExtras(t) {
+  const marks = $('cbMarkers'); marks.innerHTML = '';
+  for (const [i, m] of (t.markers || []).entries()) {
+    const b = document.createElement('button'); b.className = 'chip on'; b.title = 'Clique para tirar';
+    b.textContent = (m.icon ? m.icon + ' ' : '') + m.label + (m.roundsLeft != null ? ' (' + m.roundsLeft + ')' : '');
+    b.onclick = () => saveMarkers(t, (t.markers || []).filter((_, j) => j !== i));
+    marks.append(b);
+  }
+  $('cbElev').value = t.elevationFt || '';
+  const box = $('cbMembers'); box.innerHTML = '';
+  for (const m of t.members || []) {
+    const row = document.createElement('div'); row.className = 'member';
+    const name = document.createElement('span'); name.textContent = '👤 ' + m.name;
+    const hp = document.createElement('small'); hp.className = 'muted'; hp.textContent = m.hpMax != null ? 'PV ' + m.hpCurrent + '/' + m.hpMax : '';
+    row.append(name, hp); box.append(row);
+  }
+}
+function saveMarkers(t, markers) {
+  api('/live/tokens/' + t.id + '/markers', { method: 'PUT', body: { markers: markers.map(m => ({ label: m.label, icon: m.icon, roundsLeft: m.roundsLeft })) } })
+    .catch(err => toast(err.message));
+}
+$('cbMarkerAdd').onclick = () => {
+  const t = S.selected; if (!t) return;
+  let [icon, label] = MARKER_PRESETS[Number($('cbMarkerPreset').value)];
+  if (label === 'Outro...') { label = prompt('Nome do marcador:'); if (!label) return; }
+  const rounds = $('cbMarkerRounds').value === '' ? null : Number($('cbMarkerRounds').value);
+  saveMarkers(t, [...(t.markers || []), { label, icon, roundsLeft: rounds }]); $('cbMarkerRounds').value = '';
+};
+$('cbElevSave').onclick = () => S.selected && api('/live/tokens/' + S.selected.id + '/placement', { method: 'PUT',
+  body: { elevationFt: $('cbElev').value === '' ? 0 : Number($('cbElev').value) } }).catch(err => toast(err.message));
+
+// ------------------------------------------------------------------ areas de efeito
+document.querySelectorAll('[data-tool]').forEach(b => b.addEventListener('click', () => {
+  $('areaOpts').classList.toggle('hidden', b.dataset.tool !== 'area');
+  if (b.dataset.tool !== 'area') S.pendingArea = null;
+}));
+function feetToPx(ft) { return ft / S.scene.feetPerCell * S.scene.gridSizePx; }
+function areaDraft(x, y) {
+  const pending = S.pendingArea;
+  return { x, y, angle: 0, shape: pending ? pending.shape : $('areaShape').value,
+    sizeFt: pending ? pending.sizeFt : Math.max(5, Number($('areaSize').value) || 20), widthFt: 5,
+    label: pending ? pending.action.name : $('areaLabel').value };
+}
+/** Mesma conta do servidor (AreaTemplate.covers), pra destacar quem esta dentro. */
+function areaCovers(a, px, py) {
+  const size = feetToPx(a.sizeFt), dx = px - a.x, dy = py - a.y;
+  switch (a.shape) {
+    case 'CIRCLE': return Math.hypot(dx, dy) <= size + 0.5;
+    case 'SQUARE': return Math.abs(dx) <= size / 2 + 0.5 && Math.abs(dy) <= size / 2 + 0.5;
+    case 'CONE': {
+      const d = Math.hypot(dx, dy); if (d < 0.5) return true; if (d > size + 0.5) return false;
+      let diff = Math.abs(Math.atan2(dy, dx) - a.angle * Math.PI / 180); diff = Math.min(diff, 2 * Math.PI - diff);
+      return diff <= Math.atan(0.5) + 1e-9;
+    }
+    case 'LINE': {
+      const rad = a.angle * Math.PI / 180, along = dx * Math.cos(rad) + dy * Math.sin(rad), across = -dx * Math.sin(rad) + dy * Math.cos(rad);
+      return along >= -0.5 && along <= size + 0.5 && Math.abs(across) <= feetToPx(a.widthFt || 5) / 2 + 0.5;
+    }
+  }
+  return false;
+}
+/** Os dois segmentos se cruzam (encostar na ponta nao conta)? Mesma conta do Wall.crosses do servidor. */
+function segmentsCross(ax, ay, bx, by, w) {
+  const c = (ox, oy, px, py, qx, qy) => (px - ox) * (qy - oy) - (py - oy) * (qx - ox);
+  const d1 = c(w.x1, w.y1, w.x2, w.y2, ax, ay), d2 = c(w.x1, w.y1, w.x2, w.y2, bx, by);
+  const d3 = c(ax, ay, bx, by, w.x1, w.y1), d4 = c(ax, ay, bx, by, w.x2, w.y2);
+  return ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0));
+}
+/** Dentro da area e com linha livre ate a origem (parede ou porta fechada no meio = a area nao chega). */
+function areaCoversToken(a, t) {
+  const g = S.scene.gridSizePx, walls = blockingSegments(S.scene);
+  for (let i = 0; i < t.sizeCells; i++) for (let j = 0; j < t.sizeCells; j++) {
+    const px = t.x + (i + 0.5) * g, py = t.y + (j + 0.5) * g;
+    if (areaCovers(a, px, py) && !walls.some(w => segmentsCross(a.x, a.y, px, py, w))) return true;
+  }
+  return false;
+}
+function areaPath(a) {
+  const size = feetToPx(a.sizeFt), rad = a.angle * Math.PI / 180;
+  ctx.beginPath();
+  if (a.shape === 'CIRCLE') ctx.arc(a.x, a.y, size, 0, Math.PI * 2);
+  else if (a.shape === 'SQUARE') ctx.rect(a.x - size / 2, a.y - size / 2, size, size);
+  else if (a.shape === 'CONE') { const h = Math.atan(0.5), r = size / Math.cos(h); ctx.moveTo(a.x, a.y); ctx.lineTo(a.x + r * Math.cos(rad - h), a.y + r * Math.sin(rad - h)); ctx.lineTo(a.x + r * Math.cos(rad + h), a.y + r * Math.sin(rad + h)); ctx.closePath(); }
+  else { const w = feetToPx(a.widthFt || 5) / 2, nx = -Math.sin(rad) * w, ny = Math.cos(rad) * w, ex = a.x + Math.cos(rad) * size, ey = a.y + Math.sin(rad) * size;
+    ctx.moveTo(a.x + nx, a.y + ny); ctx.lineTo(ex + nx, ey + ny); ctx.lineTo(ex - nx, ey - ny); ctx.lineTo(a.x - nx, a.y - ny); ctx.closePath(); }
+}
+function drawTemplateShape(a, draft) {
+  const z = S.view.z, selected = S.selectedTemplate && S.selectedTemplate.id === a.id;
+  areaPath(a);
+  ctx.fillStyle = a.color ? a.color + '33' : 'rgba(232,93,61,.18)'; ctx.fill();
+  ctx.strokeStyle = draft || selected ? '#FFCF7F' : 'rgba(232,93,61,.8)'; ctx.lineWidth = (selected ? 3 : 2) / z;
+  if (draft) ctx.setLineDash([8 / z, 5 / z]); ctx.stroke(); ctx.setLineDash([]);
+  for (const t of S.scene.tokens) { // quem esta dentro ganha um anel
+    if ((t.layer || 'BATTLE') !== 'BATTLE' || !areaCoversToken(a, t)) continue;
+    const size = S.scene.gridSizePx * t.sizeCells;
+    ctx.beginPath(); ctx.arc(t.x + size / 2, t.y + size / 2, size / 2, 0, Math.PI * 2);
+    ctx.strokeStyle = '#FFCF7F'; ctx.lineWidth = 3 / z; ctx.setLineDash([4 / z, 3 / z]); ctx.stroke(); ctx.setLineDash([]);
+  }
+  if (a.label || draft) {
+    ctx.fillStyle = '#FFCF7F'; ctx.font = 600 + ' ' + 13 / z + 'px Segoe UI'; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+    ctx.fillText((a.label || '') + ' ' + a.sizeFt + ' pés', a.x + 6 / z, a.y - 6 / z);
+  }
+}
+function drawTemplates(sc) { for (const a of sc.templates || []) drawTemplateShape(a, false); }
+function templateAt(x, y) {
+  const list = S.scene.templates || [];
+  for (let i = list.length - 1; i >= 0; i--) if (areaCovers(list[i], x, y)) return list[i];
+  return null;
+}
+async function placeTemplate(d) {
+  draw();
+  try {
+    const created = await api('/live/scenes/' + S.scene.id + '/templates', { method: 'POST', body: {
+      shape: d.shape, x: d.x, y: d.y, angle: d.angle, sizeFt: d.sizeFt, widthFt: d.widthFt, label: d.label || null } });
+    const pending = S.pendingArea; S.pendingArea = null;
+    document.querySelector('[data-tool=move]').click();
+    if (pending) { // acao do monstro: ja resolve com a CD e o dano da ficha
+      const res = await api('/live/templates/' + created.id + '/resolve', { method: 'POST',
+        body: { attackerTokenId: pending.tokenId, attackId: pending.action.id } });
+      toast(resolveSummary(res), true);
+    } else {
+      S.scene.templates = [...(S.scene.templates || []).filter(t => t.id !== created.id), created];
+      selectTemplate(created);
+    }
+  } catch (err) { toast(err.message); }
+}
+/** "Fire Breath: cone de 60 pés" -> ja escolhe forma e tamanho pela descricao da acao. */
+function startAreaFromAction(token, action) {
+  const text = (action.text || '') + ' ' + action.name;
+  const m = text.match(/(\d+)[- ]foot[- ](?:radius\s+)?(cone|line|cube|sphere|emanation|cylinder|radius|square)/i);
+  const kind = m ? m[2].toLowerCase() : 'cone';
+  const shape = kind === 'cone' ? 'CONE' : kind === 'line' ? 'LINE' : kind === 'cube' || kind === 'square' ? 'SQUARE' : 'CIRCLE';
+  S.pendingArea = { tokenId: token.id, action, shape, sizeFt: m ? Number(m[1]) : 15 };
+  document.querySelector('[data-tool=area]').click();
+  $('areaShape').value = shape; $('areaSize').value = S.pendingArea.sizeFt;
+  S.pendingArea.shape = shape;
+  toast(action.name + ': arraste no mapa a partir da origem (direção = para onde aponta).', true);
+}
+function selectTemplate(a) {
+  S.selectedTemplate = a; draw();
+  $('areaPanel').classList.toggle('hidden', !a);
+  if (!a) return;
+  $('apName').textContent = (a.label || 'Área') + ' · ' + a.sizeFt + ' pés';
+  const inside = S.scene.tokens.filter(t => (t.layer || 'BATTLE') === 'BATTLE' && areaCoversToken(a, t)).map(t => t.name);
+  $('apInside').textContent = inside.length ? 'Dentro: ' + inside.join(', ') : 'Ninguém dentro.';
+}
+function resolveSummary(res) {
+  return res.label + ' (CD ' + res.dc + ' ' + res.ability + '): ' + (res.targets.length
+    ? res.targets.map(t => t.name + (t.saved ? ' passou' : ' falhou') + (t.damageApplied != null ? ' -' + t.damageApplied : '')).join(', ')
+    : 'ninguém dentro');
+}
+$('apResolve').onclick = async () => {
+  const a = S.selectedTemplate; if (!a) return;
+  if ($('apDc').value === '') return toast('Diga a CD.');
+  try {
+    const res = await api('/live/templates/' + a.id + '/resolve', { method: 'POST', body: { ability: $('apAbility').value,
+      dc: Number($('apDc').value), damage: $('apDamage').value || null, damageType: $('apType').value || null, halfOnSuccess: $('apHalf').checked } });
+    toast(resolveSummary(res), true);
+  } catch (err) { toast(err.message); }
+};
+$('apRemove').onclick = () => S.selectedTemplate && api('/live/templates/' + S.selectedTemplate.id, { method: 'DELETE' })
+  .then(() => selectTemplate(null)).catch(err => toast(err.message));
+$('apClose').onclick = () => selectTemplate(null);
+$('areasClear').onclick = () => S.scene && api('/live/scenes/' + S.scene.id + '/templates', { method: 'DELETE' }).catch(err => toast(err.message));
+$('layerSelect').onchange = () => { select(null); draw(); };
 
 // ------------------------------------------------------------------ inicio
 S.token = load('customizr_token');

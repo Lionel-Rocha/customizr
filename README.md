@@ -233,6 +233,11 @@ Abaixo estão todos os endpoints atualmente expostos pelo backend da aplicação
 | `PATCH` | `/live/walls/{wallId}` | Porta: `open` (jogador também, se não estiver trancada) e `locked` (só o mestre; trancar fecha). |
 | `PUT` | `/live/scenes/{sceneId}/vision` | Liga/desliga a visão dinâmica da cena (`enabled`). |
 | `PUT` | `/live/tokens/{tokenId}/vision` | Alcance da visão do token em pés (`visionFt`; vazio = até onde as paredes deixam). |
+| `PUT` | `/live/tokens/{tokenId}/placement` | Altura em pés (`elevationFt`; o dono também muda), camada (`layer`: SCENERY, BATTLE, OVERHEAD, GM) e fichas que viajam no token (`memberIds`, ex.: a caravana; o dono de qualquer uma move o token e vê por ele). Camada e fichas: só o mestre. |
+| `PUT` | `/live/tokens/{tokenId}/markers` | Marcadores do token (`label`, `icon`, `roundsLeft`): a contagem desce no início do turno do token na iniciativa e o marcador some ao chegar a zero. |
+| `POST` | `/live/scenes/{sceneId}/templates` | Área de efeito (`shape` CIRCLE/CONE/LINE/SQUARE, `x`, `y`, `angle`, `sizeFt`). Mestre ou jogador. |
+| `DELETE` | `/live/templates/{templateId}` · `/live/scenes/{sceneId}/templates` | Tira uma área (quem pôs ou o mestre) / todas (mestre). |
+| `POST` | `/live/templates/{templateId}/resolve` | Todos dentro da área (com linha livre até a origem) fazem a salvaguarda; o dano é rolado uma vez e cada um leva inteiro, metade ou nada. `attackerTokenId` + `attackId` de uma ação de salvaguarda do monstro preenchem CD, atributo e dano. |
 | `GET` | `/monster?campaignId=` | Com `campaignId`, a busca traz também os monstros customizados da campanha (só pra quem é dela). |
 | `POST` | `/monster/custom` | Ficha de monstro customizada (em branco ou preenchida) na campanha. Só o mestre. As ações (`actions`: ATTACK/SAVE/OTHER) já funcionam no token. |
 | `PUT` / `DELETE` | `/monster/{id}` | Edita / apaga um monstro customizado (os do catálogo não se editam). |
@@ -372,6 +377,17 @@ A parte da mesa de jogo, desenvolvida à parte em JavaFX, foi trazida para cá n
 * **Testes do monstro pelo token:** atributo, salvaguarda, perícia e iniciativa pela ficha de monstro, com as condições contando.
 * **Paredes e portas:** o mestre desenha na tela; o jogador não atravessa parede nem porta fechada (o servidor confere); porta abre com um clique, trancada só o mestre abre.
 * **Visão dinâmica:** ligada por cena. Cada jogador só vê o que os tokens dele enxergam (as paredes cortam a visão, e cada token pode ter um alcance em pés); o que já viu fica esmaecido. A linha de visão é calculada na tela, com as paredes que o servidor manda.
+
+**Sétima rodada (áreas, marcadores, altura, camadas e caravana):**
+
+* **Áreas de efeito:** círculo, cone (do jeito do livro: a largura é igual à distância), linha e quadrado.
+  * Todos dentro fazem a salvaguarda: personagem pela ficha, monstro pela ficha de monstro. O dano é rolado uma vez e cada um leva inteiro, metade ou nada, com resistência e imunidade contando.
+  * Parede ou porta fechada entre a origem e o alvo é cobertura total: a área não chega.
+  * A ação de salvaguarda do monstro (ex.: sopro) vira área com um clique: forma e tamanho saem da descrição da ação, e CD, atributo e dano, da ficha.
+* **Marcadores:** concentração, abençoado, em chamas etc., com ícone e duração em rodadas que desce sozinha na iniciativa. As condições ganharam ícones.
+* **Altura:** cada token tem altura em pés; no ataque com altura diferente, a distância real vai na nota.
+* **Camadas:** cenário (objetos debaixo de tudo), batalha, acima (telhado, copa) e mestre (só ele vê). O mestre escolhe a camada em que clica; objeto de cenário não entra na iniciativa.
+* **Token de grupo:** um token pode levar várias fichas (a caravana, um barco). O dono de qualquer uma delas move o token e enxerga por ele, e o painel mostra o PV de cada ficha.
 
 Ficaram de fora por não se encaixarem numa API REST sem uma interface de jogo:
 

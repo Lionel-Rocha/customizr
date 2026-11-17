@@ -9,12 +9,17 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
+import jakarta.persistence.OrderColumn;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.Getter;
 
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -74,6 +79,30 @@ public class Token {
 
     @Column(name = "hp_max")
     private Integer hpMax;
+
+    /** Camada no mapa (null = BATTLE, pra tokens de antes das camadas). */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "layer", length = 10)
+    private TokenLayer layer;
+
+    /** Altura em pes (voando, num telhado; negativo = cova, agua). Null = no chao. */
+    @Column(name = "elevation_ft")
+    private Integer elevationFt;
+
+    /**
+     * Fichas que viajam juntas neste token (a caravana do grupo, um barco, uma montaria com cavaleiro).
+     * O dono de qualquer uma delas move o token e enxerga por ele.
+     */
+    @ManyToMany
+    @JoinTable(name = "token_members", joinColumns = @JoinColumn(name = "token_id"),
+            inverseJoinColumns = @JoinColumn(name = "character_id"))
+    @OrderColumn(name = "position")
+    private List<Character> members = new ArrayList<>();
+
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "token_markers", joinColumns = @JoinColumn(name = "token_id"))
+    @OrderColumn(name = "position")
+    private List<TokenMarker> markers = new ArrayList<>();
 
     /** Alcance da visao em pes (visao no escuro, luz...). Null = enxerga ate onde as paredes deixam. */
     @Column(name = "vision_ft")
@@ -141,6 +170,59 @@ public class Token {
         }
         if (hpMax != null) this.hpMax = hpMax;
         if (hpCurrent != null) this.hpCurrent = hpCurrent;
+    }
+
+    public TokenLayer getLayer() {
+        return layer == null ? TokenLayer.BATTLE : layer;
+    }
+
+    public void setLayer(TokenLayer layer) {
+        this.layer = layer == null ? TokenLayer.BATTLE : layer;
+    }
+
+    /** Oculto de verdade pros jogadores: marcado como oculto ou na camada do mestre. */
+    public boolean isHiddenFromPlayers() {
+        return hidden || getLayer() == TokenLayer.GM;
+    }
+
+    public void setElevationFt(Integer elevationFt) {
+        if (elevationFt != null && (elevationFt < -1000 || elevationFt > 100_000)) {
+            throw new IllegalArgumentException("Elevation must be between -1000 and 100000 feet");
+        }
+        this.elevationFt = elevationFt == null || elevationFt == 0 ? null : elevationFt;
+    }
+
+    public int elevation() {
+        return elevationFt == null ? 0 : elevationFt;
+    }
+
+    public void replaceMembers(List<Character> characters) {
+        if (characters.size() > 30) throw new IllegalArgumentException("A token holds at most 30 characters");
+        members.clear();
+        members.addAll(characters.stream().distinct().toList());
+    }
+
+    /** Quem e dono do personagem do token ou de alguma ficha que viaja nele. */
+    public boolean controlledBy(UUID userId) {
+        if (character != null && character.getOwner().getUserId().equals(userId)) return true;
+        return members.stream().anyMatch(c -> c.getOwner().getUserId().equals(userId));
+    }
+
+    public void replaceMarkers(List<TokenMarker> newMarkers) {
+        if (newMarkers.size() > 20) throw new IllegalArgumentException("At most 20 markers per token");
+        markers.clear();
+        markers.addAll(newMarkers);
+    }
+
+    /** Uma rodada se passou pra este token: desce a contagem dos marcadores e tira os que acabaram. */
+    public List<String> tickMarkers() {
+        List<String> expired = new ArrayList<>();
+        markers.removeIf(m -> {
+            boolean keep = m.tick();
+            if (!keep) expired.add(m.getLabel());
+            return !keep;
+        });
+        return expired;
     }
 
     public void setVisionFt(Integer visionFt) {

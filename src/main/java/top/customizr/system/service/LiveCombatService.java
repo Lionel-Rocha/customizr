@@ -14,9 +14,13 @@ import top.customizr.system.dto.TokenAttackOption;
 import top.customizr.system.dto.TokenAttackRequest;
 import top.customizr.system.dto.TokenAttackResponse;
 import top.customizr.system.dto.TokenResponse;
+import top.customizr.system.dto.TemplateResolveRequest;
+import top.customizr.system.dto.TemplateResolveResponse;
 import top.customizr.system.model.AbilityScore;
 import top.customizr.system.model.Attributes;
+import top.customizr.system.model.AreaTemplate;
 import top.customizr.system.model.Campaign;
+import top.customizr.system.model.TokenLayer;
 import top.customizr.system.model.Condition;
 import top.customizr.system.model.DiceRoller;
 import top.customizr.system.model.Monster;
@@ -60,9 +64,12 @@ public class LiveCombatService {
     private final CharacterService characterService;
     private final ChatService chatService;
     private final LiveTableService liveTable;
+    private final top.customizr.system.repository.AreaTemplateRepository templateRepository;
 
     public LiveCombatService(TokenRepository tokenRepository, MasterGuard masterGuard, CharacterSheetService sheetService,
-                             CharacterService characterService, ChatService chatService, LiveTableService liveTable) {
+                             CharacterService characterService, ChatService chatService, LiveTableService liveTable,
+                             top.customizr.system.repository.AreaTemplateRepository templateRepository) {
+        this.templateRepository = templateRepository;
         this.tokenRepository = tokenRepository;
         this.masterGuard = masterGuard;
         this.sheetService = sheetService;
@@ -92,7 +99,7 @@ public class LiveCombatService {
         Token target = null;
         if (request.targetTokenId() != null) {
             target = token(request.targetTokenId());
-            if (!master && target.isHidden()) throw notFound("Token");
+            if (!master && target.isHiddenFromPlayers()) throw notFound("Token");
             if (!target.getScene().getId().equals(attacker.getScene().getId())) {
                 throw badRequest("The target is in another scene");
             }
@@ -100,6 +107,18 @@ public class LiveCombatService {
         List<String> notes = new ArrayList<>();
         RollMode mode = request.mode() == null ? RollMode.NORMAL : request.mode();
         Integer targetAc = target == null ? null : target.armorClass();
+        if (target != null && attacker.elevation() != target.elevation()) {
+            // com altura diferente, a distancia de verdade (pra conferir alcance) vai na nota
+            var scene = attacker.getScene();
+            double half = scene.getGridSizePx() / 2.0;
+            Integer flat = scene.distanceFeet(attacker.getX() + half * attacker.getSizeCells(), attacker.getY() + half * attacker.getSizeCells(),
+                    target.getX() + half * target.getSizeCells(), target.getY() + half * target.getSizeCells());
+            int up = Math.abs(attacker.elevation() - target.elevation());
+            if (flat != null) {
+                long total = Math.round(Math.hypot(flat, up) / 5.0) * 5;
+                notes.add("Distance " + total + " ft (" + up + " ft height difference)");
+            }
+        }
 
         String attackName;
         RollResult attackRoll;
@@ -152,7 +171,7 @@ public class LiveCombatService {
         }
 
         // token oculto atacando: o chat nao entrega quem e
-        String label = (attacker.isHidden() ? "Unseen creature" : attacker.getName()) + (target == null ? "" : " -> " + target.getName()) + ": " + attackName
+        String label = (attacker.isHiddenFromPlayers() ? "Unseen creature" : attacker.getName()) + (target == null ? "" : " -> " + target.getName()) + ": " + attackName
                 + (damageType == null ? "" : " (" + damageType + ")");
         RollResult shown = attackRoll != null ? attackRoll : damageRoll;
         UUID chatId = null;
@@ -183,6 +202,20 @@ public class LiveCombatService {
             return sheetService.roll(token.getCharacter().getCharacterId(),
                     new SheetRollRequest(request.kind(), request.skill(), request.ability(), request.mode(), true), username);
         }
+        MonsterRoll rolled = monsterRoll(token, request);
+        String speaker = token.isHiddenFromPlayers() ? "Unseen creature" : token.getName();
+        String extra = (rolled.outcome() == null ? "" : " | " + rolled.outcome())
+                + (rolled.notes().isEmpty() ? "" : " (" + String.join("; ", rolled.notes()) + ")");
+        UUID chatId = chatService.postRoll(token.getScene().getCampaign().getId(), null, speaker + " - " + rolled.label(),
+                rolled.roll(), extra, username).id();
+        return new SheetRollResponse(speaker + " - " + rolled.label(), rolled.roll(), null, null, rolled.outcome(),
+                rolled.notes(), chatId);
+    }
+
+    private record MonsterRoll(String label, RollResult roll, String outcome, List<String> notes) {}
+
+    /** Rolagem pela ficha de monstro, sem chat. */
+    private MonsterRoll monsterRoll(Token token, SheetRollRequest request) {
         Monster stats = token.statBlock();
         if (stats == null) throw badRequest("This token has no stat block to roll from");
         List<String> notes = new ArrayList<>();
@@ -215,7 +248,7 @@ public class LiveCombatService {
                 String failing = names(conditions, EnumSet.of(Condition.PARALYZED, Condition.PETRIFIED,
                         Condition.STUNNED, Condition.UNCONSCIOUS));
                 if (strDex && !failing.isEmpty()) {
-                    outcome = "AUTO_FAIL";
+                    outcome = "AUTOMATIC_FAILURE";
                     notes.add("Automatic failure: " + failing);
                 }
                 if (ability == AbilityScore.DEXTERITY && conditions.contains(Condition.RESTRAINED)) {
@@ -229,14 +262,103 @@ public class LiveCombatService {
             }
             default -> throw badRequest("Monsters don't make death saves");
         }
-        RollResult roll = DiceRoller.roll(d20(mode) + signed(bonus));
-        String speaker = token.isHidden() ? "Unseen creature" : token.getName();
-        String extra = (outcome == null ? "" : " | " + outcome) + (notes.isEmpty() ? "" : " (" + String.join("; ", notes) + ")");
-        UUID chatId = chatService.postRoll(token.getScene().getCampaign().getId(), null, speaker + " - " + label,
-                roll, extra, username).id();
-        return new SheetRollResponse(speaker + " - " + label, roll, null, null, outcome, notes, chatId);
+        return new MonsterRoll(label, DiceRoller.roll(d20(mode) + signed(bonus)), outcome, notes);
     }
 
+    // ------------------------------------------------------------------ areas de efeito
+
+    /**
+     * Resolve uma area: quem esta dentro faz a salvaguarda (personagem pela ficha, monstro pela ficha de monstro),
+     * o dano e rolado uma vez e cada um leva inteiro, metade ou nada. Quem colocou a area ou o mestre resolve.
+     */
+    @Transactional
+    public TemplateResolveResponse resolveTemplate(UUID templateId, TemplateResolveRequest request, String username) {
+        AreaTemplate template = templateRepository.findById(templateId).orElseThrow(() -> notFound("Area"));
+        Campaign campaign = template.getScene().getCampaign();
+        User user = masterGuard.user(username);
+        masterGuard.assertMember(user, campaign);
+        boolean master = masterGuard.canManage(user, campaign);
+        if (!master && !template.getOwnerId().equals(user.getUserId())) {
+            throw new AccessDeniedException("Only who placed the area or the master resolves it");
+        }
+        if (request == null) throw badRequest("Request body is required");
+        AbilityScore ability = request.ability();
+        Integer dc = request.dc();
+        String damage = request.damage();
+        String damageType = request.damageType();
+        String label = template.getLabel() == null ? "Area" : template.getLabel();
+        Token attacker = null;
+        if (request.attackerTokenId() != null) {
+            attacker = token(request.attackerTokenId());
+            requireControl(attacker, username);
+            if (request.attackId() != null) {
+                MonsterAttacks.Attack action = monsterAttack(attacker, request.attackId());
+                if (action.kind() != MonsterAttacks.Kind.SAVE) throw badRequest("This action is not a saving throw");
+                dc = action.saveDc();
+                ability = abilityOf(action.saveAbility());
+                damage = action.damage();
+                damageType = action.damageType();
+                label = action.name();
+            }
+        }
+        if (ability == null || dc == null) throw badRequest("ability and dc are required");
+        RollResult damageRoll = null;
+        if (damage != null && !damage.isBlank()) {
+            try {
+                damageRoll = DiceRoller.roll(damage.replaceAll("\\s+", ""));
+            } catch (IllegalArgumentException ex) {
+                throw badRequest(ex.getMessage());
+            }
+        }
+        boolean half = request.halfOnSuccess() == null || request.halfOnSuccess();
+        boolean apply = request.applyDamage() == null || request.applyDamage();
+        List<TemplateResolveResponse.Target> results = new ArrayList<>();
+        List<String> lines = new ArrayList<>();
+        for (Token target : template.getScene().getTokens()) {
+            if (attacker != null && target.getId().equals(attacker.getId())) continue;
+            if (target.getLayer() != TokenLayer.BATTLE || !template.covers(target)) continue;
+            SheetRollRequest save = new SheetRollRequest(SheetRollRequest.RollKind.SAVE, null, ability, null, false);
+            RollResult roll;
+            String outcome;
+            if (target.getCharacter() != null) {
+                SheetRollResponse r = sheetService.rollFor(target.getCharacter(), save, username);
+                roll = r.roll();
+                outcome = r.outcome();
+            } else if (target.statBlock() != null) {
+                MonsterRoll r = monsterRoll(target, save);
+                roll = r.roll();
+                outcome = r.outcome();
+            } else {
+                continue; // token sem ficha (cenario, marcador) nao faz salvaguarda
+            }
+            boolean autoFail = "AUTOMATIC_FAILURE".equals(outcome);
+            boolean saved = !autoFail && roll.total() >= dc;
+            Integer applied = null;
+            if (damageRoll != null) {
+                int amount = saved ? (half ? damageRoll.total() / 2 : 0) : damageRoll.total();
+                List<String> notes = new ArrayList<>();
+                applied = apply ? applyDamage(target, amount, damageType, notes) : amount;
+            }
+            String name = target.isHiddenFromPlayers() ? "Unseen creature" : target.getName();
+            results.add(new TemplateResolveResponse.Target(target.getId(), target.getName(), roll.total(), saved, autoFail, applied));
+            lines.add(name + ": " + roll.total() + (autoFail ? " (automatic failure)" : saved ? " saved" : " failed")
+                    + (applied == null ? "" : " -> " + applied + " " + (damageType == null ? "damage" : damageType)));
+        }
+        String abilityShort = ability.getKey().substring(0, 3).toUpperCase(Locale.ROOT);
+        String title = label + " (DC " + dc + " " + abilityShort + (damageRoll == null ? "" : ", damage " + damageRoll.detail()) + ")";
+        UUID chatId = chatService.postCard(campaign.getId(), attacker != null && attacker.getCharacter() != null
+                        ? attacker.getCharacter().getCharacterId() : null, title,
+                lines.isEmpty() ? "Nobody in the area." : String.join("\n", lines), username).id();
+        return new TemplateResolveResponse(label, dc, abilityShort, damageRoll, results, chatId);
+    }
+
+    private static AbilityScore abilityOf(String shortName) {
+        if (shortName == null) return AbilityScore.DEXTERITY;
+        for (AbilityScore a : AbilityScore.values()) {
+            if (a.getKey().substring(0, 3).equalsIgnoreCase(shortName)) return a;
+        }
+        return AbilityScore.DEXTERITY;
+    }
     /** "DEX +6, WIS +7" / "Perception +13, Stealth +6": o bonus de uma entrada, se estiver escrito. */
     private static Integer writtenBonus(String list, String key) {
         if (list == null) return null;
@@ -429,7 +551,7 @@ public class LiveCombatService {
         User user = masterGuard.user(username);
         if (masterGuard.canManage(user, campaign)) return true;
         masterGuard.assertMember(user, campaign);
-        if (token.getCharacter() == null || !token.getCharacter().getOwner().getUserId().equals(user.getUserId())) {
+        if (!token.controlledBy(user.getUserId())) {
             throw new AccessDeniedException("You can only act with your own character's token");
         }
         return false;

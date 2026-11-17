@@ -2,6 +2,12 @@ package top.customizr.system.controllers;
 
 import top.customizr.system.dto.ConditionsRequest;
 import top.customizr.system.dto.DoorRequest;
+import top.customizr.system.dto.MarkersRequest;
+import top.customizr.system.dto.TemplateRequest;
+import top.customizr.system.dto.TemplateResolveRequest;
+import top.customizr.system.dto.TemplateResolveResponse;
+import top.customizr.system.dto.TemplateResponse;
+import top.customizr.system.dto.TokenPlacementRequest;
 import top.customizr.system.dto.VisionRequest;
 import top.customizr.system.dto.WallRequest;
 import top.customizr.system.dto.WallResponse;
@@ -166,6 +172,47 @@ public class LiveTableController {
     public ResponseEntity<TokenResponse> tokenVision(@PathVariable UUID tokenId, @RequestBody VisionRequest request,
                                                      @AuthenticationPrincipal UserDetails user) {
         return ResponseEntity.ok(live.setTokenVision(tokenId, request, user.getUsername()));
+    }
+
+    // ------------------------------------------------------------------ altura, camada, grupo, marcadores, areas
+
+    /** Altura (dono ou mestre), camada e fichas que viajam no token (so o mestre). */
+    @PutMapping("/tokens/{tokenId}/placement")
+    public ResponseEntity<TokenResponse> placement(@PathVariable UUID tokenId, @RequestBody TokenPlacementRequest request,
+                                                   @AuthenticationPrincipal UserDetails user) {
+        return ResponseEntity.ok(live.updatePlacement(tokenId, request, user.getUsername()));
+    }
+
+    @PutMapping("/tokens/{tokenId}/markers")
+    public ResponseEntity<TokenResponse> markers(@PathVariable UUID tokenId, @RequestBody MarkersRequest request,
+                                                 @AuthenticationPrincipal UserDetails user) {
+        return ResponseEntity.ok(live.updateMarkers(tokenId, request, user.getUsername()));
+    }
+
+    @PostMapping("/scenes/{sceneId}/templates")
+    public ResponseEntity<TemplateResponse> addTemplate(@PathVariable UUID sceneId, @RequestBody TemplateRequest request,
+                                                        @AuthenticationPrincipal UserDetails user) {
+        return ResponseEntity.ok(live.addTemplate(sceneId, request, user.getUsername()));
+    }
+
+    @DeleteMapping("/templates/{templateId}")
+    public ResponseEntity<Void> removeTemplate(@PathVariable UUID templateId, @AuthenticationPrincipal UserDetails user) {
+        live.removeTemplate(templateId, user.getUsername());
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/scenes/{sceneId}/templates")
+    public ResponseEntity<Void> clearTemplates(@PathVariable UUID sceneId, @AuthenticationPrincipal UserDetails user) {
+        live.clearTemplates(sceneId, user.getUsername());
+        return ResponseEntity.noContent().build();
+    }
+
+    /** Salvaguarda de todos dentro da area e o dano (inteiro, metade ou nada). */
+    @PostMapping("/templates/{templateId}/resolve")
+    public ResponseEntity<TemplateResolveResponse> resolveTemplate(@PathVariable UUID templateId,
+                                                                   @RequestBody TemplateResolveRequest request,
+                                                                   @AuthenticationPrincipal UserDetails user) {
+        return ResponseEntity.ok(combat.resolveTemplate(templateId, request, user.getUsername()));
     }
 
     // ------------------------------------------------------------------ combate
