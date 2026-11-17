@@ -51,13 +51,51 @@ public class CharacterController {
     private final InventoryService inventoryService;
     private final CharacterImportService characterImportService;
     private final top.customizr.system.service.CharacterSheetService sheetService;
+    private final top.customizr.system.service.CharacterFeatureService featureService;
     public CharacterController(CharacterService characterService, InventoryService inventoryService,
                                CharacterImportService characterImportService,
-                               top.customizr.system.service.CharacterSheetService sheetService) {
+                               top.customizr.system.service.CharacterSheetService sheetService,
+                               top.customizr.system.service.CharacterFeatureService featureService) {
+        this.featureService = featureService;
         this.characterService = characterService;
         this.inventoryService = inventoryService;
         this.characterImportService = characterImportService;
         this.sheetService = sheetService;
+    }
+
+    // ------------------------------------------------------------------ features da ficha (CharacterFeatureService)
+
+    /**
+     * Tudo que o personagem tem (features de classe/subclasse, especie, antecedente, talentos, magias, itens),
+     * com o texto pronto. {@code available=true} inclui as escolhas que a classe oferece e ainda nao foram feitas.
+     */
+    @GetMapping("/{id}/features")
+    public java.util.List<top.customizr.system.dto.CharacterFeatureResponse> features(
+            @PathVariable UUID id,
+            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "true") boolean available,
+            @AuthenticationPrincipal UserDetails loggedUser) {
+        return featureService.list(id, available, loggedUser.getUsername());
+    }
+
+    /** Manda uma feature/talento/magia/item da ficha pro chat, falando como o personagem. */
+    @PostMapping("/{id}/features/share")
+    public top.customizr.system.dto.ChatMessageResponse shareFeature(
+            @PathVariable UUID id,
+            @RequestBody top.customizr.system.dto.ShareRequest request,
+            @AuthenticationPrincipal UserDetails loggedUser) {
+        return featureService.shareFromCharacter(id, request, loggedUser.getUsername());
+    }
+
+    @PostMapping("/{id}/classes/{characterClassId}/spells/{spellId}")
+    public CharacterSheetResponse prepareSpell(@PathVariable UUID id, @PathVariable UUID characterClassId,
+                                               @PathVariable UUID spellId, @AuthenticationPrincipal UserDetails loggedUser) {
+        return sheetService.prepareSpell(id, characterClassId, spellId, true, loggedUser.getUsername());
+    }
+
+    @DeleteMapping("/{id}/classes/{characterClassId}/spells/{spellId}")
+    public CharacterSheetResponse unprepareSpell(@PathVariable UUID id, @PathVariable UUID characterClassId,
+                                                 @PathVariable UUID spellId, @AuthenticationPrincipal UserDetails loggedUser) {
+        return sheetService.prepareSpell(id, characterClassId, spellId, false, loggedUser.getUsername());
     }
 
     // ------------------------------------------------------------------ ficha completa (CharacterSheetService)

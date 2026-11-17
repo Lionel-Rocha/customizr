@@ -56,6 +56,14 @@ public class Background {
     @Column(columnDefinition = "json")
     private java.util.Map<String, Object> metadata;
 
+    /** Caracteristicas do antecedente: cada um e um {@link Feature} (categoria "background"), como as features de classe. */
+    @jakarta.persistence.ManyToMany
+    @jakarta.persistence.JoinTable(name = "background_features",
+            joinColumns = @jakarta.persistence.JoinColumn(name = "background_id"),
+            inverseJoinColumns = @jakarta.persistence.JoinColumn(name = "feature_id"))
+    @jakarta.persistence.OrderColumn(name = "position")
+    private java.util.List<Feature> features = new java.util.ArrayList<>();
+
     protected Background() {}
 
     public Background(String name, Source source) {
@@ -74,6 +82,11 @@ public class Background {
         this.abilityScoreIncreases = abilityScoreIncreases;
         this.skillProficiencies = skillProficiencies;
         this.grantedFeat = grantedFeat;
+    }
+
+    public void replaceFeatures(java.util.List<Feature> features) {
+        this.features.clear();
+        this.features.addAll(features);
     }
 
     /** Dados da importacao do 5etools (descricao crua com tags, texto pronto, pagina e a entrada original). */

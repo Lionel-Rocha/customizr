@@ -25,9 +25,11 @@ import java.util.UUID;
 public class ChatController {
 
     private final ChatService chatService;
+    private final top.customizr.system.service.CharacterFeatureService featureService;
 
-    public ChatController(ChatService chatService) {
+    public ChatController(ChatService chatService, top.customizr.system.service.CharacterFeatureService featureService) {
         this.chatService = chatService;
+        this.featureService = featureService;
     }
 
     @PostMapping("/campaign/{campaignId}")
@@ -38,6 +40,14 @@ public class ChatController {
             @AuthenticationPrincipal UserDetails loggedUser
     ) {
         return chatService.post(campaignId, request, loggedUser.getUsername());
+    }
+
+    /** Manda um cartao do catalogo (feature, talento, especie, antecedente, magia, item; monstro so o mestre). */
+    @PostMapping("/campaign/{campaignId}/share")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ChatMessageResponse share(@PathVariable UUID campaignId, @RequestBody top.customizr.system.dto.ShareRequest request,
+                                     @AuthenticationPrincipal UserDetails loggedUser) {
+        return featureService.share(campaignId, request, loggedUser.getUsername());
     }
 
     @GetMapping("/campaign/{campaignId}")

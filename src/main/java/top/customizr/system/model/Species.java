@@ -56,6 +56,14 @@ public class Species {
     @Column(columnDefinition = "json")
     private java.util.Map<String, Object> metadata;
 
+    /** Tracos da especie: cada um e um {@link Feature} (categoria "species"), como as features de classe. */
+    @jakarta.persistence.ManyToMany
+    @jakarta.persistence.JoinTable(name = "species_traits",
+            joinColumns = @jakarta.persistence.JoinColumn(name = "species_id"),
+            inverseJoinColumns = @jakarta.persistence.JoinColumn(name = "feature_id"))
+    @jakarta.persistence.OrderColumn(name = "position")
+    private java.util.List<Feature> traits = new java.util.ArrayList<>();
+
     protected Species() {}
 
     public Species(String name, Source source) {
@@ -74,6 +82,11 @@ public class Species {
         this.size = size;
         this.speedFt = speedFt;
         this.abilityScoreIncreases = abilityScoreIncreases;
+    }
+
+    public void replaceTraits(java.util.List<Feature> traits) {
+        this.traits.clear();
+        this.traits.addAll(traits);
     }
 
     /** Dados da importacao do 5etools (descricao crua com tags, texto pronto, pagina e a entrada original). */

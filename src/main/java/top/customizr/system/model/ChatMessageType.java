@@ -8,5 +8,7 @@ public enum ChatMessageType {
     /** "/r 1d20+5 Ataque" -> cartao de rolagem. */
     ROLL,
     /** "/w Nome mensagem" -> so autor, destinatario e mestre veem. */
-    WHISPER
+    WHISPER,
+    /** Cartao com uma feature, magia, item ou monstro mandado da ficha/catalogo (titulo + texto). */
+    CARD
 }

@@ -61,14 +61,17 @@ public class CharacterSheetService {
     private final BackgroundRepository backgroundRepository;
     private final FeatDefinitionRepository featRepository;
     private final ChatService chatService;
+    private final top.customizr.system.repository.SpellRepository spellRepository;
 
     public CharacterSheetService(
             CharacterRepository characterRepository,
             SpeciesRepository speciesRepository,
             BackgroundRepository backgroundRepository,
             FeatDefinitionRepository featRepository,
-            ChatService chatService
+            ChatService chatService,
+            top.customizr.system.repository.SpellRepository spellRepository
     ) {
+        this.spellRepository = spellRepository;
         this.characterRepository = characterRepository;
         this.speciesRepository = speciesRepository;
         this.backgroundRepository = backgroundRepository;
@@ -160,6 +163,22 @@ public class CharacterSheetService {
     public CharacterSheetResponse removeCatalogFeat(UUID characterId, UUID characterFeatId, String username) {
         Character character = manageable(characterId, username);
         valid(() -> { character.getSheet().removeCatalogFeat(characterFeatId); return null; });
+        return CharacterSheetResponse.from(character);
+    }
+
+    /** Prepara uma magia na classe (so as da lista da classe, regra do CharacterClass.prepareSpell). */
+    @Transactional
+    public CharacterSheetResponse prepareSpell(UUID characterId, UUID characterClassId, UUID spellId, boolean prepare,
+                                               String username) {
+        Character character = manageable(characterId, username);
+        var cc = character.getSheet().getClasses().stream().filter(c -> c.getId().equals(characterClassId)).findFirst()
+                .orElseThrow(() -> notFound("Character class"));
+        if (prepare) {
+            var spell = spellRepository.findById(spellId).orElseThrow(() -> notFound("Spell"));
+            valid(() -> { cc.prepareSpell(spell); return null; });
+        } else {
+            valid(() -> { cc.unprepareSpell(spellId); return null; });
+        }
         return CharacterSheetResponse.from(character);
     }
 

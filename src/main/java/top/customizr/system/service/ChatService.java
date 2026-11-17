@@ -110,6 +110,19 @@ public class ChatService {
         return broadcast(chatMessageRepository.save(message));
     }
 
+    /** Cartao (feature, magia, item, monstro) no chat, falando como o personagem (se veio). */
+    @Transactional
+    public ChatMessageResponse postCard(UUID campaignId, UUID characterId, String title, String text, String username) {
+        Campaign campaign = findCampaign(campaignId);
+        User author = findUser(username);
+        requireCampaignMember(campaign, author);
+        String speaker = speakerName(campaign, author, characterId);
+        String body = InlineRolls.sanitize((title == null ? "" : title) + (text == null || text.isBlank() ? "" : "\n" + text));
+        ChatMessage message = new ChatMessage(campaign, author, speaker, ChatMessageType.CARD,
+                body.length() > 3900 ? body.substring(0, 3897) + "..." : body, null, null);
+        return broadcast(chatMessageRepository.save(message));
+    }
+
     /** Mensagens em ordem de envio. {@code before} = pagina anterior (mais antigas que esse instante). */
     @Transactional
     public List<ChatMessageResponse> history(UUID campaignId, LocalDateTime before, Integer limit, String username) {

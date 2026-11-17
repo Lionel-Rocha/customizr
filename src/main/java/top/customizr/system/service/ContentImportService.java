@@ -43,14 +43,17 @@ public class ContentImportService {
     private final FeatDefinitionRepository featRepository;
     private final SourceRepository sourceRepository;
     private final tools.jackson.databind.ObjectMapper objectMapper;
+    private final top.customizr.system.repository.FeatureRepository featureRepository;
 
     public ContentImportService(
             SpeciesRepository speciesRepository,
             BackgroundRepository backgroundRepository,
             FeatDefinitionRepository featRepository,
             SourceRepository sourceRepository,
-            tools.jackson.databind.ObjectMapper objectMapper
+            tools.jackson.databind.ObjectMapper objectMapper,
+            top.customizr.system.repository.FeatureRepository featureRepository
     ) {
+        this.featureRepository = featureRepository;
         this.speciesRepository = speciesRepository;
         this.backgroundRepository = backgroundRepository;
         this.featRepository = featRepository;
@@ -76,6 +79,9 @@ public class ContentImportService {
                     EntriesRenderer.abilityBonuses(entry.path("ability")));
             species.updateSourceData(rawEntries(entry.path("entries")), EntriesRenderer.render(entry.path("entries")),
                     page(entry), toMap(entry));
+            if (species.getTraits().isEmpty()) {
+                species.replaceTraits(features(entry.path("entries"), "species", source));
+            }
             species = speciesRepository.save(species);
             result.add(created, species.getId(), name, source.getCode());
         }
@@ -98,6 +104,9 @@ public class ContentImportService {
                     keysOf(entry.path("skillProficiencies")), firstKey(entry.path("feats")));
             background.updateSourceData(rawEntries(entry.path("entries")), EntriesRenderer.render(entry.path("entries")),
                     page(entry), toMap(entry));
+            if (background.getFeatures().isEmpty()) {
+                background.replaceFeatures(features(entry.path("entries"), "background", source));
+            }
             background = backgroundRepository.save(background);
             result.add(created, background.getId(), name, source.getCode());
         }
@@ -148,6 +157,53 @@ public class ContentImportService {
     }
 
     // ------------------------------------------------------------------ leitura do 5etools
+
+    /**
+     * Cada bloco com nome dos "entries" vira um {@link top.customizr.system.model.Feature}, como as features
+     * de classe no ClassService: descricao crua (com tags), categoria, tipo CHOICE quando tem opcoes
+     * ("options"/"choose") e a entrada original em metadata. Listas com itens nomeados (antecedentes de
+     * 2024: "Ability Scores:", "Feat:"...) viram um Feature por item.
+     */
+    private List<top.customizr.system.model.Feature> features(JsonNode entries, String category, Source source) {
+        List<top.customizr.system.model.Feature> out = new ArrayList<>();
+        for (JsonNode node : entries) {
+            if (!node.isObject()) continue;
+            if (node.has("name")) {
+                out.add(feature(node, category, source));
+            } else if ("list".equals(node.path("type").asText())) {
+                for (JsonNode item : node.path("items")) {
+                    if (item.isObject() && item.has("name")) out.add(feature(item, category, source));
+                }
+            }
+        }
+        return out;
+    }
+
+    private top.customizr.system.model.Feature feature(JsonNode node, String category, Source source) {
+        JsonNode body = node.has("entries") ? node.path("entries") : node.path("entry");
+        String name = EntriesRenderer.renderText(node.path("name").asText()).replaceAll("[:.]\\s*$", "").trim();
+        top.customizr.system.model.Feature feature = new top.customizr.system.model.Feature(
+                name,
+                rawEntries(body),
+                category,
+                hasChoiceOptions(node) ? top.customizr.system.model.FeatureType.CHOICE
+                        : top.customizr.system.model.FeatureType.AUTOMATIC,
+                source,
+                source.getCode(),
+                toMap(node));
+        return featureRepository.save(feature);
+    }
+
+    /** Mesma regra do ClassService.hasChoiceOptions. */
+    private boolean hasChoiceOptions(JsonNode node) {
+        if (node.isObject()) {
+            if ("options".equals(node.path("type").asText()) || node.has("choose")) return true;
+            for (var field : node.properties()) if (hasChoiceOptions(field.getValue())) return true;
+        } else if (node.isArray()) {
+            for (JsonNode child : node) if (hasChoiceOptions(child)) return true;
+        }
+        return false;
+    }
 
     /** Entrada original como Map (vai pra coluna JSON metadata, como no ClassService). */
     private java.util.Map<String, Object> toMap(JsonNode node) {
