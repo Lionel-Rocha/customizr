@@ -3,6 +3,9 @@ package top.customizr.system.controllers;
 import top.customizr.system.dto.ConditionsRequest;
 import top.customizr.system.dto.DoorRequest;
 import top.customizr.system.dto.MarkersRequest;
+import top.customizr.system.dto.MapObjectRequest;
+import top.customizr.system.dto.MapObjectResponse;
+import top.customizr.system.dto.PlaceObjectRequest;
 import top.customizr.system.dto.TemplateRequest;
 import top.customizr.system.dto.TemplateResolveRequest;
 import top.customizr.system.dto.TemplateResolveResponse;
@@ -187,6 +190,37 @@ public class LiveTableController {
     public ResponseEntity<TokenResponse> markers(@PathVariable UUID tokenId, @RequestBody MarkersRequest request,
                                                  @AuthenticationPrincipal UserDetails user) {
         return ResponseEntity.ok(live.updateMarkers(tokenId, request, user.getUsername()));
+    }
+
+    @GetMapping("/campaign/{campaignId}/objects")
+    public ResponseEntity<List<MapObjectResponse>> objects(@PathVariable UUID campaignId, @AuthenticationPrincipal UserDetails user) {
+        return ResponseEntity.ok(live.listObjects(campaignId, user.getUsername()));
+    }
+
+    /** Objeto novo na biblioteca (a imagem sobe antes por POST /image). */
+    @PostMapping("/campaign/{campaignId}/objects")
+    public ResponseEntity<MapObjectResponse> addObject(@PathVariable UUID campaignId, @RequestBody MapObjectRequest request,
+                                                       @AuthenticationPrincipal UserDetails user) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(live.addObject(campaignId, request, user.getUsername()));
+    }
+
+    @PutMapping("/objects/{objectId}")
+    public ResponseEntity<MapObjectResponse> updateObject(@PathVariable UUID objectId, @RequestBody MapObjectRequest request,
+                                                          @AuthenticationPrincipal UserDetails user) {
+        return ResponseEntity.ok(live.updateObject(objectId, request, user.getUsername()));
+    }
+
+    @DeleteMapping("/objects/{objectId}")
+    public ResponseEntity<Void> deleteObject(@PathVariable UUID objectId, @AuthenticationPrincipal UserDetails user) {
+        live.deleteObject(objectId, user.getUsername());
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/scenes/{sceneId}/objects/{objectId}")
+    public ResponseEntity<TokenResponse> placeObject(@PathVariable UUID sceneId, @PathVariable UUID objectId,
+                                                     @RequestBody(required = false) PlaceObjectRequest request,
+                                                     @AuthenticationPrincipal UserDetails user) {
+        return ResponseEntity.ok(live.placeObject(sceneId, objectId, request, user.getUsername()));
     }
 
     @PostMapping("/scenes/{sceneId}/templates")

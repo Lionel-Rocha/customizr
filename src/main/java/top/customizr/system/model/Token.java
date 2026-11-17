@@ -50,6 +50,16 @@ public class Token {
     @Column(name = "size_cells", nullable = false)
     private int sizeCells;
 
+    /**
+     * Tamanho livre, em casas (meia casa pra Miudo; objetos podem ser retangulos, ex.: mesa 2 x 1).
+     * Null = quadrado de sizeCells.
+     */
+    @Column(name = "width_cells")
+    private Double widthCells;
+
+    @Column(name = "height_cells")
+    private Double heightCells;
+
     @Column(name = "image_url", length = 1000)
     private String imageUrl;
 
@@ -130,9 +140,11 @@ public class Token {
         this.monster = monster;
         String fallback = character != null ? character.getName() : npc != null ? npc.getName()
                 : monster != null ? monster.getName() : null;
-        update(name == null || name.isBlank() ? fallback : name, sizeCells, imageUrl, hidden, 0);
-        moveTo(x, y);
         Monster stats = monster != null ? monster : npc != null ? npc.getStatBlock() : null;
+        Double creatureSize = sizeCells == null && stats != null ? cellsFor(stats.getSize()) : null;
+        update(name == null || name.isBlank() ? fallback : name, sizeCells, imageUrl, hidden, 0);
+        if (creatureSize != null) resize(creatureSize, creatureSize); // monstro ja entra no tamanho da ficha
+        moveTo(x, y);
         if (stats != null && stats.getHpAverage() != null) {
             this.hpMax = stats.getHpAverage();
             this.hpCurrent = stats.getHpAverage();
@@ -143,6 +155,7 @@ public class Token {
         this.name = Places.requireName(name, "Token");
         int size = sizeCells == null ? 1 : sizeCells;
         if (size < 1 || size > 10) throw new IllegalArgumentException("Token size must be between 1 and 10 cells");
+        if (size != this.sizeCells) { widthCells = null; heightCells = null; }
         this.sizeCells = size;
         this.imageUrl = Places.blankToNull(imageUrl);
         this.hidden = hidden;
@@ -170,6 +183,41 @@ public class Token {
         }
         if (hpMax != null) this.hpMax = hpMax;
         if (hpCurrent != null) this.hpCurrent = hpCurrent;
+    }
+
+    /** Largura em casas (Miudo = 0,5). */
+    public double width() {
+        return widthCells != null ? widthCells : sizeCells;
+    }
+
+    public double height() {
+        return heightCells != null ? heightCells : sizeCells;
+    }
+
+    /** Muda o tamanho: de 0,5 a 30 casas, de meia em meia (Imenso pode passar de 4 x 4). */
+    public void resize(double width, double height) {
+        for (double v : new double[] {width, height}) {
+            if (Double.isNaN(v) || v < 0.5 || v > 30 || Math.abs(v * 2 - Math.round(v * 2)) > 1e-9) {
+                throw new IllegalArgumentException("Token size goes from 0.5 to 30 cells, in steps of 0.5");
+            }
+        }
+        this.widthCells = width;
+        this.heightCells = height;
+        this.sizeCells = (int) Math.max(1, Math.min(30, Math.ceil(Math.max(width, height))));
+    }
+
+    /** Casas pelo tamanho de criatura do livro: Miudo 0,5; Pequeno/Medio 1; Grande 2; Enorme 3; Imenso 4. */
+    public static Double cellsFor(String creatureSize) {
+        if (creatureSize == null || creatureSize.isBlank()) return null;
+        String first = creatureSize.trim().split("[\\s,/]+")[0].toLowerCase(java.util.Locale.ROOT);
+        return switch (first) {
+            case "tiny", "miudo", "miúdo" -> 0.5;
+            case "small", "medium", "pequeno", "medio", "médio" -> 1.0;
+            case "large", "grande" -> 2.0;
+            case "huge", "enorme" -> 3.0;
+            case "gargantuan", "imenso" -> 4.0;
+            default -> null;
+        };
     }
 
     public TokenLayer getLayer() {

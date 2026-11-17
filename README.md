@@ -233,7 +233,10 @@ Abaixo estão todos os endpoints atualmente expostos pelo backend da aplicação
 | `PATCH` | `/live/walls/{wallId}` | Porta: `open` (jogador também, se não estiver trancada) e `locked` (só o mestre; trancar fecha). |
 | `PUT` | `/live/scenes/{sceneId}/vision` | Liga/desliga a visão dinâmica da cena (`enabled`). |
 | `PUT` | `/live/tokens/{tokenId}/vision` | Alcance da visão do token em pés (`visionFt`; vazio = até onde as paredes deixam). |
-| `PUT` | `/live/tokens/{tokenId}/placement` | Altura em pés (`elevationFt`; o dono também muda), camada (`layer`: SCENERY, BATTLE, OVERHEAD, GM) e fichas que viajam no token (`memberIds`, ex.: a caravana; o dono de qualquer uma move o token e vê por ele). Camada e fichas: só o mestre. |
+| `PUT` | `/live/tokens/{tokenId}/placement` | Altura em pés (`elevationFt`; o dono também muda), tamanho (`widthCells` × `heightCells`, de 0,5 a 30 casas), camada (`layer`: SCENERY, BATTLE, OVERHEAD, GM) e fichas que viajam no token (`memberIds`, ex.: a caravana; o dono de qualquer uma move o token e vê por ele). Camada e fichas: só o mestre. |
+| `GET` / `POST` | `/live/campaign/{campaignId}/objects` | Biblioteca de objetos da campanha (mesa, barril...): `name`, `imageId` (de `POST /image`), `widthCells`, `heightCells`, `layer` (padrão: cenário). Só o mestre. |
+| `PUT` / `DELETE` | `/live/objects/{objectId}` | Edita / tira um objeto da biblioteca. |
+| `POST` | `/live/scenes/{sceneId}/objects/{objectId}` | Põe o objeto no mapa (`x`, `y`, `rotation`): vira um token da camada dele, com a imagem e o tamanho. |
 | `PUT` | `/live/tokens/{tokenId}/markers` | Marcadores do token (`label`, `icon`, `roundsLeft`): a contagem desce no início do turno do token na iniciativa e o marcador some ao chegar a zero. |
 | `POST` | `/live/scenes/{sceneId}/templates` | Área de efeito (`shape` CIRCLE/CONE/LINE/SQUARE, `x`, `y`, `angle`, `sizeFt`). Mestre ou jogador. |
 | `DELETE` | `/live/templates/{templateId}` · `/live/scenes/{sceneId}/templates` | Tira uma área (quem pôs ou o mestre) / todas (mestre). |
@@ -388,6 +391,16 @@ A parte da mesa de jogo, desenvolvida à parte em JavaFX, foi trazida para cá n
 * **Altura:** cada token tem altura em pés; no ataque com altura diferente, a distância real vai na nota.
 * **Camadas:** cenário (objetos debaixo de tudo), batalha, acima (telhado, copa) e mestre (só ele vê). O mestre escolhe a camada em que clica; objeto de cenário não entra na iniciativa.
 * **Token de grupo:** um token pode levar várias fichas (a caravana, um barco). O dono de qualquer uma delas move o token e enxerga por ele, e o painel mostra o PV de cada ficha.
+
+**Oitava rodada (tamanhos, objetos e ícones):**
+
+* **Tamanho do token:** largura × altura em casas, de meia em meia.
+  * Padrões do livro: Miúdo ½, Pequeno e Médio 1, Grande 2×2, Enorme 3×3, Imenso 4×4 ou maior (até 30).
+  * Token de monstro já entra no tamanho da ficha.
+* **Objetos:** cada campanha tem uma biblioteca de imagens de objetos (mesa, barril, árvore...).
+  * A tela importa várias imagens de uma vez; o tamanho inicial sai da proporção da imagem (200×100 vira 2×1).
+  * Posto no mapa, o objeto vira um token da camada de cenário, com a imagem, o tamanho e o giro.
+* **Ícones das condições:** desenho próprio em preto e branco (`static/mesa/icons/conditions`), um para cada uma das 15 condições de 2024, incluindo exaustão, que aparece no token com o nível.
 
 Ficaram de fora por não se encaixarem numa API REST sem uma interface de jogo:
 

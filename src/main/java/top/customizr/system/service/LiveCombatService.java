@@ -111,8 +111,8 @@ public class LiveCombatService {
             // com altura diferente, a distancia de verdade (pra conferir alcance) vai na nota
             var scene = attacker.getScene();
             double half = scene.getGridSizePx() / 2.0;
-            Integer flat = scene.distanceFeet(attacker.getX() + half * attacker.getSizeCells(), attacker.getY() + half * attacker.getSizeCells(),
-                    target.getX() + half * target.getSizeCells(), target.getY() + half * target.getSizeCells());
+            Integer flat = scene.distanceFeet(attacker.getX() + half * attacker.width(), attacker.getY() + half * attacker.height(),
+                    target.getX() + half * target.width(), target.getY() + half * target.height());
             int up = Math.abs(attacker.elevation() - target.elevation());
             if (flat != null) {
                 long total = Math.round(Math.hypot(flat, up) / 5.0) * 5;

@@ -117,12 +117,15 @@ public class AreaTemplate {
      * houver linha livre ate a origem: parede ou porta fechada no meio e cobertura total, a area nao chega.
      */
     public boolean covers(Token token) {
-        int cells = token.getSizeCells();
         double g = scene.getGridSizePx();
-        for (int i = 0; i < cells; i++) {
-            for (int j = 0; j < cells; j++) {
-                double px = token.getX() + (i + 0.5) * g;
-                double py = token.getY() + (j + 0.5) * g;
+        int cols = (int) Math.max(1, Math.round(token.width()));
+        int rows = (int) Math.max(1, Math.round(token.height()));
+        double cw = token.width() * g / cols;
+        double ch = token.height() * g / rows;
+        for (int i = 0; i < cols; i++) {
+            for (int j = 0; j < rows; j++) {
+                double px = token.getX() + (i + 0.5) * cw;
+                double py = token.getY() + (j + 0.5) * ch;
                 if (covers(px, py) && !scene.blockedBetween(x, y, px, py)) return true;
             }
         }

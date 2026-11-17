@@ -13,6 +13,9 @@ import top.customizr.system.dto.TokenRequest;
 import top.customizr.system.dto.TokenResponse;
 import top.customizr.system.dto.DoorRequest;
 import top.customizr.system.dto.MarkersRequest;
+import top.customizr.system.dto.MapObjectRequest;
+import top.customizr.system.dto.MapObjectResponse;
+import top.customizr.system.dto.PlaceObjectRequest;
 import top.customizr.system.dto.TemplateRequest;
 import top.customizr.system.dto.TemplateResponse;
 import top.customizr.system.dto.TokenPlacementRequest;
@@ -68,13 +71,19 @@ public class LiveTableService {
     private final LiveEventService events;
     private final top.customizr.system.repository.WallRepository wallRepository;
     private final top.customizr.system.repository.AreaTemplateRepository templateRepository;
+    private final top.customizr.system.repository.MapObjectRepository mapObjectRepository;
+    private final top.customizr.system.repository.ImageAssetRepository imageAssetRepository;
 
     public LiveTableService(SceneRepository sceneRepository, TokenRepository tokenRepository,
                             InitiativeTrackerRepository trackerRepository, CampaignRepository campaignRepository,
                             CharacterRepository characterRepository, NpcRepository npcRepository,
                             MonsterRepository monsterRepository, MasterGuard masterGuard, LiveEventService events,
                             top.customizr.system.repository.WallRepository wallRepository,
-                            top.customizr.system.repository.AreaTemplateRepository templateRepository) {
+                            top.customizr.system.repository.AreaTemplateRepository templateRepository,
+                            top.customizr.system.repository.MapObjectRepository mapObjectRepository,
+                            top.customizr.system.repository.ImageAssetRepository imageAssetRepository) {
+        this.mapObjectRepository = mapObjectRepository;
+        this.imageAssetRepository = imageAssetRepository;
         this.templateRepository = templateRepository;
         this.wallRepository = wallRepository;
         this.sceneRepository = sceneRepository;
@@ -196,6 +205,7 @@ public class LiveTableService {
         NPC npc = r.npcId() == null ? null : npcRepository.findById(r.npcId())
                 .filter(n -> n.getCampaign().getId().equals(campaignId)).orElseThrow(() -> notFound("NPC"));
         Monster monster = r.monsterId() == null ? null : monsterRepository.findById(r.monsterId())
+                .filter(m -> !m.isCustom() || m.getCampaign().getId().equals(campaignId)) // homebrew de outra campanha nao
                 .orElseThrow(() -> notFound("Monster"));
         Token token = valid(() -> scene.addToken(r.name(), r.x() == null ? 0 : r.x(), r.y() == null ? 0 : r.y(),
                 r.sizeCells(), r.imageUrl(), Boolean.TRUE.equals(r.hidden()), character, npc, monster));
@@ -223,8 +233,9 @@ public class LiveTableService {
         double fromY = token.getY();
         if (!master) {
             // jogador nao atravessa parede nem porta fechada (do centro de onde esta ao centro de onde vai)
-            double half = scene.getGridSizePx() * token.getSizeCells() / 2.0;
-            if (scene.blockedBetween(fromX + half, fromY + half, r.x() + half, r.y() + half)) {
+            double hw = scene.getGridSizePx() * token.width() / 2.0;
+            double hh = scene.getGridSizePx() * token.height() / 2.0;
+            if (scene.blockedBetween(fromX + hw, fromY + hh, r.x() + hw, r.y() + hh)) {
                 throw badRequest("There is a wall in the way");
             }
         }
@@ -451,14 +462,18 @@ public class LiveTableService {
         masterGuard.assertMember(user, scene.getCampaign());
         boolean master = masterGuard.canManage(user, scene.getCampaign());
         if (r == null) throw badRequest("Request body is required");
-        if (!master && (r.layer() != null || r.memberIds() != null)) {
-            throw new AccessDeniedException("Only the master changes layers and who travels in a token");
+        if (!master && (r.layer() != null || r.memberIds() != null || r.widthCells() != null || r.heightCells() != null)) {
+            throw new AccessDeniedException("Only the master changes layers, sizes and who travels in a token");
         }
         if (!master && !token.controlledBy(user.getUserId())) throw new AccessDeniedException("Not your token");
         boolean wasHidden = token.isHiddenFromPlayers();
         valid(() -> {
             if (r.elevationFt() != null) token.setElevationFt(r.elevationFt());
             if (r.layer() != null) token.setLayer(r.layer());
+            if (r.widthCells() != null || r.heightCells() != null) {
+                double w = r.widthCells() != null ? r.widthCells() : token.width();
+                token.resize(w, r.heightCells() != null ? r.heightCells() : (r.widthCells() != null ? w : token.height()));
+            }
             if (r.memberIds() != null) {
                 List<Character> members = r.memberIds().stream().map(id -> characterRepository.findById(id)
                         .filter(c -> c.getCampaign().getId().equals(scene.getCampaign().getId()))
@@ -514,6 +529,66 @@ public class LiveTableService {
             t.tickMarkers();
             broadcastToken(t, "token_updated");
         }
+    }
+
+    // ------------------------------------------------------------------ biblioteca de objetos (mesa, barril...)
+
+    /** Objetos da campanha (so o mestre monta o cenario). */
+    @Transactional
+    public List<MapObjectResponse> listObjects(UUID campaignId, String username) {
+        Campaign campaign = campaign(campaignId);
+        masterGuard.requireMaster(username, campaign);
+        return mapObjectRepository.findByCampaignOrderByName(campaign).stream().map(MapObjectResponse::from).toList();
+    }
+
+    @Transactional
+    public MapObjectResponse addObject(UUID campaignId, MapObjectRequest r, String username) {
+        Campaign campaign = campaign(campaignId);
+        masterGuard.requireMaster(username, campaign);
+        if (r == null || r.imageId() == null) throw badRequest("imageId is required (upload the image with POST /image)");
+        var image = imageAssetRepository.findById(r.imageId()).orElseThrow(() -> notFound("Image"));
+        var object = valid(() -> new top.customizr.system.model.MapObject(campaign, r.name(), image, r.widthCells(),
+                r.heightCells(), r.layer()));
+        return MapObjectResponse.from(mapObjectRepository.save(object));
+    }
+
+    @Transactional
+    public MapObjectResponse updateObject(UUID objectId, MapObjectRequest r, String username) {
+        var object = mapObjectRepository.findById(objectId).orElseThrow(() -> notFound("Object"));
+        masterGuard.requireMaster(username, object.getCampaign());
+        if (r == null) throw badRequest("Request body is required");
+        valid(() -> { object.update(r.name() == null ? object.getName() : r.name(),
+                r.widthCells() == null ? object.getWidthCells() : r.widthCells(),
+                r.heightCells() == null ? object.getHeightCells() : r.heightCells(),
+                r.layer() == null ? object.getLayer() : r.layer()); return null; });
+        return MapObjectResponse.from(object);
+    }
+
+    @Transactional
+    public void deleteObject(UUID objectId, String username) {
+        var object = mapObjectRepository.findById(objectId).orElseThrow(() -> notFound("Object"));
+        masterGuard.requireMaster(username, object.getCampaign());
+        mapObjectRepository.delete(object);
+    }
+
+    /** Poe o objeto no mapa: vira um token da camada dele, com a imagem e o tamanho. */
+    @Transactional
+    public TokenResponse placeObject(UUID sceneId, UUID objectId, PlaceObjectRequest r, String username) {
+        Scene scene = scene(sceneId);
+        masterGuard.requireMaster(username, scene.getCampaign());
+        var object = mapObjectRepository.findById(objectId).orElseThrow(() -> notFound("Object"));
+        if (!object.getCampaign().getId().equals(scene.getCampaign().getId())) throw notFound("Object");
+        Token token = valid(() -> {
+            Token t = scene.addToken(object.getName(), r == null || r.x() == null ? 0 : r.x(), r == null || r.y() == null ? 0 : r.y(),
+                    null, object.getImage().getUrl(), r != null && Boolean.TRUE.equals(r.hidden()), null, null, null);
+            t.resize(object.getWidthCells(), object.getHeightCells());
+            t.setLayer(object.getLayer());
+            if (r != null && r.rotation() != null) t.update(t.getName(), t.getSizeCells(), t.getImageUrl(), t.isHidden(), r.rotation());
+            return t;
+        });
+        sceneRepository.save(scene);
+        broadcastToken(token, "token_added");
+        return TokenResponse.from(token, true);
     }
 
     // ------------------------------------------------------------------ areas de efeito

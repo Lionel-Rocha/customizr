@@ -1,0 +1,2 @@
+Icones das condicoes de D&D 5e (2024), desenhados para o Customizr (desenho proprio, sem arte de terceiros).
+Branco sobre circulo preto, 64x64, um arquivo por condicao (nome em ingles, igual ao enum Condition).
