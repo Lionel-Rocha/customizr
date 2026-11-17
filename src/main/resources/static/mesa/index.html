@@ -1,0 +1,542 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Customizr - Mesa</title>
+<style>
+  :root {
+    --bg: #1B1411; --panel: #241A15; --panel-2: #2E221B; --line: #45342A;
+    --text: #F6E9D3; --muted: #BFA88E; --accent: #E8A33D; --accent-2: #FFCF7F;
+    --good: #6FBF73; --bad: #E07A5F; --fog-master: rgba(10, 8, 7, .55); --fog-player: #0A0807;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 14px/1.4 "Segoe UI", system-ui, sans-serif; }
+  button, input, select { font: inherit; color: var(--text); background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
+  button { cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); color: #2A1A0C; border-color: var(--accent); font-weight: 600; }
+  button.on { border-color: var(--accent-2); color: var(--accent-2); }
+  h1, h2, h3 { font-family: Georgia, serif; color: var(--accent-2); margin: 0 0 8px; }
+  .hidden { display: none !important; }
+  .muted { color: var(--muted); }
+  #login { max-width: 360px; margin: 12vh auto; padding: 24px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; display: grid; gap: 10px; }
+  #app { display: grid; grid-template-columns: 1fr 340px; grid-template-rows: 44px 1fr; height: 100vh; }
+  header { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; padding: 0 12px; background: var(--panel); border-bottom: 1px solid var(--line); }
+  header .brand { font-family: Georgia, serif; color: var(--accent-2); font-size: 18px; }
+  header .grow { flex: 1; }
+  #stage { position: relative; overflow: hidden; }
+  #map { width: 100%; height: 100%; display: block; touch-action: none; }
+  #tools { position: absolute; left: 10px; top: 10px; display: flex; gap: 6px; flex-wrap: wrap; }
+  #hint { position: absolute; left: 10px; bottom: 10px; color: var(--muted); font-size: 12px; }
+  aside { background: var(--panel); border-left: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
+  .tabs { display: flex; border-bottom: 1px solid var(--line); }
+  .tabs button { flex: 1; border: 0; border-radius: 0; background: none; padding: 10px; }
+  .tabs button.on { border-bottom: 2px solid var(--accent); }
+  .tab { flex: 1; overflow: auto; padding: 10px; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+  #chatLog { flex: 1; overflow: auto; display: flex; flex-direction: column; gap: 6px; }
+  .msg { background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 6px 8px; }
+  .msg .who { color: var(--muted); font-size: 12px; }
+  .msg.whisper { border-style: dashed; }
+  .msg.emote { font-style: italic; }
+  .roll { color: var(--accent-2); font-weight: 700; border-bottom: 1px dotted var(--accent); cursor: help; }
+  .row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .row > input, .row > select { flex: 1; min-width: 0; }
+  .card { background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 8px; display: grid; gap: 6px; }
+  .init { display: flex; justify-content: space-between; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); }
+  .init.current { border-color: var(--accent); background: #3A2A1A; }
+  #toast { position: fixed; right: 16px; bottom: 16px; max-width: 360px; background: #4A2420; border: 1px solid var(--bad); border-radius: 10px; padding: 10px 12px; }
+  @media (max-width: 800px) {
+    #app { grid-template-columns: 1fr; grid-template-rows: 44px 55vh 1fr; }
+    aside { border-left: 0; border-top: 1px solid var(--line); }
+  }
+</style>
+</head>
+<body>
+
+<form id="login">
+  <h1>Customizr</h1>
+  <p class="muted">Entre com seu usuário para abrir a mesa.</p>
+  <input id="user" placeholder="usuário" autocomplete="username" required>
+  <input id="pass" type="password" placeholder="senha" autocomplete="current-password" required>
+  <button class="primary">Entrar</button>
+</form>
+
+<div id="app" class="hidden">
+  <header>
+    <span class="brand">Customizr</span>
+    <select id="campaign"></select>
+    <span id="sceneName" class="muted"></span>
+    <span class="grow"></span>
+    <span id="who" class="muted"></span>
+    <button id="logout">Sair</button>
+  </header>
+  <div id="stage">
+    <canvas id="map"></canvas>
+    <div id="tools">
+      <button data-tool="move" class="on">Mover</button>
+      <button data-tool="reveal" class="master-only">Revelar</button>
+      <button data-tool="hide" class="master-only">Cobrir</button>
+      <button id="center">Centralizar</button>
+    </div>
+    <div id="hint">arraste seu token · roda = zoom · arraste o fundo para mover o mapa</div>
+  </div>
+  <aside>
+    <div class="tabs">
+      <button data-tab="chat" class="on">Chat</button>
+      <button data-tab="init">Iniciativa</button>
+      <button data-tab="gm" class="master-only">Mestre</button>
+    </div>
+    <div id="tab-chat" class="tab">
+      <div id="chatLog"></div>
+      <form id="chatForm" class="row">
+        <input id="chatText" placeholder="mensagem, [[1d20+5]], /r 1d20 Ataque, /me, /w Nome">
+        <button class="primary">Enviar</button>
+      </form>
+      <div class="row">
+        <button data-roll="1d20">d20</button><button data-roll="1d12">d12</button><button data-roll="1d10">d10</button>
+        <button data-roll="1d8">d8</button><button data-roll="1d6">d6</button><button data-roll="1d4">d4</button>
+      </div>
+    </div>
+    <div id="tab-init" class="tab hidden">
+      <div id="initRound" class="muted"></div>
+      <div id="initList" style="display:grid;gap:6px"></div>
+      <div class="row master-only">
+        <button id="initRoll">Rolar (cena)</button><button id="initNext" class="primary">Próximo</button><button id="initEnd">Encerrar</button>
+      </div>
+      <form id="initAdd" class="row master-only">
+        <input id="initName" placeholder="nome (ex.: ação de covil)"><input id="initValue" type="number" placeholder="valor" style="max-width:80px">
+        <button>Pôr</button>
+      </form>
+    </div>
+    <div id="tab-gm" class="tab hidden">
+      <div class="card">
+        <h3>Cena</h3>
+        <div class="row"><select id="sceneSelect"></select><button id="sceneActivate">Mostrar aos jogadores</button></div>
+        <div class="row"><button id="fogToggle">Neblina</button><button id="fogAll">Revelar tudo</button><button id="fogNone">Cobrir tudo</button></div>
+      </div>
+      <form id="sceneForm" class="card">
+        <h3>Nova cena</h3>
+        <input id="sceneNewName" placeholder="nome" required>
+        <div class="row">
+          <select id="sceneGrid"><option value="SQUARE">Quadrada</option><option value="HEX">Hexagonal</option><option value="NONE">Sem grade</option></select>
+          <input id="sceneSize" type="number" value="70" title="tamanho da casa (px)">
+          <input id="sceneFeet" type="number" value="5" title="pés por casa">
+        </div>
+        <input id="sceneMap" type="file" accept="image/png,image/jpeg,image/webp,image/gif">
+        <button class="primary">Criar cena</button>
+      </form>
+      <form id="tokenForm" class="card">
+        <h3>Pôr token</h3>
+        <select id="tokenCharacter"><option value="">— personagem —</option></select>
+        <div class="row"><input id="tokenMonsterSearch" placeholder="buscar monstro"><button type="button" id="tokenMonsterGo">Buscar</button></div>
+        <select id="tokenMonster"><option value="">— monstro —</option></select>
+        <input id="tokenName" placeholder="nome (opcional)">
+        <label class="row"><input id="tokenHidden" type="checkbox" style="flex:0"> oculto dos jogadores</label>
+        <button class="primary">Pôr no centro da tela</button>
+      </form>
+      <div id="selectedCard" class="card hidden">
+        <h3 id="selectedName"></h3>
+        <div class="row"><button id="selHide"></button><button id="selDelete">Tirar do mapa</button></div>
+        <div class="row"><input id="selHp" type="number" placeholder="PV atual"><button id="selHpSave">Salvar PV</button></div>
+      </div>
+    </div>
+  </aside>
+</div>
+<div id="toast" class="hidden"></div>
+
+<script>
+'use strict';
+/* Mesa do Customizr: tela de jogo que conversa com a API (login JWT, /live, /chat, /image).
+   As mudancas chegam por Server-Sent Events (GET /live/campaign/{id}/events), lidas com fetch
+   porque o EventSource do navegador nao manda o header Authorization. */
+const S = { token: null, me: null, campaign: null, master: false, scenes: [], scene: null, images: {},
+  view: { tx: 40, ty: 40, z: 1 }, tool: 'move', drag: null, paint: null, pan: null, selected: null,
+  initiative: null, stream: null };
+const $ = id => document.getElementById(id);
+const cv = $('map'), ctx = cv.getContext('2d');
+
+function store(key, value) { try { value == null ? sessionStorage.removeItem(key) : sessionStorage.setItem(key, value); } catch (e) {} }
+function load(key) { try { return sessionStorage.getItem(key); } catch (e) { return null; } }
+function toast(text) { const t = $('toast'); t.textContent = text; t.classList.remove('hidden'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.add('hidden'), 5000); }
+
+async function api(path, opts = {}) {
+  const headers = Object.assign({}, opts.headers || {});
+  if (S.token) headers.Authorization = 'Bearer ' + S.token;
+  let body = opts.body;
+  if (body && !(body instanceof FormData) && typeof body !== 'string') { body = JSON.stringify(body); headers['Content-Type'] = 'application/json'; }
+  const res = await fetch(path, { method: opts.method || 'GET', headers, body });
+  if (res.status === 401 || res.status === 403) {
+    if (path.startsWith('/user/me')) { logout(); }
+    throw new Error(res.status === 403 ? 'Sem permissão para isso.' : 'Faça login de novo.');
+  }
+  const text = await res.text();
+  let data = text;
+  try { data = text ? JSON.parse(text) : null; } catch (e) { /* texto puro (ex.: token do login) */ }
+  if (!res.ok) throw new Error((data && (data.message || data.error)) || ('Erro ' + res.status));
+  return data;
+}
+
+// ------------------------------------------------------------------ login e campanha
+$('login').addEventListener('submit', async e => {
+  e.preventDefault();
+  try {
+    const token = await api('/api/auth/login', { method: 'POST', body: { username: $('user').value, password: $('pass').value } });
+    S.token = typeof token === 'string' ? token : token.token;
+    store('customizr_token', S.token);
+    await start();
+  } catch (err) { toast('Não entrou: ' + err.message); }
+});
+$('logout').onclick = logout;
+function logout() { store('customizr_token', null); S.token = null; if (S.stream) S.stream.abort(); location.reload(); }
+
+async function start() {
+  S.me = await api('/user/me');
+  $('login').classList.add('hidden'); $('app').classList.remove('hidden');
+  $('who').textContent = S.me.name;
+  const campaigns = await api('/campaign/');
+  const sel = $('campaign'); sel.innerHTML = '';
+  for (const c of campaigns) sel.append(new Option(c.name, c.id));
+  if (!campaigns.length) { toast('Você ainda não está em nenhuma campanha.'); return; }
+  const last = load('customizr_campaign');
+  if (last && campaigns.some(c => c.id === last)) sel.value = last;
+  sel.onchange = () => openCampaign(campaigns.find(c => c.id === sel.value));
+  await openCampaign(campaigns.find(c => c.id === sel.value));
+}
+
+async function openCampaign(c) {
+  S.campaign = c; store('customizr_campaign', c.id);
+  S.master = c.master && c.master.name === S.me.name;
+  document.querySelectorAll('.master-only').forEach(el => el.classList.toggle('hidden', !S.master));
+  S.selected = null; S.scene = null;
+  await refreshScenes();
+  requestAnimationFrame(() => $('center').click());
+  await loadChat();
+  S.initiative = await api('/live/campaign/' + c.id + '/initiative'); renderInitiative();
+  if (S.master) await loadCharacters();
+  listen();
+}
+
+async function refreshScenes() {
+  S.scenes = await api('/live/campaign/' + S.campaign.id + '/scenes');
+  const current = S.scene && S.scenes.find(s => s.id === S.scene.id);
+  showScene(current || S.scenes.find(s => s.active) || S.scenes[0] || null);
+}
+
+function showScene(scene) {
+  S.scene = scene;
+  $('sceneName').textContent = scene ? '/ ' + scene.name + (S.master && !scene.active ? ' (só você vê)' : '') : '/ nenhuma cena';
+  if (S.master) {
+    const sel = $('sceneSelect'); sel.innerHTML = '';
+    for (const s of S.scenes) sel.append(new Option((s.active ? '★ ' : '') + s.name, s.id));
+    if (scene) sel.value = scene.id;
+    $('fogToggle').classList.toggle('on', !!(scene && scene.fogEnabled));
+  }
+  if (scene && scene.mapUrl) loadImage(scene.mapUrl);
+  draw();
+}
+
+// ------------------------------------------------------------------ transmissao ao vivo
+async function listen() {
+  if (S.stream) S.stream.abort();
+  const controller = new AbortController(); S.stream = controller;
+  const campaignId = S.campaign.id;
+  try {
+    const res = await fetch('/live/campaign/' + campaignId + '/events', { headers: { Authorization: 'Bearer ' + S.token }, signal: controller.signal });
+    const reader = res.body.getReader(); const decoder = new TextDecoder(); let buffer = '';
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let cut;
+      while ((cut = buffer.indexOf('\n\n')) >= 0) {
+        const block = buffer.slice(0, cut); buffer = buffer.slice(cut + 2);
+        let type = 'message'; const data = [];
+        for (const line of block.split('\n')) {
+          if (line.startsWith('event:')) type = line.slice(6).trim();
+          else if (line.startsWith('data:')) data.push(line.slice(5));
+        }
+        if (data.length) { try { onEvent(type, JSON.parse(data.join('\n'))); } catch (e) { console.warn(e); } }
+      }
+    }
+  } catch (e) { if (controller.signal.aborted) return; }
+  if (S.stream === controller && S.campaign && S.campaign.id === campaignId) setTimeout(listen, 2000); // reconecta
+}
+
+function onEvent(type, d) {
+  const sc = S.scene;
+  switch (type) {
+    case 'scene': {
+      const i = S.scenes.findIndex(s => s.id === d.id);
+      if (i >= 0) S.scenes[i] = d; else S.scenes.push(d);
+      if (!S.master) { if (d.active) showScene(d); }
+      else { if (d.active) S.scenes.forEach(s => { if (s.id !== d.id) s.active = false; }); showScene(sc && sc.id === d.id ? d : sc || d); }
+      break;
+    }
+    case 'scene_deleted': S.scenes = S.scenes.filter(s => s.id !== d.sceneId); if (sc && sc.id === d.sceneId) showScene(S.scenes[0] || null); break;
+    case 'fog': if (sc && sc.id === d.sceneId) { sc.fogEnabled = d.fogEnabled; sc.revealedCells = d.revealedCells; showScene(sc); } break;
+    case 'token_added': case 'token_updated':
+      if (sc && sc.id === d.sceneId) { const i = sc.tokens.findIndex(t => t.id === d.id); if (i >= 0) sc.tokens[i] = d; else sc.tokens.push(d); draw(); } break;
+    case 'token_moved':
+      if (sc && sc.id === d.sceneId) { const t = sc.tokens.find(t => t.id === d.tokenId); if (t && !(S.drag && S.drag.token === t)) { t.x = d.x; t.y = d.y; draw(); } } break;
+    case 'token_removed': if (sc && sc.id === d.sceneId) { sc.tokens = sc.tokens.filter(t => t.id !== d.tokenId); if (S.selected && S.selected.id === d.tokenId) select(null); draw(); } break;
+    case 'initiative': S.initiative = d; renderInitiative(); break;
+    case 'initiative_ended': S.initiative = { round: 1, turnIndex: 0, entries: [] }; renderInitiative(); break;
+    case 'chat': addChat(d); break;
+  }
+}
+
+// ------------------------------------------------------------------ desenho
+async function loadImage(url) {
+  if (S.images[url]) return S.images[url];
+  S.images[url] = 'loading';
+  try {
+    let src = url;
+    if (url.startsWith('/image/')) { const res = await fetch(url, { headers: { Authorization: 'Bearer ' + S.token } }); src = URL.createObjectURL(await res.blob()); }
+    const img = new Image(); img.src = src; await img.decode();
+    S.images[url] = img; draw();
+  } catch (e) { delete S.images[url]; }
+}
+
+function mapSize() {
+  const sc = S.scene; const img = sc && S.images[sc.mapUrl];
+  return { w: (sc && sc.widthPx) || (img && img.naturalWidth) || 2100, h: (sc && sc.heightPx) || (img && img.naturalHeight) || 1500 };
+}
+
+// Hexagonos "em pe", largura = gridSizePx, mesma conta do servidor (Scene.hexAt)
+function hexAt(x, y, w) {
+  const R = w / Math.sqrt(3); const q = (Math.sqrt(3) / 3 * x - y / 3) / R, r = (2 / 3 * y) / R;
+  let rx = Math.round(q), rz = Math.round(r), ry = Math.round(-q - r);
+  const dx = Math.abs(rx - q), dy = Math.abs(ry - (-q - r)), dz = Math.abs(rz - r);
+  if (dx > dy && dx > dz) rx = -ry - rz; else if (dy <= dz) rz = -rx - ry;
+  return [rx, rz];
+}
+function hexCenter(q, r, w) { return [w * (q + r / 2), 1.5 * (w / Math.sqrt(3)) * r]; }
+function hexPath(c, w) { const R = w / Math.sqrt(3); ctx.moveTo(c[0], c[1] - R); for (let i = 1; i < 6; i++) { const a = Math.PI / 3 * i - Math.PI / 2; ctx.lineTo(c[0] + R * Math.cos(a), c[1] + R * Math.sin(a)); } ctx.closePath(); }
+function cellAt(x, y) { const sc = S.scene; return sc.gridType === 'HEX' ? hexAt(x, y, sc.gridSizePx) : [Math.floor(x / sc.gridSizePx), Math.floor(y / sc.gridSizePx)]; }
+function eachCell(fn) {
+  const sc = S.scene, { w, h } = mapSize(), g = sc.gridSizePx;
+  if (sc.gridType === 'HEX') { const rh = 1.5 * g / Math.sqrt(3); for (let r = -1; r <= h / rh + 1; r++) for (let q = Math.floor(-r / 2) - 1; q <= w / g - r / 2 + 1; q++) fn(q, r); }
+  else for (let r = 0; r < Math.ceil(h / g); r++) for (let c = 0; c < Math.ceil(w / g); c++) fn(c, r);
+}
+function cellShape(c, r) { const sc = S.scene, g = sc.gridSizePx; if (sc.gridType === 'HEX') hexPath(hexCenter(c, r, g), g); else ctx.rect(c * g, r * g, g, g); }
+
+function distanceFeet(x1, y1, x2, y2) {
+  const sc = S.scene, g = sc.gridSizePx, dx = Math.abs(x2 - x1) / g, dy = Math.abs(y2 - y1) / g;
+  if (sc.gridType === 'SQUARE') return Math.round(Math.max(dx, dy)) * sc.feetPerCell;
+  if (sc.gridType === 'NONE') return Math.round(Math.hypot(dx, dy) * sc.feetPerCell);
+  const a = hexAt(x1, y1, g), b = hexAt(x2, y2, g), dq = a[0] - b[0], dr = a[1] - b[1];
+  return (Math.abs(dq) + Math.abs(dr) + Math.abs(dq + dr)) / 2 * sc.feetPerCell;
+}
+
+function draw() {
+  const dpr = window.devicePixelRatio || 1, rect = cv.getBoundingClientRect();
+  if (cv.width !== Math.round(rect.width * dpr)) { cv.width = Math.round(rect.width * dpr); cv.height = Math.round(rect.height * dpr); }
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#1B1411'; ctx.fillRect(0, 0, cv.width, cv.height);
+  const sc = S.scene; if (!sc) { ctx.fillStyle = '#BFA88E'; ctx.font = 16 * dpr + 'px Segoe UI'; ctx.fillText(S.master ? 'Crie uma cena na aba Mestre.' : 'O mestre ainda não abriu nenhuma cena.', 20 * dpr, 40 * dpr); return; }
+  const v = S.view; ctx.setTransform(v.z * dpr, 0, 0, v.z * dpr, v.tx * dpr, v.ty * dpr);
+  const { w, h } = mapSize(), g = sc.gridSizePx;
+  const img = S.images[sc.mapUrl];
+  if (img && img !== 'loading') ctx.drawImage(img, 0, 0, w, h); else { ctx.fillStyle = '#2A201A'; ctx.fillRect(0, 0, w, h); }
+  if (sc.gridType !== 'NONE') {
+    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, w, h); ctx.clip(); // grade so em cima do mapa
+    ctx.beginPath(); eachCell(cellShape); ctx.strokeStyle = 'rgba(246,233,211,.18)'; ctx.lineWidth = 1 / v.z; ctx.stroke();
+    ctx.restore();
+  }
+  // Mestre ve todos os tokens por cima da neblina; jogador ve os proprios por cima e os outros so nas casas reveladas
+  const above = t => S.master || t.ownerId === S.me.userId || !sc.fogEnabled;
+  for (const t of sc.tokens) if (!above(t)) drawToken(t, g);
+  if (sc.fogEnabled) {
+    const revealed = new Set(sc.revealedCells || []);
+    ctx.beginPath(); ctx.rect(-g * 2, -g * 2, w + g * 4, h + g * 4);
+    eachCell((c, r) => { if (revealed.has(c + ',' + r)) cellShape(c, r); });
+    ctx.fillStyle = S.master ? 'rgba(10,8,7,.55)' : '#0A0807'; ctx.fill('evenodd');
+  }
+  for (const t of sc.tokens) if (above(t)) drawToken(t, g);
+  if (S.drag && S.drag.moved) {
+    const t = S.drag.token, size = g * t.sizeCells / 2;
+    ctx.beginPath(); ctx.moveTo(S.drag.fromX + size, S.drag.fromY + size); ctx.lineTo(t.x + size, t.y + size);
+    ctx.setLineDash([8 / v.z, 6 / v.z]); ctx.strokeStyle = '#6FBF73'; ctx.lineWidth = 3 / v.z; ctx.stroke(); ctx.setLineDash([]);
+    ctx.font = 600 + ' ' + 14 / v.z + 'px Segoe UI'; ctx.fillStyle = '#6FBF73';
+    ctx.fillText(distanceFeet(S.drag.fromX, S.drag.fromY, t.x, t.y) + ' pés', t.x + size * 2 + 6 / v.z, t.y);
+  }
+}
+
+function drawToken(t, g) {
+  const size = g * t.sizeCells, cx = t.x + size / 2, cy = t.y + size / 2, rad = size / 2 * 0.9;
+  ctx.save(); ctx.globalAlpha = t.hidden ? 0.45 : 1;
+  ctx.beginPath(); ctx.arc(cx, cy, rad, 0, Math.PI * 2);
+  ctx.fillStyle = t.ownerId === S.me.userId ? '#2F5E33' : t.characterId ? '#3B4F6B' : '#6B2F2A'; ctx.fill();
+  const img = t.imageUrl && S.images[t.imageUrl];
+  if (t.imageUrl && !img) loadImage(t.imageUrl);
+  if (img && img !== 'loading') { ctx.save(); ctx.clip(); ctx.drawImage(img, cx - rad, cy - rad, rad * 2, rad * 2); ctx.restore(); }
+  else { ctx.fillStyle = '#F6E9D3'; ctx.font = 700 + ' ' + rad * 0.9 + 'px Georgia'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText((t.name || '?')[0].toUpperCase(), cx, cy + 1); }
+  ctx.lineWidth = S.selected && S.selected.id === t.id ? 4 / S.view.z : 2 / S.view.z;
+  ctx.strokeStyle = S.selected && S.selected.id === t.id ? '#FFCF7F' : '#E8A33D'; ctx.stroke();
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.font = 12 / S.view.z + 'px Segoe UI';
+  const label = t.name + (t.hpMax != null ? '  ' + t.hpCurrent + '/' + t.hpMax : '');
+  const lw = ctx.measureText(label).width + 8 / S.view.z;
+  ctx.fillStyle = 'rgba(27,20,17,.8)'; ctx.fillRect(cx - lw / 2, t.y + size + 2 / S.view.z, lw, 16 / S.view.z);
+  ctx.fillStyle = '#F6E9D3'; ctx.fillText(label, cx, t.y + size + 4 / S.view.z);
+  ctx.restore();
+}
+
+// ------------------------------------------------------------------ mouse
+function toWorld(e) { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left - S.view.tx) / S.view.z, (e.clientY - r.top - S.view.ty) / S.view.z]; }
+function tokenAt(x, y) {
+  const sc = S.scene; if (!sc) return null;
+  for (let i = sc.tokens.length - 1; i >= 0; i--) { const t = sc.tokens[i], s = sc.gridSizePx * t.sizeCells; if (x >= t.x && y >= t.y && x <= t.x + s && y <= t.y + s) return t; }
+  return null;
+}
+cv.addEventListener('pointerdown', e => {
+  if (!S.scene) return;
+  const [x, y] = toWorld(e);
+  if (S.master && (S.tool === 'reveal' || S.tool === 'hide')) { S.paint = new Map(); paintAt(x, y); return; }
+  const t = tokenAt(x, y);
+  if (t) {
+    select(t);
+    if (S.master || t.ownerId === S.me.userId) { S.drag = { token: t, offX: x - t.x, offY: y - t.y, fromX: t.x, fromY: t.y, moved: false }; return; }
+  }
+  S.pan = { x: e.clientX, y: e.clientY, tx: S.view.tx, ty: S.view.ty };
+});
+window.addEventListener('pointermove', e => {
+  if (S.paint) { const [x, y] = toWorld(e); paintAt(x, y); return; }
+  if (S.drag) { const [x, y] = toWorld(e); S.drag.token.x = x - S.drag.offX; S.drag.token.y = y - S.drag.offY; S.drag.moved = true; draw(); return; }
+  if (S.pan) { S.view.tx = S.pan.tx + e.clientX - S.pan.x; S.view.ty = S.pan.ty + e.clientY - S.pan.y; draw(); }
+});
+window.addEventListener('pointerup', async () => {
+  if (S.paint) {
+    const cells = [...S.paint.values()]; const reveal = S.tool === 'reveal'; S.paint = null;
+    try { await api('/live/scenes/' + S.scene.id + '/fog', { method: 'PUT', body: reveal ? { enabled: true, reveal: cells } : { hide: cells } }); } catch (err) { toast(err.message); }
+    return;
+  }
+  if (S.drag) {
+    const d = S.drag; S.drag = null;
+    if (!d.moved) { draw(); return; }
+    const [x, y] = snap(d.token); d.token.x = x; d.token.y = y; draw();
+    try { await api('/live/tokens/' + d.token.id + '/move', { method: 'PATCH', body: { x, y } }); }
+    catch (err) { d.token.x = d.fromX; d.token.y = d.fromY; draw(); toast(err.message); }
+    return;
+  }
+  S.pan = null;
+});
+cv.addEventListener('wheel', e => {
+  e.preventDefault(); const r = cv.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+  const z = Math.min(4, Math.max(0.15, S.view.z * (e.deltaY < 0 ? 1.15 : 1 / 1.15)));
+  S.view.tx = mx - (mx - S.view.tx) * z / S.view.z; S.view.ty = my - (my - S.view.ty) * z / S.view.z; S.view.z = z; draw();
+}, { passive: false });
+function paintAt(x, y) { const c = cellAt(x, y), k = c.join(','); if (!S.paint.has(k)) { S.paint.set(k, c); const sc = S.scene; const set = new Set(sc.revealedCells || []); S.tool === 'reveal' ? set.add(k) : set.delete(k); sc.revealedCells = [...set]; if (S.tool === 'reveal') sc.fogEnabled = true; draw(); } }
+function snap(t) {
+  const sc = S.scene, g = sc.gridSizePx, size = g * t.sizeCells;
+  if (sc.gridType === 'SQUARE') return [Math.round(t.x / g) * g, Math.round(t.y / g) * g];
+  if (sc.gridType === 'HEX') { const c = hexAt(t.x + size / 2, t.y + size / 2, g), p = hexCenter(c[0], c[1], g); return [p[0] - size / 2, p[1] - size / 2]; }
+  return [t.x, t.y];
+}
+document.querySelectorAll('[data-tool]').forEach(b => b.onclick = () => { S.tool = b.dataset.tool; document.querySelectorAll('[data-tool]').forEach(x => x.classList.toggle('on', x === b)); });
+$('center').onclick = () => { const { w, h } = mapSize(), r = cv.getBoundingClientRect(); S.view.z = Math.min(r.width / w, r.height / h) * 0.95; S.view.tx = (r.width - w * S.view.z) / 2; S.view.ty = (r.height - h * S.view.z) / 2; draw(); };
+window.addEventListener('resize', draw);
+
+// ------------------------------------------------------------------ abas
+document.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => {
+  document.querySelectorAll('[data-tab]').forEach(x => x.classList.toggle('on', x === b));
+  ['chat', 'init', 'gm'].forEach(n => $('tab-' + n).classList.toggle('hidden', n !== b.dataset.tab));
+});
+
+// ------------------------------------------------------------------ chat
+async function loadChat() { $('chatLog').innerHTML = ''; (await api('/chat/campaign/' + S.campaign.id + '?limit=100')).forEach(addChat); }
+function addChat(m) {
+  const box = document.createElement('div'); box.className = 'msg ' + m.type.toLowerCase();
+  const who = document.createElement('div'); who.className = 'who';
+  who.textContent = (m.speakerName || m.authorName) + (m.type === 'WHISPER' ? ' → ' + m.recipientName + ' (sussurro)' : '');
+  const body = document.createElement('div');
+  if (m.type === 'EMOTE') body.append((m.speakerName || m.authorName) + ' ');
+  for (const p of m.parts) {
+    if (p.total != null) { const s = document.createElement('span'); s.className = 'roll'; s.textContent = p.total; s.title = p.detail; body.append(s); }
+    else body.append(p.text);
+  }
+  if (m.type === 'ROLL' && m.rollTotal != null) { const s = document.createElement('div'); s.className = 'roll'; s.style.fontSize = '20px'; s.textContent = m.rollTotal; body.append(s); }
+  box.append(who, body); $('chatLog').append(box); $('chatLog').scrollTop = 1e9;
+}
+$('chatForm').addEventListener('submit', async e => {
+  e.preventDefault(); const text = $('chatText').value.trim(); if (!text) return;
+  try { await api('/chat/campaign/' + S.campaign.id, { method: 'POST', body: { text } }); $('chatText').value = ''; } catch (err) { toast(err.message); }
+});
+document.querySelectorAll('[data-roll]').forEach(b => b.onclick = () => api('/chat/campaign/' + S.campaign.id, { method: 'POST', body: { text: '/r ' + b.dataset.roll } }).catch(err => toast(err.message)));
+
+// ------------------------------------------------------------------ iniciativa
+function renderInitiative() {
+  const it = S.initiative || { entries: [] }; const list = $('initList'); list.innerHTML = '';
+  $('initRound').textContent = it.entries.length ? 'Rodada ' + it.round : 'Sem combate.';
+  it.entries.forEach((en, i) => {
+    const row = document.createElement('div'); row.className = 'init' + (i === it.turnIndex ? ' current' : '');
+    row.innerHTML = '<span></span><b></b>'; row.children[0].textContent = en.name; row.children[1].textContent = en.initiative;
+    if (S.master) { const x = document.createElement('button'); x.textContent = '×'; x.onclick = () => api('/live/campaign/' + S.campaign.id + '/initiative/entries/' + en.id, { method: 'DELETE' }).catch(err => toast(err.message)); row.append(x); }
+    list.append(row);
+  });
+}
+$('initRoll').onclick = () => api('/live/campaign/' + S.campaign.id + '/initiative/roll', { method: 'POST' }).catch(err => toast(err.message));
+$('initNext').onclick = () => api('/live/campaign/' + S.campaign.id + '/initiative/next', { method: 'POST' }).catch(err => toast(err.message));
+$('initEnd').onclick = () => api('/live/campaign/' + S.campaign.id + '/initiative', { method: 'DELETE' }).catch(err => toast(err.message));
+$('initAdd').addEventListener('submit', e => { e.preventDefault(); api('/live/campaign/' + S.campaign.id + '/initiative/entries', { method: 'POST', body: { name: $('initName').value, initiative: Number($('initValue').value) || 0 } }).then(() => { $('initName').value = ''; $('initValue').value = ''; }).catch(err => toast(err.message)); });
+
+// ------------------------------------------------------------------ mestre
+$('sceneSelect').onchange = () => showScene(S.scenes.find(s => s.id === $('sceneSelect').value));
+$('sceneActivate').onclick = () => S.scene && api('/live/scenes/' + S.scene.id + '/activate', { method: 'POST' }).catch(err => toast(err.message));
+$('fogToggle').onclick = () => S.scene && api('/live/scenes/' + S.scene.id + '/fog', { method: 'PUT', body: { enabled: !S.scene.fogEnabled } }).catch(err => toast(err.message));
+$('fogAll').onclick = () => S.scene && api('/live/scenes/' + S.scene.id + '/fog', { method: 'PUT', body: { revealAll: true } }).catch(err => toast(err.message));
+$('fogNone').onclick = () => S.scene && api('/live/scenes/' + S.scene.id + '/fog', { method: 'PUT', body: { clear: true, enabled: true } }).catch(err => toast(err.message));
+$('sceneForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  try {
+    let mapUrl = null, widthPx = null, heightPx = null; const file = $('sceneMap').files[0];
+    if (file) {
+      const bmp = await createImageBitmap(file); widthPx = bmp.width; heightPx = bmp.height;
+      const fd = new FormData(); fd.append('campaignId', S.campaign.id); fd.append('file', file);
+      mapUrl = (await api('/image', { method: 'POST', body: fd })).url;
+    }
+    const scene = await api('/live/campaign/' + S.campaign.id + '/scenes', { method: 'POST', body: {
+      name: $('sceneNewName').value, mapUrl, widthPx, heightPx, gridType: $('sceneGrid').value,
+      gridSizePx: Number($('sceneSize').value) || 70, feetPerCell: Number($('sceneFeet').value) || 5 } });
+    if (!S.scenes.some(s => s.id === scene.id)) S.scenes.push(scene);
+    showScene(scene); $('sceneForm').reset(); $('center').click();
+  } catch (err) { toast(err.message); }
+});
+async function loadCharacters() {
+  const sel = $('tokenCharacter'); sel.innerHTML = '<option value="">— personagem —</option>';
+  for (const c of await api('/character/' + S.campaign.id + '/characters')) sel.append(new Option(c.name, c.characterId));
+}
+$('tokenMonsterGo').onclick = async () => {
+  const sel = $('tokenMonster'); sel.innerHTML = '<option value="">— monstro —</option>';
+  try { for (const m of await api('/monster?name=' + encodeURIComponent($('tokenMonsterSearch').value))) sel.append(new Option(m.name + ' (ND ' + m.challengeRating + ')', m.id)); }
+  catch (err) { toast(err.message); }
+};
+$('tokenForm').addEventListener('submit', async e => {
+  e.preventDefault(); if (!S.scene) return toast('Crie uma cena antes.');
+  const r = cv.getBoundingClientRect(), g = S.scene.gridSizePx;
+  const x = (r.width / 2 - S.view.tx) / S.view.z - g / 2, y = (r.height / 2 - S.view.ty) / S.view.z - g / 2;
+  const body = { name: $('tokenName').value || null, x, y, hidden: $('tokenHidden').checked,
+    characterId: $('tokenCharacter').value || null, monsterId: $('tokenCharacter').value ? null : ($('tokenMonster').value || null) };
+  if (!body.name && !body.characterId && !body.monsterId) return toast('Escolha um personagem, um monstro ou dê um nome.');
+  try { const t = await api('/live/scenes/' + S.scene.id + '/tokens', { method: 'POST', body }); const [sx, sy] = snap(t); t.x = sx; t.y = sy; await api('/live/tokens/' + t.id + '/move', { method: 'PATCH', body: { x: sx, y: sy } }); $('tokenForm').reset(); }
+  catch (err) { toast(err.message); }
+});
+function select(t) {
+  S.selected = t; draw();
+  if (!S.master) return;
+  $('selectedCard').classList.toggle('hidden', !t);
+  if (!t) return;
+  $('selectedName').textContent = t.name; $('selHide').textContent = t.hidden ? 'Mostrar aos jogadores' : 'Esconder dos jogadores';
+  $('selHp').value = t.hpCurrent != null && !t.characterId ? t.hpCurrent : '';
+  $('selHp').disabled = $('selHpSave').disabled = !!t.characterId;
+}
+$('selHide').onclick = () => S.selected && api('/live/tokens/' + S.selected.id, { method: 'PUT', body: { hidden: !S.selected.hidden } }).then(t => select(Object.assign(S.selected, t))).catch(err => toast(err.message));
+$('selDelete').onclick = () => S.selected && api('/live/tokens/' + S.selected.id, { method: 'DELETE' }).then(() => select(null)).catch(err => toast(err.message));
+$('selHpSave').onclick = () => S.selected && api('/live/tokens/' + S.selected.id, { method: 'PUT', body: { hpCurrent: Number($('selHp').value) } }).catch(err => toast(err.message));
+
+// ------------------------------------------------------------------ inicio
+S.token = load('customizr_token');
+if (S.token) start().catch(() => { store('customizr_token', null); S.token = null; $('login').classList.remove('hidden'); $('app').classList.add('hidden'); });
+draw();
+</script>
+</body>
+</html>

@@ -17,6 +17,14 @@ public class UserController {
         this.userRepository = userRepository;
     }
 
+    /** Quem esta logado (a tela da mesa usa pra saber quais tokens sao seus). */
+    @GetMapping("/me")
+    public User me(@org.springframework.security.core.annotation.AuthenticationPrincipal
+                   org.springframework.security.core.userdetails.UserDetails loggedUser) {
+        return userRepository.findByName(loggedUser.getUsername())
+                .orElseThrow(() -> new EntityNotFoundException("Usuário não encontrado."));
+    }
+
     @PostMapping("/create")
     public User create(@RequestBody User user){
         userRepository.save(user);

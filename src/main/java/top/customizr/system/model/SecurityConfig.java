@@ -38,6 +38,8 @@ public class SecurityConfig {
                         .dispatcherTypeMatchers(jakarta.servlet.DispatcherType.ASYNC).permitAll()
                         .requestMatchers("/h2-console/**").permitAll()
                         .requestMatchers("/error").permitAll()
+                        // tela da mesa (arquivos estaticos); os dados ela busca na API com o token
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/mesa", "/mesa/**").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.POST, "/user/create").permitAll()
                         .requestMatchers("/api/auth/**").permitAll() // Endpoints de login/registro
                         .anyRequest().authenticated()
