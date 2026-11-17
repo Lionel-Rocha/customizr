@@ -1,5 +1,16 @@
 package top.customizr.system.controllers;
 
+import top.customizr.system.dto.FogRequest;
+import top.customizr.system.dto.FogResponse;
+import top.customizr.system.dto.InitiativeEntryRequest;
+import top.customizr.system.dto.InitiativeResponse;
+import top.customizr.system.dto.InitiativeRollRequest;
+import top.customizr.system.dto.MoveTokenRequest;
+import top.customizr.system.dto.SceneRequest;
+import top.customizr.system.dto.SceneResponse;
+import top.customizr.system.dto.TokenMovedResponse;
+import top.customizr.system.dto.TokenRequest;
+import top.customizr.system.dto.TokenResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -16,7 +27,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
-import top.customizr.system.dto.LiveDtos;
 import top.customizr.system.service.LiveTableService;
 
 import java.util.List;
@@ -44,23 +54,23 @@ public class LiveTableController {
 
     @PostMapping("/campaign/{campaignId}/scenes")
     @ResponseStatus(HttpStatus.CREATED)
-    public LiveDtos.SceneView createScene(@PathVariable UUID campaignId, @RequestBody LiveDtos.SceneRequest request,
+    public SceneResponse createScene(@PathVariable UUID campaignId, @RequestBody SceneRequest request,
                                           @AuthenticationPrincipal UserDetails loggedUser) {
         return live.createScene(campaignId, request, loggedUser.getUsername());
     }
 
     @GetMapping("/campaign/{campaignId}/scenes")
-    public List<LiveDtos.SceneView> listScenes(@PathVariable UUID campaignId, @AuthenticationPrincipal UserDetails loggedUser) {
+    public List<SceneResponse> listScenes(@PathVariable UUID campaignId, @AuthenticationPrincipal UserDetails loggedUser) {
         return live.listScenes(campaignId, loggedUser.getUsername());
     }
 
     @GetMapping("/scenes/{sceneId}")
-    public LiveDtos.SceneView readScene(@PathVariable UUID sceneId, @AuthenticationPrincipal UserDetails loggedUser) {
+    public SceneResponse readScene(@PathVariable UUID sceneId, @AuthenticationPrincipal UserDetails loggedUser) {
         return live.readScene(sceneId, loggedUser.getUsername());
     }
 
     @PutMapping("/scenes/{sceneId}")
-    public LiveDtos.SceneView updateScene(@PathVariable UUID sceneId, @RequestBody LiveDtos.SceneRequest request,
+    public SceneResponse updateScene(@PathVariable UUID sceneId, @RequestBody SceneRequest request,
                                           @AuthenticationPrincipal UserDetails loggedUser) {
         return live.updateScene(sceneId, request, loggedUser.getUsername());
     }
@@ -72,31 +82,31 @@ public class LiveTableController {
     }
 
     @PostMapping("/scenes/{sceneId}/activate")
-    public LiveDtos.SceneView activateScene(@PathVariable UUID sceneId, @AuthenticationPrincipal UserDetails loggedUser) {
+    public SceneResponse activateScene(@PathVariable UUID sceneId, @AuthenticationPrincipal UserDetails loggedUser) {
         return live.activateScene(sceneId, loggedUser.getUsername());
     }
 
     @PutMapping("/scenes/{sceneId}/fog")
-    public LiveDtos.FogView updateFog(@PathVariable UUID sceneId, @RequestBody LiveDtos.FogRequest request,
+    public FogResponse updateFog(@PathVariable UUID sceneId, @RequestBody FogRequest request,
                                       @AuthenticationPrincipal UserDetails loggedUser) {
         return live.updateFog(sceneId, request, loggedUser.getUsername());
     }
 
     @PostMapping("/scenes/{sceneId}/tokens")
     @ResponseStatus(HttpStatus.CREATED)
-    public LiveDtos.TokenView addToken(@PathVariable UUID sceneId, @RequestBody LiveDtos.TokenRequest request,
+    public TokenResponse addToken(@PathVariable UUID sceneId, @RequestBody TokenRequest request,
                                        @AuthenticationPrincipal UserDetails loggedUser) {
         return live.addToken(sceneId, request, loggedUser.getUsername());
     }
 
     @PatchMapping("/tokens/{tokenId}/move")
-    public LiveDtos.TokenMoved moveToken(@PathVariable UUID tokenId, @RequestBody LiveDtos.MoveRequest request,
+    public TokenMovedResponse moveToken(@PathVariable UUID tokenId, @RequestBody MoveTokenRequest request,
                                          @AuthenticationPrincipal UserDetails loggedUser) {
         return live.moveToken(tokenId, request, loggedUser.getUsername());
     }
 
     @PutMapping("/tokens/{tokenId}")
-    public LiveDtos.TokenView updateToken(@PathVariable UUID tokenId, @RequestBody LiveDtos.TokenRequest request,
+    public TokenResponse updateToken(@PathVariable UUID tokenId, @RequestBody TokenRequest request,
                                           @AuthenticationPrincipal UserDetails loggedUser) {
         return live.updateToken(tokenId, request, loggedUser.getUsername());
     }
@@ -108,32 +118,32 @@ public class LiveTableController {
     }
 
     @GetMapping("/campaign/{campaignId}/initiative")
-    public LiveDtos.InitiativeView initiative(@PathVariable UUID campaignId, @AuthenticationPrincipal UserDetails loggedUser) {
+    public InitiativeResponse initiative(@PathVariable UUID campaignId, @AuthenticationPrincipal UserDetails loggedUser) {
         return live.initiative(campaignId, loggedUser.getUsername());
     }
 
     /** Body opcional: {"tokenIds": [...]}; vazio = todos os tokens visiveis da cena ativa. */
     @PostMapping("/campaign/{campaignId}/initiative/roll")
-    public LiveDtos.InitiativeView rollInitiative(@PathVariable UUID campaignId,
-                                                  @RequestBody(required = false) LiveDtos.InitiativeRollRequest request,
+    public InitiativeResponse rollInitiative(@PathVariable UUID campaignId,
+                                                  @RequestBody(required = false) InitiativeRollRequest request,
                                                   @AuthenticationPrincipal UserDetails loggedUser) {
         return live.rollInitiative(campaignId, request, loggedUser.getUsername());
     }
 
     @PostMapping("/campaign/{campaignId}/initiative/entries")
-    public LiveDtos.InitiativeView addEntry(@PathVariable UUID campaignId, @RequestBody LiveDtos.InitiativeEntryRequest request,
+    public InitiativeResponse addEntry(@PathVariable UUID campaignId, @RequestBody InitiativeEntryRequest request,
                                             @AuthenticationPrincipal UserDetails loggedUser) {
         return live.addInitiativeEntry(campaignId, request, loggedUser.getUsername());
     }
 
     @DeleteMapping("/campaign/{campaignId}/initiative/entries/{entryId}")
-    public LiveDtos.InitiativeView removeEntry(@PathVariable UUID campaignId, @PathVariable UUID entryId,
+    public InitiativeResponse removeEntry(@PathVariable UUID campaignId, @PathVariable UUID entryId,
                                                @AuthenticationPrincipal UserDetails loggedUser) {
         return live.removeInitiativeEntry(campaignId, entryId, loggedUser.getUsername());
     }
 
     @PostMapping("/campaign/{campaignId}/initiative/next")
-    public LiveDtos.InitiativeView nextTurn(@PathVariable UUID campaignId, @AuthenticationPrincipal UserDetails loggedUser) {
+    public InitiativeResponse nextTurn(@PathVariable UUID campaignId, @AuthenticationPrincipal UserDetails loggedUser) {
         return live.nextTurn(campaignId, loggedUser.getUsername());
     }
 

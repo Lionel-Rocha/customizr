@@ -124,6 +124,16 @@ public class Monster {
     @Column(columnDefinition = "TEXT")
     private String spellcasting;
 
+    // Mesmo padrao do Feature/DndClass: a entrada original do 5etools (com as tags {@...}) fica em metadata.
+    @Column(name = "source_code")
+    private String sourceCode;
+
+    private Integer page;
+
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
+    @Column(columnDefinition = "json")
+    private Map<String, Object> metadata;
+
     protected Monster() {}
 
     public Monster(String name, Source source) {
@@ -189,6 +199,12 @@ public class Monster {
         this.reactions = reactions;
         this.legendaryActions = legendaryActions;
         this.spellcasting = spellcasting;
+    }
+
+    public void updateSourceData(Integer page, Map<String, Object> metadata) {
+        this.sourceCode = source.getCode();
+        this.page = page;
+        this.metadata = metadata;
     }
 
     public Integer getExperiencePoints() {

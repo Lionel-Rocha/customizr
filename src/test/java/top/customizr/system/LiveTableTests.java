@@ -1,5 +1,11 @@
 package top.customizr.system;
 
+import top.customizr.system.dto.FogRequest;
+import top.customizr.system.dto.InitiativeEntryRequest;
+import top.customizr.system.dto.MoveTokenRequest;
+import top.customizr.system.dto.SceneRequest;
+import top.customizr.system.dto.SceneResponse;
+import top.customizr.system.dto.TokenRequest;
 import jakarta.transaction.Transactional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -8,7 +14,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.server.ResponseStatusException;
 import top.customizr.system.dto.CreateCharacterRequest;
-import top.customizr.system.dto.LiveDtos;
 import top.customizr.system.dto.UpdateAttributesRequest;
 import top.customizr.system.model.Campaign;
 import top.customizr.system.model.Character;
@@ -65,16 +70,16 @@ class LiveTableTests {
 
     @Test
     void playersOnlySeeTheActiveSceneAndNoHiddenTokens() {
-        var cave = live.createScene(campaign.getId(), new LiveDtos.SceneRequest("Cave", "/image/x", GridType.SQUARE, 70, 5, 1400, 1000), master);
+        var cave = live.createScene(campaign.getId(), new SceneRequest("Cave", "/image/x", GridType.SQUARE, 70, 5, 1400, 1000), master);
         assertTrue(cave.active(), "a primeira cena ja fica ativa");
-        var town = live.createScene(campaign.getId(), new LiveDtos.SceneRequest("Town", null, null, null, null, null, null), master);
+        var town = live.createScene(campaign.getId(), new SceneRequest("Town", null, null, null, null, null, null), master);
         assertFalse(town.active());
 
         live.addToken(cave.id(), token("Aria", 0, 0, false, aria.getCharacterId()), master);
         live.addToken(cave.id(), token("Ambush", 140, 140, true, null), master);
 
         assertEquals(2, live.listScenes(campaign.getId(), master).size());
-        List<LiveDtos.SceneView> seenByAna = live.listScenes(campaign.getId(), ana);
+        List<SceneResponse> seenByAna = live.listScenes(campaign.getId(), ana);
         assertEquals(1, seenByAna.size());
         assertEquals(1, seenByAna.getFirst().tokens().size(), "o token oculto nao vai pro jogador");
         assertThrows(ResponseStatusException.class, () -> live.readScene(town.id(), ana), "cena inativa");
@@ -82,21 +87,21 @@ class LiveTableTests {
         live.activateScene(town.id(), master);
         assertEquals("Town", live.listScenes(campaign.getId(), ana).getFirst().name());
         assertThrows(AccessDeniedException.class, () -> live.createScene(campaign.getId(),
-                new LiveDtos.SceneRequest("X", null, null, null, null, null, null), ana));
+                new SceneRequest("X", null, null, null, null, null, null), ana));
     }
 
     @Test
     void onlyTheOwnerOrTheMasterMovesATokenAndTheDistanceIsMeasured() {
-        var cave = live.createScene(campaign.getId(), new LiveDtos.SceneRequest("Cave", null, GridType.SQUARE, 70, 5, null, null), master);
+        var cave = live.createScene(campaign.getId(), new SceneRequest("Cave", null, GridType.SQUARE, 70, 5, null, null), master);
         var mine = live.addToken(cave.id(), token(null, 0, 0, false, aria.getCharacterId()), master);
         var goblin = live.addToken(cave.id(), token("Goblin", 700, 0, false, null), master);
         assertEquals("Aria", mine.name(), "token de personagem pega o nome da ficha");
 
-        var moved = live.moveToken(mine.id(), new LiveDtos.MoveRequest(140, 210), ana);
+        var moved = live.moveToken(mine.id(), new MoveTokenRequest(140, 210), ana);
         assertEquals(15, moved.distanceFeet(), "5e: diagonal conta 1 casa -> 3 casas");
-        assertThrows(AccessDeniedException.class, () -> live.moveToken(mine.id(), new LiveDtos.MoveRequest(0, 0), bia));
-        assertThrows(AccessDeniedException.class, () -> live.moveToken(goblin.id(), new LiveDtos.MoveRequest(0, 0), ana));
-        live.moveToken(goblin.id(), new LiveDtos.MoveRequest(0, 0), master);
+        assertThrows(AccessDeniedException.class, () -> live.moveToken(mine.id(), new MoveTokenRequest(0, 0), bia));
+        assertThrows(AccessDeniedException.class, () -> live.moveToken(goblin.id(), new MoveTokenRequest(0, 0), ana));
+        live.moveToken(goblin.id(), new MoveTokenRequest(0, 0), master);
 
         var view = live.readScene(cave.id(), ana).tokens().stream().filter(t -> t.name().equals("Goblin")).findFirst().orElseThrow();
         assertNull(view.hpCurrent(), "jogador nao ve PV de monstro/NPC");
@@ -114,20 +119,20 @@ class LiveTableTests {
 
     @Test
     void fogIsControlledByTheMaster() {
-        var cave = live.createScene(campaign.getId(), new LiveDtos.SceneRequest("Cave", null, null, null, null, null, null), master);
-        var fog = live.updateFog(cave.id(), new LiveDtos.FogRequest(true, List.of(new int[]{1, 2}, new int[]{-1, 4}), null, null, null), master);
+        var cave = live.createScene(campaign.getId(), new SceneRequest("Cave", null, null, null, null, null, null), master);
+        var fog = live.updateFog(cave.id(), new FogRequest(true, List.of(new int[]{1, 2}, new int[]{-1, 4}), null, null, null), master);
         assertTrue(fog.fogEnabled());
         assertEquals(java.util.Set.of("1,2", "-1,4"), fog.revealedCells());
-        fog = live.updateFog(cave.id(), new LiveDtos.FogRequest(null, null, List.of(new int[]{1, 2}), null, null), master);
+        fog = live.updateFog(cave.id(), new FogRequest(null, null, List.of(new int[]{1, 2}), null, null), master);
         assertEquals(java.util.Set.of("-1,4"), fog.revealedCells());
         assertThrows(AccessDeniedException.class, () -> live.updateFog(cave.id(),
-                new LiveDtos.FogRequest(false, null, null, null, null), ana));
-        assertFalse(live.updateFog(cave.id(), new LiveDtos.FogRequest(null, null, null, null, true), master).fogEnabled());
+                new FogRequest(false, null, null, null, null), ana));
+        assertFalse(live.updateFog(cave.id(), new FogRequest(null, null, null, null, true), master).fogEnabled());
     }
 
     @Test
     void initiativeOrdersTurnsAndRounds() {
-        var cave = live.createScene(campaign.getId(), new LiveDtos.SceneRequest("Cave", null, null, null, null, null, null), master);
+        var cave = live.createScene(campaign.getId(), new SceneRequest("Cave", null, null, null, null, null, null), master);
         live.addToken(cave.id(), token(null, 0, 0, false, aria.getCharacterId()), master);
         live.addToken(cave.id(), token("Hidden spy", 0, 0, true, null), master);
 
@@ -136,8 +141,8 @@ class LiveTableTests {
         int ariaInit = order.entries().getFirst().initiative();
         assertTrue(ariaInit >= 4 && ariaInit <= 23, "1d20 + DES 3");
 
-        order = live.addInitiativeEntry(campaign.getId(), new LiveDtos.InitiativeEntryRequest("Lair action", 20, 99), master);
-        assertEquals("Lair action", order.entries().getFirst().name(), "20 com desempate alto fica na frente");
+        order = live.addInitiativeEntry(campaign.getId(), new InitiativeEntryRequest("Lair action", 30, 99), master);
+        assertEquals("Lair action", order.entries().getFirst().name(), "30 fica na frente de qualquer 1d20+3");
         assertEquals(1, order.turnIndex(), "quem entra no meio nao rouba a vez: continua sendo a da Aria");
         var newRound = live.nextTurn(campaign.getId(), master);
         assertEquals(2, newRound.round(), "depois da ultima, nova rodada");
@@ -150,7 +155,7 @@ class LiveTableTests {
         assertTrue(live.initiative(campaign.getId(), master).entries().isEmpty());
     }
 
-    private static LiveDtos.TokenRequest token(String name, double x, double y, boolean hidden, UUID characterId) {
-        return new LiveDtos.TokenRequest(name, x, y, 1, null, hidden, characterId, null, null, null, null, null);
+    private static TokenRequest token(String name, double x, double y, boolean hidden, UUID characterId) {
+        return new TokenRequest(name, x, y, 1, null, hidden, characterId, null, null, null, null, null);
     }
 }

@@ -1,12 +1,22 @@
 package top.customizr.system.service;
 
+import top.customizr.system.dto.FogRequest;
+import top.customizr.system.dto.FogResponse;
+import top.customizr.system.dto.InitiativeEntryRequest;
+import top.customizr.system.dto.InitiativeResponse;
+import top.customizr.system.dto.InitiativeRollRequest;
+import top.customizr.system.dto.MoveTokenRequest;
+import top.customizr.system.dto.SceneRequest;
+import top.customizr.system.dto.SceneResponse;
+import top.customizr.system.dto.TokenMovedResponse;
+import top.customizr.system.dto.TokenRequest;
+import top.customizr.system.dto.TokenResponse;
 import jakarta.transaction.Transactional;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
-import top.customizr.system.dto.LiveDtos;
 import top.customizr.system.model.Campaign;
 import top.customizr.system.model.Character;
 import top.customizr.system.model.DiceRoller;
@@ -76,7 +86,7 @@ public class LiveTableService {
     // ------------------------------------------------------------------ cenas
 
     @Transactional
-    public LiveDtos.SceneView createScene(UUID campaignId, LiveDtos.SceneRequest r, String username) {
+    public SceneResponse createScene(UUID campaignId, SceneRequest r, String username) {
         Campaign campaign = campaign(campaignId);
         masterGuard.requireMaster(username, campaign);
         requireBody(r);
@@ -85,35 +95,35 @@ public class LiveTableService {
         List<Scene> existing = sceneRepository.findByCampaignOrderByName(campaign);
         scene = sceneRepository.save(scene);
         if (existing.isEmpty()) activate(scene, existing);
-        return LiveDtos.SceneView.from(scene, true);
+        return SceneResponse.from(scene, true);
     }
 
     /** Mestre: todas as cenas; jogador: so a ativa. */
     @Transactional
-    public List<LiveDtos.SceneView> listScenes(UUID campaignId, String username) {
+    public List<SceneResponse> listScenes(UUID campaignId, String username) {
         Campaign campaign = campaign(campaignId);
         boolean master = masterGuard.requireMember(username, campaign);
         return sceneRepository.findByCampaignOrderByName(campaign).stream()
                 .filter(s -> master || s.isActive())
-                .map(s -> LiveDtos.SceneView.from(s, master)).toList();
+                .map(s -> SceneResponse.from(s, master)).toList();
     }
 
     @Transactional
-    public LiveDtos.SceneView readScene(UUID sceneId, String username) {
+    public SceneResponse readScene(UUID sceneId, String username) {
         Scene scene = scene(sceneId);
         boolean master = masterGuard.requireMember(username, scene.getCampaign());
         if (!master && !scene.isActive()) throw notFound("Scene");
-        return LiveDtos.SceneView.from(scene, master);
+        return SceneResponse.from(scene, master);
     }
 
     @Transactional
-    public LiveDtos.SceneView updateScene(UUID sceneId, LiveDtos.SceneRequest r, String username) {
+    public SceneResponse updateScene(UUID sceneId, SceneRequest r, String username) {
         Scene scene = scene(sceneId);
         masterGuard.requireMaster(username, scene.getCampaign());
         requireBody(r);
         valid(() -> { scene.update(r.name(), r.mapUrl(), r.gridType(), r.gridSizePx(), r.feetPerCell(), r.widthPx(), r.heightPx()); return null; });
         broadcastScene(scene);
-        return LiveDtos.SceneView.from(scene, true);
+        return SceneResponse.from(scene, true);
     }
 
     @Transactional
@@ -127,11 +137,11 @@ public class LiveTableService {
 
     /** Troca a cena que os jogadores veem. */
     @Transactional
-    public LiveDtos.SceneView activateScene(UUID sceneId, String username) {
+    public SceneResponse activateScene(UUID sceneId, String username) {
         Scene scene = scene(sceneId);
         masterGuard.requireMaster(username, scene.getCampaign());
         activate(scene, sceneRepository.findByCampaignOrderByName(scene.getCampaign()));
-        return LiveDtos.SceneView.from(scene, true);
+        return SceneResponse.from(scene, true);
     }
 
     private void activate(Scene scene, List<Scene> others) {
@@ -140,7 +150,7 @@ public class LiveTableService {
     }
 
     @Transactional
-    public LiveDtos.FogView updateFog(UUID sceneId, LiveDtos.FogRequest r, String username) {
+    public FogResponse updateFog(UUID sceneId, FogRequest r, String username) {
         Scene scene = scene(sceneId);
         masterGuard.requireMaster(username, scene.getCampaign());
         requireBody(r);
@@ -152,7 +162,7 @@ public class LiveTableService {
             if (r.hide() != null) scene.revealCells(r.hide(), false);
             return null;
         });
-        LiveDtos.FogView view = new LiveDtos.FogView(scene.getId(), scene.isFogEnabled(), java.util.Set.copyOf(scene.getRevealedCells()));
+        FogResponse view = new FogResponse(scene.getId(), scene.isFogEnabled(), java.util.Set.copyOf(scene.getRevealedCells()));
         events.publish(scene.getCampaign().getId(), "fog", view);
         return view;
     }
@@ -160,7 +170,7 @@ public class LiveTableService {
     // ------------------------------------------------------------------ tokens
 
     @Transactional
-    public LiveDtos.TokenView addToken(UUID sceneId, LiveDtos.TokenRequest r, String username) {
+    public TokenResponse addToken(UUID sceneId, TokenRequest r, String username) {
         Scene scene = scene(sceneId);
         masterGuard.requireMaster(username, scene.getCampaign());
         requireBody(r);
@@ -175,12 +185,12 @@ public class LiveTableService {
                 r.sizeCells(), r.imageUrl(), Boolean.TRUE.equals(r.hidden()), character, npc, monster));
         sceneRepository.save(scene);
         broadcastToken(token, "token_added");
-        return LiveDtos.TokenView.from(token, true);
+        return TokenResponse.from(token, true);
     }
 
     /** Mestre move qualquer token; jogador so os dos proprios personagens (e na cena ativa). */
     @Transactional
-    public LiveDtos.TokenMoved moveToken(UUID tokenId, LiveDtos.MoveRequest r, String username) {
+    public TokenMovedResponse moveToken(UUID tokenId, MoveTokenRequest r, String username) {
         Token token = token(tokenId);
         Scene scene = token.getScene();
         User user = masterGuard.user(username);
@@ -196,7 +206,7 @@ public class LiveTableService {
         double fromX = token.getX();
         double fromY = token.getY();
         valid(() -> { token.moveTo(r.x(), r.y()); return null; });
-        LiveDtos.TokenMoved moved = new LiveDtos.TokenMoved(scene.getId(), token.getId(), token.getX(), token.getY(),
+        TokenMovedResponse moved = new TokenMovedResponse(scene.getId(), token.getId(), token.getX(), token.getY(),
                 scene.distanceFeet(fromX, fromY, token.getX(), token.getY()));
         if (token.isHidden()) events.publishToMaster(scene.getCampaign().getId(), "token_moved", moved);
         else events.publish(scene.getCampaign().getId(), "token_moved", moved);
@@ -204,7 +214,7 @@ public class LiveTableService {
     }
 
     @Transactional
-    public LiveDtos.TokenView updateToken(UUID tokenId, LiveDtos.TokenRequest r, String username) {
+    public TokenResponse updateToken(UUID tokenId, TokenRequest r, String username) {
         Token token = token(tokenId);
         masterGuard.requireMaster(username, token.getScene().getCampaign());
         requireBody(r);
@@ -226,7 +236,7 @@ public class LiveTableService {
                     l -> !l.master());
         }
         broadcastToken(token, "token_updated");
-        return LiveDtos.TokenView.from(token, true);
+        return TokenResponse.from(token, true);
     }
 
     @Transactional
@@ -241,15 +251,15 @@ public class LiveTableService {
     // ------------------------------------------------------------------ iniciativa
 
     @Transactional
-    public LiveDtos.InitiativeView initiative(UUID campaignId, String username) {
+    public InitiativeResponse initiative(UUID campaignId, String username) {
         Campaign campaign = campaign(campaignId);
         masterGuard.requireMember(username, campaign);
-        return LiveDtos.InitiativeView.from(tracker(campaign));
+        return InitiativeResponse.from(tracker(campaign));
     }
 
     /** Rola 1d20 + bonus pra cada token pedido (ou todos os visiveis da cena ativa). */
     @Transactional
-    public LiveDtos.InitiativeView rollInitiative(UUID campaignId, LiveDtos.InitiativeRollRequest r, String username) {
+    public InitiativeResponse rollInitiative(UUID campaignId, InitiativeRollRequest r, String username) {
         Campaign campaign = campaign(campaignId);
         masterGuard.requireMaster(username, campaign);
         InitiativeTracker tracker = tracker(campaign);
@@ -270,7 +280,7 @@ public class LiveTableService {
     }
 
     @Transactional
-    public LiveDtos.InitiativeView addInitiativeEntry(UUID campaignId, LiveDtos.InitiativeEntryRequest r, String username) {
+    public InitiativeResponse addInitiativeEntry(UUID campaignId, InitiativeEntryRequest r, String username) {
         Campaign campaign = campaign(campaignId);
         masterGuard.requireMaster(username, campaign);
         requireBody(r);
@@ -280,7 +290,7 @@ public class LiveTableService {
     }
 
     @Transactional
-    public LiveDtos.InitiativeView removeInitiativeEntry(UUID campaignId, UUID entryId, String username) {
+    public InitiativeResponse removeInitiativeEntry(UUID campaignId, UUID entryId, String username) {
         Campaign campaign = campaign(campaignId);
         masterGuard.requireMaster(username, campaign);
         InitiativeTracker tracker = tracker(campaign);
@@ -289,7 +299,7 @@ public class LiveTableService {
     }
 
     @Transactional
-    public LiveDtos.InitiativeView nextTurn(UUID campaignId, String username) {
+    public InitiativeResponse nextTurn(UUID campaignId, String username) {
         Campaign campaign = campaign(campaignId);
         masterGuard.requireMaster(username, campaign);
         InitiativeTracker tracker = tracker(campaign);
@@ -314,8 +324,8 @@ public class LiveTableService {
                 .orElseGet(() -> trackerRepository.save(new InitiativeTracker(campaign)));
     }
 
-    private LiveDtos.InitiativeView broadcastInitiative(InitiativeTracker tracker) {
-        LiveDtos.InitiativeView view = LiveDtos.InitiativeView.from(tracker);
+    private InitiativeResponse broadcastInitiative(InitiativeTracker tracker) {
+        InitiativeResponse view = InitiativeResponse.from(tracker);
         events.publish(tracker.getCampaign().getId(), "initiative", view);
         return view;
     }
@@ -324,18 +334,18 @@ public class LiveTableService {
 
     private void broadcastScene(Scene scene) {
         UUID campaignId = scene.getCampaign().getId();
-        LiveDtos.SceneView forMaster = LiveDtos.SceneView.from(scene, true);
+        SceneResponse forMaster = SceneResponse.from(scene, true);
         events.publishToMaster(campaignId, "scene", forMaster);
         if (scene.isActive()) {
-            events.publish(campaignId, "scene", LiveDtos.SceneView.from(scene, false), l -> !l.master());
+            events.publish(campaignId, "scene", SceneResponse.from(scene, false), l -> !l.master());
         }
     }
 
     private void broadcastToken(Token token, String type) {
         UUID campaignId = token.getScene().getCampaign().getId();
-        events.publishToMaster(campaignId, type, LiveDtos.TokenView.from(token, true));
+        events.publishToMaster(campaignId, type, TokenResponse.from(token, true));
         if (!token.isHidden() && token.getScene().isActive()) {
-            events.publish(campaignId, type, LiveDtos.TokenView.from(token, false), l -> !l.master());
+            events.publish(campaignId, type, TokenResponse.from(token, false), l -> !l.master());
         }
     }
 

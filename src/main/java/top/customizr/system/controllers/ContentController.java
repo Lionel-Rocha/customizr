@@ -1,5 +1,8 @@
 package top.customizr.system.controllers;
 
+import top.customizr.system.dto.BackgroundResponse;
+import top.customizr.system.dto.FeatResponse;
+import top.customizr.system.dto.SpeciesResponse;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -8,7 +11,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.JsonNode;
 import top.customizr.system.dto.ContentImportResponse;
-import top.customizr.system.dto.ContentResponse;
 import top.customizr.system.service.ContentImportService;
 
 import java.util.List;
@@ -40,17 +42,17 @@ public class ContentController {
     }
 
     @GetMapping("/species")
-    public List<ContentResponse.SpeciesInfo> species(@RequestParam(required = false) String name) {
+    public List<SpeciesResponse> species(@RequestParam(required = false) String name) {
         return contentImportService.species(name);
     }
 
     @GetMapping("/backgrounds")
-    public List<ContentResponse.BackgroundInfo> backgrounds(@RequestParam(required = false) String name) {
+    public List<BackgroundResponse> backgrounds(@RequestParam(required = false) String name) {
         return contentImportService.backgrounds(name);
     }
 
     @GetMapping("/feats")
-    public List<ContentResponse.FeatInfo> feats(@RequestParam(required = false) String name) {
+    public List<FeatResponse> feats(@RequestParam(required = false) String name) {
         return contentImportService.feats(name);
     }
 }

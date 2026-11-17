@@ -1,5 +1,16 @@
 package top.customizr.system.service;
 
+import top.customizr.system.dto.AttackRequest;
+import top.customizr.system.dto.AttackRollRequest;
+import top.customizr.system.dto.CatalogFeatRequest;
+import top.customizr.system.dto.ConditionsRequest;
+import top.customizr.system.dto.ExperienceRequest;
+import top.customizr.system.dto.OriginRequest;
+import top.customizr.system.dto.PortraitRequest;
+import top.customizr.system.dto.ProficienciesRequest;
+import top.customizr.system.dto.RestRequest;
+import top.customizr.system.dto.SheetRollRequest;
+import top.customizr.system.dto.SpendSpellSlotRequest;
 import jakarta.transaction.Transactional;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
@@ -7,7 +18,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 import top.customizr.system.dto.CharacterSheetResponse;
 import top.customizr.system.dto.RestResponse;
-import top.customizr.system.dto.SheetRequests;
 import top.customizr.system.dto.SheetRollResponse;
 import top.customizr.system.model.AbilityScore;
 import top.customizr.system.model.Character;
@@ -67,7 +77,7 @@ public class CharacterSheetService {
     }
 
     @Transactional
-    public CharacterSheetResponse chooseOrigin(UUID characterId, SheetRequests.Origin request, String username) {
+    public CharacterSheetResponse chooseOrigin(UUID characterId, OriginRequest request, String username) {
         Character character = manageable(characterId, username);
         requireBody(request);
         character.chooseOrigin(
@@ -79,7 +89,7 @@ public class CharacterSheetService {
     }
 
     @Transactional
-    public CharacterSheetResponse updateProficiencies(UUID characterId, SheetRequests.Proficiencies request, String username) {
+    public CharacterSheetResponse updateProficiencies(UUID characterId, ProficienciesRequest request, String username) {
         Character character = manageable(characterId, username);
         requireBody(request);
         valid(() -> { character.getSheet().updateProficiencies(request.skills(), request.expertise(), request.savingThrows()); return null; });
@@ -87,7 +97,7 @@ public class CharacterSheetService {
     }
 
     @Transactional
-    public CharacterSheetResponse updateConditions(UUID characterId, SheetRequests.Conditions request, String username) {
+    public CharacterSheetResponse updateConditions(UUID characterId, ConditionsRequest request, String username) {
         Character character = manageable(characterId, username);
         requireBody(request);
         valid(() -> { character.getSheet().updateConditions(request.conditions(), request.exhaustion()); return null; });
@@ -95,7 +105,7 @@ public class CharacterSheetService {
     }
 
     @Transactional
-    public CharacterSheetResponse spendSpellSlot(UUID characterId, SheetRequests.SpendSlot request, String username) {
+    public CharacterSheetResponse spendSpellSlot(UUID characterId, SpendSpellSlotRequest request, String username) {
         Character character = manageable(characterId, username);
         requireBody(request);
         valid(() -> { character.getSheet().spendSpellSlot(
@@ -104,10 +114,10 @@ public class CharacterSheetService {
     }
 
     @Transactional
-    public RestResponse rest(UUID characterId, SheetRequests.Rest request, String username) {
+    public RestResponse rest(UUID characterId, RestRequest request, String username) {
         Character character = manageable(characterId, username);
         requireBody(request);
-        if (request.type() == SheetRequests.RestType.LONG) {
+        if (request.type() == RestRequest.RestType.LONG) {
             character.getSheet().longRest();
             return new RestResponse("LONG", List.of(), 0, CharacterSheetResponse.from(character));
         }
@@ -117,7 +127,7 @@ public class CharacterSheetService {
     }
 
     @Transactional
-    public CharacterSheetResponse addAttack(UUID characterId, SheetRequests.Attack request, String username) {
+    public CharacterSheetResponse addAttack(UUID characterId, AttackRequest request, String username) {
         Character character = manageable(characterId, username);
         requireBody(request);
         valid(() -> character.getSheet().addAttack(request.name(), request.attackBonus(), request.damage(),
@@ -133,7 +143,7 @@ public class CharacterSheetService {
     }
 
     @Transactional
-    public CharacterSheetResponse addCatalogFeat(UUID characterId, SheetRequests.CatalogFeat request, String username) {
+    public CharacterSheetResponse addCatalogFeat(UUID characterId, CatalogFeatRequest request, String username) {
         Character character = manageable(characterId, username);
         requireBody(request);
         var feat = featRepository.findById(request.featId()).orElseThrow(() -> notFound("Feat"));
@@ -150,7 +160,7 @@ public class CharacterSheetService {
 
     /** XP so o mestre da (o jogador nao se premia). */
     @Transactional
-    public CharacterSheetResponse gainExperience(UUID characterId, SheetRequests.Experience request, String username) {
+    public CharacterSheetResponse gainExperience(UUID characterId, ExperienceRequest request, String username) {
         Character character = find(characterId);
         if (!character.getCampaign().getMaster().getName().equals(username)) {
             throw new AccessDeniedException("Only the campaign master can award experience");
@@ -161,7 +171,7 @@ public class CharacterSheetService {
     }
 
     @Transactional
-    public CharacterSheetResponse changePortrait(UUID characterId, SheetRequests.Portrait request, String username) {
+    public CharacterSheetResponse changePortrait(UUID characterId, PortraitRequest request, String username) {
         Character character = manageable(characterId, username);
         character.changePortrait(request == null ? null : request.portraitUrl());
         return CharacterSheetResponse.from(character);
@@ -170,7 +180,7 @@ public class CharacterSheetService {
     // ------------------------------------------------------------------ rolagens
 
     @Transactional
-    public SheetRollResponse roll(UUID characterId, SheetRequests.Roll request, String username) {
+    public SheetRollResponse roll(UUID characterId, SheetRollRequest request, String username) {
         Character character = manageable(characterId, username);
         if (request == null || request.kind() == null) throw badRequest("Roll kind is required");
         Sheet sheet = character.getSheet();
@@ -225,7 +235,7 @@ public class CharacterSheetService {
 
     /** Ataque da ficha: d20 + bonus (vantagem/desvantagem pelas condicoes) e o dano; critico dobra os dados. */
     @Transactional
-    public SheetRollResponse rollAttack(UUID characterId, UUID attackId, SheetRequests.AttackRoll request, String username) {
+    public SheetRollResponse rollAttack(UUID characterId, UUID attackId, AttackRollRequest request, String username) {
         Character character = manageable(characterId, username);
         Sheet sheet = character.getSheet();
         SheetAttack attack = sheet.getAttacks().stream().filter(a -> a.getId().equals(attackId)).findFirst()

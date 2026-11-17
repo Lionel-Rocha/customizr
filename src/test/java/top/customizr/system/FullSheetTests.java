@@ -1,5 +1,16 @@
 package top.customizr.system;
 
+import top.customizr.system.dto.AttackRequest;
+import top.customizr.system.dto.AttackRollRequest;
+import top.customizr.system.dto.CatalogFeatRequest;
+import top.customizr.system.dto.ConditionsRequest;
+import top.customizr.system.dto.ExperienceRequest;
+import top.customizr.system.dto.OriginRequest;
+import top.customizr.system.dto.PortraitRequest;
+import top.customizr.system.dto.ProficienciesRequest;
+import top.customizr.system.dto.RestRequest;
+import top.customizr.system.dto.SheetRollRequest;
+import top.customizr.system.dto.SpendSpellSlotRequest;
 import jakarta.transaction.Transactional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -12,7 +23,6 @@ import top.customizr.system.dto.CharacterSheetResponse;
 import top.customizr.system.dto.ChatMessageResponse;
 import top.customizr.system.dto.CreateCharacterRequest;
 import top.customizr.system.dto.HitPointChangeRequest;
-import top.customizr.system.dto.SheetRequests;
 import top.customizr.system.dto.SheetRollResponse;
 import top.customizr.system.dto.UpdateAttributesRequest;
 import top.customizr.system.dto.UpdateCombatStatsRequest;
@@ -95,7 +105,7 @@ class FullSheetTests {
 
     @Test
     void proficienciesAndExpertiseChangeTheBonuses() {
-        var details = sheetService.updateProficiencies(aria, new SheetRequests.Proficiencies(
+        var details = sheetService.updateProficiencies(aria, new ProficienciesRequest(
                 Set.of(Skill.STEALTH, Skill.PERCEPTION), Set.of(Skill.STEALTH),
                 Set.of(AbilityScore.DEXTERITY, AbilityScore.INTELLIGENCE)), player).details();
 
@@ -107,30 +117,30 @@ class FullSheetTests {
         assertEquals(10 + 1 + prof, characterService.getCharacterSheet(aria, player).combat().passivePerception());
 
         assertThrows(ResponseStatusException.class, () -> sheetService.updateProficiencies(aria,
-                new SheetRequests.Proficiencies(Set.of(), Set.of(Skill.ARCANA), Set.of()), player),
+                new ProficienciesRequest(Set.of(), Set.of(Skill.ARCANA), Set.of()), player),
                 "especializacao sem proficiencia");
     }
 
     @Test
     void conditionsAndExhaustionChangeTheRolls() {
-        sheetService.updateConditions(aria, new SheetRequests.Conditions(Set.of(Condition.POISONED), 2), player);
+        sheetService.updateConditions(aria, new ConditionsRequest(Set.of(Condition.POISONED), 2), player);
 
         SheetRollResponse check = sheetService.roll(aria,
-                new SheetRequests.Roll(SheetRequests.RollKind.SKILL, Skill.STEALTH, null, RollMode.NORMAL, false), player);
+                new SheetRollRequest(SheetRollRequest.RollKind.SKILL, Skill.STEALTH, null, RollMode.NORMAL, false), player);
         assertTrue(check.roll().expression().startsWith("2d20kl1"), "envenenado = desvantagem");
         assertTrue(check.notes().contains("Exhaustion 2: -4"));
 
         SheetRollResponse both = sheetService.roll(aria,
-                new SheetRequests.Roll(SheetRequests.RollKind.SKILL, Skill.STEALTH, null, RollMode.ADVANTAGE, false), player);
+                new SheetRollRequest(SheetRollRequest.RollKind.SKILL, Skill.STEALTH, null, RollMode.ADVANTAGE, false), player);
         assertTrue(both.roll().expression().startsWith("1d20"), "vantagem e desvantagem se anulam");
         assertEquals(20, characterService.getCharacterSheet(aria, player).details().currentSpeedFt(), "30 - 2x5");
 
-        sheetService.updateConditions(aria, new SheetRequests.Conditions(Set.of(Condition.PARALYZED), 0), player);
+        sheetService.updateConditions(aria, new ConditionsRequest(Set.of(Condition.PARALYZED), 0), player);
         assertEquals("AUTOMATIC_FAILURE", sheetService.roll(aria,
-                new SheetRequests.Roll(SheetRequests.RollKind.SAVE, null, AbilityScore.DEXTERITY, null, false), player).outcome());
+                new SheetRollRequest(SheetRollRequest.RollKind.SAVE, null, AbilityScore.DEXTERITY, null, false), player).outcome());
 
         assertThrows(ResponseStatusException.class, () -> sheetService.updateConditions(aria,
-                new SheetRequests.Conditions(null, 7), player));
+                new ConditionsRequest(null, 7), player));
     }
 
     @Test
@@ -156,12 +166,12 @@ class FullSheetTests {
         var slots = characterService.getCharacterSheet(aria, player).details().spellSlots();
         assertEquals(3, slots.getFirst().total(), "maga 2: tres espacos de 1o nivel");
         for (int i = 0; i < 3; i++) {
-            sheetService.spendSpellSlot(aria, new SheetRequests.SpendSlot(SpellSlotPool.STANDARD, 1), player);
+            sheetService.spendSpellSlot(aria, new SpendSpellSlotRequest(SpellSlotPool.STANDARD, 1), player);
         }
         assertThrows(ResponseStatusException.class,
-                () -> sheetService.spendSpellSlot(aria, new SheetRequests.SpendSlot(SpellSlotPool.STANDARD, 1), player));
+                () -> sheetService.spendSpellSlot(aria, new SpendSpellSlotRequest(SpellSlotPool.STANDARD, 1), player));
         assertThrows(ResponseStatusException.class,
-                () -> sheetService.spendSpellSlot(aria, new SheetRequests.SpendSlot(SpellSlotPool.STANDARD, 2), player));
+                () -> sheetService.spendSpellSlot(aria, new SpendSpellSlotRequest(SpellSlotPool.STANDARD, 2), player));
 
         characterService.changeHitPoints(aria, new HitPointChangeRequest(HitPointChangeRequest.HitPointChangeType.DAMAGE, 20), player);
         Sheet sheet = characterRepository.findById(aria).orElseThrow().getSheet();
@@ -170,7 +180,7 @@ class FullSheetTests {
         assertEquals(20, rest.healed());
         assertEquals(3, sheet.getHitDiceRemaining());
 
-        var afterLong = sheetService.rest(aria, new SheetRequests.Rest(SheetRequests.RestType.LONG, 0), player).sheet();
+        var afterLong = sheetService.rest(aria, new RestRequest(RestRequest.RestType.LONG, 0), player).sheet();
         assertEquals(30, afterLong.combat().hpCurrent());
         assertEquals(0, afterLong.details().spellSlots().getFirst().spent());
         assertEquals(5, afterLong.details().hitDiceRemaining(), "recupera metade (2) dos 5");
@@ -178,10 +188,10 @@ class FullSheetTests {
 
     @Test
     void attacksRollToHitAndDamageAndCanGoToChat() {
-        UUID attackId = sheetService.addAttack(aria, new SheetRequests.Attack("Rapier", 6, "1d8+3", "piercing", null), player)
+        UUID attackId = sheetService.addAttack(aria, new AttackRequest("Rapier", 6, "1d8+3", "piercing", null), player)
                 .details().attacks().getFirst().id();
 
-        SheetRollResponse attack = sheetService.rollAttack(aria, attackId, new SheetRequests.AttackRoll(null, 1, true), player);
+        SheetRollResponse attack = sheetService.rollAttack(aria, attackId, new AttackRollRequest(null, 1, true), player);
         assertTrue(attack.roll().expression().startsWith("1d20+6"));
         assertNotNull(attack.chatMessageId());
         if (!attack.roll().isCriticalFail()) {
@@ -193,7 +203,7 @@ class FullSheetTests {
         assertTrue(card.content().startsWith("Aria - Rapier (piercing): 1d20["));
 
         assertThrows(ResponseStatusException.class, () -> sheetService.addAttack(aria,
-                new SheetRequests.Attack("Bad", 1, "banana", null, null), player));
+                new AttackRequest("Bad", 1, "banana", null, null), player));
         assertEquals(0, sheetService.removeAttack(aria, attackId, player).details().attacks().size());
     }
 
@@ -203,22 +213,22 @@ class FullSheetTests {
         Species elf = speciesRepository.save(new Species("Elf-" + UUID.randomUUID(), xphb));
         FeatDefinition alert = featRepository.save(new FeatDefinition("Alert-" + UUID.randomUUID(), xphb));
 
-        var sheet = sheetService.chooseOrigin(aria, new SheetRequests.Origin(elf.getId(), null), player);
+        var sheet = sheetService.chooseOrigin(aria, new OriginRequest(elf.getId(), null), player);
         assertEquals(elf.getName(), sheet.details().species().name());
-        sheet = sheetService.addCatalogFeat(aria, new SheetRequests.CatalogFeat(alert.getId(), 1, null), player);
+        sheet = sheetService.addCatalogFeat(aria, new CatalogFeatRequest(alert.getId(), 1, null), player);
         assertEquals(alert.getName(), sheet.details().feats().getFirst().name());
         assertThrows(ResponseStatusException.class, () -> sheetService.addCatalogFeat(aria,
-                new SheetRequests.CatalogFeat(alert.getId(), 4, null), player), "talento nao repetivel");
+                new CatalogFeatRequest(alert.getId(), 4, null), player), "talento nao repetivel");
 
         assertThrows(AccessDeniedException.class, () -> sheetService.gainExperience(aria,
-                new SheetRequests.Experience(1000), player), "jogador nao se da XP");
-        var withXp = sheetService.gainExperience(aria, new SheetRequests.Experience(6600), master).details();
+                new ExperienceRequest(1000), player), "jogador nao se da XP");
+        var withXp = sheetService.gainExperience(aria, new ExperienceRequest(6600), master).details();
         assertEquals(5, withXp.levelByExperience());
         assertEquals(14000 - 6600, withXp.experienceToNextLevel());
 
-        assertEquals("/image/abc", sheetService.changePortrait(aria, new SheetRequests.Portrait("/image/abc"), player)
+        assertEquals("/image/abc", sheetService.changePortrait(aria, new PortraitRequest("/image/abc"), player)
                 .details().portraitUrl());
-        assertNull(sheetService.changePortrait(aria, new SheetRequests.Portrait(" "), player).details().portraitUrl());
+        assertNull(sheetService.changePortrait(aria, new PortraitRequest(" "), player).details().portraitUrl());
     }
 
     private static CharacterSheetResponse.SkillInfo skill(CharacterSheetResponse.DetailsInfo details, Skill skill) {

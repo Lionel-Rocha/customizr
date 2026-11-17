@@ -1,5 +1,8 @@
 package top.customizr.system;
 
+import top.customizr.system.dto.AttackRequest;
+import top.customizr.system.dto.PortraitRequest;
+import top.customizr.system.dto.ProficienciesRequest;
 import jakarta.transaction.Transactional;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,7 +20,6 @@ import top.customizr.system.dto.EncyclopediaEntryRequest;
 import top.customizr.system.dto.ImageResponse;
 import top.customizr.system.dto.InventoryMoneyRequest;
 import top.customizr.system.dto.InventoryResponse;
-import top.customizr.system.dto.SheetRequests;
 import top.customizr.system.dto.UpdateAttributesRequest;
 import top.customizr.system.dto.UpdateCombatStatsRequest;
 import top.customizr.system.dto.WorldRequest;
@@ -137,9 +139,9 @@ class CampaignTransferAndCoinsTests {
         characterService.updateAttributes(hero.getCharacterId(), new UpdateAttributesRequest(16, 12, 14, 8, 10, 13), player);
         characterService.addClass(hero.getCharacterId(), new AddCharacterClassRequest(fighter.getClassId(), 3), player);
         characterService.updateCombatStats(hero.getCharacterId(), new UpdateCombatStatsRequest(28, 20, null, 18, 30), player);
-        sheetService.updateProficiencies(hero.getCharacterId(), new SheetRequests.Proficiencies(Set.of(Skill.ATHLETICS), null, null), player);
-        sheetService.addAttack(hero.getCharacterId(), new SheetRequests.Attack("Longsword", 5, "1d8+3", "slashing", null), player);
-        sheetService.changePortrait(hero.getCharacterId(), new SheetRequests.Portrait(map.url()), player);
+        sheetService.updateProficiencies(hero.getCharacterId(), new ProficienciesRequest(Set.of(Skill.ATHLETICS), null, null), player);
+        sheetService.addAttack(hero.getCharacterId(), new AttackRequest("Longsword", 5, "1d8+3", "slashing", null), player);
+        sheetService.changePortrait(hero.getCharacterId(), new PortraitRequest(map.url()), player);
         var inventory = inventoryService.getOrCreateCharacterInventory(hero);
         inventoryService.addItem(hero, inventory.getId(), rope.getId(), 2);
         inventoryService.changeMoney(hero, inventory.getId(), new BigDecimal("12.5"));

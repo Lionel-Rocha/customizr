@@ -1,12 +1,14 @@
 package top.customizr.system.service;
 
+import top.customizr.system.dto.BackgroundResponse;
+import top.customizr.system.dto.FeatResponse;
+import top.customizr.system.dto.SpeciesResponse;
 import jakarta.transaction.Transactional;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 import tools.jackson.databind.JsonNode;
 import top.customizr.system.dto.ContentImportResponse;
-import top.customizr.system.dto.ContentResponse;
 import top.customizr.system.model.Background;
 import top.customizr.system.model.EntriesRenderer;
 import top.customizr.system.model.FeatDefinition;
@@ -40,17 +42,20 @@ public class ContentImportService {
     private final BackgroundRepository backgroundRepository;
     private final FeatDefinitionRepository featRepository;
     private final SourceRepository sourceRepository;
+    private final tools.jackson.databind.ObjectMapper objectMapper;
 
     public ContentImportService(
             SpeciesRepository speciesRepository,
             BackgroundRepository backgroundRepository,
             FeatDefinitionRepository featRepository,
-            SourceRepository sourceRepository
+            SourceRepository sourceRepository,
+            tools.jackson.databind.ObjectMapper objectMapper
     ) {
         this.speciesRepository = speciesRepository;
         this.backgroundRepository = backgroundRepository;
         this.featRepository = featRepository;
         this.sourceRepository = sourceRepository;
+        this.objectMapper = objectMapper;
     }
 
     // ------------------------------------------------------------------ importacao
@@ -68,7 +73,9 @@ public class ContentImportService {
             boolean created = species == null;
             if (created) species = new Species(name, source);
             species.update(size(entry.path("size")), speed(entry.path("speed")),
-                    EntriesRenderer.abilityBonuses(entry.path("ability")), EntriesRenderer.render(entry.path("entries")));
+                    EntriesRenderer.abilityBonuses(entry.path("ability")));
+            species.updateSourceData(rawEntries(entry.path("entries")), EntriesRenderer.render(entry.path("entries")),
+                    page(entry), toMap(entry));
             species = speciesRepository.save(species);
             result.add(created, species.getId(), name, source.getCode());
         }
@@ -88,8 +95,9 @@ public class ContentImportService {
             boolean created = background == null;
             if (created) background = new Background(name, source);
             background.update(EntriesRenderer.abilityBonuses(entry.path("ability")),
-                    keysOf(entry.path("skillProficiencies")), firstKey(entry.path("feats")),
-                    EntriesRenderer.render(entry.path("entries")));
+                    keysOf(entry.path("skillProficiencies")), firstKey(entry.path("feats")));
+            background.updateSourceData(rawEntries(entry.path("entries")), EntriesRenderer.render(entry.path("entries")),
+                    page(entry), toMap(entry));
             background = backgroundRepository.save(background);
             result.add(created, background.getId(), name, source.getCode());
         }
@@ -110,8 +118,9 @@ public class ContentImportService {
             if (created) feat = new FeatDefinition(name, source);
             String category = entry.path("category").asText(null);
             feat.update(category == null ? null : FEAT_CATEGORIES.getOrDefault(category, category),
-                    prerequisite(entry.path("prerequisite")), entry.path("repeatable").asBoolean(false),
-                    EntriesRenderer.render(entry.path("entries")));
+                    prerequisite(entry.path("prerequisite")), entry.path("repeatable").asBoolean(false));
+            feat.updateSourceData(rawEntries(entry.path("entries")), EntriesRenderer.render(entry.path("entries")),
+                    page(entry), toMap(entry));
             feat = featRepository.save(feat);
             result.add(created, feat.getId(), name, source.getCode());
         }
@@ -120,25 +129,39 @@ public class ContentImportService {
 
     // ------------------------------------------------------------------ consulta
 
-    public List<ContentResponse.SpeciesInfo> species(String name) {
+    public List<SpeciesResponse> species(String name) {
         return (name == null || name.isBlank() ? speciesRepository.findAllByOrderByName()
                 : speciesRepository.findByNameContainingIgnoreCaseOrderByName(name.trim()))
-                .stream().map(ContentResponse.SpeciesInfo::from).toList();
+                .stream().map(SpeciesResponse::from).toList();
     }
 
-    public List<ContentResponse.BackgroundInfo> backgrounds(String name) {
+    public List<BackgroundResponse> backgrounds(String name) {
         return (name == null || name.isBlank() ? backgroundRepository.findAllByOrderByName()
                 : backgroundRepository.findByNameContainingIgnoreCaseOrderByName(name.trim()))
-                .stream().map(ContentResponse.BackgroundInfo::from).toList();
+                .stream().map(BackgroundResponse::from).toList();
     }
 
-    public List<ContentResponse.FeatInfo> feats(String name) {
+    public List<FeatResponse> feats(String name) {
         return (name == null || name.isBlank() ? featRepository.findAllByOrderByName()
                 : featRepository.findByNameContainingIgnoreCaseOrderByName(name.trim()))
-                .stream().map(ContentResponse.FeatInfo::from).toList();
+                .stream().map(FeatResponse::from).toList();
     }
 
     // ------------------------------------------------------------------ leitura do 5etools
+
+    /** Entrada original como Map (vai pra coluna JSON metadata, como no ClassService). */
+    private java.util.Map<String, Object> toMap(JsonNode node) {
+        return objectMapper.convertValue(node, new tools.jackson.core.type.TypeReference<>() {});
+    }
+
+    /** "entries" cru em JSON (com as tags {@...}), igual ao Feature.description do ClassService. */
+    private static String rawEntries(JsonNode entries) {
+        return entries == null || entries.isNull() || entries.isMissingNode() ? null : entries.toString();
+    }
+
+    private static Integer page(JsonNode entry) {
+        return entry.path("page").canConvertToInt() ? entry.path("page").asInt() : null;
+    }
 
     private JsonNode array(JsonNode payload, String... keys) {
         if (payload != null) {

@@ -1,5 +1,16 @@
 package top.customizr.system.controllers;
 
+import top.customizr.system.dto.AttackRequest;
+import top.customizr.system.dto.AttackRollRequest;
+import top.customizr.system.dto.CatalogFeatRequest;
+import top.customizr.system.dto.ConditionsRequest;
+import top.customizr.system.dto.ExperienceRequest;
+import top.customizr.system.dto.OriginRequest;
+import top.customizr.system.dto.PortraitRequest;
+import top.customizr.system.dto.ProficienciesRequest;
+import top.customizr.system.dto.RestRequest;
+import top.customizr.system.dto.SheetRollRequest;
+import top.customizr.system.dto.SpendSpellSlotRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -20,7 +31,6 @@ import top.customizr.system.dto.ChooseSubclassRequest;
 import top.customizr.system.dto.CreateCharacterRequest;
 import top.customizr.system.dto.UpdateAttributesRequest;
 import top.customizr.system.dto.UpdateCharacterRequest;
-import top.customizr.system.dto.SheetRequests;
 import top.customizr.system.dto.CharacterImportResponse;
 import top.customizr.system.service.CharacterImportService;
 import top.customizr.system.dto.UpdateCombatStatsRequest;
@@ -53,37 +63,37 @@ public class CharacterController {
     // ------------------------------------------------------------------ ficha completa (CharacterSheetService)
 
     @PutMapping("/{id}/origin")
-    public CharacterSheetResponse chooseOrigin(@PathVariable UUID id, @RequestBody SheetRequests.Origin request,
+    public CharacterSheetResponse chooseOrigin(@PathVariable UUID id, @RequestBody OriginRequest request,
                                                @AuthenticationPrincipal UserDetails loggedUser) {
         return sheetService.chooseOrigin(id, request, loggedUser.getUsername());
     }
 
     @PutMapping("/{id}/proficiencies")
-    public CharacterSheetResponse updateProficiencies(@PathVariable UUID id, @RequestBody SheetRequests.Proficiencies request,
+    public CharacterSheetResponse updateProficiencies(@PathVariable UUID id, @RequestBody ProficienciesRequest request,
                                                       @AuthenticationPrincipal UserDetails loggedUser) {
         return sheetService.updateProficiencies(id, request, loggedUser.getUsername());
     }
 
     @PutMapping("/{id}/conditions")
-    public CharacterSheetResponse updateConditions(@PathVariable UUID id, @RequestBody SheetRequests.Conditions request,
+    public CharacterSheetResponse updateConditions(@PathVariable UUID id, @RequestBody ConditionsRequest request,
                                                    @AuthenticationPrincipal UserDetails loggedUser) {
         return sheetService.updateConditions(id, request, loggedUser.getUsername());
     }
 
     @PostMapping("/{id}/spell-slots/spend")
-    public CharacterSheetResponse spendSpellSlot(@PathVariable UUID id, @RequestBody SheetRequests.SpendSlot request,
+    public CharacterSheetResponse spendSpellSlot(@PathVariable UUID id, @RequestBody SpendSpellSlotRequest request,
                                                  @AuthenticationPrincipal UserDetails loggedUser) {
         return sheetService.spendSpellSlot(id, request, loggedUser.getUsername());
     }
 
     @PostMapping("/{id}/rest")
-    public top.customizr.system.dto.RestResponse rest(@PathVariable UUID id, @RequestBody SheetRequests.Rest request,
+    public top.customizr.system.dto.RestResponse rest(@PathVariable UUID id, @RequestBody RestRequest request,
                                                       @AuthenticationPrincipal UserDetails loggedUser) {
         return sheetService.rest(id, request, loggedUser.getUsername());
     }
 
     @PostMapping("/{id}/attacks")
-    public CharacterSheetResponse addAttack(@PathVariable UUID id, @RequestBody SheetRequests.Attack request,
+    public CharacterSheetResponse addAttack(@PathVariable UUID id, @RequestBody AttackRequest request,
                                             @AuthenticationPrincipal UserDetails loggedUser) {
         return sheetService.addAttack(id, request, loggedUser.getUsername());
     }
@@ -96,20 +106,20 @@ public class CharacterController {
 
     @PostMapping("/{id}/attacks/{attackId}/roll")
     public top.customizr.system.dto.SheetRollResponse rollAttack(@PathVariable UUID id, @PathVariable UUID attackId,
-                                                                 @RequestBody(required = false) SheetRequests.AttackRoll request,
+                                                                 @RequestBody(required = false) AttackRollRequest request,
                                                                  @AuthenticationPrincipal UserDetails loggedUser) {
         return sheetService.rollAttack(id, attackId, request, loggedUser.getUsername());
     }
 
     /** Teste de pericia, atributo, salvaguarda, iniciativa ou contra a morte (toChat = vai pro chat). */
     @PostMapping("/{id}/roll")
-    public top.customizr.system.dto.SheetRollResponse roll(@PathVariable UUID id, @RequestBody SheetRequests.Roll request,
+    public top.customizr.system.dto.SheetRollResponse roll(@PathVariable UUID id, @RequestBody SheetRollRequest request,
                                                            @AuthenticationPrincipal UserDetails loggedUser) {
         return sheetService.roll(id, request, loggedUser.getUsername());
     }
 
     @PostMapping("/{id}/catalog-feats")
-    public CharacterSheetResponse addCatalogFeat(@PathVariable UUID id, @RequestBody SheetRequests.CatalogFeat request,
+    public CharacterSheetResponse addCatalogFeat(@PathVariable UUID id, @RequestBody CatalogFeatRequest request,
                                                  @AuthenticationPrincipal UserDetails loggedUser) {
         return sheetService.addCatalogFeat(id, request, loggedUser.getUsername());
     }
@@ -122,14 +132,14 @@ public class CharacterController {
 
     /** So o mestre. Body: {"amount": 300} (negativo tira). */
     @PostMapping("/{id}/experience")
-    public CharacterSheetResponse gainExperience(@PathVariable UUID id, @RequestBody SheetRequests.Experience request,
+    public CharacterSheetResponse gainExperience(@PathVariable UUID id, @RequestBody ExperienceRequest request,
                                                  @AuthenticationPrincipal UserDetails loggedUser) {
         return sheetService.gainExperience(id, request, loggedUser.getUsername());
     }
 
     /** Body: {"portraitUrl": "/image/..."} */
     @PutMapping("/{id}/portrait")
-    public CharacterSheetResponse changePortrait(@PathVariable UUID id, @RequestBody SheetRequests.Portrait request,
+    public CharacterSheetResponse changePortrait(@PathVariable UUID id, @RequestBody PortraitRequest request,
                                                  @AuthenticationPrincipal UserDetails loggedUser) {
         return sheetService.changePortrait(id, request, loggedUser.getUsername());
     }

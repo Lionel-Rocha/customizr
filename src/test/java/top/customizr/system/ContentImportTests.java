@@ -54,7 +54,9 @@ class ContentImportTests {
         var elf = contentImportService.species("elf").getFirst();
         assertEquals("Medium", elf.size());
         assertEquals(30, elf.speedFt());
-        assertTrue(elf.description().contains("Darkvision. You have Darkvision with a range of 60 feet."));
+        assertTrue(elf.descriptionText().contains("Darkvision. You have Darkvision with a range of 60 feet."));
+        assertTrue(elf.description().contains("{@sense Darkvision|XPHB}"), "description fica cru com as tags, como o Feature");
+        assertEquals("XPHB", elf.source());
         var dwarf = contentImportService.species("Dwarf").getFirst();
         assertEquals(25, dwarf.speedFt());
         assertEquals("CON +2", dwarf.abilityScoreIncreases());
@@ -82,7 +84,7 @@ class ContentImportTests {
         assertTrue(acolyte.abilityScoreIncreases().startsWith("choose from INT, WIS, CHA"));
         assertEquals("Insight, Religion", acolyte.skillProficiencies());
         assertEquals("Magic Initiate; Cleric", acolyte.grantedFeat());
-        assertEquals("- Skill Proficiencies: Insight and Religion", acolyte.description());
+        assertEquals("- Skill Proficiencies: Insight and Religion", acolyte.descriptionText());
     }
 
     @Test
@@ -101,7 +103,7 @@ class ContentImportTests {
         assertEquals("Copies of other entries (_copy) are not supported yet", result.skipped().getFirst().reason());
         var alert = contentImportService.feats("alert").getFirst();
         assertEquals("Origin", alert.category());
-        assertTrue(alert.description().contains("add your Proficiency Bonus"));
+        assertTrue(alert.descriptionText().contains("add your Proficiency Bonus"));
         var grappler = contentImportService.feats("Grappler").getFirst();
         assertEquals("General", grappler.category());
         assertEquals("Level 4, STR 13+ or DEX 13+", grappler.prerequisite());

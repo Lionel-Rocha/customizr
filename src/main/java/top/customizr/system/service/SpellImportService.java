@@ -45,12 +45,14 @@ public class SpellImportService {
     private final SpellRepository spellRepository;
     private final SourceRepository sourceRepository;
     private final DndClassRepository dndClassRepository;
+    private final tools.jackson.databind.ObjectMapper objectMapper;
 
     public SpellImportService(SpellRepository spellRepository, SourceRepository sourceRepository,
-                              DndClassRepository dndClassRepository) {
+                              DndClassRepository dndClassRepository, tools.jackson.databind.ObjectMapper objectMapper) {
         this.spellRepository = spellRepository;
         this.sourceRepository = sourceRepository;
         this.dndClassRepository = dndClassRepository;
+        this.objectMapper = objectMapper;
     }
 
     @Transactional
@@ -82,6 +84,7 @@ public class SpellImportService {
                 } else {
                     spell.update(name, p.school, p.level, p.time, p.rangeFt, p.components, p.duration, source, p.description);
                 }
+                spell.updateImportMetadata(objectMapper.convertValue(entry, new tools.jackson.core.type.TypeReference<>() {}));
                 spell = spellRepository.save(spell);
                 linkClasses(spell, entry.path("classes").path("fromClassList"));
                 (isNew ? created : updated).add(new ContentImportResponse.Processed(spell.getSpellId(), name, code));

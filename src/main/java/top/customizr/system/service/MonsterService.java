@@ -32,10 +32,13 @@ public class MonsterService {
 
     private final MonsterRepository monsterRepository;
     private final SourceRepository sourceRepository;
+    private final tools.jackson.databind.ObjectMapper objectMapper;
 
-    public MonsterService(MonsterRepository monsterRepository, SourceRepository sourceRepository) {
+    public MonsterService(MonsterRepository monsterRepository, SourceRepository sourceRepository,
+                          tools.jackson.databind.ObjectMapper objectMapper) {
         this.monsterRepository = monsterRepository;
         this.sourceRepository = sourceRepository;
+        this.objectMapper = objectMapper;
     }
 
     /** Arquivo bestiary-*.json do 5etools ({"monster": [...]}); cria ou atualiza por nome + fonte. */
@@ -68,6 +71,8 @@ public class MonsterService {
                 boolean isNew = monster == null;
                 if (isNew) monster = new Monster(name, source);
                 fill(monster, e);
+                monster.updateSourceData(e.path("page").canConvertToInt() ? e.path("page").asInt() : null,
+                        objectMapper.convertValue(e, new tools.jackson.core.type.TypeReference<>() {}));
                 monster = monsterRepository.save(monster);
                 (isNew ? created : updated).add(new ContentImportResponse.Processed(monster.getId(), name, code));
             } catch (IllegalArgumentException ex) {

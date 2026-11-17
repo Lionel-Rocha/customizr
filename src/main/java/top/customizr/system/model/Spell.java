@@ -69,6 +69,11 @@ public class Spell {
     @Column(name = "description", columnDefinition = "text", nullable = false)
     private String description;
 
+    /** Entrada original do 5etools (so nas importadas), como o metadata do Feature/DndClass. */
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
+    @Column(columnDefinition = "json")
+    private java.util.Map<String, Object> metadata;
+
     protected Spell() {}
 
     public Spell(
@@ -121,5 +126,9 @@ public class Spell {
         this.concentration = duration.isConcentration();
         this.source = source;
         this.description = description.trim();
+    }
+
+    public void updateImportMetadata(java.util.Map<String, Object> metadata) {
+        this.metadata = metadata;
     }
 }

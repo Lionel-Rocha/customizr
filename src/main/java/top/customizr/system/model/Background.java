@@ -38,8 +38,23 @@ public class Background {
     private String grantedFeat;
 
 
+
+    // Mesmo padrao do Feature/DndClass: description = "entries" do 5etools em JSON cru (com as tags {@...}
+    // pro front renderizar), descriptionText = o mesmo ja em texto, metadata = a entrada original inteira.
     @Column(columnDefinition = "TEXT")
     private String description;
+
+    @Column(name = "description_text", columnDefinition = "TEXT")
+    private String descriptionText;
+
+    @Column(name = "source_code")
+    private String sourceCode;
+
+    private Integer page;
+
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
+    @Column(columnDefinition = "json")
+    private java.util.Map<String, Object> metadata;
 
     protected Background() {}
 
@@ -55,10 +70,18 @@ public class Background {
         this.source = source;
     }
 
-    public void update(String abilityScoreIncreases, String skillProficiencies, String grantedFeat, String description) {
+    public void update(String abilityScoreIncreases, String skillProficiencies, String grantedFeat) {
         this.abilityScoreIncreases = abilityScoreIncreases;
         this.skillProficiencies = skillProficiencies;
         this.grantedFeat = grantedFeat;
-        this.description = description;
+    }
+
+    /** Dados da importacao do 5etools (descricao crua com tags, texto pronto, pagina e a entrada original). */
+    public void updateSourceData(String rawEntries, String descriptionText, Integer page, java.util.Map<String, Object> metadata) {
+        this.description = rawEntries;
+        this.descriptionText = descriptionText;
+        this.sourceCode = source.getCode();
+        this.page = page;
+        this.metadata = metadata;
     }
 }
