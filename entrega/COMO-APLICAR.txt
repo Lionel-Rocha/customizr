@@ -1,0 +1,32 @@
+Mesclagem da mesa no Customizr - como aplicar
+==============================================
+
+O arquivo customizr-mesclagem-mesa.bundle tem 10 commits na branch "mesclagem-mesa",
+em cima do commit e740c23 ("Consertando import de classes"), que ja esta no seu repositorio.
+Nada do seu main e alterado: os commits chegam numa branch separada para revisar.
+
+1. Coloque o arquivo .bundle em qualquer pasta (ex.: Downloads).
+
+2. No terminal, dentro do seu clone do customizr:
+
+     git bundle verify CAMINHO/customizr-mesclagem-mesa.bundle
+     git fetch CAMINHO/customizr-mesclagem-mesa.bundle mesclagem-mesa:mesclagem-mesa
+     git switch mesclagem-mesa
+
+   (o "verify" so confere que o arquivo esta inteiro e que voce tem o commit e740c23)
+
+3. Leia o MESCLAGEM.md na raiz do projeto: e o resumo do que mudou, o que mexe em codigo
+   seu e o que fazer no banco antes de colocar no ar (o script de INT/SAB).
+
+4. Para testar:  mvn test   (69 testes, com H2; nao precisa do banco)
+   Para ver a tela de jogo: suba o servidor e abra /mesa no navegador.
+
+5. Se gostar, junte no main do jeito que preferir, por exemplo:
+
+     git switch main
+     git merge mesclagem-mesa
+     git push
+
+   Ou mande a branch pro GitHub e abra um pull request pra revisar por la:
+
+     git push -u origin mesclagem-mesa
