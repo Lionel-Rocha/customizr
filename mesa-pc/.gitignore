@@ -1,0 +1,12 @@
+# Fica so no PC (nao vai pro repositorio publico):
+# - conteudo dos livros (bestiario e compendio do 5etools): direitos autorais
+vtt-client/bestiario-seed/*.json
+vtt-client/compendio-seed/*.json
+vtt-client/compendio-seed/5etools-json/
+vtt-client/src/main/resources/seed/
+# - programas montados e copias (gerados a partir do codigo)
+Customizr/
+Customizr-Ponte/*.jar
+Customizr.lnk
+backup-customizr-main-original.zip
+vtt-client/target/

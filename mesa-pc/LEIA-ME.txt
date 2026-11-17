@@ -1,0 +1,31 @@
+Organizacao da pasta D:\customizr-main
+=======================================
+
+D:\customizr-main\            Repositorio do Customizr (servidor Spring Boot da sua esposa).
+                              Branch "mesclagem-mesa" = o que vai pra ela (8 commits, ainda nao enviados).
+                              Resumo da mesclagem: MESCLAGEM.md
+
+D:\customizr-main\entrega\    O que mandar pra ela:
+                                customizr-mesclagem-mesa.bundle  (os commits da branch)
+                                COMO-APLICAR.txt                 (passo a passo pra ela)
+
+D:\customizr-main\mesa-pc\    Nosso programa de mesa de PC (JavaFX), FORA do git:
+                                vtt-client\                      codigo-fonte do programa
+                                Customizr\                       o Customizr.exe pronto (gerado)
+                                Customizr-Ponte\                 a ponte pra jogar pela internet (gerada)
+                                Criar launcher do Customizr.cmd  gera de novo o Customizr.exe
+                                Criar ponte do Customizr.cmd     gera de novo a ponte
+                                rodar.cmd                        abre o programa sem gerar o .exe
+                                INTEGRACAO-CUSTOMIZR.md          o plano de integracao
+                                backup-customizr-main-original.zip  copia do projeto dela antes de tudo
+
+As pastas entrega\ e mesa-pc\ estao no "ignore" local do git (.git\info\exclude): ficam juntas
+aqui, mas nunca vao pro GitHub dela. O bestiario e o compendio do programa de PC sao conteudo
+dos livros e NAO podem ir pra repositorio publico.
+
+As mesas e preferencias do programa de PC continuam em C:\Users\WIN 11\.vttcaseiro (nao mudaram).
+
+O QUE NAO VAI PRO GITHUB (o repositorio e publico)
+- Conteudo dos livros: vtt-client/bestiario-seed/*.json, vtt-client/compendio-seed/*.json e vtt-client/src/main/resources/seed/. Sem eles o programa abre normal; so o botao de conteudo pronto avisa que falta. Para ter de volta, use seus proprios arquivos do 5etools (ver os LEIA-ISTO.md das pastas).
+- Programas montados: Customizr/ (exe com Java embutido), Customizr-Ponte/*.jar e vtt-client/target/. Saem do codigo com os scripts "Criar launcher" e "Criar ponte".
+- backup-customizr-main-original.zip e Customizr.lnk (so deste PC).

@@ -1,0 +1,4 @@
+# Scripts do Windows precisam de CRLF (cmd.exe se perde com LF em labels/goto).
+*.cmd text eol=crlf
+*.bat text eol=crlf
+mvnw text eol=lf

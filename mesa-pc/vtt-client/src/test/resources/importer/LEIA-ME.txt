@@ -1,0 +1,8 @@
+foundry-randal-human-fighter.json: heroi de exemplo do sistema dnd5e do Foundry VTT
+(github.com/foundryvtt/dnd5e, packs/_source/heroes/randal-human-fighter.yml, licenca MIT),
+convertido de YAML pra JSON (mesmo formato do "Export Data" do Foundry). Usado no SheetImportTest.
+watabou-thunderfire-labyrinth.json: masmorra gerada no One Page Dungeon (watabou.github.io/one-page-dungeon,
+seed 796600421, versao 1.2.7) e exportada pelo menu Export as > JSON. Usada no MapImportTest.
+azgaar-solia-recorte.json: recorte (info, reinos, capitais e as 20 maiores cidades) de um mundo gerado no
+Azgaar's Fantasy Map Generator 1.158 (seed 555947063, 1024x768) e exportado em JSON "Completo".
+O arquivo completo (9,6 MB, 1158 povoados) foi testado a mao: leitura em ~1 s, pins em cima das cidades do PNG.

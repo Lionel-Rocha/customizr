@@ -1,0 +1,966 @@
+/*
+ * Tema do Customizr ("taverna aconchegante": madeira escura, ambar e creme). Paleta unica usada em toda a aplicacao -- mesma
+ * ideia do theme.lua do projeto irmao (Firecast): definir as cores uma
+ * vez e reusar, em vez de cada tela inventar a propria cor solta.
+ *
+ * Paleta:
+ *   fundo principal   #1B1411
+ *   paineis/barras     #241B16
+ *   cartoes/campos     #2C221C
+ *   borda sutil        #45342A
+ *   destaque (dourado) #E8A23E
+ *   destaque claro     #FFCF7F
+ *   texto principal    #F6E9D3
+ *   texto apagado      #B09A82
+ *   perigo/erro        #D9544C
+ *   sucesso            #3FBE6E
+ */
+
+.root {
+    -fx-base: #1B1411;
+    -fx-background-color: #1B1411;
+    -fx-text-fill: #F6E9D3;
+    -fx-font-family: "Segoe UI", sans-serif;
+    -fx-font-size: 13px;
+    -fx-accent: #E8A23E;
+    -fx-focus-color: #E8A23E;
+    -fx-faint-focus-color: #E8A23E22;
+}
+
+/* ---------- Botoes ---------- */
+.button {
+    -fx-background-color: #352920;
+    -fx-text-fill: #F6E9D3;
+    -fx-background-radius: 5;
+    -fx-border-radius: 5;
+    -fx-border-color: #45342A;
+    -fx-border-width: 1;
+    -fx-padding: 6 12 6 12;
+    -fx-cursor: hand;
+}
+.button:hover {
+    -fx-background-color: #4A382C;
+    -fx-border-color: #E8A23E55;
+}
+.button:armed {
+    -fx-background-color: #4D3520;
+}
+.button:default {
+    -fx-background-color: #6E4416;
+    -fx-border-color: #E8A23E;
+    -fx-text-fill: #FFCF7F;
+}
+
+.button-primary {
+    -fx-background-color: #6E4416;
+    -fx-border-color: #E8A23E;
+    -fx-text-fill: #FFCF7F;
+    -fx-font-weight: bold;
+}
+.button-primary:hover {
+    -fx-background-color: #82521C;
+}
+
+.button-danger {
+    -fx-border-color: #D9544C;
+    -fx-text-fill: #E98D87;
+}
+
+.button-flat {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-text-fill: #B09A82;
+}
+.button-flat:hover {
+    -fx-text-fill: #F6E9D3;
+    -fx-background-color: #ffffff10;
+}
+
+/* aba de ferramenta ativa (toolbar flutuante do mapa) */
+.tool-button {
+    -fx-background-color: #241B16;
+    -fx-background-radius: 6;
+    -fx-border-radius: 6;
+    -fx-border-color: #45342A;
+    -fx-text-fill: #B09A82;
+    -fx-padding: 8;
+    -fx-min-width: 40;
+    -fx-cursor: hand;
+}
+.tool-button:hover {
+    -fx-border-color: #E8A23E;
+    -fx-text-fill: #F6E9D3;
+}
+.tool-button-active {
+    -fx-background-color: #6E4416;
+    -fx-border-color: #E8A23E;
+    -fx-text-fill: #FFCF7F;
+}
+
+/* ---------- Campos de texto ---------- */
+.text-field, .text-area, .combo-box, .choice-box {
+    -fx-background-color: #2C221C;
+    -fx-text-fill: #F6E9D3;
+    -fx-prompt-text-fill: #7D6A58;
+    -fx-background-radius: 5;
+    -fx-border-radius: 5;
+    -fx-border-color: #45342A;
+    -fx-border-width: 1;
+    -fx-padding: 5 8 5 8;
+}
+.text-field:focused, .combo-box:focused {
+    -fx-border-color: #E8A23E;
+}
+.combo-box .list-cell {
+    -fx-text-fill: #F6E9D3;
+    -fx-background-color: #2C221C;
+}
+.combo-box-popup .list-view {
+    -fx-background-color: #2C221C;
+    -fx-border-color: #45342A;
+}
+
+/* ---------- Rotulos ---------- */
+.label {
+    -fx-text-fill: #F6E9D3;
+}
+.label-section {
+    -fx-text-fill: #E8A23E;
+    -fx-font-weight: bold;
+    -fx-font-size: 12px;
+}
+.label-muted {
+    -fx-text-fill: #B09A82;
+}
+.label-title {
+    -fx-text-fill: #F6E9D3;
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+}
+
+/* ---------- Abas (TabPane) ---------- */
+.tab-pane {
+    -fx-background-color: #1B1411;
+    -fx-tab-min-width: 70px;
+}
+.tab-pane .tab-header-area {
+    -fx-background-color: #241B16;
+    -fx-padding: 4 4 0 4;
+}
+.tab-pane .tab-header-background {
+    -fx-background-color: #241B16;
+}
+.tab {
+    -fx-background-color: #241B16;
+    -fx-background-radius: 6 6 0 0;
+    -fx-padding: 8 10 8 10;
+}
+.tab:selected {
+    -fx-background-color: #1B1411;
+    -fx-border-color: #E8A23E transparent transparent transparent;
+    -fx-border-width: 2 0 0 0;
+}
+.tab .tab-label {
+    -fx-text-fill: #B09A82;
+    -fx-font-size: 11px;
+}
+.tab:selected .tab-label {
+    -fx-text-fill: #FFCF7F;
+    -fx-font-weight: bold;
+}
+.tab-content-area {
+    -fx-background-color: #1B1411;
+}
+
+/* ---------- Listas ---------- */
+.list-view {
+    -fx-background-color: #1B1411;
+    -fx-control-inner-background: #1B1411;
+    -fx-border-color: transparent;
+}
+.list-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: #F6E9D3;
+    -fx-padding: 4 8 4 8;
+}
+.list-cell:filled:hover {
+    -fx-background-color: #241B16;
+}
+.list-cell:filled:selected {
+    -fx-background-color: #45342A;
+}
+
+/* ---------- Divisor (SplitPane) ---------- */
+.split-pane {
+    -fx-background-color: #1B1411;
+    -fx-padding: 0;
+}
+.split-pane-divider {
+    -fx-background-color: #45342A;
+    -fx-padding: 0 1 0 1;
+}
+.split-pane:horizontal > .split-pane-divider {
+    -fx-cursor: h-resize;
+}
+
+/* ---------- ScrollBar ---------- */
+.scroll-bar {
+    -fx-background-color: transparent;
+}
+.scroll-bar .thumb {
+    -fx-background-color: #45342A;
+    -fx-background-radius: 4;
+}
+.scroll-bar .thumb:hover {
+    -fx-background-color: #574233;
+}
+.scroll-bar .track {
+    -fx-background-color: transparent;
+}
+.scroll-bar .increment-button, .scroll-bar .decrement-button {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+}
+
+/* ---------- Barra superior ---------- */
+.top-bar {
+    -fx-background-color: #241B16;
+    -fx-border-color: transparent transparent #E8A23E transparent;
+    -fx-border-width: 0 0 2 0;
+    -fx-padding: 8 14 8 14;
+}
+.top-bar-title {
+    -fx-text-fill: #E8A23E;
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+}
+
+/* ---------- Chat / Log ---------- */
+.chat-panel {
+    -fx-background-color: #201814;
+    -fx-border-color: #45342A transparent transparent transparent;
+    -fx-border-width: 1 0 0 0;
+}
+.chat-entry {
+    -fx-padding: 5 10 5 10;
+    -fx-background-color: transparent;
+}
+.chat-entry-text {
+    -fx-text-fill: #F6E9D3;
+    -fx-wrap-text: true;
+    -fx-font-size: 12px;
+}
+.chat-entry-meta {
+    -fx-text-fill: #7D6A58;
+    -fx-font-size: 10px;
+}
+
+/* ---------- Dialogos ---------- */
+.dialog-pane {
+    -fx-background-color: #241B16;
+}
+.dialog-pane .content.label {
+    -fx-text-fill: #F6E9D3;
+}
+.dialog-pane .header-panel {
+    -fx-background-color: #2C221C;
+}
+.alert.error .dialog-pane {
+    -fx-border-color: #D9544C;
+    -fx-border-width: 2;
+}
+
+/* ---------- Tooltip ---------- */
+.tooltip {
+    -fx-background-color: #2C221C;
+    -fx-text-fill: #F6E9D3;
+    -fx-border-color: #E8A23E;
+    -fx-border-width: 1;
+    -fx-font-size: 11px;
+}
+
+/* ---------- Separador visual entre secoes de um painel ---------- */
+.section-divider {
+    -fx-background-color: #45342A;
+    -fx-pref-height: 1;
+    -fx-max-height: 1;
+}
+
+/* ---------- TextArea e TableView (usados na ficha 2024) ---------- */
+.text-area .content {
+    -fx-background-color: #2C221C;
+}
+.text-area .text {
+    -fx-fill: #F6E9D3;
+}
+.table-view {
+    -fx-background-color: #241B16;
+    -fx-border-color: #45342A;
+    -fx-control-inner-background: #2C221C;
+    -fx-control-inner-background-alt: #241B16;
+    -fx-table-cell-border-color: #45342A;
+}
+.table-view .column-header,
+.table-view .column-header-background,
+.table-view .filler {
+    -fx-background-color: #241B16;
+}
+.table-view .column-header .label {
+    -fx-text-fill: #E8A23E;
+    -fx-font-weight: bold;
+}
+.table-row-cell {
+    -fx-background-color: #2C221C;
+    -fx-text-fill: #F6E9D3;
+}
+.table-row-cell:odd {
+    -fx-background-color: #241B16;
+}
+.table-row-cell .table-cell {
+    -fx-text-fill: #F6E9D3;
+}
+.table-row-cell:filled:selected {
+    -fx-background-color: #E8A23E55;
+}
+.toggle-button {
+    -fx-background-color: #2C221C;
+    -fx-text-fill: #F6E9D3;
+    -fx-border-color: #45342A;
+    -fx-background-radius: 4;
+    -fx-border-radius: 4;
+}
+.toggle-button:selected {
+    -fx-background-color: #E8A23E;
+    -fx-text-fill: #1B1411;
+    -fx-font-weight: bold;
+}
+
+/* ==================================================================
+ * Acabamento (rodada de aparencia)
+ * ================================================================== */
+
+/* ---------- Caixas de marcar e radios: antes quase invisiveis ---------- */
+.check-box {
+    -fx-text-fill: #F6E9D3;
+    -fx-label-padding: 0 0 0 6;
+}
+.check-box .box, .radio-button .radio {
+    -fx-background-color: #2C221C;
+    -fx-border-color: #66503F;
+    -fx-border-width: 1.5;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+    -fx-padding: 2;
+}
+.radio-button .radio {
+    -fx-border-radius: 10;
+    -fx-background-radius: 10;
+}
+.check-box:hover .box, .radio-button:hover .radio {
+    -fx-border-color: #E8A23E;
+}
+.check-box:selected .box, .radio-button:selected .radio {
+    -fx-background-color: #E8A23E;
+    -fx-border-color: #E8A23E;
+}
+.check-box .mark, .radio-button .dot {
+    -fx-background-color: transparent;
+}
+.check-box:selected .mark {
+    -fx-background-color: #1B1411;
+}
+.radio-button:selected .dot {
+    -fx-background-color: #1B1411;
+}
+
+/* ---------- Spinner (nivel, etc.) ---------- */
+.spinner {
+    -fx-background-color: #2C221C;
+    -fx-background-radius: 5;
+    -fx-border-color: #45342A;
+    -fx-border-radius: 5;
+}
+.spinner .text-field {
+    -fx-border-width: 0;
+    -fx-background-color: transparent;
+}
+.spinner .increment-arrow-button, .spinner .decrement-arrow-button {
+    -fx-background-color: #352920;
+    -fx-padding: 3 6 3 6;
+}
+.spinner .increment-arrow-button:hover, .spinner .decrement-arrow-button:hover {
+    -fx-background-color: #6E4416;
+}
+.spinner .increment-arrow, .spinner .decrement-arrow, .combo-box .arrow {
+    -fx-background-color: #E8A23E;
+}
+.combo-box .arrow-button {
+    -fx-background-color: transparent;
+}
+.combo-box:hover {
+    -fx-border-color: #E8A23E88;
+}
+
+/* ---------- Menus (botao direito no token, no chat...) ---------- */
+.context-menu, .menu-bar .context-menu {
+    -fx-background-color: #2C221C;
+    -fx-border-color: #574233;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+    -fx-padding: 4;
+    -fx-effect: dropshadow(gaussian, #00000099, 14, 0.2, 0, 4);
+}
+.menu-item {
+    -fx-background-radius: 4;
+    -fx-padding: 5 14 5 10;
+}
+.menu-item .label {
+    -fx-text-fill: #F6E9D3;
+}
+.menu-item:focused, .menu-item:hover {
+    -fx-background-color: #6E4416;
+}
+.menu-item:focused .label {
+    -fx-text-fill: #FFCF7F;
+}
+.menu-item:disabled .label {
+    -fx-text-fill: #7D6A58;
+}
+.context-menu .separator .line {
+    -fx-border-color: #45342A transparent transparent transparent;
+}
+.menu .right-container .arrow {
+    -fx-background-color: #E8A23E;
+}
+
+/* ---------- ScrollPane: sem a moldura cinza clara padrao ---------- */
+.scroll-pane, .scroll-pane > .viewport {
+    -fx-background-color: transparent;
+    -fx-background: transparent;
+}
+.scroll-pane {
+    -fx-padding: 0;
+    -fx-background-insets: 0;
+}
+.scroll-pane .corner {
+    -fx-background-color: transparent;
+}
+.scroll-bar:vertical {
+    -fx-pref-width: 10;
+}
+.scroll-bar:horizontal {
+    -fx-pref-height: 10;
+}
+
+.separator .line {
+    -fx-border-color: #45342A;
+}
+
+/* ---------- Abas da direita: as 5 cabem sem a setinha "mais" ---------- */
+.tab-pane {
+    -fx-tab-min-width: 0;
+}
+.tab {
+    -fx-padding: 7 9 7 9;
+}
+.tab .tab-label {
+    -fx-font-size: 12px;
+}
+.tab:hover .tab-label {
+    -fx-text-fill: #F6E9D3;
+}
+
+/* ---------- Barra superior ---------- */
+.top-bar-brand {
+    -fx-text-fill: #FFCF7F;
+    -fx-font-family: "Georgia", serif;
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+}
+.top-bar-sep {
+    -fx-text-fill: #574233;
+}
+.status-pill {
+    -fx-background-color: #2C221C;
+    -fx-background-radius: 10;
+    -fx-border-color: #45342A;
+    -fx-border-radius: 10;
+    -fx-padding: 3 10 3 10;
+    -fx-text-fill: #B09A82;
+    -fx-font-size: 12px;
+}
+.status-pill-online {
+    -fx-background-color: #1D3326;
+    -fx-border-color: #3FBE6E88;
+    -fx-text-fill: #8FE0AE;
+}
+
+/* ---------- Barra de ferramentas do mapa (grupos em "pilulas") ---------- */
+.map-toolbar {
+    -fx-background-color: #211915EE;
+    -fx-background-radius: 10;
+    -fx-border-color: #45342A;
+    -fx-border-radius: 10;
+    -fx-padding: 6;
+    -fx-effect: dropshadow(gaussian, #00000088, 12, 0.15, 0, 3);
+}
+.tool-group {
+    -fx-background-color: #281E19;
+    -fx-background-radius: 7;
+    -fx-padding: 3;
+    -fx-spacing: 3;
+    -fx-alignment: center-left;
+}
+.tool-group-label {
+    -fx-text-fill: #E8A23E;
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+    -fx-padding: 0 4 0 6;
+}
+.tool-button {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-background-radius: 5;
+    -fx-border-radius: 5;
+    -fx-padding: 5 9 5 9;
+    -fx-min-width: 0;
+    -fx-text-fill: #DCCBB0;
+    -fx-font-size: 12px;
+}
+.tool-button:hover {
+    -fx-background-color: #47362B;
+    -fx-border-color: transparent;
+    -fx-text-fill: #F6E9D3;
+}
+.tool-button:selected, .tool-button-active {
+    -fx-background-color: #6E4416;
+    -fx-border-color: #E8A23E;
+    -fx-text-fill: #FFCF7F;
+    -fx-font-weight: normal;
+}
+.tool-group .combo-box {
+    -fx-padding: 0 2 0 2;
+    -fx-background-color: #352920;
+    -fx-border-color: transparent;
+    -fx-font-size: 12px;
+}
+.tool-group .check-box {
+    -fx-font-size: 12px;
+    -fx-padding: 0 6 0 4;
+}
+
+/* ---------- Botoes de rolagem rapida do chat ---------- */
+.chip {
+    -fx-background-color: #2C221C;
+    -fx-border-color: #45342A;
+    -fx-background-radius: 12;
+    -fx-border-radius: 12;
+    -fx-padding: 3 11 3 11;
+    -fx-text-fill: #F6E9D3;
+    -fx-font-size: 12px;
+    -fx-cursor: hand;
+}
+.chip:hover {
+    -fx-border-color: #E8A23E;
+    -fx-text-fill: #FFCF7F;
+}
+.chip-dice {
+    -fx-font-weight: bold;
+    -fx-text-fill: #FFCF7F;
+}
+
+/* ---------- Chat ---------- */
+.chat-panel .list-view {
+    -fx-background-color: #1C1512;
+    -fx-background-radius: 6;
+    -fx-border-color: #30251E;
+    -fx-border-radius: 6;
+    -fx-padding: 2;
+}
+.chat-panel .list-cell, .chat-panel .list-cell:filled:hover, .chat-panel .list-cell:filled:selected {
+    -fx-background-color: transparent;
+    -fx-padding: 2 4 2 2;
+}
+.chat-entry {
+    -fx-background-color: #241B16;
+    -fx-background-radius: 6;
+    -fx-padding: 6 10 6 6;
+}
+.chat-entry-private {
+    -fx-background-color: #231E2E;
+}
+.chat-entry-system {
+    -fx-background-color: transparent;
+    -fx-padding: 2 10 2 6;
+}
+.chat-entry-system .chat-entry-text {
+    -fx-text-fill: #BBA58C;
+    -fx-font-size: 11px;
+}
+.chat-entry-meta {
+    -fx-text-fill: #9A8571;
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+}
+.chat-input {
+    -fx-background-radius: 16;
+    -fx-border-radius: 16;
+    -fx-padding: 6 12 6 12;
+}
+
+/* ---------- Iniciativa: turno atual em destaque (dourado, nao verde solto) ---------- */
+.initiative-current {
+    -fx-background-color: #6E4416 !important;
+    -fx-border-color: transparent transparent transparent #E8A23E;
+    -fx-border-width: 0 0 0 3;
+    -fx-font-weight: bold;
+}
+.initiative-current .text, .initiative-current {
+    -fx-text-fill: #FFCF7F;
+}
+
+/* ---------- Cartoes (secoes da ficha, do monstro) ---------- */
+.card {
+    -fx-background-color: #241B16;
+    -fx-background-radius: 8;
+    -fx-border-color: #45342A;
+    -fx-border-radius: 8;
+    -fx-padding: 10;
+}
+.stat-chip {
+    -fx-background-color: #2C221C;
+    -fx-background-radius: 6;
+    -fx-border-color: #45342A;
+    -fx-border-radius: 6;
+    -fx-padding: 4 10 4 10;
+}
+.stat-chip-label {
+    -fx-text-fill: #B09A82;
+    -fx-font-size: 10px;
+    -fx-font-weight: bold;
+}
+.stat-chip-value {
+    -fx-text-fill: #F6E9D3;
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+}
+
+/* ---------- Dialogos: botoes e campos no mesmo tema ---------- */
+.dialog-pane > .button-bar > .container {
+    -fx-padding: 4 0 0 0;
+}
+.dialog-pane .header-panel .label {
+    -fx-text-fill: #F6E9D3;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+}
+.dialog-pane .header-panel {
+    -fx-border-color: transparent transparent #E8A23E transparent;
+    -fx-border-width: 0 0 1 0;
+}
+.dialog-pane > .content {
+    -fx-padding: 14;
+}
+
+.stat-chip-clickable:hover {
+    -fx-border-color: #E8A23E;
+    -fx-background-color: #352920;
+}
+/* ComboBox mais baixo: o padding dos campos de texto deixava ele com o dobro da altura */
+.combo-box {
+    -fx-padding: 0 2 0 2;
+}
+.combo-box .list-cell {
+    -fx-padding: 4 6 4 6;
+}
+
+/* ---------- Tela de escolher mesa ---------- */
+.mesa-list {
+    -fx-background-color: #241B16;
+    -fx-background-radius: 8;
+    -fx-border-color: #45342A;
+    -fx-border-radius: 8;
+    -fx-padding: 4;
+}
+.mesa-list .list-cell {
+    -fx-padding: 10 12 10 12;
+    -fx-font-size: 14px;
+    -fx-background-radius: 6;
+}
+.mesa-list .list-cell:filled:selected {
+    -fx-background-color: #6E4416;
+    -fx-text-fill: #FFCF7F;
+}
+
+/* ---------- Macros pessoais (linha de botoes no chat) ---------- */
+.chip-macro {
+    -fx-background-color: #232035;
+    -fx-border-color: #5B4E8A;
+    -fx-text-fill: #CFC4F2;
+}
+.chip-macro:hover {
+    -fx-border-color: #9B6BDF;
+    -fx-text-fill: #F6E9D3;
+}
+
+/* ---------- Seletor de cor da barra de desenho ---------- */
+.tool-color {
+    -fx-color-label-visible: false;
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-padding: 2 4 2 4;
+}
+.tool-color .color-picker-label .picker-color .picker-color-rect {
+    -fx-stroke: #574233;
+}
+
+
+/* ==========================================================
+   Customizr: icones, tela inicial e cartoes de acao
+   ========================================================== */
+.icon {
+    -fx-fill: #B09A82;
+}
+.button .icon {
+    -fx-fill: #E8A23E;
+}
+.button-primary .icon, .action-card-primary .icon {
+    -fx-fill: #FFCF7F;
+}
+.tab .icon {
+    -fx-fill: #8A7563;
+}
+.tab:selected .icon {
+    -fx-fill: #E8A23E;
+}
+.tab:hover .icon {
+    -fx-fill: #F6E9D3;
+}
+.tab {
+    -fx-padding: 7 7 7 7;
+}
+.tab .tab-label {
+    -fx-graphic-text-gap: 5;
+}
+
+.selector-root {
+    -fx-background-color: linear-gradient(to bottom right, #1F1713, #150F0C);
+}
+.hero {
+    -fx-background-color: radial-gradient(center 50% 28%, radius 70%, #4A2E1A, #241B16 60%, #1B1411);
+    -fx-border-color: transparent #45342A transparent transparent;
+    -fx-border-width: 0 1 0 0;
+}
+.hero-title {
+    -fx-font-family: "Georgia", serif;
+    -fx-font-size: 38px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #FFCF7F;
+    -fx-effect: dropshadow(gaussian, #E8742A88, 18, 0.2, 0, 0);
+}
+.hero-tagline {
+    -fx-font-family: "Georgia", serif;
+    -fx-font-style: italic;
+    -fx-font-size: 15px;
+    -fx-text-fill: #E8A23E;
+}
+.hero-about {
+    -fx-text-fill: #DCCBB0;
+    -fx-font-size: 13px;
+    -fx-text-alignment: center;
+    -fx-padding: 10 0 0 0;
+}
+.mesa-name {
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+}
+.mesa-list .list-cell:filled:selected .label {
+    -fx-text-fill: #FFE7BD;
+}
+.mesa-list .list-cell:filled:selected .icon {
+    -fx-fill: #FFCF7F;
+}
+
+.action-card {
+    -fx-background-color: #2C221C;
+    -fx-background-radius: 10;
+    -fx-border-color: #45342A;
+    -fx-border-radius: 10;
+    -fx-padding: 12 16 12 16;
+}
+.action-card:hover {
+    -fx-background-color: #3A2C23;
+    -fx-border-color: #E8A23E88;
+}
+.action-card-primary {
+    -fx-background-color: linear-gradient(to bottom, #82521C, #6E4416);
+    -fx-border-color: #E8A23E;
+}
+.action-card-primary:hover {
+    -fx-background-color: linear-gradient(to bottom, #93601F, #7B4C18);
+}
+.action-card:disabled {
+    -fx-opacity: 0.45;
+}
+.action-card-title {
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #F6E9D3;
+}
+.action-card-primary .action-card-title {
+    -fx-text-fill: #FFE7BD;
+}
+.action-card-text {
+    -fx-font-size: 12px;
+    -fx-text-fill: #B09A82;
+}
+.action-card-primary .action-card-text {
+    -fx-text-fill: #F2D3A3;
+}
+.tip-box {
+    -fx-background-color: #2A2018;
+    -fx-background-radius: 8;
+    -fx-border-color: transparent transparent transparent #E8A23E;
+    -fx-border-width: 0 0 0 3;
+    -fx-padding: 10 12 10 12;
+    -fx-text-fill: #DCCBB0;
+    -fx-font-size: 12px;
+}
+.map-empty-hint {
+    -fx-background-color: #241B16EE;
+    -fx-background-radius: 14;
+    -fx-border-color: #E8A23E66;
+    -fx-border-radius: 14;
+    -fx-padding: 22 28 22 28;
+}
+.map-empty-title {
+    -fx-font-family: "Georgia", serif;
+    -fx-font-size: 22px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #FFCF7F;
+}
+.map-empty-text {
+    -fx-text-fill: #DCCBB0;
+    -fx-font-size: 13px;
+}
+
+/* ---------- Pins e barra do mapa ---------- */
+.tool-category:selected {
+    -fx-background-color: #6E4416;
+    -fx-border-color: #E8A23E;
+    -fx-text-fill: #FFE7BD;
+}
+.tool-category:selected .icon {
+    -fx-fill: #FFCF7F;
+}
+.tool-button .icon {
+    -fx-fill: #B09A82;
+}
+.tool-button:selected .icon, .tool-button-active .icon {
+    -fx-fill: #FFCF7F;
+}
+.pin-card {
+    -fx-background-color: #241B16F2;
+    -fx-background-radius: 12;
+    -fx-border-color: #E8A23E;
+    -fx-border-radius: 12;
+    -fx-padding: 12 14 12 14;
+    -fx-effect: dropshadow(gaussian, #000000AA, 24, 0.2, 0, 6);
+}
+.pin-card-title {
+    -fx-font-family: "Georgia", serif;
+    -fx-font-size: 17px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #FFCF7F;
+}
+.pin-card-text {
+    -fx-text-fill: #DCCBB0;
+    -fx-font-size: 13px;
+}
+.map-back-button {
+    -fx-font-size: 13px;
+    -fx-padding: 8 14 8 12;
+    -fx-background-radius: 20;
+    -fx-border-radius: 20;
+    -fx-effect: dropshadow(gaussian, #000000AA, 14, 0.2, 0, 3);
+}
+
+/* ---------- Chat: cartoes de rolagem, rolagem no texto, /me ---------- */
+.chat-roll-card {
+    -fx-background-color: #2C221C;
+    -fx-background-radius: 8;
+    -fx-border-color: #45342A;
+    -fx-border-radius: 8;
+    -fx-padding: 6 8 6 6;
+}
+.roll-total {
+    -fx-font-size: 20px;
+    -fx-font-weight: bold;
+    -fx-background-color: #1B1411;
+    -fx-background-radius: 6;
+    -fx-border-radius: 6;
+    -fx-border-width: 1;
+    -fx-padding: 0 10 0 10;
+    -fx-min-width: 40;
+    -fx-alignment: center;
+}
+.roll-chip {
+    -fx-font-size: 11px;
+    -fx-padding: 2 8 2 8;
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+    -fx-background-color: #352920;
+    -fx-text-fill: #FFCF7F;
+}
+.inline-roll {
+    -fx-background-color: #6E4416;
+    -fx-text-fill: #FFE7BD;
+    -fx-font-weight: bold;
+    -fx-background-radius: 5;
+    -fx-padding: 0 6 0 6;
+    -fx-border-color: #E8A23E;
+    -fx-border-radius: 5;
+    -fx-cursor: hand;
+}
+.chat-flow-text {
+    -fx-fill: #F6E9D3;
+    -fx-font-size: 13px;
+}
+.chat-emote-text {
+    -fx-fill: #E8A23E;
+    -fx-font-style: italic;
+    -fx-font-size: 13px;
+}
+
+/* ---------- Fichas de outros sistemas (Tormenta20, Ordem Paranormal) ---------- */
+.system-badge {
+    -fx-background-color: #6E4416;
+    -fx-text-fill: #FFE7BD;
+    -fx-font-weight: bold;
+    -fx-background-radius: 12;
+    -fx-padding: 3 12 3 12;
+    -fx-border-color: #E8A23E;
+    -fx-border-radius: 12;
+}
+.attr-card {
+    -fx-background-color: #241B16;
+    -fx-background-radius: 8;
+    -fx-border-color: #45342A;
+    -fx-border-radius: 8;
+    -fx-padding: 8 10 8 10;
+}
+.attr-key {
+    -fx-font-weight: bold;
+    -fx-text-fill: #E8A23E;
+    -fx-font-size: 13px;
+}
+.attr-value {
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+}
+.roll-chip-primary {
+    -fx-background-color: #6E4416;
+    -fx-border-color: #E8A23E;
+    -fx-text-fill: #FFE7BD;
+    -fx-font-weight: bold;
+}

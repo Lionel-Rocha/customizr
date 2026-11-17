@@ -1,0 +1,18 @@
+# Servico systemd da ponte do Customizr (liga sozinho quando o servidor reinicia).
+# Instalar:
+#   sudo cp customizr-ponte.service /etc/systemd/system/
+#   sudo systemctl enable --now customizr-ponte
+# Ajuste o caminho abaixo pra onde voce copiou a pasta da ponte.
+[Unit]
+Description=Ponte do Customizr
+After=network-online.target
+
+[Service]
+WorkingDirectory=/opt/customizr-ponte
+ExecStart=/usr/bin/java -Xmx128m -jar /opt/customizr-ponte/customizr-ponte.jar 55070
+Restart=always
+RestartSec=5
+DynamicUser=yes
+
+[Install]
+WantedBy=multi-user.target
