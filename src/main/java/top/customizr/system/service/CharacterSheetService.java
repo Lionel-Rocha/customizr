@@ -147,6 +147,11 @@ public class CharacterSheetService {
         Character character = manageable(characterId, username);
         requireBody(request);
         var feat = featRepository.findById(request.featId()).orElseThrow(() -> notFound("Feat"));
+        // pre-requisitos: o jogador precisa cumprir; o mestre pode liberar (regra da casa)
+        java.util.List<String> unmet = top.customizr.system.model.FeatPrerequisites.unmet(feat, character);
+        if (!unmet.isEmpty() && !character.getCampaign().getMaster().getName().equals(username)) {
+            throw badRequest("Prerequisites not met for " + feat.getName() + ": " + String.join(" | ", unmet));
+        }
         valid(() -> character.getSheet().addCatalogFeat(feat, request.characterLevel(), request.choices()));
         return CharacterSheetResponse.from(character);
     }
