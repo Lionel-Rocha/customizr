@@ -2,7 +2,7 @@
 
 Este branch (`mesclagem-mesa`) traz para o Customizr o que foi feito no programa de mesa à parte (o antigo "Embertale"), reescrito no padrão deste projeto: entidades JPA em `model/`, serviços com checagem de mestre/membro, DTOs `record` (um por arquivo, `XxxRequest` / `XxxResponse`) e testes com H2. O ponto de partida é o commit `e740c23` ("Consertando import de classes").
 
-* **Testes:** 64, todos passando (antes: 23, com 3 quebrados).
+* **Testes:** 69, todos passando (antes: 23, com 3 quebrados).
 * **Arquivos de exemplo:** o que é do 5etools nos testes são amostras pequenas do SRD 5.2 (licença CC-BY-4.0, atribuição em `src/test/resources/importer/LEIA-ME.txt`).
 * **Fins de linha:** tudo em LF, igual ao resto do repositório.
 
@@ -26,6 +26,7 @@ Este branch (`mesclagem-mesa`) traz para o Customizr o que foi feito no programa
 | `model/Campaign.java` | + listas com cascata (chat, mundos, enciclopédia, imagens, cenas, iniciativa) | Apagar a campanha leva tudo junto |
 | `model/SecurityConfig.java` | + `DispatcherType.ASYNC` liberado; + `GET /mesa/**` liberado | A transmissão ao vivo (SSE) responde de forma assíncrona; a tela da mesa é um arquivo estático |
 | `controllers/UserController.java` | + `GET /user/me` | A tela da mesa precisa saber quem está logado |
+| `controllers/ChatController.java`, `CharacterController.java` | + rotas de cartão no chat, lista de features e preparar magia | Clicar numa feature da ficha e ela aparecer no chat |
 | Formato das respostas | `CharacterSheetResponse` (+ `combat`, `details`), `PartyResponse` (+ `maxSize`, `members`), `NpcResponse` (+ `statBlock*`), `InventoryResponse` (novo) | **O front pode precisar ler os campos novos**; nenhum campo antigo foi removido |
 | `resources/data.sql` | + "Campanha de O Escriba" com O Artífice como jogador | O teste `sqlSeedCreatesCampaign...` já esperava isso e falhava |
 | Testes `CharacterServiceTests`, `CharacterSheetServiceTests`, `ItemImportTests`, `SpellcastingModelTests` | Ajustes mínimos | Não compilavam ou falhavam no `e740c23` (API mudada, LAZY fora de transação, `10` vs `10.00`) |
@@ -50,6 +51,9 @@ As tabelas e colunas novas o Hibernate cria sozinho (`ddl-auto=update`). Todas a
 * **Texto pronto:** além do cru, cada item tem `descriptionText`, a mesma descrição já convertida em texto.
 * **Importações** seguem o formato do `/item/update-from-dump`: `created`, `updated` e `skipped`, cada ignorado com o motivo.
 * **Regras de acesso:** as partes novas usam o `MasterGuard` do diagrama (`service/MasterGuard.java`).
+* **Traços e características como `Feature`:** os traços de espécie e as características de antecedente viram `Feature` (categoria `species` / `background`, `AUTOMATIC` ou `CHOICE` pela mesma regra do seu `hasChoiceOptions`).
+  * Assim, a ficha lista e manda pro chat tudo do mesmo jeito.
+  * As escolhas de classe disponíveis são adicionadas pela sua rota `/character/{id}/classes/{ccId}/feats`, sem caminho paralelo.
 
 ## Decisões que ficam com você
 
@@ -70,3 +74,5 @@ As tabelas e colunas novas o Hibernate cria sozinho (`ddl-auto=update`). Todas a
 | 6 | Script de INT/SAB; tela `/mesa`; `GET /user/me` |
 | 7 | Pré-requisitos dos talentos conferidos (o mestre pode liberar) |
 | 8 | Este resumo e os últimos acertos no README |
+| 9 | Traços/características como `Feature`; lista da ficha e cartões no chat; preparar magia; gerador de atributos |
+| 10 | Aba Ficha na tela `/mesa` (lista com Adicionar/Chat, gerador de atributos) e documentação |

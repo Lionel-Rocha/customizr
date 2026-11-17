@@ -45,6 +45,20 @@
   .card { background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 8px; display: grid; gap: 6px; }
   .init { display: flex; justify-content: space-between; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); }
   .init.current { border-color: var(--accent); background: #3A2A1A; }
+  .feat { border: 1px solid var(--line); border-radius: 10px; padding: 6px 8px; display: grid; gap: 4px; }
+  .feat.available { border-style: dashed; border-color: var(--accent); }
+  .feat .head { display: flex; gap: 6px; align-items: center; }
+  .feat .head b { flex: 1; }
+  .feat .origin { color: var(--muted); font-size: 12px; }
+  .feat .text { color: var(--muted); font-size: 12px; white-space: pre-wrap; max-height: 0; overflow: hidden; }
+  .feat.open .text { max-height: 400px; overflow: auto; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .stat { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 6px; text-align: center; }
+  .stat small { display: block; color: var(--muted); font-size: 11px; }
+  .msg.card { border-color: var(--accent); }
+  .msg.card .title { color: var(--accent-2); font-weight: 600; }
+  .msg.card .body { white-space: pre-wrap; font-size: 13px; }
+  #toast.ok { background: #233A26; border-color: var(--good); }
   #toast { position: fixed; right: 16px; bottom: 16px; max-width: 360px; background: #4A2420; border: 1px solid var(--bad); border-radius: 10px; padding: 10px 12px; }
   @media (max-width: 800px) {
     #app { grid-template-columns: 1fr; grid-template-rows: 44px 55vh 1fr; }
@@ -85,6 +99,7 @@
     <div class="tabs">
       <button data-tab="chat" class="on">Chat</button>
       <button data-tab="init">Iniciativa</button>
+      <button data-tab="sheet">Ficha</button>
       <button data-tab="gm" class="master-only">Mestre</button>
     </div>
     <div id="tab-chat" class="tab">
@@ -108,6 +123,29 @@
         <input id="initName" placeholder="nome (ex.: ação de covil)"><input id="initValue" type="number" placeholder="valor" style="max-width:80px">
         <button>Pôr</button>
       </form>
+    </div>
+    <div id="tab-sheet" class="tab hidden">
+      <div class="row"><select id="sheetChar"></select></div>
+      <div id="sheetStats" class="stats"></div>
+      <div class="card">
+        <h3>Gerar atributos</h3>
+        <div class="row">
+          <select id="abMethod"><option value="roll">Rolar dados</option><option value="array">Array padrão</option><option value="buy">Compra de pontos</option></select>
+        </div>
+        <div id="abRoll" class="row">
+          <input id="abDice" type="number" value="4" title="dados" style="max-width:56px"> d
+          <input id="abSides" type="number" value="6" title="faces" style="max-width:56px"> tirar
+          <input id="abDrop" type="number" value="1" title="menores descartados" style="max-width:56px">
+          <label class="row" style="flex:0"><input id="abChat" type="checkbox" checked style="flex:0"> no chat</label>
+          <button id="abGo" class="primary">Rolar</button>
+        </div>
+        <div id="abValues" class="muted"></div>
+        <div id="abAssign" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px"></div>
+        <div id="abInfo" class="muted"></div>
+        <button id="abSave">Gravar na ficha</button>
+      </div>
+      <div class="row"><b style="flex:1">Features, magias e itens</b><button id="sheetReload">Atualizar</button></div>
+      <div id="sheetFeatures" style="display:grid;gap:6px"></div>
     </div>
     <div id="tab-gm" class="tab hidden">
       <div class="card">
@@ -158,7 +196,7 @@ const cv = $('map'), ctx = cv.getContext('2d');
 
 function store(key, value) { try { value == null ? sessionStorage.removeItem(key) : sessionStorage.setItem(key, value); } catch (e) {} }
 function load(key) { try { return sessionStorage.getItem(key); } catch (e) { return null; } }
-function toast(text) { const t = $('toast'); t.textContent = text; t.classList.remove('hidden'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.add('hidden'), 5000); }
+function toast(text, ok) { const t = $('toast'); t.textContent = text; t.classList.toggle('ok', !!ok); t.classList.remove('hidden'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.add('hidden'), 5000); }
 
 async function api(path, opts = {}) {
   const headers = Object.assign({}, opts.headers || {});
@@ -333,7 +371,7 @@ function draw() {
   const dpr = window.devicePixelRatio || 1, rect = cv.getBoundingClientRect();
   if (cv.width !== Math.round(rect.width * dpr)) { cv.width = Math.round(rect.width * dpr); cv.height = Math.round(rect.height * dpr); }
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#1B1411'; ctx.fillRect(0, 0, cv.width, cv.height);
-  const sc = S.scene; if (!sc) { ctx.fillStyle = '#BFA88E'; ctx.font = 16 * dpr + 'px Segoe UI'; ctx.fillText(S.master ? 'Crie uma cena na aba Mestre.' : 'O mestre ainda não abriu nenhuma cena.', 20 * dpr, 40 * dpr); return; }
+  const sc = S.scene; if (!sc) { ctx.fillStyle = '#BFA88E'; ctx.font = 16 * dpr + 'px Segoe UI'; ctx.fillText(S.master ? 'Crie uma cena na aba Mestre.' : 'O mestre ainda não abriu nenhuma cena.', 20 * dpr, 90 * dpr); return; }
   const v = S.view; ctx.setTransform(v.z * dpr, 0, 0, v.z * dpr, v.tx * dpr, v.ty * dpr);
   const { w, h } = mapSize(), g = sc.gridSizePx;
   const img = S.images[sc.mapUrl];
@@ -439,7 +477,8 @@ window.addEventListener('resize', draw);
 // ------------------------------------------------------------------ abas
 document.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => {
   document.querySelectorAll('[data-tab]').forEach(x => x.classList.toggle('on', x === b));
-  ['chat', 'init', 'gm'].forEach(n => $('tab-' + n).classList.toggle('hidden', n !== b.dataset.tab));
+  ['chat', 'init', 'sheet', 'gm'].forEach(n => $('tab-' + n).classList.toggle('hidden', n !== b.dataset.tab));
+  if (b.dataset.tab === 'sheet') loadSheetTab();
 });
 
 // ------------------------------------------------------------------ chat
@@ -449,6 +488,12 @@ function addChat(m) {
   const who = document.createElement('div'); who.className = 'who';
   who.textContent = (m.speakerName || m.authorName) + (m.type === 'WHISPER' ? ' → ' + m.recipientName + ' (sussurro)' : '');
   const body = document.createElement('div');
+  if (m.type === 'CARD') {
+    const [title, ...rest] = m.content.split('\n');
+    const t = document.createElement('div'); t.className = 'title'; t.textContent = title;
+    const b = document.createElement('div'); b.className = 'body'; b.textContent = rest.join('\n');
+    box.append(who, t, b); $('chatLog').append(box); $('chatLog').scrollTop = 1e9; return;
+  }
   if (m.type === 'EMOTE') body.append((m.speakerName || m.authorName) + ' ');
   for (const p of m.parts) {
     if (p.total != null) { const s = document.createElement('span'); s.className = 'roll'; s.textContent = p.total; s.title = p.detail; body.append(s); }
@@ -478,6 +523,107 @@ $('initRoll').onclick = () => api('/live/campaign/' + S.campaign.id + '/initiati
 $('initNext').onclick = () => api('/live/campaign/' + S.campaign.id + '/initiative/next', { method: 'POST' }).catch(err => toast(err.message));
 $('initEnd').onclick = () => api('/live/campaign/' + S.campaign.id + '/initiative', { method: 'DELETE' }).catch(err => toast(err.message));
 $('initAdd').addEventListener('submit', e => { e.preventDefault(); api('/live/campaign/' + S.campaign.id + '/initiative/entries', { method: 'POST', body: { name: $('initName').value, initiative: Number($('initValue').value) || 0 } }).then(() => { $('initName').value = ''; $('initValue').value = ''; }).catch(err => toast(err.message)); });
+
+// ------------------------------------------------------------------ ficha
+const ABILITIES = [['STRENGTH', 'FOR', 'strength'], ['DEXTERITY', 'DES', 'dexterity'], ['CONSTITUTION', 'CON', 'constitution'],
+  ['INTELLIGENCE', 'INT', 'intelligence'], ['WISDOM', 'SAB', 'wisdom'], ['CHARISMA', 'CAR', 'charisma']];
+const BUY_COST = { 8: 0, 9: 1, 10: 2, 11: 3, 12: 4, 13: 5, 14: 7, 15: 9 };
+let abPool = [];
+
+async function loadSheetTab() {
+  const chars = await api('/character/' + S.campaign.id + '/characters');
+  const mine = S.master ? chars : chars.filter(c => c.ownerId === S.me.userId);
+  const sel = $('sheetChar'), keep = sel.value; sel.innerHTML = '';
+  for (const c of mine) sel.append(new Option(c.name, c.characterId));
+  if (!mine.length) { $('sheetFeatures').textContent = 'Você ainda não tem personagem nesta campanha.'; $('sheetStats').innerHTML = ''; return; }
+  if (keep && mine.some(c => c.characterId === keep)) sel.value = keep;
+  sel.onchange = loadSheet;
+  await loadSheet();
+}
+
+async function loadSheet() {
+  const id = $('sheetChar').value; if (!id) return;
+  const [sheet, features] = await Promise.all([api('/character/' + id + '/sheet'), api('/character/' + id + '/features?available=true')]);
+  const c = sheet.combat || {}, a = sheet.attributes;
+  const stat = (label, value) => '<div class="stat"><small>' + label + '</small>' + (value ?? '—') + '</div>';
+  $('sheetStats').innerHTML = stat('PV', c.hpMax != null ? c.hpCurrent + '/' + c.hpMax : null) + stat('CA', c.armorClass)
+    + stat('Nível', c.totalLevel) + (a ? ABILITIES.map(([, pt, key]) => stat(pt, a[key] + ' (' + (Math.floor((a[key] - 10) / 2) >= 0 ? '+' : '') + Math.floor((a[key] - 10) / 2) + ')')).join('') : '');
+  const box = $('sheetFeatures'); box.innerHTML = '';
+  if (!features.length) box.textContent = 'Nada ainda: adicione classe, espécie ou itens.';
+  for (const f of features) {
+    const row = document.createElement('div'); row.className = 'feat' + (f.status === 'AVAILABLE' ? ' available' : '');
+    const head = document.createElement('div'); head.className = 'head';
+    const name = document.createElement('b'); name.textContent = f.name; name.style.cursor = 'pointer'; name.onclick = () => row.classList.toggle('open');
+    head.append(name);
+    if (f.status === 'AVAILABLE') {
+      const add = document.createElement('button'); add.textContent = 'Adicionar'; add.className = 'primary';
+      add.onclick = () => api('/character/' + id + '/classes/' + f.characterClassId + '/feats', { method: 'POST', body: { featureId: f.refId, selectedAtLevel: f.level } })
+        .then(loadSheet).catch(err => toast(err.message));
+      head.append(add);
+    }
+    const chat = document.createElement('button'); chat.textContent = 'Chat'; chat.title = 'Mostrar no chat';
+    chat.onclick = () => api('/character/' + id + '/features/share', { method: 'POST', body: { kind: f.kind, refId: f.refId } }).catch(err => toast(err.message));
+    head.append(chat);
+    const origin = document.createElement('div'); origin.className = 'origin';
+    origin.textContent = f.origin + (f.status === 'AVAILABLE' ? ' · escolha disponível' : f.status === 'SELECTED' ? ' · escolhido' : '');
+    const text = document.createElement('div'); text.className = 'text'; text.textContent = f.text || '';
+    row.append(head, origin, text); box.append(row);
+  }
+}
+$('sheetReload').onclick = () => loadSheet().catch(err => toast(err.message));
+
+function renderAbilityAssign() {
+  const box = $('abAssign'); box.innerHTML = '';
+  const method = $('abMethod').value;
+  for (const [, pt] of ABILITIES) {
+    const wrap = document.createElement('label'); wrap.className = 'stat'; wrap.innerHTML = '<small>' + pt + '</small>';
+    let input;
+    if (method === 'buy') { input = document.createElement('input'); input.type = 'number'; input.min = 8; input.max = 15; input.value = 8; input.oninput = updateBuy; }
+    else { input = document.createElement('select'); input.append(new Option('—', '')); abPool.forEach((v, i) => input.append(new Option(v, i))); input.onchange = updateAssign; }
+    input.dataset.ab = pt; input.style.width = '100%'; wrap.append(input); box.append(wrap);
+  }
+  if (method === 'buy') updateBuy(); else updateAssign();
+}
+function updateAssign() {
+  const used = [...$('abAssign').querySelectorAll('select')].map(x => x.value).filter(v => v !== '');
+  $('abInfo').textContent = used.length + '/6 distribuídos' + (new Set(used).size !== used.length ? ' · o mesmo valor foi usado duas vezes' : '');
+}
+function updateBuy() {
+  const cost = [...$('abAssign').querySelectorAll('input')].reduce((sum, x) => sum + (BUY_COST[x.value] ?? 99), 0);
+  $('abInfo').textContent = cost > 54 ? 'Use valores de 8 a 15.' : 'Custo: ' + cost + ' de 27 (sobram ' + (27 - cost) + ')';
+}
+$('abMethod').onchange = () => {
+  const m = $('abMethod').value; $('abRoll').classList.toggle('hidden', m !== 'roll');
+  abPool = m === 'array' ? [15, 14, 13, 12, 10, 8] : []; $('abValues').textContent = m === 'array' ? 'Array padrão: 15, 14, 13, 12, 10, 8' : '';
+  renderAbilityAssign();
+};
+$('abGo').onclick = async () => {
+  try {
+    const res = await api('/ability-scores/roll', { method: 'POST', body: { dice: Number($('abDice').value), sides: Number($('abSides').value),
+      dropLowest: Number($('abDrop').value), sets: 6, campaignId: $('abChat').checked ? S.campaign.id : null, characterId: $('abChat').checked ? ($('sheetChar').value || null) : null } });
+    abPool = res.scores; $('abValues').textContent = res.method + ': ' + res.rolls.map(r => r.total + ' [' + r.kept.join(',') + (r.dropped.length ? ' | fora ' + r.dropped.join(',') : '') + ']').join('  ');
+    renderAbilityAssign();
+  } catch (err) { toast(err.message); }
+};
+$('abSave').onclick = async () => {
+  const id = $('sheetChar').value; if (!id) return toast('Escolha o personagem.');
+  const method = $('abMethod').value, values = {};
+  if (method === 'buy') {
+    $('abAssign').querySelectorAll('input').forEach(x => values[x.dataset.ab] = Number(x.value));
+    const check = await api('/ability-scores/point-buy', { method: 'POST', body: { scores: Object.fromEntries(ABILITIES.map(([en, pt]) => [en, values[pt]])) } });
+    if (!check.valid) return toast(check.problems.join('; '));
+  } else {
+    const picks = [...$('abAssign').querySelectorAll('select')];
+    if (picks.some(x => x.value === '') || new Set(picks.map(x => x.value)).size !== 6) return toast('Distribua os seis valores, um em cada atributo.');
+    picks.forEach(x => values[x.dataset.ab] = abPool[Number(x.value)]);
+  }
+  try {
+    await api('/character/' + id + '/attributes', { method: 'PUT', body: { strength: values.FOR, dexterity: values.DES, constitution: values.CON,
+      intelligence: values.INT, wisdom: values.SAB, charisma: values.CAR } });
+    toast('Atributos gravados.', true); loadSheet();
+  } catch (err) { toast(err.message); }
+};
+renderAbilityAssign();
 
 // ------------------------------------------------------------------ mestre
 $('sceneSelect').onchange = () => showScene(S.scenes.find(s => s.id === $('sceneSelect').value));

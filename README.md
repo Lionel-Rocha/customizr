@@ -207,6 +207,13 @@ Abaixo estão todos os endpoints atualmente expostos pelo backend da aplicação
 | `GET` | `/campaign/{id}/export?images=` | Baixa a campanha inteira em JSON (só o mestre). |
 | `POST` | `/campaign/import` | Cria uma campanha nova a partir do JSON exportado; quem importa vira o mestre. |
 | `GET` | `/user/me` | Usuário logado (id e nome). |
+| `GET` | `/character/{id}/features?available=` | Tudo que o personagem tem: features de classe/subclasse pelo nível (AUTOMATIC = já tem; CHOICE = escolha disponível ou feita), traços da espécie e do antecedente, talentos, magias preparadas e itens, com o texto pronto. |
+| `POST` | `/character/{id}/features/share` | Manda uma dessas coisas pro chat como cartão, falando como o personagem (`kind`, `refId`). |
+| `POST` / `DELETE` | `/character/{id}/classes/{characterClassId}/spells/{spellId}` | Prepara / tira uma magia da lista da classe. |
+| `POST` | `/chat/campaign/{id}/share` | Cartão do catálogo no chat (feature, talento, espécie, antecedente, magia, item; monstro só o mestre). |
+| `POST` | `/ability-scores/roll` | Rola atributos: X dados de Y faces tirando os N menores (padrão 4d6 tira 1), opção de rolar de novo os 1; `campaignId` manda pro chat. |
+| `GET` | `/ability-scores/standard-array` | 15, 14, 13, 12, 10, 8. |
+| `POST` | `/ability-scores/point-buy` | Confere uma compra de pontos (27, de 8 a 15): custo, sobra e problemas. |
 | `GET` | `/mesa` | Tela de jogo no navegador (arquivo estático; os dados vêm da API com o token). |
 | `GET` | `/live/campaign/{id}/events` | Transmissão ao vivo (Server-Sent Events) para os membros da campanha. |
 | `POST` / `GET` | `/live/campaign/{id}/scenes` | Cria cena (mestre) / lista cenas (o jogador só vê a ativa). |
@@ -319,6 +326,17 @@ A parte da mesa de jogo, desenvolvida à parte em JavaFX, foi trazida para cá n
   * espécies, antecedentes, talentos e monstros guardam `description` crua (com as tags `{@...}`), `metadata` (entrada original), `sourceCode` e `page`, e têm `descriptionText` já legível;
   * os DTOs ficaram um por arquivo.
 * **Resumo para revisão:** `MESCLAGEM.md`.
+
+**Quarta rodada:**
+
+* **Traços de espécie e características de antecedente viram `Feature`,** como as features de classe do `ClassService`:
+  * categoria `species` / `background`;
+  * `CHOICE` quando têm opções (a mesma regra do `hasChoiceOptions`);
+  * descrição crua com as tags e `metadata` com a entrada original.
+* **Lista da ficha:** reúne tudo o que o personagem tem e as escolhas que a classe oferece. O que estiver disponível é adicionado pela rota que já existia (`/character/{id}/classes/{ccId}/feats`). Qualquer item da lista pode ir pro chat como cartão.
+* **Magias:** preparar e tirar uma magia na classe, usando o `prepareSpell` existente.
+* **Gerador de atributos:** dados configuráveis (com a rolagem registrada no chat), array padrão e compra de pontos.
+* **Tela `/mesa`:** ganhou a aba **Ficha**, com PV, CA, nível e atributos, o gerador com botão de gravar na ficha, e a lista com os botões "Adicionar" e "Chat".
 
 Ficaram de fora por não se encaixarem numa API REST sem uma interface de jogo:
 
