@@ -245,6 +245,9 @@ Abaixo estão todos os endpoints atualmente expostos pelo backend da aplicação
 | `GET` / `POST` | `/shops/campaign/{campaignId}` | Lojas da campanha (o jogador só vê as abertas) / nova loja (`name`, `description`, `open`, `buyBackPercent`). |
 | `PUT` / `DELETE` | `/shops/{shopId}` · `POST` `/shops/{shopId}/items` · `PUT` / `DELETE` `/shops/{shopId}/items/{entryId}` | Edita a loja e os itens à venda (`itemId` do catálogo, `priceGp` (vazio = o do catálogo), `stock` (vazio = sem limite)). Só o mestre. |
 | `POST` | `/shops/{shopId}/buy` · `/shops/{shopId}/sell` | Compra (`characterId`, `entryId`, `quantity`) ou vende (`itemId`) pelo personagem: mexe no dinheiro e no inventário dele e no estoque; vai pro chat. |
+| `GET` | `/item/prices/campaign/{campaignId}` | Preços que o mestre deu na campanha aos itens sem preço oficial (`itemId` → po). Todo membro vê. |
+| `GET` | `/item/prices/campaign/{campaignId}/unpriced` | Itens sem preço oficial (`name` filtra; `includeMagic=true` mostra também os mágicos, como artefatos), com o preço da campanha. Só o mestre. |
+| `PUT` | `/item/prices/campaign/{campaignId}/{itemId}` | O mestre define o preço (`priceGp`; vazio apaga) de um item sem preço oficial. Vale só nesta campanha; o catálogo não muda. |
 | `GET` / `POST` | `/loot/campaign/{campaignId}` | Espólio (o jogador só vê o visível) / novo espólio (`name`, `moneyGp`, `visible`). |
 | `PUT` / `DELETE` | `/loot/{lootId}` · `POST` `/loot/{lootId}/items` · `DELETE` `/loot/{lootId}/items/{entryId}` | Edita o espólio e os itens. Só o mestre. |
 | `POST` | `/loot/{lootId}/take` · `/loot/{lootId}/split-money` | Pega um item pro personagem (`toParty`: pro grupo) / divide as moedas igualmente (mestre; `characterIds` vazio = todos da campanha). |
@@ -268,6 +271,12 @@ Abaixo estão todos os endpoints atualmente expostos pelo backend da aplicação
 | `DELETE` | `/live/campaign/{id}/initiative` | Fim do combate. |
 
 ## Atualização de itens por dump JSON
+
+Os dois aceitam o arquivo de itens do 5etools com o array `item` e/ou `baseitem` (armas e armaduras comuns; lidas primeiro). Preços:
+
+* **Preço oficial:** o do arquivo (`value`, em pc, ou `priceGp`). Raridade `none` = item comum (não mágico).
+* **Item mágico sem preço:** a tabela "Magic Item Values" do *Dungeon Master's Guide* (2024): Common 100 po, Uncommon 400, Rare 4.000, Very Rare 40.000, Legendary 200.000; artefato fica sem preço. Consumível (poção, pergaminho, munição, explosivo) vale a metade, menos o *Spell Scroll*, que vale o dobro do custo de escrever (tabela do *Player's Handbook* 2024). Arma ou armadura mágica soma o preço do item de base (`baseItem`). Na atualização, o preço oficial do arquivo manda e a tabela só preenche quem ainda não tem preço.
+* **Item comum sem preço:** fica sem; o mestre dá o preço dele na campanha (aba Comércio, "Preços do mestre").
 
 `POST /item/update-from-dump` recebe um objeto com um array `item`. Cada item é identificado por `name` e `source`: se já existir, é atualizado; caso contrário, é criado. Itens inválidos, fontes não habilitadas ou fontes ainda não cadastradas são retornados em `skipped`.
 
@@ -466,6 +475,7 @@ A parte da mesa de jogo, desenvolvida à parte em JavaFX, foi trazida para cá n
 * **Lojas:** o mestre monta (itens do catálogo, preço próprio ou o do catálogo, estoque opcional) e abre ou fecha. O jogador compra e vende pelo personagem: o dinheiro e o inventário mudam de verdade, sem dinheiro a compra é recusada, e a loja paga a porcentagem dela ao comprar (padrão 50%, como no livro). O item vendido volta pro estoque.
 * **Espólio:** baús com moedas e itens, escondidos até o mestre mostrar. O jogador pega itens pro personagem ou pro grupo; o mestre divide as moedas igualmente (o que não divide fica no baú, em pc).
 * Tudo vai pro chat e vai na exportação da campanha.
+* **Preços do mestre:** caixa só do mestre que lista os itens comuns sem preço oficial (e, se marcar, os mágicos sem preço, como artefatos); o mestre escreve o preço e ele vale nas lojas e na venda só desta campanha (vai na exportação).
 
 **Ver como jogador:** o mestre escolhe "Ver como jogador de ..." na barra da mesa e vê exatamente o que aquele jogador vê (visão dinâmica, luz, neblina, memória do que já foi visto). Tokens ocultos, camada do mestre, paredes e PV de monstro somem como somem pro jogador. As ferramentas continuam de mestre, e uma faixa no alto lembra o modo, com o botão de voltar.
 

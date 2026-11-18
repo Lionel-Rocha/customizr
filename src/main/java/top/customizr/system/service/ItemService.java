@@ -22,8 +22,10 @@ import top.customizr.system.repository.SourceRepository;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -72,10 +74,8 @@ public class ItemService {
     }
 
     public ImportItemsResponse importFromDump(JsonNode payload) {
-        JsonNode entries = payload == null ? null : payload.get("item");
-        if (entries == null || !entries.isArray()) {
-            throw badRequest("Expected a JSON object with an item array");
-        }
+        List<JsonNode> entries = entries(payload);
+        Map<String, BigDecimal> bases = baseValues(entries);
 
         List<ImportItemsResponse.ImportedItem> imported = new ArrayList<>();
         List<ImportItemsResponse.SkippedItem> skipped = new ArrayList<>();
@@ -95,7 +95,7 @@ public class ItemService {
             ImportAttempt attempt;
             try {
                 attempt = itemTransactions.execute(status ->
-                        importOne(entry, normalizedName, normalizedSource)
+                        importOne(entry, normalizedName, normalizedSource, bases)
                 );
             } catch (DataIntegrityViolationException exception) {
                 if (!alreadyImported(normalizedName, normalizedSource)) {
@@ -117,10 +117,8 @@ public class ItemService {
     }
 
     public UpdateItemsFromDumpResponse updateFromDump(JsonNode payload) {
-        JsonNode entries = payload == null ? null : payload.get("item");
-        if (entries == null || !entries.isArray()) {
-            throw badRequest("Expected a JSON object with an item array");
-        }
+        List<JsonNode> entries = entries(payload);
+        Map<String, BigDecimal> bases = baseValues(entries);
 
         List<UpdateItemsFromDumpResponse.ProcessedItem> created = new ArrayList<>();
         List<UpdateItemsFromDumpResponse.ProcessedItem> updated = new ArrayList<>();
@@ -139,7 +137,7 @@ public class ItemService {
             }
 
             UpdateAttempt attempt = itemTransactions.execute(status ->
-                    updateOne(entry, normalizedName, normalizedSource)
+                    updateOne(entry, normalizedName, normalizedSource, bases)
             );
             if (attempt.skipReason() != null) {
                 skipped.add(new UpdateItemsFromDumpResponse.SkippedItem(
@@ -155,7 +153,7 @@ public class ItemService {
         return new UpdateItemsFromDumpResponse(created, updated, skipped);
     }
 
-    private UpdateAttempt updateOne(JsonNode entry, String name, String sourceCode) {
+    private UpdateAttempt updateOne(JsonNode entry, String name, String sourceCode, Map<String, BigDecimal> bases) {
         Source source = sourceRepository.getSourceByCode(sourceCode).orElse(null);
         if (source == null) {
             return UpdateAttempt.skipped("Source is not configured in the database");
@@ -165,7 +163,7 @@ public class ItemService {
         ItemCategory category = category(entry);
         Rarity rarity = parseRarity(entry);
         String referenceLink = firstText(entry, "referenceLink", "link");
-        BigDecimal price = parsePrice(entry);
+        BigDecimal price = price(entry, bases);
         Item item = itemRepository.findByNameAndSource_Id(name, source.getId()).orElse(null);
         boolean created = item == null;
         if (created) {
@@ -174,7 +172,8 @@ public class ItemService {
             item.update(name, source, type, category,
                     referenceLink != null ? referenceLink : item.getReferenceLink(),
                     rarity,
-                    price != null ? price : item.getPriceGp());
+                    // preco oficial do arquivo manda; o valor do DMG so preenche quem ainda nao tem preco
+                    parsePrice(entry) != null || item.getPriceGp() == null ? price : item.getPriceGp());
         }
 
 
@@ -209,6 +208,72 @@ public class ItemService {
         return null;
     }
 
+    /**
+     * Le "baseitem" (armas e armaduras comuns do 5etools) e "item", nessa ordem, pra o item comum ja existir
+     * quando a arma magica feita dele for importada.
+     */
+    private List<JsonNode> entries(JsonNode payload) {
+        List<JsonNode> list = new ArrayList<>();
+        boolean found = false;
+        for (String key : List.of("baseitem", "item")) {
+            JsonNode array = payload == null ? null : payload.get(key);
+            if (array != null && array.isArray()) {
+                found = true;
+                array.forEach(list::add);
+            }
+        }
+        if (!found) {
+            throw badRequest("Expected a JSON object with an item or baseitem array");
+        }
+        return list;
+    }
+
+    /** Preco dos itens do proprio arquivo, por "nome|fonte" em minusculas (o formato do campo baseItem). */
+    private Map<String, BigDecimal> baseValues(List<JsonNode> entries) {
+        Map<String, BigDecimal> values = new HashMap<>();
+        for (JsonNode entry : entries) {
+            String name = text(entry, "name");
+            String source = text(entry, "source");
+            BigDecimal value = parsePrice(entry);
+            if (name != null && source != null && value != null) {
+                values.put((name.trim() + "|" + source.trim()).toLowerCase(Locale.ROOT), value);
+            }
+        }
+        return values;
+    }
+
+    /**
+     * Preco oficial do arquivo; se nao houver e o item for magico, o valor da tabela do DMG 2024 pela raridade
+     * (mais o preco da arma/armadura de base). Item comum sem preco fica sem: o mestre define na campanha.
+     */
+    private BigDecimal price(JsonNode entry, Map<String, BigDecimal> bases) {
+        BigDecimal official = parsePrice(entry);
+        if (official != null || !isMagical(entry)) {
+            return official;
+        }
+        return MagicItemPricing.price(parseRarity(entry), text(entry, "type"), text(entry, "name"), baseValue(entry, bases));
+    }
+
+    private BigDecimal baseValue(JsonNode entry, Map<String, BigDecimal> bases) {
+        String ref = text(entry, "baseItem");
+        if (ref == null || ref.isBlank()) {
+            return null;
+        }
+        String key = ref.trim().toLowerCase(Locale.ROOT);
+        if (!key.contains("|")) {
+            key = key + "|xphb";
+        }
+        BigDecimal fromFile = bases.get(key);
+        if (fromFile != null) {
+            return fromFile;
+        }
+        String[] parts = key.split("\\|", 2);
+        return sourceRepository.getSourceByCode(parts[1].toUpperCase(Locale.ROOT))
+                .flatMap(source -> itemRepository.findFirstByNameIgnoreCaseAndSource_Id(parts[0], source.getId()))
+                .map(Item::getPriceGp)
+                .orElse(null);
+    }
+
     private BigDecimal parsePrice(JsonNode entry) {
         JsonNode pg = entry.get("priceGp");            // calculado pelo script (gp)
         if (pg != null && pg.isNumber()) return new BigDecimal(pg.asText());
@@ -218,7 +283,7 @@ public class ItemService {
     }
 
 
-    private ImportAttempt importOne(JsonNode entry, String name, String sourceCode) {
+    private ImportAttempt importOne(JsonNode entry, String name, String sourceCode, Map<String, BigDecimal> bases) {
         Source source = sourceRepository.getSourceByCode(sourceCode).orElse(null);
         if (source == null) {
             return ImportAttempt.skipped("Source is not configured in the database");
@@ -228,7 +293,7 @@ public class ItemService {
         }
 
         String referenceLink = firstText(entry, "referenceLink", "link");
-        BigDecimal price = parsePrice(entry);
+        BigDecimal price = price(entry, bases);
         Item item = createItem(name, source,
                 isMagical(entry) ? ItemType.MAGICAL : ItemType.MUNDANE,
                 category(entry), referenceLink, parseRarity(entry), price);
@@ -406,12 +471,18 @@ public class ItemService {
             return Rarity.COMMON;
         }
         String normalized = rarity.replaceAll("[^A-Za-z_]", "").toUpperCase(Locale.ROOT);
+        if ("NONE".equals(normalized)) {
+            return Rarity.COMMON;   // item comum (nao magico): o 5etools usa "none"
+        }
         return Rarity.valueOf(normalized);
     }
 
     private boolean isMagical(JsonNode entry) {
         String type = text(entry, "type");
-        return entry.path("wondrous").asBoolean(false)
+        String rarity = text(entry, "rarity");
+        boolean rare = rarity != null && !rarity.isBlank() && !"none".equalsIgnoreCase(rarity.trim());
+        return rare
+                || entry.path("wondrous").asBoolean(false)
                 || (type != null && type.contains("MAGIC"))   // ex.: MAGIC_VARIANT
                 || hasValue(entry, "bonusWeapon")
                 || hasValue(entry, "bonusAc")

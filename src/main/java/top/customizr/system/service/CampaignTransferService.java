@@ -88,6 +88,7 @@ public class CampaignTransferService {
     private final MonsterService monsterService;
     private final top.customizr.system.repository.ShopRepository shopRepository;
     private final top.customizr.system.repository.LootRepository lootRepository;
+    private final top.customizr.system.repository.CampaignItemPriceRepository itemPriceRepository;
 
     public CampaignTransferService(
             CampaignRepository campaignRepository, CampaignSourceRepository campaignSourceRepository,
@@ -101,10 +102,12 @@ public class CampaignTransferService {
             top.customizr.system.repository.MapObjectRepository mapObjectRepository,
             top.customizr.system.repository.CampaignIconRepository iconRepository, MonsterService monsterService,
             top.customizr.system.repository.ShopRepository shopRepository,
-            top.customizr.system.repository.LootRepository lootRepository
+            top.customizr.system.repository.LootRepository lootRepository,
+            top.customizr.system.repository.CampaignItemPriceRepository itemPriceRepository
     ) {
         this.shopRepository = shopRepository;
         this.lootRepository = lootRepository;
+        this.itemPriceRepository = itemPriceRepository;
         this.sceneRepository = sceneRepository;
         this.mapObjectRepository = mapObjectRepository;
         this.iconRepository = iconRepository;
@@ -208,7 +211,9 @@ public class CampaignTransferService {
                         new CampaignExport.Ref(e.getItem().getName(), e.getItem().getSource().getCode()), e.getPriceGp(), e.getStock())).toList())).toList(),
                 lootRepository.findByCampaignOrderByName(campaign).stream().map(l -> new CampaignExport.LootData(l.getName(), l.isVisible(),
                         l.getMoneyGp(), l.getEntries().stream().map(e -> new CampaignExport.LootItemData(
-                        new CampaignExport.Ref(e.getItem().getName(), e.getItem().getSource().getCode()), e.getQuantity())).toList())).toList());
+                        new CampaignExport.Ref(e.getItem().getName(), e.getItem().getSource().getCode()), e.getQuantity())).toList())).toList(),
+                itemPriceRepository.findByCampaign(campaign).stream().map(p -> new CampaignExport.PriceData(
+                        new CampaignExport.Ref(p.getItem().getName(), p.getItem().getSource().getCode()), p.getPriceGp())).toList());
     }
 
     /** id -> nome dos verbetes da enciclopedia (os alfinetes levam o verbete pelo nome). */
@@ -444,6 +449,10 @@ public class CampaignTransferService {
                         () -> warnings.add("Loot " + ld.name() + ": item " + it.item().name() + " not found"));
             }
             lootRepository.save(loot);
+        }
+        for (CampaignExport.PriceData pd : nullSafe(data.prices())) {
+            catalogItem(pd.item()).filter(item -> item.getPriceGp() == null && pd.priceGp() != null).ifPresent(item ->
+                    itemPriceRepository.save(new top.customizr.system.model.CampaignItemPrice(campaign, item, pd.priceGp())));
         }
         if (scenes > 0 || !customMonsters.isEmpty()) {
             warnings.add(scenes + " scene(s) and " + customMonsters.size() + " custom monster(s) restored");

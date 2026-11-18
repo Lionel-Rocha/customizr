@@ -270,6 +270,12 @@
       <div id="tradeShops" style="display:grid;gap:8px"></div>
       <div id="tradeLoot" style="display:grid;gap:8px"></div>
       <div class="card"><h3>Vender</h3><div id="tradeSell" style="display:grid;gap:4px"></div></div>
+      <div class="card master-only">
+        <h3>Preços do mestre</h3>
+        <div class="muted" style="font-size:12px">Itens comuns sem preço oficial. O preço vale só nesta campanha. Itens mágicos já vêm com o valor do DMG 2024 pela raridade.</div>
+        <div class="row"><input id="priceQuery" placeholder="filtrar por nome"><label class="row" style="flex:0;white-space:nowrap;font-size:12px"><input id="priceMagic" type="checkbox" style="flex:0">mágicos sem preço</label><button id="priceSearch">Listar</button></div>
+        <div id="priceList" style="display:grid;gap:4px;max-height:320px;overflow:auto"></div>
+      </div>
     </div>
     <div id="tab-sheet" class="tab hidden">
       <div class="row"><select id="sheetChar"></select></div>
@@ -2329,8 +2335,34 @@ async function loadTrade() {
   }
   $('tradeMoney').textContent = inventory ? gp(inventory.moneyGp) : (mine.length ? '' : 'sem personagem');
   const [shops, loot] = await Promise.all([api('/shops/campaign/' + S.campaign.id), api('/loot/campaign/' + S.campaign.id)]);
+  try { S.itemPrices = await api('/item/prices/campaign/' + S.campaign.id); } catch (e) { S.itemPrices = {}; }
   renderShops(shops); renderLoot(loot); renderSell(shops, inventory);
 }
+/** Valor do item: oficial ou o que o mestre deu na campanha. */
+function itemValue(itemId, official) { return official != null ? official : (S.itemPrices || {})[itemId]; }
+/** Lista os itens sem preco oficial com uma caixa pro mestre escrever o preco (salva ao sair da caixa). */
+async function loadUnpriced() {
+  const box = $('priceList'); box.textContent = 'Carregando...';
+  const q = encodeURIComponent($('priceQuery').value.trim());
+  let list;
+  try { list = await api('/item/prices/campaign/' + S.campaign.id + '/unpriced?name=' + q + '&includeMagic=' + $('priceMagic').checked); }
+  catch (err) { box.textContent = ''; return toast(err.message); }
+  box.innerHTML = '';
+  if (!list.length) { box.textContent = 'Nenhum item sem preço.'; return; }
+  for (const it of list) {
+    const input = el('input', { type: 'number', min: '0', step: '0.01', placeholder: 'po', style: 'max-width:90px',
+      value: it.campaignPriceGp != null ? String(it.campaignPriceGp) : '' });
+    input.onchange = () => {
+      const v = input.value.trim();
+      api('/item/prices/campaign/' + S.campaign.id + '/' + it.itemId, { method: 'PUT', body: { priceGp: v === '' ? null : Number(v) } })
+        .then(() => { toast(v === '' ? 'Preço apagado: ' + it.name : 'Preço salvo: ' + it.name, true); loadTrade(); })
+        .catch(err => toast(err.message));
+    };
+    box.append(el('div', { class: 'atk' }, el('span', { text: it.name }, el('small', { text: it.source + (it.category ? ' · ' + it.category : '') + (it.type === 'MAGICAL' ? ' · ' + it.rarity : '') })), input));
+  }
+}
+$('priceSearch').onclick = loadUnpriced;
+$('priceQuery').onkeydown = ev => { if (ev.key === 'Enter') loadUnpriced(); };
 function qtyInput() { const q = el('input', { type: 'number', min: '1', value: '1', style: 'max-width:52px' }); return q; }
 function tradeCall(path, body, okText) {
   return api(path, { method: 'POST', body }).then(() => { toast(okText, true); loadTrade(); }).catch(err => toast(err.message));
@@ -2415,7 +2447,7 @@ function renderSell(shops, inventory) {
   box.append(el('div', { class: 'row' }, el('span', { class: 'muted', text: 'Vender para' }), shopSel));
   for (const e of inventory.entries) {
     const q = qtyInput();
-    box.append(el('div', { class: 'atk' }, el('span', { text: e.name }, el('small', { text: 'x' + e.quantity + (e.priceGp != null ? ' · vale ' + gp(e.priceGp) : ' · sem preço') })), q,
+    box.append(el('div', { class: 'atk' }, el('span', { text: e.name }, el('small', { text: 'x' + e.quantity + (itemValue(e.itemId, e.priceGp) != null ? ' · vale ' + gp(itemValue(e.itemId, e.priceGp)) : ' · sem preço') })), q,
       el('button', { text: 'Vender', onclick: () => tradeCall('/shops/' + shopSel.value + '/sell',
         { characterId: $('tradeChar').value, itemId: e.itemId, quantity: Number(q.value) || 1 }, 'Vendido: ' + e.name) })));
   }

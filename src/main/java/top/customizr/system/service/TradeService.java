@@ -52,10 +52,13 @@ public class TradeService {
     private final MasterGuard masterGuard;
     private final ChatService chatService;
     private final LiveEventService events;
+    private final ItemPriceService itemPrices;
 
     public TradeService(ShopRepository shopRepository, LootRepository lootRepository, CampaignRepository campaignRepository,
                         CharacterRepository characterRepository, ItemRepository itemRepository, InventoryService inventoryService,
-                        MasterGuard masterGuard, ChatService chatService, LiveEventService events) {
+                        MasterGuard masterGuard, ChatService chatService, LiveEventService events,
+                        ItemPriceService itemPrices) {
+        this.itemPrices = itemPrices;
         this.shopRepository = shopRepository;
         this.lootRepository = lootRepository;
         this.campaignRepository = campaignRepository;
@@ -75,7 +78,7 @@ public class TradeService {
         Campaign campaign = campaign(campaignId);
         boolean master = masterGuard.requireMember(username, campaign);
         return shopRepository.findByCampaignOrderByName(campaign).stream().filter(s -> master || s.isOpen())
-                .map(ShopResponse::from).toList();
+                .map(s -> ShopResponse.from(s, itemPrices.pricesOf(campaign))).toList();
     }
 
     @Transactional
@@ -141,7 +144,7 @@ public class TradeService {
         }
         int quantity = quantity(r);
         ShopEntry entry = valid(() -> shop.entry(r.entryId()));
-        BigDecimal price = entry.price();
+        BigDecimal price = entryPrice(entry);
         if (price == null) throw badRequest(entry.getItem().getName() + " has no price; ask the master");
         BigDecimal total = price.multiply(BigDecimal.valueOf(quantity));
         Inventory inventory = inventoryService.getOrCreateCharacterInventory(buyer);
@@ -172,7 +175,7 @@ public class TradeService {
         int quantity = quantity(r);
         Item item = item(r.itemId());
         BigDecimal base = shop.getEntries().stream().filter(e -> e.getItem().getId().equals(item.getId())).findFirst()
-                .map(ShopEntry::price).orElse(item.getPriceGp());
+                .map(this::entryPrice).orElseGet(() -> itemPrices.price(shop.getCampaign(), item));
         if (base == null) throw badRequest(item.getName() + " has no price; ask the master");
         BigDecimal total = base.multiply(BigDecimal.valueOf(quantity)).multiply(BigDecimal.valueOf(shop.getBuyBackPercent()))
                 .divide(BigDecimal.valueOf(100), 2, RoundingMode.DOWN);
@@ -311,7 +314,12 @@ public class TradeService {
     private ShopResponse broadcast(Shop shop) {
         UUID campaignId = shop.getCampaign().getId();
         events.publish(campaignId, "trade", Map.of("campaignId", campaignId));
-        return ShopResponse.from(shop);
+        return ShopResponse.from(shop, itemPrices.pricesOf(shop.getCampaign()));
+    }
+
+    /** Preco da loja; senao o oficial do catalogo; senao o que o mestre deu na campanha. */
+    private BigDecimal entryPrice(ShopEntry entry) {
+        return entry.getPriceGp() != null ? entry.getPriceGp() : itemPrices.price(entry.getShop().getCampaign(), entry.getItem());
     }
 
     private LootResponse broadcast(Loot loot) {
