@@ -99,6 +99,12 @@
   #viewAsBanner { position: absolute; top: 52px; left: 50%; transform: translateX(-50%); background: #26324A; border: 1px solid #8FB3FF;
     color: #DDE7FF; padding: 4px 10px; border-radius: 10px; font-size: 13px; display: flex; gap: 8px; align-items: center; z-index: 5; }
   #viewAsBanner button { padding: 1px 8px; font-size: 12px; }
+  body.telao header, body.telao aside, body.telao #tools, body.telao #hint, body.telao #combat, body.telao #areaPanel,
+  body.telao #viewAsBanner, body.telao #targetHint { display: none !important; }
+  body.telao #app { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+  #telaoExit { position: fixed; top: 8px; right: 8px; z-index: 30; opacity: .2; display: none; }
+  #telaoExit:hover { opacity: 1; }
+  body.telao #telaoExit { display: block; }
   #toast.ok { background: #233A26; border-color: var(--good); }
   #toast { position: fixed; right: 16px; bottom: 16px; max-width: 360px; background: #4A2420; border: 1px solid var(--bad); border-radius: 10px; padding: 10px 12px; }
   @media (max-width: 800px) {
@@ -125,6 +131,7 @@
     <span id="sceneName" class="muted"></span>
     <span class="grow"></span>
     <span id="who" class="muted"></span>
+    <button id="telaoBtn" title="Tela cheia só com o mapa, pra TV da mesa (mestre: visão do grupo)">Telão</button>
     <button id="logout">Sair</button>
   </header>
   <div id="stage">
@@ -353,6 +360,7 @@
   </aside>
 </div>
 <div id="toast" class="hidden"></div>
+<button id="telaoExit" title="Sair do telão (Esc)">✕ sair do telão</button>
 <div id="modal" class="hidden"><div id="modalBox"></div></div>
 
 <script>
@@ -362,7 +370,7 @@
    porque o EventSource do navegador nao manda o header Authorization. */
 const S = { token: null, me: null, campaign: null, master: false, scenes: [], scene: null, images: {},
   view: { tx: 40, ty: 40, z: 1 }, tool: 'move', drag: null, paint: null, pan: null, selected: null,
-  initiative: null, stream: null, targeting: null, wallDraw: null, explored: null, areaDraw: null, selectedTemplate: null, pendingArea: null, chars: [], icons: [], iconMap: {}, viewAs: null, ruler: null, rulers: {}, hoverWorld: null, pings: [], press: null, pinDrag: null };
+  initiative: null, stream: null, targeting: null, wallDraw: null, explored: null, areaDraw: null, selectedTemplate: null, pendingArea: null, chars: [], icons: [], iconMap: {}, viewAs: null, ruler: null, rulers: {}, hoverWorld: null, pings: [], press: null, pinDrag: null, telao: false, viewGroup: false };
 const $ = id => document.getElementById(id);
 const cv = $('map'), ctx = cv.getContext('2d');
 
@@ -426,6 +434,7 @@ async function openCampaign(c) {
   await loadIcons();
   if (S.master) await loadCharacters();
   listen();
+  if (load('customizr_telao') === '1' || new URLSearchParams(location.search).get('telao') === '1') setTelao(true);
 }
 
 async function refreshScenes() {
@@ -483,6 +492,7 @@ function onEvent(type, d) {
       const i = S.scenes.findIndex(s => s.id === d.id);
       if (i >= 0) S.scenes[i] = d; else S.scenes.push(d);
       if (!S.master) { if (d.active) showScene(d); }
+      else if (S.telao && d.active) { S.scenes.forEach(s => { if (s.id !== d.id) s.active = false; }); showScene(d); fitTelao(); }
       else { if (d.active) S.scenes.forEach(s => { if (s.id !== d.id) s.active = false; }); showScene(sc && sc.id === d.id ? d : sc || d); }
       break;
     }
@@ -601,7 +611,7 @@ function draw() {
   const sight = playerSight(sc); // null = sem visao dinamica pra este usuario
   const seen = t => !sight || isMine(t) || canSee(sight, t.x + g * TW(t) / 2, t.y + g * TH(t) / 2);
   // vendo como jogador: o que ele nao recebe do servidor (oculto, camada do mestre) some
-  const ordered = [...sc.tokens].filter(t => !S.viewAs || !(t.hidden || t.layer === 'GM')).sort((a, b) => LAYER_ORDER[a.layer || 'BATTLE'] - LAYER_ORDER[b.layer || 'BATTLE']);
+  const ordered = [...sc.tokens].filter(t => !playerView() || !(t.hidden || t.layer === 'GM')).sort((a, b) => LAYER_ORDER[a.layer || 'BATTLE'] - LAYER_ORDER[b.layer || 'BATTLE']);
   drawTemplates(sc, g);
   for (const t of ordered) if (seen(t)) drawAuras(t, g);
   for (const t of ordered) if (!above(t) && seen(t)) drawToken(t, g);
@@ -654,7 +664,7 @@ function drawToken(t, g) {
   else { ctx.fillStyle = '#F6E9D3'; ctx.font = 700 + ' ' + rad * 0.9 + 'px Georgia'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText((t.name || '?')[0].toUpperCase(), cx, cy + 1); }
   ctx.lineWidth = S.selected && S.selected.id === t.id ? 4 / S.view.z : 2 / S.view.z;
   ctx.strokeStyle = S.selected && S.selected.id === t.id ? '#FFCF7F' : '#E8A33D'; ctx.stroke();
-  const showHp = !S.viewAs || t.characterId || (t.members && t.members.length);
+  const showHp = !playerView() || t.characterId || (t.members && t.members.length);
   if (t.hpMax && showHp) {
     const ratio = Math.max(0, Math.min(1, t.hpCurrent / t.hpMax)), bw = g * TW(t) * 0.8, bh = Math.max(4, size * 0.08), by = t.y + g * TH(t) - bh - 1;
     ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.fillRect(cx - bw / 2, by, bw, bh);
@@ -813,7 +823,7 @@ function snap(t) {
 }
 document.querySelectorAll('[data-tool]').forEach(b => b.onclick = () => { S.tool = b.dataset.tool; document.querySelectorAll('[data-tool]').forEach(x => x.classList.toggle('on', x === b)); });
 $('center').onclick = () => { const { w, h } = mapSize(), r = cv.getBoundingClientRect(); S.view.z = Math.min(r.width / w, r.height / h) * 0.95; S.view.tx = (r.width - w * S.view.z) / 2; S.view.ty = (r.height - h * S.view.z) / 2; draw(); };
-window.addEventListener('resize', draw);
+window.addEventListener('resize', () => { if (S.telao) fitTelao(); else draw(); });
 
 // ------------------------------------------------------------------ abas
 document.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => {
@@ -1090,9 +1100,15 @@ const CONDITIONS = [['BLINDED', 'Cego'], ['CHARMED', 'Enfeitiçado'], ['DEAFENED
 const conditionLabel = c => (CONDITIONS.find(x => x[0] === c) || [c, c])[1];
 /** Token do jogador: o do personagem dele, ou um token de grupo (caravana) em que viaja uma ficha dele. */
 const viewerId = () => S.viewAs || S.me.userId;
-const isMine = t => !!t && (t.ownerId === viewerId() || (t.members || []).some(m => m.ownerId === viewerId()));
-/** Mestre vendo a mesa como mestre (e nao "como jogador"). */
-const asMaster = () => S.master && !S.viewAs;
+/** Dono "visto": no telao do mestre, qualquer jogador (visao do grupo); senao, quem esta sendo visto. */
+const isViewer = id => S.viewGroup ? id && id !== S.me.userId && groupOwners().has(id) : id === viewerId();
+const isMine = t => !!t && (isViewer(t.ownerId) || (t.members || []).some(m => isViewer(m.ownerId)));
+/** Jogadores da campanha (donos de personagem que nao sao o mestre). */
+function groupOwners() { return new Set((S.chars || []).map(c => c.ownerId).filter(id => id !== S.me.userId)); }
+/** Desenho como jogador: "ver como" ou telao do mestre. */
+const playerView = () => !!(S.viewAs || S.viewGroup);
+/** Mestre vendo a mesa como mestre. */
+const asMaster = () => S.master && !playerView();
 const canControl = t => !!t && (S.master || isMine(t));
 
 function renderCombat(t, reloadAttacks) {
@@ -1181,6 +1197,7 @@ $('cbClose').onclick = () => select(null);
 window.addEventListener('keydown', e => {
   if (e.key === 'Escape' && S.targeting) stopTargeting();
   if (e.key === 'Escape' && S.ruler) finishRuler();
+  if (e.key === 'Escape' && S.telao && !S.targeting && !S.ruler) setTelao(false);
 });
 
 // ------------------------------------------------------------------ paredes e portas
@@ -2122,7 +2139,7 @@ function drawPings() {
   }
 }
 const PIN_ICONS = ['📍', '🍺', '🏰', '⛪', '⚔', '💀', '⚠', '💰', '🗝', '🌲', '🏠', '⭐', '❓'];
-function visiblePins(sc) { return (sc.pins || []).filter(p => !S.viewAs || p.visibleToPlayers); }
+function visiblePins(sc) { return (sc.pins || []).filter(p => !playerView() || p.visibleToPlayers); }
 function pinAt(x, y) {
   const r = 16 / S.view.z;
   const list = S.scene ? visiblePins(S.scene) : [];
@@ -2186,6 +2203,29 @@ async function openPinEditor(p) {
   } })));
   $('modal').classList.remove('hidden'); label.focus();
 }
+
+// ------------------------------------------------------------------ modo telao
+/**
+ * Telao (TV da mesa presencial): so o mapa, em tela cheia. Mestre: visao do grupo (o que os personagens de todos
+ * enxergam juntos, sem nada que e so do mestre) e sempre a cena ativa. Jogador: a propria visao.
+ */
+function setTelao(on) {
+  S.telao = !!on; S.viewGroup = S.telao && S.master; S.explored = null;
+  document.body.classList.toggle('telao', S.telao);
+  store('customizr_telao', S.telao ? '1' : null);
+  if (S.telao) {
+    select(null); setViewAs(null);
+    const active = S.scenes.find(x => x.active);
+    if (S.master && active && (!S.scene || S.scene.id !== active.id)) showScene(active);
+    try { if (document.fullscreenElement == null && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(() => {}); } catch (e) {}
+  } else {
+    try { if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); } catch (e) {}
+  }
+  requestAnimationFrame(() => (S.telao ? fitTelao() : draw()));
+}
+function fitTelao() { requestAnimationFrame(() => $('center').click()); }
+$('telaoBtn').onclick = () => setTelao(true);
+$('telaoExit').onclick = () => setTelao(false);
 
 // ------------------------------------------------------------------ inicio
 S.token = load('customizr_token');

@@ -115,3 +115,4 @@ Simulação do deploy, feita num Postgres 17.12 temporário no PC:
 | 20 | "Ver como jogador" pro mestre na tela `/mesa` |
 | 21 | Régua compartilhada, movimento colorido pelo deslocamento, auras (`token_auras`) e anel de alcance do ataque |
 | 22 | Alfinetes no mapa com verbete da enciclopédia (`scene_pins`) e ping (o mestre pode centralizar a tela de todos) |
+| 23 | Modo telão na tela `/mesa` (TV da mesa presencial: visão do grupo, cena ativa) |

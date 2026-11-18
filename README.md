@@ -446,6 +446,8 @@ A parte da mesa de jogo, desenvolvida à parte em JavaFX, foi trazida para cá n
 * **Alfinetes:** a ferramenta "Alfinete" (mestre) põe um marcador no mapa com ícone, nome, nota e, se quiser, um verbete da enciclopédia ligado. Clicando, abre a nota e o texto do verbete (o jogador só vê verbete visível). Pode ficar só pro mestre; o mestre arrasta pra mover. Vai na exportação, ligado ao verbete pelo nome.
 * **Ping:** segurar o clique no mapa (ou Alt+clique) solta ondas no ponto pra todos, com o nome de quem pingou. Shift+Alt+clique do mestre também centraliza a tela de todos ali.
 
+**Modo telão (jogo presencial):** o botão "Telão" (ou `/mesa/?telao=1`) deixa só o mapa, em tela cheia, pra uma TV na mesa. Aberto pelo mestre, mostra a visão do grupo (o que os personagens de todos os jogadores enxergam juntos, com luz, paredes e neblina, sem nada que é só do mestre) e segue sozinho a cena ativa; pings e o "puxar a tela" do mestre valem. Esc ou o botão no canto sai.
+
 **Ver como jogador:** o mestre escolhe "Ver como jogador de ..." na barra da mesa e vê exatamente o que aquele jogador vê (visão dinâmica, luz, neblina, memória do que já foi visto). Tokens ocultos, camada do mestre, paredes e PV de monstro somem como somem pro jogador. As ferramentas continuam de mestre, e uma faixa no alto lembra o modo, com o botão de voltar.
 
 Ficaram de fora por não se encaixarem numa API REST sem uma interface de jogo:
