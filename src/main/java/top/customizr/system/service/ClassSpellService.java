@@ -9,9 +9,6 @@ import top.customizr.system.model.Spell;
 import top.customizr.system.repository.DndClassRepository;
 import top.customizr.system.repository.SpellRepository;
 
-import java.util.Optional;
-import java.util.UUID;
-
 @Service
 public class ClassSpellService {
     private final DndClassRepository dndClassRepository;
@@ -23,23 +20,35 @@ public class ClassSpellService {
     }
 
     @Transactional
-    public String create(String className, String spellName){
+    public String create(String className, String spellName) {
+        String normalizedClassName = normalizeRequired(className, "Class name is required");
+        String normalizedSpellName = normalizeRequired(spellName, "Spell name is required");
 
-        Spell spell = getSpellByName(spellName);
-        DndClass dndClass = getClassByName(className);
+        var matchingSpells = spellRepository.findAllByNameIgnoreCase(normalizedSpellName);
+        if (matchingSpells.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Spell not found");
+        }
+        if (matchingSpells.size() > 1) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT, "Spell name is ambiguous; use a spell name unique across sources"
+            );
+        }
+        Spell spell = matchingSpells.getFirst();
+
+        DndClass dndClass = dndClassRepository.findByClassName(normalizedClassName);
+        if (dndClass == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Class not found");
+        }
 
         dndClass.addAvailableSpell(spell);
         dndClassRepository.save(dndClass);
         return "Spell adicionado à classe";
     }
 
-    private Spell getSpellByName(String name){
-        Spell spell = (Spell) spellRepository.findByNameContainingIgnoreCase(name);
-        return spell;
-    }
-
-    private DndClass getClassByName(String name){
-        DndClass dndClass = dndClassRepository.findByClassName(name);
-        return dndClass;
+    private String normalizeRequired(String value, String message) {
+        if (value == null || value.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, message);
+        }
+        return value.trim();
     }
 }

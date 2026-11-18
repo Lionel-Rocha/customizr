@@ -43,6 +43,9 @@ Este branch (`mesclagem-mesa`) traz para o Customizr o que foi feito no programa
 | Formato das respostas | `CharacterSheetResponse` (+ `combat`, `details`), `PartyResponse` (+ `maxSize`, `members`), `NpcResponse` (+ `statBlock*`), `InventoryResponse` (novo) | **O front pode precisar ler os campos novos**; nenhum campo antigo foi removido |
 | `resources/data.sql` | + "Campanha de O Escriba" com O Artífice como jogador | O teste `sqlSeedCreatesCampaign...` já esperava isso e falhava |
 | Testes `CharacterServiceTests`, `CharacterSheetServiceTests`, `ItemImportTests`, `SpellcastingModelTests` | Ajustes mínimos | Não compilavam ou falhavam no `e740c23` (API mudada, LAZY fora de transação, `10` vs `10.00`) |
+| `dto/SourceResponse.java` | + `official` (true/false/null) | O `/source` e o detalhe da classe mostram se a fonte é oficial (vem da atualização do 5etools); nenhum campo saiu |
+| Teste `ClassImportTests` (do seu `220ea25`) | `Components.VERBAL`/`SOMATIC` → `Verbal`/`Somatic` | Não compilava nem na sua `main`: o enum é `Verbal`, `Somatic`, `Material` |
+| Teste `ClassSpellAssociationTests` (do seu `220ea25`) | Entra com um usuário de verdade (token do `JwtService`) e é `@Transactional` | Dava 403 (a rota exige login no `SecurityConfig`) e depois `LazyInitializationException` ao ler `availableSpells`, também na sua `main` |
 
 ## Antes de colocar no ar: o banco de produção
 
@@ -122,3 +125,4 @@ Simulação do deploy, feita num Postgres 17.12 temporário no PC:
 | 26 | Itens com preço: o importador lê `baseitem`, aceita raridade `none` (item comum) e dá aos mágicos sem preço o valor do DMG 2024 (`MagicItemPricing`); preço do mestre por campanha pros comuns sem preço (`campaign_item_prices`, `ItemPriceService`) |
 | 27 | Categorias dos itens nas suas 10 tags (`ItemCategory`): venenos, montarias e veículos, bugigangas/tesouro e maravilhosos passam a ser preenchidos; munição (`A` no 5etools) deixa de virar armadura e navio (que tem `ac`) também. O foco mágico continua `ADVENTURING_GEAR`, como no seu teste |
 | 28 | Importação aberta a todas as fontes cadastradas (sai a lista fixa `IMPORTABLE_SOURCES`); `Source.official` (coluna nova opcional); atualização direto do 5etools (`FiveToolsSyncService`, oficial = autor da Wizards); itens próprios do mestre por campanha (`Item.campaign`, coluna nova opcional; `CampaignItemService`), na busca com filtro de origem e na exportação |
+| 29 | Mescla do seu `220ea25` ("Spells de classes": `GET /class/{id}`, `/class-spell/add` com JSON) sem conflito; as magias que a mesa liga às classes (`/spell/class-lists/import`) aparecem no seu detalhe da classe; `SourceResponse` + `official`; dois testes seus corrigidos (ver acima) |

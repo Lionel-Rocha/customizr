@@ -128,6 +128,8 @@ Abaixo estão todos os endpoints atualmente expostos pelo backend da aplicação
 | `POST` | `/class/import` | Importa classes a partir de um payload JSON. |
 | `POST` | `/class/subclass-features` | Adiciona uma feature a uma subclasse existente. |
 | `GET` | `/class/all` | Lista as classes disponíveis. |
+| `GET` | `/class/{id}` | Detalhe da classe: features por nível, magias disponíveis (as ligadas por `/class-spell/add` ou por `/spell/class-lists/import`) e subclasses com features e magias. |
+| `POST` | `/class-spell/add` | Liga uma magia a uma classe (JSON `className`, `spellName`; nome de magia repetido em duas fontes dá conflito). |
 | `POST` | `/item/create` | Cria um item. |
 | `GET` | `/item/{itemId}` | Consulta um item pelo ID. |
 | `GET` | `/item/all` | Lista todos os itens. |

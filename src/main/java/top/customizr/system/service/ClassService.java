@@ -10,6 +10,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 import top.customizr.system.dto.AddSubclassFeatureResponse;
+import top.customizr.system.dto.DndClassDetailResponse;
 import top.customizr.system.dto.DndClassResponse;
 import top.customizr.system.dto.ImportClassesResponse;
 import top.customizr.system.model.DndClass;
@@ -251,6 +252,13 @@ public class ClassService {
         return dndClassRepository.findAll().stream()
                 .map(DndClassResponse::from)
                 .toList();
+    }
+
+    @Transactional
+    public DndClassDetailResponse getClassDetails(UUID classId) {
+        DndClass dndClass = dndClassRepository.findById(classId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Class not found"));
+        return DndClassDetailResponse.from(dndClass);
     }
 
     private String getIncompleteReason(JsonNode classEntry, String sourceCode, JsonNode subclassEntries) {
