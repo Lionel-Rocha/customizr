@@ -149,7 +149,11 @@ public record CampaignExport(
             InventoryData inventory,
             Boolean heroicInspiration,
             java.util.Map<String, Integer> spentResources,
-            List<ResourceData> customResources
+            List<ResourceData> customResources,
+            List<String> languages,
+            List<String> toolProficiencies,
+            List<String> weaponProficiencies,
+            List<String> armorProficiencies
     ) {}
 
     /** Recurso criado a mao na ficha (cargas de item, usos de talento). */

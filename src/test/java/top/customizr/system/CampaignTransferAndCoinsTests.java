@@ -154,6 +154,8 @@ class CampaignTransferAndCoinsTests {
                 .filter(r -> r.name().equals("Wand of Magic Missiles")).findFirst().orElseThrow().id();
         sheetService.spendResource(hero.getCharacterId(), new top.customizr.system.dto.ResourceRequest(wandId, 2), player);
         sheetService.changeInspiration(hero.getCharacterId(), new top.customizr.system.dto.InspirationRequest(true), master);
+        sheetService.updateOtherProficiencies(hero.getCharacterId(), new top.customizr.system.dto.OtherProficienciesRequest(
+                java.util.List.of("Common", "Dwarvish"), java.util.List.of("Smith's Tools"), null, null), player);
         var party = partyService.create(campaign.getId(), new CreatePartyRequest("Heroes", 4), master);
         partyService.addCharacter(party.partyId(), hero.getCharacterId(), master);
 
@@ -191,6 +193,8 @@ class CampaignTransferAndCoinsTests {
         assertEquals(newWorld.mapUrl(), sheet.details().portraitUrl());
         assertEquals("Heroes", sheet.party().name());
         assertTrue(sheet.details().heroicInspiration());
+        assertEquals(java.util.List.of("Common", "Dwarvish"), sheet.details().languages());
+        assertEquals(java.util.List.of("Smith's Tools"), sheet.details().toolProficiencies());
         var wand = sheet.details().resources().stream().filter(r -> r.name().equals("Wand of Magic Missiles")).findFirst().orElseThrow();
         assertEquals(5, wand.remaining());
         assertEquals(top.customizr.system.model.ResourceRecharge.MANUAL, wand.recharge());

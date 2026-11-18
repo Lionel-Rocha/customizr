@@ -209,12 +209,14 @@ Abaixo estão todos os endpoints atualmente expostos pelo backend da aplicação
 | `POST` | `/character/{id}/resources/recover` | Devolve usos (`amount` vazio = todos). |
 | `POST` | `/character/{id}/resources` | Cria um recurso à mão (`name`, `maxUses` 1–999, `recharge`, `notes`): cargas de item, usos de talento. |
 | `PUT` / `DELETE` | `/character/{id}/resources/{resourceId}` | Edita / apaga um recurso criado à mão. |
+| `PUT` | `/character/{id}/other-proficiencies` | Idiomas, ferramentas, armas e armaduras (`languages`, `tools`, `weapons`, `armor`; texto livre; lista nula = fica como está, vazia = limpa). |
+| `GET` | `/character/{id}/other-proficiencies/suggested` | O que a espécie, o antecedente e as classes dão (lido do `metadata` do 5etools; a primeira classe dá as proficiências iniciais, as outras só as de multiclasse) e as escolhas pendentes. |
 | `GET` | `/character/{id}/level-up?classId=` | Prévia do próximo nível: PV (média, dado), proficiência, habilidades que chegam, escolhas que abrem, subclasse a escolher, Aumento de Valor de Atributo / Dádiva Épica, espaços de magia e recursos que mudam, avisos (XP, pré-requisito de multiclasse). `classId` vazio = a única classe; outra classe = multiclasse. |
 | `POST` | `/character/{id}/level-up` | Sobe o nível: `classId`, `hpMethod` (`AVERAGE`, `ROLL`, `MANUAL` + `hpValue`), `subclassId`, `abilityIncreases` (+2 em um ou +1 em dois) ou `featId` (+1 opcional de meio-talento), `announce` (cartão no chat). CON que sobe soma PV nos níveis anteriores. Dono ou mestre. |
 | `PUT` | `/character/{id}/inspiration` | Inspiração Heroica: só o mestre dá (`true`); dono ou mestre tira (`false`). Gastar = `heroicInspiration: true` no `/roll` (ou no ataque), que rola de novo e anota no resultado. |
 | `POST` / `DELETE` | `/character/{id}/attacks[/{attackId}]` | Ataques da ficha (nome, bônus, dano, tipo). |
 | `POST` | `/character/{id}/attacks/{attackId}/roll` | Rola o ataque e o dano (crítico dobra os dados); `targetArmorClass` diz se acertou; `toChat` manda pro chat. |
-| `POST` | `/character/{id}/roll` | Teste de perícia, atributo, salvaguarda, iniciativa ou contra a morte, com as condições e a exaustão aplicadas. |
+| `POST` | `/character/{id}/roll` | Teste de perícia, atributo, salvaguarda, iniciativa, contra a morte ou de ferramenta (`kind` `TOOL`, `tool`, `ability`: soma a proficiência se a ficha tiver a ferramenta), com as condições e a exaustão aplicadas. A ficha mostra também Intuição e Investigação passivas. |
 
 **Recursos de classe** (`ClassResources`): o máximo sai do nível de cada classe e a recarga da regra da edição da classe (2024 = `edition` `one`; 2014 = `classic` ou fonte PHB). Só números das regras, nenhum texto de livro. A ficha guarda apenas quanto foi gasto (`sheet_spent_resources`).
 

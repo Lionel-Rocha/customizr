@@ -7,6 +7,9 @@ import top.customizr.system.dto.ConditionsRequest;
 import top.customizr.system.dto.CustomResourceRequest;
 import top.customizr.system.dto.InspirationRequest;
 import top.customizr.system.dto.ResourceRequest;
+import top.customizr.system.dto.OtherProficienciesRequest;
+import top.customizr.system.dto.SuggestedProficienciesResponse;
+import top.customizr.system.model.ProficiencySuggestions;
 import top.customizr.system.dto.ExperienceRequest;
 import top.customizr.system.dto.OriginRequest;
 import top.customizr.system.dto.PortraitRequest;
@@ -137,6 +140,23 @@ public class CharacterSheetService {
         liveTable.characterChanged(character);
         return new RestResponse("SHORT", result.rolls(), result.healed(), result.recovered(),
                 CharacterSheetResponse.from(character));
+    }
+
+    // ------------------------------------------------------------------ idiomas, ferramentas, armas e armaduras
+
+    @Transactional
+    public CharacterSheetResponse updateOtherProficiencies(UUID characterId, OtherProficienciesRequest request, String username) {
+        Character character = manageable(characterId, username);
+        requireBody(request);
+        valid(() -> { character.getSheet().updateOtherProficiencies(request.languages(), request.tools(),
+                request.weapons(), request.armor()); return null; });
+        return CharacterSheetResponse.from(character);
+    }
+
+    /** O que a especie, o antecedente e as classes dao, pra preencher com um clique. */
+    @Transactional
+    public SuggestedProficienciesResponse suggestedProficiencies(UUID characterId, String username) {
+        return SuggestedProficienciesResponse.from(ProficiencySuggestions.of(manageable(characterId, username).getSheet()));
     }
 
     // ------------------------------------------------------------------ recursos e Inspiracao Heroica
@@ -325,6 +345,15 @@ public class CharacterSheetService {
                     mode = combine(mode, RollMode.DISADVANTAGE);
                     notes.add("Disadvantage: restrained");
                 }
+            }
+            case TOOL -> {
+                AbilityScore ability = require(request.ability(), "Ability");
+                String tool = require(request.tool() == null || request.tool().isBlank() ? null : request.tool().trim(), "Tool");
+                boolean proficient = sheet.isProficientWithTool(tool);
+                label = tool + " (" + name(ability) + ")";
+                bonus = sheet.abilityModifier(ability) + (proficient ? sheet.getProficiencyBonus() : 0);
+                if (!proficient) notes.add("Not proficient with " + tool);
+                mode = withConditions(mode, sheet, DISADVANTAGE_ON_CHECKS, notes);
             }
             case INITIATIVE -> {
                 label = "Initiative";

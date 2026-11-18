@@ -68,6 +68,8 @@
   .insp b { flex: 1; }
   .lvl-ready { color: var(--accent-2); font-weight: 600; }
   .coins { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+  .profs label { display: grid; gap: 2px; font-size: 12px; color: var(--muted); }
+  .profs textarea { min-height: 34px; resize: vertical; font: inherit; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 4px 6px; }
   .coins .stat b { display: block; font-size: 16px; }
   .lvl-box { display: grid; gap: 6px; font-size: 13px; }
   .lvl-box ul { margin: 0; padding-left: 18px; }
@@ -363,6 +365,23 @@
           <button id="xGo">Trocar</button>
         </div>
         <div id="carryInfo" class="muted" style="font-size:12px"></div>
+      </div>
+      <div class="card profs">
+        <h3>Idiomas e proficiências</h3>
+        <div id="passives" class="stats"></div>
+        <label>Idiomas<textarea id="profLang" placeholder="Common, Elvish"></textarea></label>
+        <label>Ferramentas<textarea id="profTools" placeholder="Thieves' Tools, Lute"></textarea></label>
+        <label>Armas<textarea id="profWeapons" placeholder="Simple weapons, Martial weapons"></textarea></label>
+        <label>Armaduras<textarea id="profArmor" placeholder="Light armor, Shields"></textarea></label>
+        <div class="row"><button id="profSuggest" title="Preenche com o que a espécie, o antecedente e as classes dão">Usar sugestões</button>
+          <button id="profSave" class="primary">Gravar</button></div>
+        <div id="profChoices" class="muted" style="font-size:12px"></div>
+        <div class="row">
+          <select id="toolPick"></select>
+          <select id="toolAbility" style="flex:0 0 64px"><option value="STRENGTH">FOR</option><option value="DEXTERITY" selected>DES</option><option value="CONSTITUTION">CON</option>
+            <option value="INTELLIGENCE">INT</option><option value="WISDOM">SAB</option><option value="CHARISMA">CAR</option></select>
+          <button id="toolRoll">Teste de ferramenta</button>
+        </div>
       </div>
       <div class="card">
         <h3>Subir de nível <span id="lvlReady" class="lvl-ready"></span></h3>
@@ -1056,6 +1075,7 @@ async function loadSheet() {
   renderResources(id, sheet);
   renderLevelUp(id, sheet).catch(err => toast(err.message));
   renderPurse(id, sheet).catch(err => toast(err.message));
+  renderProficiencies(id, sheet);
   const box = $('sheetFeatures'); box.innerHTML = '';
   if (!features.length) box.textContent = 'Nada ainda: adicione classe, espécie ou itens.';
   for (const f of features) {
@@ -1205,6 +1225,55 @@ $('xGo').onclick = async () => {
     const m = err.message;
     toast(/does not make whole/.test(m) ? 'Esse valor não fecha em moedas inteiras.' : /Only (\d+)/.test(m) ? 'Só tem ' + m.match(/Only (\d+)/)[1] + ' dessa moeda.' : m);
   }
+};
+
+// ------------------------------------------------------------------ idiomas, ferramentas, armas e armaduras
+const splitList = text => text.split(/[,;\n]/).map(s => s.trim()).filter(Boolean);
+const joinList = list => (list || []).join(', ');
+
+function renderProficiencies(id, sheet) {
+  const d = sheet.details || {}, c = sheet.combat || {};
+  const stat = (label, value) => '<div class="stat"><small>' + label + '</small>' + value + '</div>';
+  $('passives').innerHTML = stat('Percepção passiva', c.passivePerception ?? '—') + stat('Intuição passiva', d.passiveInsight ?? '—')
+    + stat('Investigação passiva', d.passiveInvestigation ?? '—');
+  $('profLang').value = joinList(d.languages); $('profTools').value = joinList(d.toolProficiencies);
+  $('profWeapons').value = joinList(d.weaponProficiencies); $('profArmor').value = joinList(d.armorProficiencies);
+  $('profChoices').textContent = '';
+  const pick = $('toolPick'); pick.innerHTML = '';
+  (d.toolProficiencies || []).forEach(t => pick.append(new Option(t, t)));
+  pick.append(new Option('Outra ferramenta (sem proficiência)…', '__other'));
+}
+
+$('profSave').onclick = async () => {
+  const id = $('sheetChar').value; if (!id) return;
+  try {
+    await api('/character/' + id + '/other-proficiencies', { method: 'PUT', body: { languages: splitList($('profLang').value),
+      tools: splitList($('profTools').value), weapons: splitList($('profWeapons').value), armor: splitList($('profArmor').value) } });
+    toast('Proficiências gravadas.', true); loadSheet();
+  } catch (err) { toast(err.message); }
+};
+$('profSuggest').onclick = async () => {
+  const id = $('sheetChar').value; if (!id) return;
+  try {
+    const s = await api('/character/' + id + '/other-proficiencies/suggested');
+    // junta com o que ja esta escrito (sem repetir); grava so quando clicar em Gravar
+    const merge = (el, add) => { const have = splitList(el.value), seen = new Set(have.map(x => x.toLowerCase()));
+      add.forEach(x => { if (!seen.has(x.toLowerCase())) { have.push(x); seen.add(x.toLowerCase()); } }); el.value = joinList(have); };
+    merge($('profLang'), s.languages); merge($('profTools'), s.tools); merge($('profWeapons'), s.weapons); merge($('profArmor'), s.armor);
+    const pt = t => t.replace(/: choose (\d+) (language|tool|weapon|armor)/, (m, n, w) => ': escolha ' + n + ' ' + ({ language: 'idioma', tool: 'ferramenta', weapon: 'arma', armor: 'armadura' })[w]);
+    $('profChoices').textContent = s.choices.length ? 'Escolhas pendentes: ' + s.choices.map(pt).join(' · ') : '';
+    const none = !s.languages.length && !s.tools.length && !s.weapons.length && !s.armor.length;
+    toast(none ? 'Nada a sugerir: espécie, antecedente e classe não trazem essa lista.' : 'Sugestões adicionadas. Confira e clique em Gravar.', !none);
+  } catch (err) { toast(err.message); }
+};
+$('toolRoll').onclick = async () => {
+  const id = $('sheetChar').value; if (!id) return;
+  let tool = $('toolPick').value;
+  if (tool === '__other') { tool = prompt('Qual ferramenta?'); if (!tool) return; }
+  try {
+    const res = await api('/character/' + id + '/roll', { method: 'POST', body: { kind: 'TOOL', tool, ability: $('toolAbility').value, toChat: true } });
+    toast(tool + ': ' + res.roll.total + (res.notes.some(n => n.startsWith('Not proficient')) ? ' (sem proficiência)' : ''), true);
+  } catch (err) { toast(err.message); }
 };
 
 // ------------------------------------------------------------------ subir de nivel

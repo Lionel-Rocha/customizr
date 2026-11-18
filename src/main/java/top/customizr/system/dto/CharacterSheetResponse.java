@@ -62,7 +62,13 @@ public record CharacterSheetResponse(
             List<ResourceInfo> resources,
             boolean heroicInspiration,
             Integer carryingCapacityLb,
-            Integer pushDragLiftLb
+            Integer pushDragLiftLb,
+            List<String> languages,
+            List<String> toolProficiencies,
+            List<String> weaponProficiencies,
+            List<String> armorProficiencies,
+            int passiveInsight,
+            int passiveInvestigation
     ) {
         private static DetailsInfo from(Character character) {
             top.customizr.system.model.Sheet sheet = character.getSheet();
@@ -107,7 +113,13 @@ public record CharacterSheetResponse(
                             r.spent(), r.remaining(), r.recharge(), r.unit(), r.custom(), r.notes())).toList(),
                     sheet.getHeroicInspiration(),
                     sheet.getCarryingCapacityLb(),
-                    sheet.getPushDragLiftLb()
+                    sheet.getPushDragLiftLb(),
+                    List.copyOf(sheet.getLanguages()),
+                    List.copyOf(sheet.getToolProficiencies()),
+                    List.copyOf(sheet.getWeaponProficiencies()),
+                    List.copyOf(sheet.getArmorProficiencies()),
+                    sheet.getPassiveInsight(),
+                    sheet.getPassiveInvestigation()
             );
         }
     }

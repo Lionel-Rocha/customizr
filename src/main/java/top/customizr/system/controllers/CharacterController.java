@@ -130,6 +130,21 @@ public class CharacterController {
         return sheetService.rest(id, request, loggedUser.getUsername());
     }
 
+    /** Idiomas, ferramentas, armas e armaduras (lista nula = deixa como esta). */
+    @PutMapping("/{id}/other-proficiencies")
+    public CharacterSheetResponse updateOtherProficiencies(@PathVariable UUID id,
+                                                           @RequestBody top.customizr.system.dto.OtherProficienciesRequest request,
+                                                           @AuthenticationPrincipal UserDetails loggedUser) {
+        return sheetService.updateOtherProficiencies(id, request, loggedUser.getUsername());
+    }
+
+    /** O que a especie, o antecedente e as classes dao (do 5etools), com as escolhas pendentes. */
+    @GetMapping("/{id}/other-proficiencies/suggested")
+    public top.customizr.system.dto.SuggestedProficienciesResponse suggestedProficiencies(
+            @PathVariable UUID id, @AuthenticationPrincipal UserDetails loggedUser) {
+        return sheetService.suggestedProficiencies(id, loggedUser.getUsername());
+    }
+
     /** Gasta usos de um recurso (Furia, Pontos de Foco, cargas de item...). */
     @PostMapping("/{id}/resources/spend")
     public CharacterSheetResponse spendResource(@PathVariable UUID id,

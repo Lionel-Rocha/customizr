@@ -186,7 +186,9 @@ public class CampaignTransferService {
                     s.getHeroicInspiration(),
                     java.util.Map.copyOf(s.getSpentResources()),
                     s.getCustomResources().stream().map(r -> new CampaignExport.ResourceData(r.getName(), r.getMaxUses(),
-                            r.getUsed(), r.getRecharge().name(), r.getNotes())).toList()));
+                            r.getUsed(), r.getRecharge().name(), r.getNotes())).toList(),
+                    List.copyOf(s.getLanguages()), List.copyOf(s.getToolProficiencies()),
+                    List.copyOf(s.getWeaponProficiencies()), List.copyOf(s.getArmorProficiencies())));
         }
 
         List<CampaignExport.PartyData> parties = partyRepository.findByCampaign(campaign).stream()
@@ -406,6 +408,11 @@ public class CampaignTransferService {
                                 () -> warnings.add(d.name() + ": feat " + f.name() + " not found"));
             }
             if (Boolean.TRUE.equals(d.heroicInspiration())) sheet.changeHeroicInspiration(true);
+            try {
+                sheet.updateOtherProficiencies(d.languages(), d.toolProficiencies(), d.weaponProficiencies(), d.armorProficiencies());
+            } catch (IllegalArgumentException ex) {
+                warnings.add(d.name() + ": languages/proficiencies skipped (" + ex.getMessage() + ")");
+            }
             if (d.spentResources() != null) sheet.getSpentResources().putAll(d.spentResources());
             for (CampaignExport.ResourceData r : nullSafe(d.customResources())) {
                 try {

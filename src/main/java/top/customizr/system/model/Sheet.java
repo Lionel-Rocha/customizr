@@ -129,6 +129,34 @@ public class Sheet {
     @OrderBy("name")
     private List<SheetResource> customResources = new ArrayList<>();
 
+    /** Idiomas que o personagem fala ("Common", "Elvish"...), texto livre. */
+    @ElementCollection
+    @CollectionTable(name = "sheet_languages", joinColumns = @JoinColumn(name = "sheet_id"))
+    @OrderBy
+    @Column(name = "language", nullable = false, length = 80)
+    private Set<String> languages = new LinkedHashSet<>();
+
+    /** Ferramentas com proficiencia ("Thieves' Tools", "Lute"...). */
+    @ElementCollection
+    @CollectionTable(name = "sheet_tool_proficiencies", joinColumns = @JoinColumn(name = "sheet_id"))
+    @OrderBy
+    @Column(name = "tool", nullable = false, length = 80)
+    private Set<String> toolProficiencies = new LinkedHashSet<>();
+
+    /** Armas com proficiencia ("Simple weapons", "Martial weapons", "Longsword"...). */
+    @ElementCollection
+    @CollectionTable(name = "sheet_weapon_proficiencies", joinColumns = @JoinColumn(name = "sheet_id"))
+    @OrderBy
+    @Column(name = "weapon", nullable = false, length = 80)
+    private Set<String> weaponProficiencies = new LinkedHashSet<>();
+
+    /** Armaduras com treino ("Light armor", "Shields"...). */
+    @ElementCollection
+    @CollectionTable(name = "sheet_armor_proficiencies", joinColumns = @JoinColumn(name = "sheet_id"))
+    @OrderBy
+    @Column(name = "armor", nullable = false, length = 80)
+    private Set<String> armorProficiencies = new LinkedHashSet<>();
+
     /** Inspiracao Heroica (2024): tem ou nao tem; gastar = rolar um dado de novo. */
     @Column(name = "heroic_inspiration")
     private Boolean heroicInspiration;
@@ -269,6 +297,55 @@ public class Sheet {
             case "gargantuan", "g" -> 8;
             default -> 1;
         };
+    }
+
+    /** Intuicao passiva: 10 + bonus de Intuicao. */
+    @Transient
+    public int getPassiveInsight() {
+        return 10 + skillBonus(Skill.INSIGHT);
+    }
+
+    /** Investigacao passiva: 10 + bonus de Investigacao. */
+    @Transient
+    public int getPassiveInvestigation() {
+        return 10 + skillBonus(Skill.INVESTIGATION);
+    }
+
+    // ------------------------------------------------------------------ idiomas e outras proficiencias
+
+    public static final int MAX_OTHER_PROFICIENCIES = 60;
+
+    /** Troca as listas que vierem (nula = deixa como esta). Repetido (sem diferenciar maiuscula) entra uma vez. */
+    public void updateOtherProficiencies(java.util.Collection<String> languages, java.util.Collection<String> tools,
+                                         java.util.Collection<String> weapons, java.util.Collection<String> armor) {
+        Set<String> l = languages == null ? null : cleanNames(languages, "language");
+        Set<String> t = tools == null ? null : cleanNames(tools, "tool");
+        Set<String> w = weapons == null ? null : cleanNames(weapons, "weapon");
+        Set<String> a = armor == null ? null : cleanNames(armor, "armor");
+        if (l != null) { this.languages.clear(); this.languages.addAll(l); }
+        if (t != null) { this.toolProficiencies.clear(); this.toolProficiencies.addAll(t); }
+        if (w != null) { this.weaponProficiencies.clear(); this.weaponProficiencies.addAll(w); }
+        if (a != null) { this.armorProficiencies.clear(); this.armorProficiencies.addAll(a); }
+    }
+
+    /** Tem proficiencia nessa ferramenta (sem diferenciar maiuscula)? */
+    public boolean isProficientWithTool(String tool) {
+        return tool != null && toolProficiencies.stream().anyMatch(t -> t.equalsIgnoreCase(tool.trim()));
+    }
+
+    private static Set<String> cleanNames(java.util.Collection<String> names, String what) {
+        Set<String> out = new LinkedHashSet<>();
+        Set<String> seen = new java.util.HashSet<>();
+        for (String raw : names) {
+            if (raw == null || raw.isBlank()) continue;
+            String name = raw.trim().replaceAll("\\s+", " ");
+            if (name.length() > 80) throw new IllegalArgumentException("A " + what + " name is too long (80 characters)");
+            if (seen.add(name.toLowerCase())) out.add(name);
+        }
+        if (out.size() > MAX_OTHER_PROFICIENCIES) {
+            throw new IllegalArgumentException("At most " + MAX_OTHER_PROFICIENCIES + " entries per list");
+        }
+        return out;
     }
 
     /** Percepcao passiva: 10 + bonus de Percepcao (com proficiencia/especializacao). */
