@@ -88,7 +88,7 @@ Simulação do deploy, feita num Postgres 17.12 temporário no PC:
 1. **Proteção das campanhas (item 3 do roadmap):** `deleteCampaign`, `updateCampaign`, `addSource`, `readCampaign` e a listagem de personagens não conferem quem chama. Não mexi, mas deixei a sugestão no README: usar o `MasterGuard`.
 2. **Tela de jogo:** `/mesa` funciona hoje, mas o lugar dela pode ser o seu Angular. Toda a lógica está na API (`/live/...`) e a página serve de exemplo de uso.
 3. **`management.endpoints.web.exposure.include=env`** no `application.properties`: se um dia o Actuator entrar, isso expõe segredos. Sugiro tirar.
-4. **O que ainda não existe:** e encomendas, bastiões, conexões entre cidades e migrações versionadas (Flyway).
+4. **O que ainda não existe:** encomendas, bastiões, conexões entre cidades e migrações versionadas (Flyway).
 
 ## Commits
 
