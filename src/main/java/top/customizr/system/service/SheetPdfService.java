@@ -125,76 +125,63 @@ public class SheetPdfService {
         CharacterSheetResponse.CombatInfo c = s.combat();
         CharacterStory story = character.getSheet().getStory();
 
-        // cabecalho
-        pdf.title(s.name());
-        String classes = s.classes().isEmpty() ? "Sem classe" : String.join(" / ", s.classes().stream()
+        // ---------------- primeira pagina: o que se olha durante a sessao (como a frente da ficha do Firecast/2024)
+        String classes = s.classes().isEmpty() ? "—" : String.join(" / ", s.classes().stream()
                 .map(cc -> cc.className() + " " + cc.level() + (cc.subclass() == null ? "" : " (" + cc.subclass().name() + ")")).toList());
-        pdf.line(classes + "  ·  nível " + c.totalLevel());
-        pdf.line(join("  ·  ", d.species() == null ? null : "Espécie: " + d.species().name(),
-                d.background() == null ? null : "Antecedente: " + d.background().name(),
-                story.getAlignment() == null ? null : "Tendência: " + story.getAlignment(),
-                "XP: " + d.experiencePoints() + (d.experienceToNextLevel() == null ? "" : " (faltam " + d.experienceToNextLevel() + ")")));
-        pdf.gap(6);
+        pdf.banner(s.name(), new String[][]{
+                {classes, "CLASSE E NÍVEL"},
+                {d.background() == null ? "—" : d.background().name(), "ANTECEDENTE"},
+                {character.getOwner().getName(), "JOGADOR"},
+                {d.species() == null ? "—" : d.species().name(), "ESPÉCIE"},
+                {story.getAlignment() == null ? "—" : story.getAlignment(), "TENDÊNCIA"},
+                {d.experiencePoints() + (d.experienceToNextLevel() == null ? "" : "  (faltam " + d.experienceToNextLevel() + ")"),
+                        "XP · NÍVEL " + c.totalLevel()}});
 
-        // atributos
-        if (s.attributes() != null) {
-            int[] v = {s.attributes().strength(), s.attributes().dexterity(), s.attributes().constitution(),
-                    s.attributes().intelligence(), s.attributes().wisdom(), s.attributes().charisma()};
-            String[] labels = new String[6];
-            String[] big = new String[6];
-            String[] small = new String[6];
-            AbilityScore[] order = AbilityScore.values();
-            for (int i = 0; i < 6; i++) {
-                labels[i] = ABILITY.get(order[i]);
-                int mod = Math.floorDiv(v[i] - 10, 2);
-                big[i] = signed(mod);
-                small[i] = String.valueOf(v[i]);
-            }
-            pdf.boxes(labels, big, small);
-        } else {
-            pdf.line("Atributos ainda não definidos.");
+        Integer speed = d.currentSpeedFt() != null ? d.currentSpeedFt() : c.speedFt();
+        pdf.strip(
+                new String[]{"CLASSE DE ARMADURA", "INICIATIVA", "DESLOCAMENTO", "BÔNUS DE PROFICIÊNCIA",
+                        "INSPIRAÇÃO HEROICA", "PERCEPÇÃO PASSIVA", "INTUIÇÃO PASSIVA", "INVESTIGAÇÃO PASSIVA"},
+                new String[]{text(c.armorClass()), signed(c.initiative()), speed == null ? "—" : speed + " ft",
+                        signed(c.proficiencyBonus()), d.heroicInspiration() ? "SIM" : "—", String.valueOf(c.passivePerception()),
+                        String.valueOf(d.passiveInsight()), String.valueOf(d.passiveInvestigation())},
+                new String[]{"", "", speed == null ? "" : meters(speed), "", "", "", "", ""});
+
+        // atributos: cada caixa com modificador, valor, salvaguarda e as pericias daquele atributo
+        List<AbilityBlock> blocks = new ArrayList<>();
+        int[] scores = s.attributes() == null ? null : new int[]{s.attributes().strength(), s.attributes().dexterity(),
+                s.attributes().constitution(), s.attributes().intelligence(), s.attributes().wisdom(), s.attributes().charisma()};
+        for (AbilityScore ability : AbilityScore.values()) {
+            CharacterSheetResponse.SaveInfo save = d.savingThrows().stream().filter(sv -> sv.ability() == ability).findFirst().orElse(null);
+            List<Mark> lines = new ArrayList<>();
+            if (save != null) lines.add(new Mark("Salvaguarda", signed(save.bonus()), save.proficient() ? 1 : 0, true));
+            d.skills().stream().filter(sk -> sk.ability() == ability).sorted(Comparator.comparing(sk -> SKILL.get(sk.skill())))
+                    .forEach(sk -> lines.add(new Mark(SKILL.get(sk.skill()), signed(sk.bonus()),
+                            sk.expertise() ? 2 : sk.proficient() ? 1 : 0, false)));
+            int score = scores == null ? 10 : scores[ability.ordinal()];
+            blocks.add(new AbilityBlock(ABILITY_NAME.get(ability), scores == null ? "—" : signed(Math.floorDiv(score - 10, 2)),
+                    scores == null ? "—" : String.valueOf(score), lines));
         }
+        pdf.abilityGrid(blocks);
 
-        // combate
-        pdf.boxes(new String[]{"CA", "PV", "PV temp.", "Desloc.", "Iniciativa", "Proficiência"},
-                new String[]{text(c.armorClass()), c.hpMax() == null ? "—" : c.hpCurrent() + "/" + c.hpMax(), text(c.hpTemp()),
-                        (d.currentSpeedFt() != null ? d.currentSpeedFt() : c.speedFt() == null ? "—" : c.speedFt()) + " ft",
-                        signed(c.initiative()), signed(c.proficiencyBonus())},
-                new String[]{"", "", "", "", "", ""});
-        pdf.line(join("  ·  ", "Dados de vida: " + d.hitDiceRemaining() + "/" + d.hitDiceTotal(),
-                "Percepção passiva " + c.passivePerception(), "Intuição passiva " + d.passiveInsight(),
-                "Investigação passiva " + d.passiveInvestigation(),
-                d.heroicInspiration() ? "Inspiração Heroica: sim" : null));
+        // vida: PV, dados de vida, testes contra a morte
+        pdf.vitals(c.hpMax(), c.hpCurrent(), c.hpTemp(), d.hitDiceRemaining() + "/" + d.hitDiceTotal(),
+                hitDiceByDie(character), d.deathSaveSuccesses(), d.deathSaveFailures());
         List<String> state = new ArrayList<>();
         d.conditions().stream().map(Enum::name).sorted().forEach(n -> state.add(CONDITION.getOrDefault(n, n)));
         if (d.exhaustion() > 0) state.add("Exaustão " + d.exhaustion());
-        if (d.deathSaveSuccesses() + d.deathSaveFailures() > 0) {
-            state.add("Testes contra a morte: " + d.deathSaveSuccesses() + " sucesso(s), " + d.deathSaveFailures() + " falha(s)");
-        }
-        if (!state.isEmpty()) pdf.line("Estado: " + String.join(", ", state));
-        if (d.carryingCapacityLb() != null) {
-            pdf.line("Carga: até " + d.carryingCapacityLb() + " lb · empurrar, arrastar ou erguer " + d.pushDragLiftLb() + " lb");
-        }
-
-        // salvaguardas e pericias (duas colunas)
-        pdf.heading("Salvaguardas e perícias");
-        List<String> left = new ArrayList<>();
-        for (CharacterSheetResponse.SaveInfo sv : d.savingThrows()) {
-            left.add((sv.proficient() ? "• " : "   ") + ABILITY.get(sv.ability()) + "  " + signed(sv.bonus()));
-        }
-        List<String> right = new ArrayList<>();
-        d.skills().stream().sorted(Comparator.comparing(sk -> SKILL.get(sk.skill())))
-                .forEach(sk -> right.add((sk.expertise() ? "•• " : sk.proficient() ? "• " : "   ") + SKILL.get(sk.skill())
-                        + " (" + ABILITY.get(sk.ability()) + ")  " + signed(sk.bonus())));
-        pdf.columns(left, right, 0.3f);
-        pdf.small("• proficiente   •• especialização");
+        pdf.line(join("   ·   ", state.isEmpty() ? "Condições: nenhuma" : "Condições: " + String.join(", ", state),
+                d.carryingCapacityLb() == null ? null
+                        : "Carga: até " + d.carryingCapacityLb() + " lb (empurrar, arrastar ou erguer " + d.pushDragLiftLb() + " lb)"));
+        pdf.legend();
 
         // ataques
         if (!d.attacks().isEmpty()) {
             pdf.heading("Ataques");
+            float[] cols = {0, 0.36f, 0.48f, 0.70f};
+            pdf.row(new String[]{"NOME", "ACERTO", "DANO", "NOTAS"}, cols, true);
             for (CharacterSheetResponse.AttackInfo a : d.attacks()) {
-                pdf.line(a.name() + "  " + signed(a.attackBonus()) + "  ·  " + a.damage()
-                        + (a.damageType() == null ? "" : " " + a.damageType()) + (a.notes() == null ? "" : "  ·  " + a.notes()));
+                pdf.row(new String[]{a.name(), signed(a.attackBonus()),
+                        a.damage() + (a.damageType() == null ? "" : " " + a.damageType()), a.notes() == null ? "" : a.notes()}, cols, false);
             }
         }
 
@@ -268,6 +255,7 @@ public class SheetPdfService {
         boolean anyText = false;
         for (String[] t : texts) anyText |= t[1] != null;
         if (!details.isEmpty() || anyText) {
+            pdf.keepTogether(140);   // nao deixa o titulo sozinho no pe da pagina
             pdf.heading("História e anotações");
             if (!details.isEmpty()) pdf.line(String.join("  ·  ", details.stream().map(p -> p[0] + ": " + p[1]).toList()));
             for (String[] t : texts) {
@@ -276,6 +264,37 @@ public class SheetPdfService {
                 pdf.paragraph(t[1]);
             }
         }
+    }
+
+    /** Uma linha da caixa de atributo: salvaguarda (losango) ou pericia (bolinha); mark 0 nada, 1 proficiente, 2 especialista. */
+    private record Mark(String label, String bonus, int mark, boolean save) {}
+
+    private record AbilityBlock(String title, String modifier, String score, List<Mark> lines) {}
+
+    private static final Map<AbilityScore, String> ABILITY_NAME = new EnumMap<>(Map.of(
+            AbilityScore.STRENGTH, "FORÇA", AbilityScore.DEXTERITY, "DESTREZA", AbilityScore.CONSTITUTION, "CONSTITUIÇÃO",
+            AbilityScore.INTELLIGENCE, "INTELIGÊNCIA", AbilityScore.WISDOM, "SABEDORIA", AbilityScore.CHARISMA, "CARISMA"));
+
+    /** 30 ft = 9 m (5 ft = 1,5 m, como no livro em portugues). */
+    private static String meters(int feet) {
+        double m = feet * 0.3;
+        return (m == Math.floor(m) ? String.valueOf((int) m) : String.valueOf(m).replace('.', ',')) + " m";
+    }
+
+    /** "d10 2/4 · d8 3/3": os gastos saem do dado maior primeiro, como no descanso curto. */
+    private static String hitDiceByDie(Character character) {
+        Map<Integer, Integer> total = new java.util.TreeMap<>(Comparator.reverseOrder());
+        for (var cc : character.getSheet().getClasses()) {
+            total.merge(Math.max(1, cc.getDndClass().getHitDie()), cc.getLevel(), Integer::sum);
+        }
+        int spent = character.getSheet().getHitDiceSpent();
+        List<String> parts = new ArrayList<>();
+        for (Map.Entry<Integer, Integer> e : total.entrySet()) {
+            int used = Math.min(spent, e.getValue());
+            spent -= used;
+            parts.add("d" + e.getKey() + " " + (e.getValue() - used) + "/" + e.getValue());
+        }
+        return String.join("  ·  ", parts);
     }
 
     private static void labeled(Layout pdf, String label, List<String> values) throws IOException {
@@ -323,11 +342,6 @@ public class SheetPdfService {
             newPage();
         }
 
-        void title(String text) throws IOException {
-            write(bold, 20, MARGIN, text, ACCENT);
-            y -= 24;
-        }
-
         void heading(String text) throws IOException {
             ensure(34);
             y -= 8;
@@ -350,14 +364,9 @@ public class SheetPdfService {
             paragraph(text);
         }
 
-        void small(String text) throws IOException {
-            ensure(12);
-            write(regular, 8, MARGIN, text, Color.DARK_GRAY);
-            y -= 11;
-        }
-
-        void gap(float h) {
-            y -= h;
+        /** Muda de pagina se nao couber {@code h} (pra um titulo nao ficar sozinho no pe da pagina). */
+        void keepTogether(float h) throws IOException {
+            ensure(h);
         }
 
         /** Texto corrido com quebra de linha (respeita as quebras do proprio texto). */
@@ -369,34 +378,247 @@ public class SheetPdfService {
             }
         }
 
-        /** Duas colunas de linhas curtas; {@code split} = fracao da largura da esquerda. */
-        void columns(List<String> left, List<String> right, float split) throws IOException {
-            int rows = Math.max(left.size(), right.size());
-            for (int i = 0; i < rows; i++) {
-                ensure(13);
-                if (i < left.size()) write(regular, 10, MARGIN, safe(left.get(i)), Color.BLACK);
-                if (i < right.size()) write(regular, 10, MARGIN + WIDTH * split, safe(right.get(i)), Color.BLACK);
-                y -= 13;
-            }
+        // ---------------- blocos da primeira pagina (posicao fixa a partir do cursor)
+
+        private static final Color FILL = new Color(0xF4, 0xEC, 0xE1);
+        private static final Color LABEL_INK = new Color(0x55, 0x47, 0x3B);
+        private static final float LABEL = 6.5f;
+
+        /** Topo do bloco a partir do cursor (o cursor e a linha de base do proximo texto). */
+        private float blockTop() {
+            return y + 9;
         }
 
-        /** Fileira de caixas iguais: rotulo pequeno em cima, valor grande, detalhe embaixo. */
-        void boxes(String[] labels, String[] big, String[] small) throws IOException {
-            float h = 46;
-            ensure(h + 8);
-            float gapX = 6;
+        /** Depois do bloco: o cursor vai pra linha de base logo abaixo, com {@code gap} de folga. */
+        private void after(float bottom, float gap) {
+            y = bottom - gap - 9;
+        }
+
+        /** Faixa do topo: nome grande a esquerda; a direita, grade 3 x 2 com valor em cima e rotulo embaixo. */
+        void banner(String name, String[][] cells) throws IOException {
+            float top = blockTop();
+            float h = 64;
+            float nameW = 190;
+            rect(MARGIN, top - h, WIDTH, h, ACCENT, FILL, 1f);
+            // nome: diminui a letra ate caber
+            String n = safe(name);
+            float size = 20;
+            while (size > 11 && bold.getStringWidth(n) / 1000 * size > nameW - 16) size -= 0.5f;
+            text(bold, size, MARGIN + 10, top - 30, fit(n, bold, size, nameW - 16), INK);
+            hline(MARGIN + 10, MARGIN + nameW - 6, top - 38, LABEL_INK, 0.5f);
+            text(bold, LABEL, MARGIN + 10, top - 47, "NOME DO PERSONAGEM", LABEL_INK);
+            // grade
+            float gx = MARGIN + nameW + 4;
+            float gw = (WIDTH - nameW - 14) / 3;
+            for (int i = 0; i < cells.length; i++) {
+                float cx = gx + (i % 3) * gw;
+                float cy = top - 8 - (i / 3) * 28;
+                text(regular, 9.5f, cx + 4, cy - 10, fit(safe(cells[i][0]), regular, 9.5f, gw - 10), INK);
+                hline(cx + 4, cx + gw - 6, cy - 13, LABEL_INK, 0.5f);
+                text(bold, LABEL, cx + 4, cy - 21, fit(safe(cells[i][1]), bold, LABEL, gw - 10), LABEL_INK);
+            }
+            after(top - h, 8);
+        }
+
+        /** Fileira de caixinhas de resumo: rotulo (ate 2 linhas) em cima, valor grande, detalhe embaixo. */
+        void strip(String[] labels, String[] values, String[] subs) throws IOException {
+            float top = blockTop();
+            float h = 48;
+            float gapX = 5;
             float w = (WIDTH - gapX * (labels.length - 1)) / labels.length;
             for (int i = 0; i < labels.length; i++) {
                 float x = MARGIN + i * (w + gapX);
-                cs.setStrokingColor(ACCENT);
-                cs.setLineWidth(0.8f);
-                cs.addRect(x, y - h, w, h);
-                cs.stroke();
-                centered(regular, 8, x, w, y - 11, labels[i], Color.DARK_GRAY);
-                centered(bold, 15, x, w, y - 29, big[i], Color.BLACK);
-                if (small[i] != null && !small[i].isEmpty()) centered(regular, 8, x, w, y - 41, small[i], Color.DARK_GRAY);
+                rect(x, top - h, w, h, ACCENT, null, 0.8f);
+                // palavra comprida (DESLOCAMENTO) diminui a letra em vez de quebrar no meio
+                float size = LABEL;
+                for (String word : labels[i].split(" ")) {
+                    while (size > 5 && bold.getStringWidth(word) / 1000 * size > w - 6) size -= 0.25f;
+                }
+                List<String> label = wrap(labels[i], bold, size, w - 6);
+                for (int l = 0; l < Math.min(2, label.size()); l++) {
+                    centered(bold, size, x, w, top - 9 - l * 7.5f, label.get(l), LABEL_INK);
+                }
+                centered(bold, 14, x, w, top - 34, values[i], INK);
+                if (subs[i] != null && !subs[i].isEmpty()) centered(regular, 7, x, w, top - 43, subs[i], LABEL_INK);
             }
-            y -= h + 16;
+            after(top - h, 8);
+        }
+
+        /** As seis caixas de atributo em 3 colunas x 2 linhas; a altura da linha acompanha a caixa com mais pericias. */
+        void abilityGrid(List<AbilityBlock> blocks) throws IOException {
+            float gapX = 8;
+            float w = (WIDTH - 2 * gapX) / 3;
+            float lineH = 12.5f;
+            float top = blockTop();
+            for (int row = 0; row < 2; row++) {
+                int maxLines = 0;
+                for (int col = 0; col < 3; col++) maxLines = Math.max(maxLines, blocks.get(row * 3 + col).lines().size());
+                float h = 16 + Math.max(50, maxLines * lineH + 8);
+                for (int col = 0; col < 3; col++) {
+                    AbilityBlock b = blocks.get(row * 3 + col);
+                    float x = MARGIN + col * (w + gapX);
+                    rect(x, top - h, w, h, ACCENT, null, 1f);
+                    rect(x, top - 16, w, 16, ACCENT, ACCENT, 1f);
+                    centered(bold, 8.5f, x, w, top - 11.5f, b.title(), Color.WHITE);
+                    // modificador grande + valor
+                    float colW = 46;
+                    centered(bold, 22, x, colW, top - 44, b.modifier(), INK);
+                    rect(x + 11, top - 66, colW - 22, 14, LABEL_INK, FILL, 0.6f);
+                    centered(bold, 9, x + 11, colW - 22, top - 62, b.score(), INK);
+                    // salvaguarda e pericias
+                    float lx = x + colW + 4;
+                    float ly = top - 16 - 11;
+                    for (int i = 0; i < b.lines().size(); i++) {
+                        Mark m = b.lines().get(i);
+                        if (m.save()) marker(lx + 3, ly + 2.6f, m.mark(), true);
+                        else marker(lx + 3, ly + 2.6f, m.mark(), false);
+                        text(m.save() ? bold : regular, 8.5f, lx + 10, ly, fit(safe(m.label()), regular, 8.5f, w - colW - 42), INK);
+                        rightAligned(bold, 8.5f, x + w - 6, ly, m.bonus(), INK);
+                        if (m.save() && b.lines().size() > 1) hline(lx, x + w - 6, ly - 3.5f, FILL.darker(), 0.6f);
+                        ly -= lineH;
+                    }
+                }
+                top -= h + 6;
+            }
+            after(top + 6, 8);
+        }
+
+        /** PV maximo, atual e temporario; dados de vida (total e por dado); testes contra a morte em bolinhas. */
+        void vitals(Integer hpMax, Integer hpCurrent, Integer hpTemp, String hitDice, String hitDiceDetail,
+                    int successes, int failures) throws IOException {
+            float top = blockTop();
+            float h = 58;
+            float gapX = 6;
+            float[] widths = {78, 96, 78, 150};
+            float x = MARGIN;
+            String[][] boxes = {{"PV MÁXIMO", SheetPdfService.text(hpMax)}, {"PV ATUAL", SheetPdfService.text(hpCurrent)}, {"PV TEMPORÁRIO", SheetPdfService.text(hpTemp)},
+                    {"DADOS DE VIDA", hitDice}};
+            for (int i = 0; i < boxes.length; i++) {
+                float w = widths[i];
+                rect(x, top - h, w, h, ACCENT, i == 1 ? FILL : null, i == 1 ? 1.4f : 0.8f);
+                centered(bold, LABEL, x, w, top - 10, boxes[i][0], LABEL_INK);
+                centered(bold, i == 1 ? 22 : 16, x, w, top - (i == 1 ? 38 : 35), boxes[i][1], INK);
+                if (i == 3) centered(regular, 7.5f, x, w, top - 50, fit(safe(hitDiceDetail), regular, 7.5f, w - 8), LABEL_INK);
+                x += w + gapX;
+            }
+            float w = MARGIN + WIDTH - x;
+            rect(x, top - h, w, h, ACCENT, null, 0.8f);
+            centered(bold, LABEL, x, w, top - 10, "TESTES CONTRA A MORTE", LABEL_INK);
+            text(bold, 7, x + 6, top - 28, "SUCESSOS", INK);
+            text(bold, 7, x + 6, top - 45, "FALHAS", INK);
+            for (int i = 0; i < 3; i++) {
+                circle(x + w - 34 + i * 12, top - 25.5f, 4f, i < successes, 1f);
+                circle(x + w - 34 + i * 12, top - 42.5f, 4f, i < failures, 1f);
+            }
+            after(top - h, 8);
+        }
+
+        /** Legenda dos marcadores, desenhada (a fonte padrao do PDF nao tem esses simbolos). */
+        void legend() throws IOException {
+            ensure(12);
+            float x = MARGIN;
+            marker(x + 3, y + 2.6f, 1, true);
+            text(regular, 7.5f, x + 10, y, "salvaguarda", LABEL_INK);
+            x += 62;
+            marker(x + 3, y + 2.6f, 0, false);
+            text(regular, 7.5f, x + 10, y, "perícia", LABEL_INK);
+            x += 44;
+            marker(x + 3, y + 2.6f, 1, false);
+            text(regular, 7.5f, x + 10, y, "proficiente", LABEL_INK);
+            x += 58;
+            marker(x + 3, y + 2.6f, 2, false);
+            text(regular, 7.5f, x + 10, y, "especialização", LABEL_INK);
+            y -= 13;
+        }
+
+        /** Linha de tabela: celulas nas posicoes {@code cols} (fracao da largura); cabecalho em negrito pequeno. */
+        void row(String[] cells, float[] cols, boolean header) throws IOException {
+            ensure(14);
+            for (int i = 0; i < cells.length; i++) {
+                float x = MARGIN + WIDTH * cols[i];
+                float next = i + 1 < cols.length ? MARGIN + WIDTH * cols[i + 1] : MARGIN + WIDTH;
+                PDType1Font f = header ? bold : regular;
+                float size = header ? LABEL + 0.5f : 9.5f;
+                text(f, size, x, y, fit(safe(cells[i]), f, size, next - x - 6), header ? LABEL_INK : INK);
+            }
+            if (!header) hline(MARGIN, MARGIN + WIDTH, y - 4, FILL.darker(), 0.5f);
+            y -= header ? 12 : 14;
+        }
+
+        // ---------------- primitivas
+
+        private static final Color INK = new Color(0x22, 0x1A, 0x14);
+
+        private void rect(float x, float yBottom, float w, float h, Color stroke, Color fill, float lineWidth) throws IOException {
+            if (fill != null) {
+                cs.setNonStrokingColor(fill);
+                cs.addRect(x, yBottom, w, h);
+                cs.fill();
+            }
+            cs.setStrokingColor(stroke);
+            cs.setLineWidth(lineWidth);
+            cs.addRect(x, yBottom, w, h);
+            cs.stroke();
+        }
+
+        private void hline(float x1, float x2, float yy, Color color, float lineWidth) throws IOException {
+            cs.setStrokingColor(color);
+            cs.setLineWidth(lineWidth);
+            cs.moveTo(x1, yy);
+            cs.lineTo(x2, yy);
+            cs.stroke();
+        }
+
+        private void circle(float cx, float cy, float r, boolean filled, float lineWidth) throws IOException {
+            float k = 0.5523f * r;
+            cs.moveTo(cx + r, cy);
+            cs.curveTo(cx + r, cy + k, cx + k, cy + r, cx, cy + r);
+            cs.curveTo(cx - k, cy + r, cx - r, cy + k, cx - r, cy);
+            cs.curveTo(cx - r, cy - k, cx - k, cy - r, cx, cy - r);
+            cs.curveTo(cx + k, cy - r, cx + r, cy - k, cx + r, cy);
+            cs.closePath();
+            cs.setStrokingColor(INK);
+            cs.setNonStrokingColor(INK);
+            cs.setLineWidth(lineWidth);
+            if (filled) cs.fillAndStroke();
+            else cs.stroke();
+        }
+
+        /** Losango (salvaguarda) ou bolinha (pericia): vazio, cheio (proficiente) ou cheio com anel (especialista). */
+        private void marker(float cx, float cy, int mark, boolean diamond) throws IOException {
+            if (diamond) {
+                float r = 3.4f;
+                cs.moveTo(cx, cy + r);
+                cs.lineTo(cx + r, cy);
+                cs.lineTo(cx, cy - r);
+                cs.lineTo(cx - r, cy);
+                cs.closePath();
+                cs.setStrokingColor(INK);
+                cs.setNonStrokingColor(INK);
+                cs.setLineWidth(0.8f);
+                if (mark > 0) cs.fillAndStroke();
+                else cs.stroke();
+            } else {
+                circle(cx, cy, 2.6f, mark > 0, 0.8f);
+            }
+            if (mark == 2) circle(cx, cy, 4.4f, false, 0.6f);
+        }
+
+        private void text(PDType1Font font, float size, float x, float baseline, String text, Color color) throws IOException {
+            write(font, size, x, safe(text), color, baseline);
+        }
+
+        private void rightAligned(PDType1Font font, float size, float right, float baseline, String text, Color color) throws IOException {
+            String t = safe(text);
+            write(font, size, right - font.getStringWidth(t) / 1000 * size, t, color, baseline);
+        }
+
+        /** Corta com "…" se nao couber na largura. */
+        private String fit(String text, PDType1Font font, float size, float width) throws IOException {
+            if (font.getStringWidth(text) / 1000 * size <= width) return text;
+            String t = text;
+            while (t.length() > 1 && font.getStringWidth(t + "…") / 1000 * size > width) t = t.substring(0, t.length() - 1);
+            return t.stripTrailing() + "…";
         }
 
         byte[] bytes() throws IOException {
