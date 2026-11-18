@@ -8,7 +8,8 @@ public record TokenResponse(UUID id, UUID sceneId, String name, double x, double
                             Integer hpCurrent, Integer hpMax, java.util.Set<top.customizr.system.model.Condition> conditions,
                             Integer armorClass, Integer visionFt, top.customizr.system.model.TokenLayer layer,
                             Integer elevationFt, java.util.List<Marker> markers, java.util.List<Member> members,
-                            double widthCells, double heightCells, Integer exhaustion) {
+                            double widthCells, double heightCells, Integer exhaustion,
+                            Integer lightBrightFt, Integer lightDimFt, Integer darkvisionFt) {
 
     public record Marker(String label, String icon, Integer roundsLeft) {}
 
@@ -38,6 +39,7 @@ public record TokenResponse(UUID id, UUID sceneId, String name, double x, double
                 t.getMembers().stream().map(c -> new Member(c.getCharacterId(), c.getName(), c.getOwner().getUserId(),
                         c.getSheet().getHpCurrent(), c.getSheet().getHpMax())).toList(),
                 t.width(), t.height(),
-                t.getCharacter() != null && t.getCharacter().getSheet().getExhaustion() > 0 ? t.getCharacter().getSheet().getExhaustion() : null);
+                t.getCharacter() != null && t.getCharacter().getSheet().getExhaustion() > 0 ? t.getCharacter().getSheet().getExhaustion() : null,
+                t.getLightBrightFt(), t.getLightDimFt(), t.getDarkvisionFt());
     }
 }

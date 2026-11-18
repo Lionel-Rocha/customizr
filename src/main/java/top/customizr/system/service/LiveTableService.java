@@ -13,6 +13,8 @@ import top.customizr.system.dto.TokenRequest;
 import top.customizr.system.dto.TokenResponse;
 import top.customizr.system.dto.DoorRequest;
 import top.customizr.system.dto.MarkersRequest;
+import top.customizr.system.dto.SceneLightingRequest;
+import top.customizr.system.dto.TokenLightRequest;
 import top.customizr.system.dto.CampaignIconRequest;
 import top.customizr.system.dto.CampaignIconResponse;
 import top.customizr.system.dto.MapObjectRequest;
@@ -445,6 +447,31 @@ public class LiveTableService {
         return SceneResponse.from(scene, true);
     }
 
+    /** Luz da cena (clara, penumbra, escura). So o mestre. */
+    @Transactional
+    public SceneResponse setSceneLighting(UUID sceneId, SceneLightingRequest r, String username) {
+        Scene scene = scene(sceneId);
+        masterGuard.requireMaster(username, scene.getCampaign());
+        if (r == null || r.lighting() == null) throw badRequest("lighting is required");
+        scene.setLighting(r.lighting());
+        broadcastScene(scene);
+        return SceneResponse.from(scene, true);
+    }
+
+    /** Luz que o token carrega e visao no escuro (o dono acende a propria tocha; o mestre, qualquer uma). */
+    @Transactional
+    public TokenResponse setTokenLight(UUID tokenId, TokenLightRequest r, String username) {
+        Token token = token(tokenId);
+        User user = masterGuard.user(username);
+        masterGuard.assertMember(user, token.getScene().getCampaign());
+        boolean master = masterGuard.canManage(user, token.getScene().getCampaign());
+        if (!master && !token.controlledBy(user.getUserId())) throw new AccessDeniedException("Not your token");
+        if (r == null) throw badRequest("Request body is required");
+        valid(() -> { token.setLight(r.brightFt(), r.dimFt(), r.darkvisionFt()); return null; });
+        broadcastToken(token, "token_updated");
+        return TokenResponse.from(token, master);
+    }
+
     /** Alcance de visao do token, em pes (null = sem limite). So o mestre. */
     @Transactional
     public TokenResponse setTokenVision(UUID tokenId, VisionRequest r, String username) {
@@ -653,7 +680,7 @@ public class LiveTableService {
             throw badRequest("shape, x, y and sizeFt are required");
         }
         var template = valid(() -> scene.addTemplate(r.shape(), r.x(), r.y(), r.angle() == null ? 0 : r.angle(), r.sizeFt(),
-                r.widthFt(), r.label(), r.color(), user.getUserId()));
+                r.widthFt(), r.label(), r.color(), user.getUserId(), Boolean.TRUE.equals(r.darkness())));
         sceneRepository.flush(); // grava ja (a area pode ser resolvida no mesmo pedido/transacao)
         broadcastTemplates(scene);
         return TemplateResponse.from(template);

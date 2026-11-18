@@ -27,9 +27,50 @@ public record CampaignExport(
         List<NpcData> npcs,
         List<CharacterData> characters,
         List<PartyData> parties,
-        List<ImageData> images
+        List<ImageData> images,
+        List<SceneData> scenes,
+        List<MonsterData> monsters,
+        List<ObjectData> objects,
+        List<IconData> icons
 ) {
-    public static final int FORMAT_VERSION = 1;
+    /** 2: cenas (paredes, areas, tokens, luz), monstros customizados, objetos e pacote de icones. */
+    public static final int FORMAT_VERSION = 2;
+
+    /** Fonte usada nas referencias a monstros customizados da propria campanha. */
+    public static final String HOMEBREW = "HOMEBREW";
+
+    public record SceneData(String name, String mapUrl, top.customizr.system.model.GridType gridType, int gridSizePx,
+                            int feetPerCell, Integer widthPx, Integer heightPx, boolean fogEnabled, boolean active,
+                            Set<String> revealedCells, boolean visionEnabled, top.customizr.system.model.SceneLighting lighting,
+                            List<WallData> walls, List<TemplateData> templates, List<TokenData> tokens) {}
+
+    public record WallData(double x1, double y1, double x2, double y2, top.customizr.system.model.Wall.Type type,
+                           boolean open, boolean locked) {}
+
+    public record TemplateData(top.customizr.system.model.AreaTemplate.Shape shape, double x, double y, double angle,
+                               int sizeFt, int widthFt, String label, String color, boolean darkness) {}
+
+    public record MarkerData(String label, String icon, Integer roundsLeft) {}
+
+    public record TokenData(String name, double x, double y, int sizeCells, double widthCells, double heightCells,
+                            String imageUrl, boolean hidden, int rotation, String characterName, String npcName, Ref monster,
+                            Integer hpCurrent, Integer hpMax, Set<Condition> conditions, Integer visionFt,
+                            top.customizr.system.model.TokenLayer layer, Integer elevationFt, List<MarkerData> markers,
+                            List<String> memberNames, Integer lightBrightFt, Integer lightDimFt, Integer darkvisionFt) {}
+
+    /** Monstro customizado da campanha (a ficha inteira, inclusive a entrada no formato do 5etools). */
+    public record MonsterData(String name, String size, String creatureType, String alignment, Integer armorClass,
+                              String armorNote, Integer hpAverage, String hpFormula, String speed, int[] abilities,
+                              String challengeRating, String savingThrows, String skills, String damageVulnerabilities,
+                              String damageResistances, String damageImmunities, String conditionImmunities, String senses,
+                              Integer passivePerception, String languages, String traits, String actions, String bonusActions,
+                              String reactions, String legendaryActions, String spellcasting,
+                              java.util.Map<String, Object> metadata) {}
+
+    public record ObjectData(String name, String imageUrl, double widthCells, double heightCells,
+                             top.customizr.system.model.TokenLayer layer) {}
+
+    public record IconData(String key, String label, String imageUrl) {}
 
     public record Ref(String name, String source) {}
 

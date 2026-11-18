@@ -15,4 +15,7 @@ public interface MonsterRepository extends JpaRepository<Monster, UUID> {
     List<Monster> findByNameContainingIgnoreCaseOrderByName(String name);
 
     List<Monster> findAllByOrderByName();
+
+    /** Monstros customizados de uma campanha. */
+    List<Monster> findByCampaign(top.customizr.system.model.Campaign campaign);
 }

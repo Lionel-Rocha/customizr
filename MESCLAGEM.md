@@ -2,7 +2,7 @@
 
 Este branch (`mesclagem-mesa`) traz para o Customizr o que foi feito no programa de mesa à parte (o antigo "Embertale"), reescrito no padrão deste projeto: entidades JPA em `model/`, serviços com checagem de mestre/membro, DTOs `record` (um por arquivo, `XxxRequest` / `XxxResponse`) e testes com H2. O ponto de partida é o commit `e740c23` ("Consertando import de classes").
 
-* **Testes:** 87, todos passando (antes: 23, com 3 quebrados).
+* **Testes:** 90, todos passando (antes: 23, com 3 quebrados).
 * **Arquivos de exemplo:** o que é do 5etools nos testes são amostras pequenas do SRD 5.2 (licença CC-BY-4.0, atribuição em `src/test/resources/importer/LEIA-ME.txt`).
 * **Fins de linha:** tudo em LF, igual ao resto do repositório.
 
@@ -27,6 +27,8 @@ Este branch (`mesclagem-mesa`) traz para o Customizr o que foi feito no programa
 | `model/Token.java` (de novo) | + camada, altura, fichas do token (`token_members`) e marcadores (`token_markers`); "oculto pros jogadores" = oculto ou camada do mestre | Camadas, caravana e marcadores |
 | `model/Token.java` (tamanho) | + `width_cells` / `height_cells` (tamanho livre; `sizeCells` continua, arredondado pra cima) | Miúdo, Imenso maior que 4×4, objetos retangulares |
 | `model/MapObject.java` (novo, tabela `map_objects`) | Biblioteca de objetos com imagem | Importar imagens de mesa, barril etc. |
+| `dto/CampaignExport.java`, `service/CampaignTransferService.java` | Formato 2: + cenas (paredes, áreas, tokens, luz), monstros customizados, objetos e ícones; imagem de outra campanha do mesmo servidor é copiada | A exportação não levava a mesa |
+| `model/Scene.java`, `model/Token.java`, `model/AreaTemplate.java` (luz) | + `lighting` da cena, luz e visão no escuro do token, área de escuridão; `Scene.coverBetween` / `coverFrom` | Luz e cobertura |
 | `model/CampaignIcon.java` (novo, tabela `campaign_icons`) | Pacote de ícones por campanha (condições e marcadores) | Usar pacotes de marcadores sem pôr as imagens no repositório |
 | `service/CharacterSheetService.java` | `roll` virou `roll` (confere acesso) + `rollFor` (a rolagem em si) | A mesa rola a salvaguarda de quem está numa área |
 | `model/Monster.java`, `dto/MonsterResponse.java` | + `campaign` (monstro customizado da campanha); resposta + `campaignId`, `custom`, `customActions` | Ficha de monstro em branco / cópia editável |
@@ -70,7 +72,7 @@ As tabelas e colunas novas o Hibernate cria sozinho (`ddl-auto=update`). Todas a
 1. **Proteção das campanhas (item 3 do roadmap):** `deleteCampaign`, `updateCampaign`, `addSource`, `readCampaign` e a listagem de personagens não conferem quem chama. Não mexi, mas deixei a sugestão no README: usar o `MasterGuard`.
 2. **Tela de jogo:** `/mesa` funciona hoje, mas o lugar dela pode ser o seu Angular. Toda a lógica está na API (`/live/...`) e a página serve de exemplo de uso.
 3. **`management.endpoints.web.exposure.include=env`** no `application.properties`: se um dia o Actuator entrar, isso expõe segredos. Sugiro tirar.
-4. **O que ainda não existe:** luz (tochas, escuridão mágica), lojas e encomendas, bastiões, conexões entre cidades e migrações versionadas (Flyway).
+4. **O que ainda não existe:** lojas e encomendas, bastiões, conexões entre cidades e migrações versionadas (Flyway).
 
 ## Commits
 
@@ -92,3 +94,4 @@ As tabelas e colunas novas o Hibernate cria sozinho (`ddl-auto=update`). Todas a
 | 14 | Áreas de efeito com salvaguarda automática, marcadores com duração, altura, camadas e token de grupo (caravana) |
 | 15 | Tamanho livre do token (padrões por tamanho de criatura), biblioteca de objetos com imagem, ícones das condições |
 | 16 | Pacote de ícones da campanha (condições e marcadores com imagem); imagens carregam por `onload` |
+| 17 | Exportação completa da mesa; luz (cena escura, tochas, visão no escuro, escuridão mágica); cobertura no ataque e na área |

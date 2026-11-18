@@ -232,6 +232,8 @@ Abaixo estão todos os endpoints atualmente expostos pelo backend da aplicação
 | `DELETE` | `/live/scenes/{sceneId}/walls/{wallId}` · `/live/scenes/{sceneId}/walls` | Apaga uma parede / todas. |
 | `PATCH` | `/live/walls/{wallId}` | Porta: `open` (jogador também, se não estiver trancada) e `locked` (só o mestre; trancar fecha). |
 | `PUT` | `/live/scenes/{sceneId}/vision` | Liga/desliga a visão dinâmica da cena (`enabled`). |
+| `PUT` | `/live/scenes/{sceneId}/lighting` | Luz da cena: `BRIGHT` (clara), `DIM` (penumbra) ou `DARK` (escura: só se vê o que uma luz alcança ou a visão no escuro). |
+| `PUT` | `/live/tokens/{tokenId}/light` | Luz do token (`brightFt` / `dimFt`, ex.: tocha 20/20) e visão no escuro (`darkvisionFt`). O dono também muda. |
 | `PUT` | `/live/tokens/{tokenId}/vision` | Alcance da visão do token em pés (`visionFt`; vazio = até onde as paredes deixam). |
 | `PUT` | `/live/tokens/{tokenId}/placement` | Altura em pés (`elevationFt`; o dono também muda), tamanho (`widthCells` × `heightCells`, de 0,5 a 30 casas), camada (`layer`: SCENERY, BATTLE, OVERHEAD, GM) e fichas que viajam no token (`memberIds`, ex.: a caravana; o dono de qualquer uma move o token e vê por ele). Camada e fichas: só o mestre. |
 | `GET` / `POST` / `DELETE` | `/live/campaign/{campaignId}/icons` | Pacote de ícones da campanha: `key` `condition:CODIGO` troca o ícone da condição, `marker:Nome` vira marcador pronto (`imageId` de `POST /image`). Todos da campanha leem; só o mestre põe ou tira. |
@@ -406,6 +408,19 @@ A parte da mesa de jogo, desenvolvida à parte em JavaFX, foi trazida para cá n
   * O nome do arquivo decide o que é: Poisoned.png troca o ícone de envenenado; Blessed, On-Fire, Concentrating... viram marcadores prontos, com nome em português.
   * As imagens ficam no banco, junto da campanha. Pacote de terceiros não entra no repositório.
 * **Ícones das condições:** desenho próprio em preto e branco (`static/mesa/icons/conditions`), um para cada uma das 15 condições de 2024, incluindo exaustão, que aparece no token com o nível.
+
+**Nona rodada (exportação completa, luz e cobertura):**
+
+* **Exportar/importar a campanha inteira** (`/campaign/{id}/export`, formato 2):
+  * leva cenas (mapa, grade, neblina, visão, luz), paredes e portas, áreas e tokens com tudo (camada, tamanho, altura, condições, marcadores, luz, fichas da caravana);
+  * leva também os monstros customizados, a biblioteca de objetos e o pacote de ícones;
+  * exportado sem imagens e importado no mesmo servidor, as imagens são copiadas da campanha original (se quem importa tem acesso a ela);
+  * a tela `/mesa` tem os botões de exportar e importar na aba Mestre.
+* **Luz:** cena clara, em penumbra ou escura; tokens com luz forte e fraca (vela, tocha, lâmpada, lanterna) e visão no escuro; área de escuridão mágica, onde nada é visto. A luz também respeita as paredes.
+* **Cobertura** pelas paredes, pela regra do livro do mestre (linhas de um canto de quem ataca até os cantos do alvo):
+  * meia (+2 na CA) e três quartos (+5) entram no ataque;
+  * cobertura total impede o ataque;
+  * na área de efeito, a cobertura soma na salvaguarda de DES.
 
 Ficaram de fora por não se encaixarem numa API REST sem uma interface de jogo:
 

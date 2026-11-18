@@ -72,6 +72,11 @@ public class Scene {
     @Column(name = "vision_enabled")
     private Boolean visionEnabled;
 
+    /** Luz da cena (null = clara). */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "lighting", length = 10)
+    private SceneLighting lighting;
+
     @OneToMany(mappedBy = "scene", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Wall> walls = new ArrayList<>();
 
@@ -133,6 +138,69 @@ public class Scene {
         this.fogEnabled = fogEnabled;
     }
 
+    public SceneLighting getLighting() {
+        return lighting == null ? SceneLighting.BRIGHT : lighting;
+    }
+
+    public void setLighting(SceneLighting lighting) {
+        this.lighting = lighting;
+    }
+
+    /**
+     * Cobertura entre dois tokens pelas paredes (regra do livro do mestre): linhas de um canto de quem ataca ate
+     * os quatro cantos de uma casa do alvo; vale o canto e a casa que derem menos cobertura.
+     * 0 = nenhuma, 2 = meia (1-2 linhas bloqueadas), 5 = tres quartos (3), -1 = total (as 4).
+     */
+    public int coverBetween(Token attacker, Token target) {
+        if (walls.stream().noneMatch(Wall::blocks)) return 0;
+        int best = 4;
+        for (double[] from : corners(attacker.getX(), attacker.getY(), attacker.width() * gridSizePx, attacker.height() * gridSizePx)) {
+            for (double[] cell : cells(target)) {
+                best = Math.min(best, blockedLines(from[0], from[1], cell));
+                if (best == 0) return 0;
+            }
+        }
+        return coverOf(best);
+    }
+
+    /** Cobertura de um ponto (origem de uma area) ate o token. */
+    public int coverFrom(double x, double y, Token target) {
+        if (walls.stream().noneMatch(Wall::blocks)) return 0;
+        int best = 4;
+        for (double[] cell : cells(target)) best = Math.min(best, blockedLines(x, y, cell));
+        return coverOf(best);
+    }
+
+    private static int coverOf(int blocked) {
+        return blocked == 0 ? 0 : blocked <= 2 ? 2 : blocked == 3 ? 5 : -1;
+    }
+
+    private int blockedLines(double fx, double fy, double[] cell) {
+        int blocked = 0;
+        for (double[] to : corners(cell[0], cell[1], cell[2], cell[3])) {
+            if (blockedBetween(fx, fy, to[0], to[1])) blocked++;
+        }
+        return blocked;
+    }
+
+    /** Casas do token (x, y, largura, altura em px); token miudo e uma casa so. */
+    private List<double[]> cells(Token t) {
+        List<double[]> cells = new ArrayList<>();
+        int cols = (int) Math.max(1, Math.round(t.width()));
+        int rows = (int) Math.max(1, Math.round(t.height()));
+        double cw = t.width() * gridSizePx / cols;
+        double ch = t.height() * gridSizePx / rows;
+        for (int i = 0; i < cols; i++) for (int j = 0; j < rows; j++) cells.add(new double[] {t.getX() + i * cw, t.getY() + j * ch, cw, ch});
+        return cells;
+    }
+
+    /** Cantos do retangulo, um pixel pra dentro (pra linha nao "encostar" na ponta de uma parede). */
+    private static List<double[]> corners(double x, double y, double w, double h) {
+        double e = 1;
+        return List.of(new double[] {x + e, y + e}, new double[] {x + w - e, y + e},
+                new double[] {x + e, y + h - e}, new double[] {x + w - e, y + h - e});
+    }
+
     public boolean isVisionEnabled() {
         return Boolean.TRUE.equals(visionEnabled);
     }
@@ -157,6 +225,14 @@ public class Scene {
         if (templates.size() >= 200) throw new IllegalArgumentException("Too many areas in this scene");
         AreaTemplate template = new AreaTemplate(this, shape, x, y, angle, sizeFt, widthFt, label, color, ownerId);
         templates.add(template);
+        return template;
+    }
+
+    /** Mesma coisa, ja dizendo se e escuridao magica. */
+    public AreaTemplate addTemplate(AreaTemplate.Shape shape, double x, double y, double angle, int sizeFt, Integer widthFt,
+                                    String label, String color, java.util.UUID ownerId, boolean darkness) {
+        AreaTemplate template = addTemplate(shape, x, y, angle, sizeFt, widthFt, label, color, ownerId);
+        template.setDarkness(darkness);
         return template;
     }
 

@@ -135,6 +135,7 @@
         <select id="areaShape"><option value="CIRCLE">Círculo</option><option value="CONE">Cone</option><option value="LINE">Linha</option><option value="SQUARE">Quadrado</option></select>
         <input id="areaSize" type="number" min="5" step="5" value="20" title="tamanho em pés (raio, comprimento ou lado)" style="width:64px">
         <input id="areaLabel" placeholder="nome (ex.: Bola de fogo)" style="width:140px">
+        <label class="row" style="flex:0;white-space:nowrap" title="Escuridão mágica: dentro dela nada é visto"><input id="areaDarkness" type="checkbox" style="flex:0"> escuridão</label>
       </span>
       <select id="layerSelect" class="master-only" title="Camada em que você clica e põe tokens">
         <option value="BATTLE">Camada: Batalha</option><option value="SCENERY">Camada: Cenário</option>
@@ -172,6 +173,17 @@
         <select id="cbMarkerPreset"></select>
         <input id="cbMarkerRounds" type="number" min="1" placeholder="rodadas" title="vazio = até tirar" style="max-width:76px">
         <button id="cbMarkerAdd">Marcar</button>
+      </div>
+      <div class="row">
+        <select id="cbLightPreset" title="Luz que o token carrega">
+          <option value="0,0">Sem luz</option><option value="5,5">Vela (5/5)</option><option value="20,20">Tocha (20/20)</option>
+          <option value="15,30">Lâmpada (15/30)</option><option value="30,30">Lanterna (30/30)</option><option value="20,20">Magia Luz (20/20)</option>
+          <option value="custom">Outra...</option></select>
+        <input id="cbBright" type="number" min="0" step="5" title="luz forte (pés)" style="max-width:56px">/<input id="cbDim" type="number" min="0" step="5" title="luz fraca (pés)" style="max-width:56px">
+      </div>
+      <div class="row">
+        <span class="muted">Visão no escuro</span><input id="cbDarkvision" type="number" min="0" step="10" style="max-width:66px"><span class="muted">pés</span>
+        <button id="cbLightSave">Salvar luz</button>
       </div>
       <div class="row">
         <span class="muted">Altura</span><input id="cbElev" type="number" step="5" style="max-width:76px"><span class="muted">pés</span>
@@ -246,6 +258,8 @@
       <div class="card">
         <h3>Cena</h3>
         <div class="row"><select id="sceneSelect"></select><button id="sceneActivate">Mostrar aos jogadores</button></div>
+        <div class="row"><select id="sceneLighting" title="Luz da cena (vale com a visão dinâmica ligada)">
+          <option value="BRIGHT">Cena clara</option><option value="DIM">Penumbra</option><option value="DARK">Escura</option></select></div>
         <div class="row"><button id="fogToggle">Neblina</button><button id="fogAll">Revelar tudo</button><button id="fogNone">Cobrir tudo</button></div>
         <div class="row"><button id="visionToggle" title="Cada jogador só vê o que o token dele enxerga">Visão dinâmica</button><button id="wallsClear">Apagar paredes</button><button id="areasClear">Tirar áreas</button></div>
         <div class="muted" style="font-size:12px">Portas: clique abre/fecha · Shift+clique tranca (mestre).</div>
@@ -261,6 +275,12 @@
         <input id="sceneMap" type="file" accept="image/png,image/jpeg,image/webp,image/gif">
         <button class="primary">Criar cena</button>
       </form>
+      <div class="card">
+        <h3>Campanha inteira</h3>
+        <div class="row"><button id="campExport">Exportar (com imagens)</button><button id="campExportLight" title="Arquivo menor; no mesmo servidor as imagens são copiadas da campanha original">Exportar sem imagens</button></div>
+        <div class="row"><input id="campImportFile" type="file" accept=".json,application/json"><button id="campImport">Importar como campanha nova</button></div>
+        <div class="muted" style="font-size:12px">Leva cenas, paredes, áreas, tokens, luz, monstros customizados, objetos e ícones.</div>
+      </div>
       <div class="card">
         <h3>Ícones da campanha</h3>
         <div class="row"><input id="iconFiles" type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple><button id="iconImport" class="primary">Importar pacote</button></div>
@@ -403,6 +423,7 @@ function showScene(scene) {
     if (scene) sel.value = scene.id;
     $('fogToggle').classList.toggle('on', !!(scene && scene.fogEnabled));
     updateVisionButton();
+    $('sceneLighting').value = (scene && scene.lighting) || 'BRIGHT';
   }
   if (scene && scene.mapUrl) loadImage(scene.mapUrl);
   draw();
@@ -550,6 +571,7 @@ function draw() {
     ctx.fillStyle = S.master ? 'rgba(10,8,7,.55)' : '#0A0807'; ctx.fill('evenodd');
   }
   if (sight) drawDarkness(sight, w, h);
+  else if (S.master) drawMasterLight(sc, w, h);
   for (const t of ordered) if (above(t) && seen(t)) drawToken(t, g);
   drawWalls(sc, sight);
   if (S.areaDraw) drawTemplateShape(S.areaDraw, true);
@@ -970,6 +992,7 @@ function renderCombatHeader(t) {
   if (!canControl(t)) return;
   $('cbName').textContent = t.name;
   renderTokenExtras(t);
+  renderLightControls(t);
   $('cbHp').textContent = (t.hpMax != null ? 'PV ' + t.hpCurrent + '/' + t.hpMax : 'sem PV') + (t.armorClass != null ? ' · CA ' + t.armorClass : '');
   const box = $('cbConditions'); box.innerHTML = '';
   const active = new Set(t.conditions || []);
@@ -1134,30 +1157,93 @@ function pointInPoly(poly, x, y) {
   }
   return inside;
 }
-/** Jogador com visao dinamica: de onde ele ve (os tokens dele) e ate onde. Mestre: null (ve tudo). */
+/** Pes -> pixels na cena atual. */
+function feetPx(ft) { return ft / S.scene.feetPerCell * S.scene.gridSizePx; }
+/** Luzes da cena escura: tokens com luz (tocha, lanterna; objeto de cenario com luz serve de tocha na parede). */
+function sceneLights(sc, walls, w, h) {
+  if ((sc.lighting || 'BRIGHT') !== 'DARK') return [];
+  const g = sc.gridSizePx;
+  return sc.tokens.filter(t => t.lightBrightFt || t.lightDimFt).map(t => {
+    const x = t.x + g * TW(t) / 2, y = t.y + g * TH(t) / 2, half = g * Math.max(TW(t), TH(t)) / 2;
+    const bright = t.lightBrightFt ? feetPx(t.lightBrightFt) + half : 0;
+    return { x, y, bright, dim: bright + feetPx(t.lightDimFt || 0) + (bright ? 0 : half), poly: visibilityPolygon(x, y, walls, w, h) };
+  });
+}
+/**
+ * Jogador com visao dinamica: de onde ele ve (os tokens dele, a caravana), ate onde, e a luz da cena.
+ * Cena escura: so ve o que uma luz alcanca ou o que esta dentro da visao no escuro. Escuridao magica: nada.
+ * Mestre: null (ve tudo).
+ */
 function playerSight(sc) {
   if (!sc || S.master || !sc.visionEnabled) return null;
   const { w, h } = mapSize(), g = sc.gridSizePx, walls = blockingSegments(sc);
   const sources = sc.tokens.filter(t => isMine(t)).map(t => {
-    const x = t.x + g * TW(t) / 2, y = t.y + g * TH(t) / 2;
-    const r = t.visionFt == null ? Infinity : t.visionFt / sc.feetPerCell * g + g * Math.max(TW(t), TH(t)) / 2;
-    return { x, y, r, poly: visibilityPolygon(x, y, walls, w, h) };
+    const x = t.x + g * TW(t) / 2, y = t.y + g * TH(t) / 2, half = g * Math.max(TW(t), TH(t)) / 2;
+    const r = t.visionFt == null ? Infinity : feetPx(t.visionFt) + half;
+    return { x, y, r, dv: t.darkvisionFt ? feetPx(t.darkvisionFt) + half : 0, poly: visibilityPolygon(x, y, walls, w, h) };
   });
-  return { sources };
+  const lighting = sc.lighting || 'BRIGHT';
+  return { sources, lights: sceneLights(sc, walls, w, h), dark: lighting === 'DARK', dim: lighting === 'DIM',
+    darkness: (sc.templates || []).filter(a => a.darkness) };
+}
+function litAt(sight, x, y, slack = 0) {
+  return sight.lights.some(l => Math.hypot(x - l.x, y - l.y) <= l.dim + slack && pointInPoly(l.poly, x, y));
+}
+/** Do ponto de vista de um token: claro o bastante (luz da cena, tocha ou visao no escuro) e fora da escuridao magica. */
+function visibleFrom(sight, src, x, y, slack = 0) {
+  if (sight.darkness.some(a => areaCovers(a, x, y))) return false;
+  return !sight.dark || Math.hypot(x - src.x, y - src.y) <= src.dv + slack || litAt(sight, x, y, slack);
 }
 function canSee(sight, x, y) {
-  return sight.sources.some(s => Math.hypot(x - s.x, y - s.y) <= s.r && pointInPoly(s.poly, x, y));
+  return sight.sources.some(src => Math.hypot(x - src.x, y - src.y) <= src.r && pointInPoly(src.poly, x, y) && visibleFrom(sight, src, x, y));
 }
 /** Porta: ve se enxerga um ponto um pouco antes dela, do lado de quem olha. */
 function canSeeDoor(sight, w) {
   const mx = (w.x1 + w.x2) / 2, my = (w.y1 + w.y2) / 2;
-  return sight.sources.some(s => {
-    const d = Math.hypot(mx - s.x, my - s.y) || 1, px = mx + (s.x - mx) / d * 3, py = my + (s.y - my) / d * 3;
-    return d <= s.r + 3 && pointInPoly(s.poly, px, py);
+  return sight.sources.some(src => {
+    const d = Math.hypot(mx - src.x, my - src.y) || 1, px = mx + (src.x - mx) / d * 3, py = my + (src.y - my) / d * 3;
+    return d <= src.r + 3 && pointInPoly(src.poly, px, py) && visibleFrom(sight, src, px, py, 3);
   });
 }
 function traceSight(c, s) {
   c.beginPath(); s.poly.forEach(([x, y], i) => i ? c.lineTo(x, y) : c.moveTo(x, y)); c.closePath();
+}
+/** Contorno de uma area num contexto qualquer (mesma forma do areaPath). */
+function areaPathOn(c, a) {
+  const size = feetPx(a.sizeFt), rad = a.angle * Math.PI / 180;
+  c.beginPath();
+  if (a.shape === 'CIRCLE') c.arc(a.x, a.y, size, 0, Math.PI * 2);
+  else if (a.shape === 'SQUARE') c.rect(a.x - size / 2, a.y - size / 2, size, size);
+  else if (a.shape === 'CONE') { const hh = Math.atan(0.5), rr = size / Math.cos(hh); c.moveTo(a.x, a.y); c.lineTo(a.x + rr * Math.cos(rad - hh), a.y + rr * Math.sin(rad - hh)); c.lineTo(a.x + rr * Math.cos(rad + hh), a.y + rr * Math.sin(rad + hh)); c.closePath(); }
+  else { const ww = feetPx(a.widthFt || 5) / 2, nx = -Math.sin(rad) * ww, ny = Math.cos(rad) * ww, ex = a.x + Math.cos(rad) * size, ey = a.y + Math.sin(rad) * size;
+    c.moveTo(a.x + nx, a.y + ny); c.lineTo(ex + nx, ey + ny); c.lineTo(ex - nx, ey - ny); c.lineTo(a.x - nx, a.y - ny); c.closePath(); }
+}
+/**
+ * Pinta no contexto c o que os tokens do jogador enxergam. clear = true: tudo com alfa 1 (memoria do que ja viu);
+ * clear = false: luz forte limpa tudo, luz fraca e visao no escuro deixam um veu (penumbra).
+ */
+function paintVisible(c, sight, w, h, clear) {
+  const fill = (alpha, x, y, radius) => {
+    c.globalAlpha = clear ? 1 : alpha;
+    if (radius === undefined || radius === Infinity) c.fillRect(-w * 2, -h * 2, w * 5, h * 5);
+    else { c.beginPath(); c.arc(x, y, radius, 0, Math.PI * 2); c.fill(); }
+  };
+  for (const src of sight.sources) {
+    c.save(); traceSight(c, src); c.clip();
+    if (src.r !== Infinity) { c.beginPath(); c.arc(src.x, src.y, src.r, 0, Math.PI * 2); c.clip(); }
+    if (!sight.dark) fill(sight.dim ? 0.8 : 1);
+    else {
+      for (const l of sight.lights) {
+        c.save(); traceSight(c, l); c.clip();
+        fill(0.6, l.x, l.y, l.dim);
+        if (l.bright) fill(1, l.x, l.y, l.bright);
+        c.restore();
+      }
+      if (src.dv) fill(0.5, src.x, src.y, src.dv);
+    }
+    c.restore();
+  }
+  c.globalAlpha = 1;
 }
 /** Escuro por cima do mapa: o que ve agora fica claro; o que ja viu fica esmaecido; o resto, preto. */
 function drawDarkness(sight, w, h) {
@@ -1167,12 +1253,8 @@ function drawDarkness(sight, w, h) {
     S.explored = { sceneId: sc.id, canvas: c };
   }
   const ex = S.explored.canvas.getContext('2d');
-  ex.setTransform(k, 0, 0, k, 0, 0); ex.fillStyle = '#fff';
-  for (const s of sight.sources) {
-    ex.save(); traceSight(ex, s); ex.clip();
-    if (s.r === Infinity) ex.fillRect(-10, -10, w + 20, h + 20); else { ex.beginPath(); ex.arc(s.x, s.y, s.r, 0, Math.PI * 2); ex.fill(); }
-    ex.restore();
-  }
+  ex.setTransform(k, 0, 0, k, 0, 0); ex.fillStyle = '#fff'; ex.globalCompositeOperation = 'source-over';
+  paintVisible(ex, sight, w, h, true);
   if (!S.overlay) S.overlay = document.createElement('canvas');
   const o = S.overlay; if (o.width !== cv.width || o.height !== cv.height) { o.width = cv.width; o.height = cv.height; }
   const oc = o.getContext('2d');
@@ -1180,12 +1262,32 @@ function drawDarkness(sight, w, h) {
   oc.setTransform(ctx.getTransform()); oc.fillStyle = '#0A0807'; oc.fillRect(-w * 2, -h * 2, w * 5, h * 5);
   oc.globalCompositeOperation = 'destination-out';
   oc.globalAlpha = 0.45; oc.drawImage(S.explored.canvas, 0, 0, w, h); oc.globalAlpha = 1;
-  for (const s of sight.sources) {
-    oc.save(); traceSight(oc, s); oc.clip();
-    if (s.r === Infinity) oc.fillRect(-w, -h, w * 3, h * 3); else { oc.beginPath(); oc.arc(s.x, s.y, s.r, 0, Math.PI * 2); oc.fill(); }
-    oc.restore();
+  paintVisible(oc, sight, w, h, false);
+  // escuridao magica volta a ser preta, por cima de tudo
+  oc.globalCompositeOperation = 'source-over'; oc.fillStyle = '#0A0807';
+  for (const a of sight.darkness) { areaPathOn(oc, a); oc.fill(); }
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(o, 0, 0); ctx.restore();
+}
+/** Mestre numa cena escura ou em penumbra: um veu leve com as luzes recortadas, pra ver onde ha luz. */
+function drawMasterLight(sc, w, h) {
+  const lighting = sc.lighting || 'BRIGHT';
+  if (lighting === 'BRIGHT') return;
+  if (!S.overlay) S.overlay = document.createElement('canvas');
+  const o = S.overlay; if (o.width !== cv.width || o.height !== cv.height) { o.width = cv.width; o.height = cv.height; }
+  const oc = o.getContext('2d');
+  oc.setTransform(1, 0, 0, 1, 0, 0); oc.globalCompositeOperation = 'source-over'; oc.clearRect(0, 0, o.width, o.height);
+  oc.setTransform(ctx.getTransform()); oc.fillStyle = lighting === 'DARK' ? 'rgba(10,8,7,.5)' : 'rgba(10,8,7,.2)';
+  oc.fillRect(0, 0, w, h);
+  if (lighting === 'DARK') {
+    oc.globalCompositeOperation = 'destination-out';
+    for (const l of sceneLights(sc, blockingSegments(sc), w, h)) {
+      oc.save(); traceSight(oc, l); oc.clip();
+      oc.globalAlpha = 0.6; oc.beginPath(); oc.arc(l.x, l.y, l.dim, 0, Math.PI * 2); oc.fill();
+      if (l.bright) { oc.globalAlpha = 1; oc.beginPath(); oc.arc(l.x, l.y, l.bright, 0, Math.PI * 2); oc.fill(); }
+      oc.restore();
+    }
+    oc.globalAlpha = 1; oc.globalCompositeOperation = 'source-over';
   }
-  oc.globalCompositeOperation = 'source-over';
   ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(o, 0, 0); ctx.restore();
 }
 
@@ -1435,11 +1537,11 @@ function areaPath(a) {
 function drawTemplateShape(a, draft) {
   const z = S.view.z, selected = S.selectedTemplate && S.selectedTemplate.id === a.id;
   areaPath(a);
-  ctx.fillStyle = a.color ? a.color + '33' : 'rgba(232,93,61,.18)'; ctx.fill();
+  ctx.fillStyle = a.darkness ? 'rgba(0,0,0,.6)' : a.color ? a.color + '33' : 'rgba(232,93,61,.18)'; ctx.fill();
   ctx.strokeStyle = draft || selected ? '#FFCF7F' : 'rgba(232,93,61,.8)'; ctx.lineWidth = (selected ? 3 : 2) / z;
   if (draft) ctx.setLineDash([8 / z, 5 / z]); ctx.stroke(); ctx.setLineDash([]);
   for (const t of S.scene.tokens) { // quem esta dentro ganha um anel
-    if ((t.layer || 'BATTLE') !== 'BATTLE' || !areaCoversToken(a, t)) continue;
+    if (a.darkness || (t.layer || 'BATTLE') !== 'BATTLE' || !areaCoversToken(a, t)) continue;
     const g2 = S.scene.gridSizePx, size = g2 * Math.max(TW(t), TH(t));
     ctx.beginPath(); ctx.arc(t.x + g2 * TW(t) / 2, t.y + g2 * TH(t) / 2, size / 2, 0, Math.PI * 2);
     ctx.strokeStyle = '#FFCF7F'; ctx.lineWidth = 3 / z; ctx.setLineDash([4 / z, 3 / z]); ctx.stroke(); ctx.setLineDash([]);
@@ -1459,7 +1561,8 @@ async function placeTemplate(d) {
   draw();
   try {
     const created = await api('/live/scenes/' + S.scene.id + '/templates', { method: 'POST', body: {
-      shape: d.shape, x: d.x, y: d.y, angle: d.angle, sizeFt: d.sizeFt, widthFt: d.widthFt, label: d.label || null } });
+      shape: d.shape, x: d.x, y: d.y, angle: d.angle, sizeFt: d.sizeFt, widthFt: d.widthFt, label: d.label || null,
+      darkness: !S.pendingArea && $('areaDarkness').checked } });
     const pending = S.pendingArea; S.pendingArea = null;
     document.querySelector('[data-tool=move]').click();
     if (pending) { // acao do monstro: ja resolve com a CD e o dano da ficha
@@ -1661,6 +1764,42 @@ $('iconImport').onclick = async () => {
 };
 $('iconClear').onclick = () => confirm('Tirar todos os ícones do pacote desta campanha? (volta aos ícones padrão)')
   && api('/live/campaign/' + S.campaign.id + '/icons', { method: 'DELETE' }).then(loadIcons).catch(err => toast(err.message));
+
+// ------------------------------------------------------------------ luz e campanha inteira
+$('sceneLighting').onchange = () => S.scene && api('/live/scenes/' + S.scene.id + '/lighting', { method: 'PUT', body: { lighting: $('sceneLighting').value } })
+  .then(sc => { S.scene.lighting = sc.lighting; toast('Luz da cena: ' + $('sceneLighting').selectedOptions[0].text + (S.scene.visionEnabled ? '' : ' (ligue a visão dinâmica pra valer pros jogadores)'), true); draw(); })
+  .catch(err => toast(err.message));
+function renderLightControls(t) {
+  $('cbBright').value = t.lightBrightFt || 0; $('cbDim').value = t.lightDimFt || 0; $('cbDarkvision').value = t.darkvisionFt || '';
+  const key = (t.lightBrightFt || 0) + ',' + (t.lightDimFt || 0);
+  const preset = [...$('cbLightPreset').options].find(o => o.value === key);
+  $('cbLightPreset').value = preset ? preset.value : 'custom';
+}
+$('cbLightPreset').onchange = () => { const v = $('cbLightPreset').value; if (v !== 'custom') { const [b, d] = v.split(','); $('cbBright').value = b; $('cbDim').value = d; } };
+$('cbLightSave').onclick = () => S.selected && api('/live/tokens/' + S.selected.id + '/light', { method: 'PUT', body: {
+  brightFt: Number($('cbBright').value) || 0, dimFt: Number($('cbDim').value) || 0, darkvisionFt: Number($('cbDarkvision').value) || 0 } })
+  .then(() => toast('Luz salva.', true)).catch(err => toast(err.message));
+
+async function exportCampaign(images) {
+  try {
+    const res = await fetch('/campaign/' + S.campaign.id + '/export?images=' + images, { headers: { Authorization: 'Bearer ' + S.token } });
+    if (!res.ok) throw new Error('Não foi possível exportar (' + res.status + ')');
+    const blob = await res.blob(), a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = S.campaign.name.replace(/[^\w-]+/g, '-') + '.customizr.json'; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  } catch (err) { toast(err.message); }
+}
+$('campExport').onclick = () => exportCampaign(true);
+$('campExportLight').onclick = () => exportCampaign(false);
+$('campImport').onclick = async () => {
+  const file = $('campImportFile').files[0]; if (!file) return toast('Escolha o arquivo .customizr.json.');
+  try {
+    const data = JSON.parse(await file.text());
+    const res = await api('/campaign/import', { method: 'POST', body: data });
+    toast('Campanha "' + res.name + '" criada' + (res.warnings && res.warnings.length ? ' · ' + res.warnings.length + ' aviso(s): ' + res.warnings.slice(0, 3).join('; ') : ''), true);
+    $('campImportFile').value = '';
+  } catch (err) { toast(err.message); }
+};
 
 // ------------------------------------------------------------------ inicio
 S.token = load('customizr_token');

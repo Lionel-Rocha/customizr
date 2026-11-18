@@ -95,6 +95,17 @@ public class Token {
     @Column(name = "layer", length = 10)
     private TokenLayer layer;
 
+    /** Luz que o token carrega, em pes (tocha: 20 forte + 20 fraca). Null = sem luz. */
+    @Column(name = "light_bright_ft")
+    private Integer lightBrightFt;
+
+    @Column(name = "light_dim_ft")
+    private Integer lightDimFt;
+
+    /** Visao no escuro em pes (ve na escuridao como se fosse penumbra). Null = nao tem. */
+    @Column(name = "darkvision_ft")
+    private Integer darkvisionFt;
+
     /** Altura em pes (voando, num telhado; negativo = cova, agua). Null = no chao. */
     @Column(name = "elevation_ft")
     private Integer elevationFt;
@@ -271,6 +282,16 @@ public class Token {
             return !keep;
         });
         return expired;
+    }
+
+    /** Luz do token e visao no escuro, em pes (0 ou null = nada). */
+    public void setLight(Integer brightFt, Integer dimFt, Integer darkvisionFt) {
+        for (Integer v : new Integer[] {brightFt, dimFt, darkvisionFt}) {
+            if (v != null && (v < 0 || v > 1000)) throw new IllegalArgumentException("Light and darkvision go from 0 to 1000 feet");
+        }
+        this.lightBrightFt = brightFt == null || brightFt == 0 ? null : brightFt;
+        this.lightDimFt = dimFt == null || dimFt == 0 ? null : dimFt;
+        this.darkvisionFt = darkvisionFt == null || darkvisionFt == 0 ? null : darkvisionFt;
     }
 
     public void setVisionFt(Integer visionFt) {

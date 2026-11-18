@@ -18,6 +18,8 @@ import top.customizr.system.model.DndClass;
 import top.customizr.system.model.Encyclopedia;
 import top.customizr.system.model.EncyclopediaReferenceable;
 import top.customizr.system.model.ImageAsset;
+import top.customizr.system.model.Monster;
+import top.customizr.system.model.Token;
 import top.customizr.system.model.Inventory;
 import top.customizr.system.model.Item;
 import top.customizr.system.model.NPC;
@@ -80,6 +82,10 @@ public class CampaignTransferService {
     private final FeatDefinitionRepository featRepository;
     private final MonsterRepository monsterRepository;
     private final MasterGuard masterGuard;
+    private final top.customizr.system.repository.SceneRepository sceneRepository;
+    private final top.customizr.system.repository.MapObjectRepository mapObjectRepository;
+    private final top.customizr.system.repository.CampaignIconRepository iconRepository;
+    private final MonsterService monsterService;
 
     public CampaignTransferService(
             CampaignRepository campaignRepository, CampaignSourceRepository campaignSourceRepository,
@@ -88,8 +94,15 @@ public class CampaignTransferService {
             ImageAssetRepository imageAssetRepository, InventoryRepository inventoryRepository,
             ItemRepository itemRepository, DndClassRepository dndClassRepository, SpeciesRepository speciesRepository,
             BackgroundRepository backgroundRepository, FeatDefinitionRepository featRepository,
-            MonsterRepository monsterRepository, MasterGuard masterGuard
+            MonsterRepository monsterRepository, MasterGuard masterGuard,
+            top.customizr.system.repository.SceneRepository sceneRepository,
+            top.customizr.system.repository.MapObjectRepository mapObjectRepository,
+            top.customizr.system.repository.CampaignIconRepository iconRepository, MonsterService monsterService
     ) {
+        this.sceneRepository = sceneRepository;
+        this.mapObjectRepository = mapObjectRepository;
+        this.iconRepository = iconRepository;
+        this.monsterService = monsterService;
         this.campaignRepository = campaignRepository;
         this.campaignSourceRepository = campaignSourceRepository;
         this.sourceRepository = sourceRepository;
@@ -177,7 +190,44 @@ public class CampaignTransferService {
         return new CampaignExport(CampaignExport.FORMAT_VERSION, LocalDateTime.now(), campaign.getName(),
                 campaign.getSourceConfigs().stream().filter(CampaignSourceConfig::isEnabled)
                         .map(sc -> sc.getSource().getCode()).toList(),
-                worlds, entries, npcs, characters, parties, images);
+                worlds, entries, npcs, characters, parties, images,
+                sceneRepository.findByCampaignOrderByName(campaign).stream().map(CampaignTransferService::sceneData).toList(),
+                monsterRepository.findByCampaign(campaign).stream().map(CampaignTransferService::monsterData).toList(),
+                mapObjectRepository.findByCampaignOrderByName(campaign).stream().map(o -> new CampaignExport.ObjectData(o.getName(),
+                        o.getImage().getUrl(), o.getWidthCells(), o.getHeightCells(), o.getLayer())).toList(),
+                iconRepository.findByCampaignOrderByLabel(campaign).stream().map(i -> new CampaignExport.IconData(i.getKey(),
+                        i.getLabel(), i.getImage().getUrl())).toList());
+    }
+
+    private static CampaignExport.SceneData sceneData(top.customizr.system.model.Scene s) {
+        return new CampaignExport.SceneData(s.getName(), s.getMapUrl(), s.getGridType(), s.getGridSizePx(), s.getFeetPerCell(),
+                s.getWidthPx(), s.getHeightPx(), s.isFogEnabled(), s.isActive(), java.util.Set.copyOf(s.getRevealedCells()),
+                s.isVisionEnabled(), s.getLighting(),
+                s.getWalls().stream().map(w -> new CampaignExport.WallData(w.getX1(), w.getY1(), w.getX2(), w.getY2(), w.getType(),
+                        w.isOpen(), w.isLocked())).toList(),
+                s.getTemplates().stream().map(t -> new CampaignExport.TemplateData(t.getShape(), t.getX(), t.getY(), t.getAngle(),
+                        t.getSizeFt(), t.getWidthFt(), t.getLabel(), t.getColor(), t.isDarkness())).toList(),
+                s.getTokens().stream().map(t -> new CampaignExport.TokenData(t.getName(), t.getX(), t.getY(), t.getSizeCells(),
+                        t.width(), t.height(), t.getImageUrl(), t.isHidden(), t.getRotation(),
+                        t.getCharacter() == null ? null : t.getCharacter().getName(),
+                        t.getNpc() == null ? null : t.getNpc().getName(),
+                        t.getMonster() == null ? null : new CampaignExport.Ref(t.getMonster().getName(),
+                                t.getMonster().isCustom() ? CampaignExport.HOMEBREW : t.getMonster().getSource().getCode()),
+                        t.getHpCurrent(), t.getHpMax(), t.getCharacter() == null ? java.util.Set.copyOf(t.getConditions()) : java.util.Set.of(),
+                        t.getVisionFt(), t.getLayer(), t.getElevationFt(),
+                        t.getMarkers().stream().map(m -> new CampaignExport.MarkerData(m.getLabel(), m.getIcon(), m.getRoundsLeft())).toList(),
+                        t.getMembers().stream().map(Character::getName).toList(),
+                        t.getLightBrightFt(), t.getLightDimFt(), t.getDarkvisionFt())).toList());
+    }
+
+    private static CampaignExport.MonsterData monsterData(Monster m) {
+        return new CampaignExport.MonsterData(m.getName(), m.getSize(), m.getCreatureType(), m.getAlignment(), m.getArmorClass(),
+                m.getArmorNote(), m.getHpAverage(), m.getHpFormula(), m.getSpeed(),
+                new int[] {m.getStrength(), m.getDexterity(), m.getConstitution(), m.getIntelligence(), m.getWisdom(), m.getCharisma()},
+                m.getChallengeRating(), m.getSavingThrows(), m.getSkills(), m.getDamageVulnerabilities(), m.getDamageResistances(),
+                m.getDamageImmunities(), m.getConditionImmunities(), m.getSenses(), m.getPassivePerception(), m.getLanguages(),
+                m.getTraits(), m.getActions(), m.getBonusActions(), m.getReactions(), m.getLegendaryActions(), m.getSpellcasting(),
+                m.getMetadata());
     }
 
     private static CampaignExport.InventoryData inventory(Optional<Inventory> inventory) {
@@ -216,7 +266,7 @@ public class CampaignTransferService {
                     .orElseGet(() -> imageAssetRepository.save(new ImageAsset(campaign, bytes, image.contentType(), hash, image.fileName())));
             imageUrls.put("/image/" + image.id(), saved.getUrl());
         }
-        Function<String, String> url = u -> u == null ? null : imageUrls.getOrDefault(u, u);
+        Function<String, String> url = u -> u == null ? null : imageUrls.computeIfAbsent(u, old -> copyImage(old, campaign, master));
 
         Map<String, EncyclopediaReferenceable> references = new HashMap<>();
         for (CampaignExport.WorldData w : nullSafe(data.worlds())) {
@@ -315,9 +365,131 @@ public class CampaignTransferService {
             restoreInventory(p.inventory(), Inventory.forParty(party), warnings);
         }
 
+        // monstros customizados, cenas (com paredes, areas e tokens), objetos e icones
+        Map<String, Monster> customMonsters = new HashMap<>();
+        for (CampaignExport.MonsterData m : nullSafe(data.monsters())) {
+            try {
+                Monster monster = Monster.custom(m.name(), monsterService.homebrewSource(campaign), campaign);
+                int[] a = m.abilities() == null || m.abilities().length != 6 ? new int[] {10, 10, 10, 10, 10, 10} : m.abilities();
+                monster.updateCore(m.size(), m.creatureType(), m.alignment(), m.armorClass(), m.armorNote(), m.hpAverage(),
+                        m.hpFormula(), m.speed(), a, m.challengeRating());
+                monster.updateDetails(m.savingThrows(), m.skills(), m.damageVulnerabilities(), m.damageResistances(),
+                        m.damageImmunities(), m.conditionImmunities(), m.senses(), m.passivePerception(), m.languages());
+                monster.updateFeatures(m.traits(), m.actions(), m.bonusActions(), m.reactions(), m.legendaryActions(), m.spellcasting());
+                monster.updateSourceData(null, m.metadata());
+                customMonsters.put(m.name(), monsterRepository.save(monster));
+            } catch (IllegalArgumentException ex) {
+                warnings.add("Monster " + m.name() + ": " + ex.getMessage());
+            }
+        }
+        Map<String, NPC> npcsByName = new HashMap<>();
+        npcRepository.findByCampaign(campaign).forEach(n -> npcsByName.put(n.getName(), n));
+        int scenes = 0;
+        for (CampaignExport.SceneData sd : nullSafe(data.scenes())) {
+            try {
+                restoreScene(sd, campaign, master, url, charactersByName, npcsByName, customMonsters, warnings);
+                scenes++;
+            } catch (IllegalArgumentException ex) {
+                warnings.add("Scene " + sd.name() + ": " + ex.getMessage());
+            }
+        }
+        for (CampaignExport.ObjectData o : nullSafe(data.objects())) {
+            ImageAsset image = imageOf(url.apply(o.imageUrl()), campaign);
+            if (image == null) { warnings.add("Object " + o.name() + ": image not found (export with images)"); continue; }
+            mapObjectRepository.save(new top.customizr.system.model.MapObject(campaign, o.name(), image, o.widthCells(), o.heightCells(), o.layer()));
+        }
+        for (CampaignExport.IconData i : nullSafe(data.icons())) {
+            ImageAsset image = imageOf(url.apply(i.imageUrl()), campaign);
+            if (image == null) { warnings.add("Icon " + i.label() + ": image not found (export with images)"); continue; }
+            try {
+                iconRepository.save(new top.customizr.system.model.CampaignIcon(campaign, i.key(), i.label(), image));
+            } catch (IllegalArgumentException ex) {
+                warnings.add("Icon " + i.label() + ": " + ex.getMessage());
+            }
+        }
+        if (scenes > 0 || !customMonsters.isEmpty()) {
+            warnings.add(scenes + " scene(s) and " + customMonsters.size() + " custom monster(s) restored");
+        }
+
         return new CampaignImportResponse(campaign.getId(), campaign.getName(), campaign.getCode(),
                 charactersByName.size(), nullSafe(data.npcs()).size(), nullSafe(data.worlds()).size(),
                 nullSafe(data.encyclopedia()).size(), imageUrls.size(), warnings);
+    }
+
+    private void restoreScene(CampaignExport.SceneData sd, Campaign campaign, User master, Function<String, String> url,
+                              Map<String, Character> characters, Map<String, NPC> npcs, Map<String, Monster> customMonsters,
+                              List<String> warnings) {
+        var scene = new top.customizr.system.model.Scene(campaign, sd.name(), url.apply(sd.mapUrl()), sd.gridType(), sd.gridSizePx(),
+                sd.feetPerCell(), sd.widthPx(), sd.heightPx());
+        List<top.customizr.system.model.Scene> others = sceneRepository.findByCampaignOrderByName(campaign);
+        if (sd.active()) scene.activate(others);
+        scene.setFogEnabled(sd.fogEnabled());
+        scene.revealCells((sd.revealedCells() == null ? java.util.Set.<String>of() : sd.revealedCells()).stream().map(c -> c.split(","))
+                .filter(p -> p.length == 2).map(p -> new int[] {Integer.parseInt(p[0].trim()), Integer.parseInt(p[1].trim())}).toList(), true);
+        scene.setVisionEnabled(sd.visionEnabled());
+        scene.setLighting(sd.lighting());
+        for (CampaignExport.WallData w : nullSafe(sd.walls())) {
+            var wall = scene.addWall(w.x1(), w.y1(), w.x2(), w.y2(), w.type());
+            if (wall.isDoor()) {
+                if (w.locked()) wall.setLocked(true);
+                else if (w.open()) wall.setOpen(true);
+            }
+        }
+        for (CampaignExport.TemplateData t : nullSafe(sd.templates())) {
+            scene.addTemplate(t.shape(), t.x(), t.y(), t.angle(), t.sizeFt(), t.widthFt(), t.label(), t.color(), master.getUserId(), t.darkness());
+        }
+        for (CampaignExport.TokenData td : nullSafe(sd.tokens())) {
+            Character character = td.characterName() == null ? null : characters.get(td.characterName());
+            NPC npc = td.npcName() == null ? null : npcs.get(td.npcName());
+            Monster monster = null;
+            if (td.monster() != null) {
+                monster = CampaignExport.HOMEBREW.equals(td.monster().source()) ? customMonsters.get(td.monster().name())
+                        : sourceRepository.getSourceByCode(td.monster().source())
+                        .flatMap(s -> monsterRepository.findByNameAndSource_Id(td.monster().name(), s.getId())).orElse(null);
+                if (monster == null) warnings.add("Token " + td.name() + ": monster " + td.monster().name() + " not found");
+            }
+            if (td.characterName() != null && character == null) warnings.add("Token " + td.name() + ": character not found");
+            Token token = scene.addToken(td.name(), td.x(), td.y(), Math.max(1, Math.min(10, td.sizeCells())), url.apply(td.imageUrl()),
+                    td.hidden(), character, npc, monster);
+            token.update(token.getName(), token.getSizeCells(), token.getImageUrl(), td.hidden(), td.rotation());
+            token.resize(td.widthCells() > 0 ? td.widthCells() : td.sizeCells(), td.heightCells() > 0 ? td.heightCells() : td.sizeCells());
+            if (character == null && (td.hpMax() != null || td.hpCurrent() != null)) token.setHitPoints(td.hpCurrent(), td.hpMax());
+            if (character == null && td.conditions() != null) token.updateConditions(td.conditions());
+            token.setVisionFt(td.visionFt());
+            token.setLayer(td.layer());
+            token.setElevationFt(td.elevationFt());
+            token.setLight(td.lightBrightFt(), td.lightDimFt(), td.darkvisionFt());
+            token.replaceMarkers(nullSafe(td.markers()).stream()
+                    .map(m -> new top.customizr.system.model.TokenMarker(m.label(), m.icon(), m.roundsLeft())).toList());
+            token.replaceMembers(nullSafe(td.memberNames()).stream().map(characters::get).filter(java.util.Objects::nonNull).toList());
+        }
+        sceneRepository.save(scene);
+    }
+
+    /** Imagem de outra campanha (export sem imagens, mesmo servidor): copia se quem importa tem acesso a ela. */
+    private String copyImage(String oldUrl, Campaign campaign, User importer) {
+        if (!oldUrl.startsWith("/image/")) return oldUrl;
+        try {
+            UUID id = UUID.fromString(oldUrl.substring("/image/".length()));
+            return imageAssetRepository.findById(id)
+                    .filter(img -> masterGuard.isMember(importer, img.getCampaign()))
+                    .map(img -> imageAssetRepository.findByCampaignAndSha256(campaign, img.getSha256())
+                            .orElseGet(() -> imageAssetRepository.save(new ImageAsset(campaign, img.getData(), img.getContentType(),
+                                    img.getSha256(), img.getFileName()))).getUrl())
+                    .orElse(oldUrl);
+        } catch (IllegalArgumentException ex) {
+            return oldUrl;
+        }
+    }
+
+    private ImageAsset imageOf(String url, Campaign campaign) {
+        if (url == null || !url.startsWith("/image/")) return null;
+        try {
+            return imageAssetRepository.findById(UUID.fromString(url.substring("/image/".length())))
+                    .filter(img -> img.getCampaign().getId().equals(campaign.getId())).orElse(null);
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
     }
 
     /** Especie e antecedente pelo nome + fonte. */

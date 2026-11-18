@@ -3,6 +3,8 @@ package top.customizr.system.controllers;
 import top.customizr.system.dto.ConditionsRequest;
 import top.customizr.system.dto.DoorRequest;
 import top.customizr.system.dto.MarkersRequest;
+import top.customizr.system.dto.SceneLightingRequest;
+import top.customizr.system.dto.TokenLightRequest;
 import top.customizr.system.dto.CampaignIconRequest;
 import top.customizr.system.dto.CampaignIconResponse;
 import top.customizr.system.dto.MapObjectRequest;
@@ -171,6 +173,19 @@ public class LiveTableController {
     public ResponseEntity<SceneResponse> sceneVision(@PathVariable UUID sceneId, @RequestBody VisionRequest request,
                                                      @AuthenticationPrincipal UserDetails user) {
         return ResponseEntity.ok(live.setSceneVision(sceneId, request, user.getUsername()));
+    }
+
+    @PutMapping("/scenes/{sceneId}/lighting")
+    public ResponseEntity<SceneResponse> sceneLighting(@PathVariable UUID sceneId, @RequestBody SceneLightingRequest request,
+                                                       @AuthenticationPrincipal UserDetails user) {
+        return ResponseEntity.ok(live.setSceneLighting(sceneId, request, user.getUsername()));
+    }
+
+    /** Luz do token (forte/fraca) e visao no escuro. */
+    @PutMapping("/tokens/{tokenId}/light")
+    public ResponseEntity<TokenResponse> tokenLight(@PathVariable UUID tokenId, @RequestBody TokenLightRequest request,
+                                                    @AuthenticationPrincipal UserDetails user) {
+        return ResponseEntity.ok(live.setTokenLight(tokenId, request, user.getUsername()));
     }
 
     @PutMapping("/tokens/{tokenId}/vision")

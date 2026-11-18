@@ -193,7 +193,7 @@ public class MonsterService {
     }
 
     /** Fonte "homebrew" de cada campanha (HB-xxxxxxxx), pra nao misturar com o catalogo. */
-    private Source homebrewSource(Campaign campaign) {
+    public Source homebrewSource(Campaign campaign) {
         String code = "HB-" + campaign.getId().toString().substring(0, 8).toUpperCase(Locale.ROOT);
         return sourceRepository.getSourceByCode(code)
                 .orElseGet(() -> sourceRepository.save(new Source("Homebrew: " + campaign.getName(), code)));

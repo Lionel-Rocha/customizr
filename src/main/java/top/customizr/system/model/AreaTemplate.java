@@ -59,6 +59,10 @@ public class AreaTemplate {
     @Column(length = 9)
     private String color;
 
+    /** Escuridao magica: dentro dela nada e visto, nem com luz nem com visao no escuro. */
+    @Column(name = "darkness")
+    private Boolean darkness;
+
     /** Quem colocou (o jogador tambem lanca magia de area); o mestre apaga qualquer uma. */
     @Column(name = "owner_id", nullable = false)
     private UUID ownerId;
@@ -83,6 +87,14 @@ public class AreaTemplate {
         this.label = label == null || label.isBlank() ? null : label.trim().substring(0, Math.min(60, label.trim().length()));
         this.color = color == null || !color.matches("#[0-9A-Fa-f]{6}") ? null : color;
         this.ownerId = ownerId;
+    }
+
+    public boolean isDarkness() {
+        return Boolean.TRUE.equals(darkness);
+    }
+
+    public void setDarkness(boolean darkness) {
+        this.darkness = darkness ? Boolean.TRUE : null;
     }
 
     /** O ponto (em pixels do mapa) esta dentro da area? */

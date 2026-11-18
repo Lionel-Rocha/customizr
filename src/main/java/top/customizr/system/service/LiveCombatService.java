@@ -107,6 +107,15 @@ public class LiveCombatService {
         List<String> notes = new ArrayList<>();
         RollMode mode = request.mode() == null ? RollMode.NORMAL : request.mode();
         Integer targetAc = target == null ? null : target.armorClass();
+        if (target != null) {
+            // cobertura pelas paredes: meia (+2 na CA), tres quartos (+5) ou total (nao da pra atacar)
+            int cover = attacker.getScene().coverBetween(attacker, target);
+            if (cover < 0) throw badRequest("Total cover: there is no clear line to " + target.getName());
+            if (cover > 0) {
+                notes.add((cover == 2 ? "Half cover" : "Three-quarters cover") + " (+" + cover + " AC)");
+                if (targetAc != null) targetAc += cover;
+            }
+        }
         if (target != null && attacker.elevation() != target.elevation()) {
             // com altura diferente, a distancia de verdade (pra conferir alcance) vai na nota
             var scene = attacker.getScene();
@@ -332,7 +341,9 @@ public class LiveCombatService {
                 continue; // token sem ficha (cenario, marcador) nao faz salvaguarda
             }
             boolean autoFail = "AUTOMATIC_FAILURE".equals(outcome);
-            boolean saved = !autoFail && roll.total() >= dc;
+            // cobertura soma na salvaguarda de DES contra a area
+            int cover = ability == AbilityScore.DEXTERITY ? Math.max(0, template.getScene().coverFrom(template.getX(), template.getY(), target)) : 0;
+            boolean saved = !autoFail && roll.total() + cover >= dc;
             Integer applied = null;
             if (damageRoll != null) {
                 int amount = saved ? (half ? damageRoll.total() / 2 : 0) : damageRoll.total();
@@ -341,7 +352,8 @@ public class LiveCombatService {
             }
             String name = target.isHiddenFromPlayers() ? "Unseen creature" : target.getName();
             results.add(new TemplateResolveResponse.Target(target.getId(), target.getName(), roll.total(), saved, autoFail, applied));
-            lines.add(name + ": " + roll.total() + (autoFail ? " (automatic failure)" : saved ? " saved" : " failed")
+            lines.add(name + ": " + roll.total() + (cover > 0 ? " +" + cover + " cover" : "")
+                    + (autoFail ? " (automatic failure)" : saved ? " saved" : " failed")
                     + (applied == null ? "" : " -> " + applied + " " + (damageType == null ? "damage" : damageType)));
         }
         String abilityShort = ability.getKey().substring(0, 3).toUpperCase(Locale.ROOT);
