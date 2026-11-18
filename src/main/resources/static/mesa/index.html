@@ -321,7 +321,7 @@
       </div>
     </div>
     <div id="tab-sheet" class="tab hidden">
-      <div class="row"><select id="sheetChar"></select></div>
+      <div class="row"><select id="sheetChar"></select><button id="sheetPdf" title="Baixa a ficha em PDF para imprimir">Baixar PDF</button></div>
       <div id="sheetStats" class="stats"></div>
       <div class="card">
         <h3>Recursos e descanso</h3>
@@ -1113,6 +1113,22 @@ async function loadSheet() {
   }
 }
 $('sheetReload').onclick = () => loadSheet().catch(err => toast(err.message));
+
+// ficha em PDF: o link precisa do login (cabecalho), entao baixa pelo fetch e entrega o arquivo
+$('sheetPdf').onclick = async () => {
+  const id = $('sheetChar').value; if (!id) return toast('Escolha o personagem.');
+  const btn = $('sheetPdf'); btn.disabled = true; btn.textContent = 'Gerando...';
+  try {
+    const res = await fetch('/character/' + id + '/sheet.pdf', { headers: { Authorization: 'Bearer ' + S.token } });
+    if (!res.ok) throw new Error(res.status === 403 ? 'Sem permissão para isso.' : 'Erro ' + res.status);
+    const name = $('sheetChar').selectedOptions[0].text.replace(/[^\p{L}\p{N} ._-]/gu, '').trim() || 'ficha';
+    const url = URL.createObjectURL(await res.blob());
+    const a = Object.assign(document.createElement('a'), { href: url, download: name + '.pdf' });
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  } catch (err) { toast(err.message); }
+  finally { btn.disabled = false; btn.textContent = 'Baixar PDF'; }
+};
 
 // ------------------------------------------------------------------ recursos, Inspiracao Heroica e descanso
 const RESOURCE_PT = { 'rage': 'Fúria', 'bardic-inspiration': 'Inspiração de Bardo', 'channel-divinity': 'Canalizar Divindade',

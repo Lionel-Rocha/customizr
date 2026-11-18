@@ -209,6 +209,7 @@ Abaixo estão todos os endpoints atualmente expostos pelo backend da aplicação
 | `POST` | `/character/{id}/resources/recover` | Devolve usos (`amount` vazio = todos). |
 | `POST` | `/character/{id}/resources` | Cria um recurso à mão (`name`, `maxUses` 1–999, `recharge`, `notes`): cargas de item, usos de talento. |
 | `PUT` / `DELETE` | `/character/{id}/resources/{resourceId}` | Edita / apaga um recurso criado à mão. |
+| `GET` | `/character/{id}/sheet.pdf` | Ficha em PDF (A4, em português): atributos, combate, salvaguardas e perícias, ataques, magia, recursos, habilidades, proficiências, equipamento e moedas, história. As notas do mestre não entram. Dono ou mestre. Usa o PDFBox que o projeto já tinha. |
 | `GET` / `PUT` | `/character/{id}/story` | História e anotações: tendência, idade, altura, peso, olhos, cabelo, pele, aparência, traços de personalidade, ideais, vínculos, defeitos, história, aliados, anotações. `gmNotes` = segredo do mestre: só ele grava e só ele recebe (o jogador recebe nulo). Campo nulo = fica; texto vazio = apaga. |
 | `POST` | `/character/{id}/story/share` | Mostra no chat a aparência (com os detalhes) ou a história (`part`: `APPEARANCE`, `BACKSTORY`). |
 | `PUT` | `/character/{id}/other-proficiencies` | Idiomas, ferramentas, armas e armaduras (`languages`, `tools`, `weapons`, `armor`; texto livre; lista nula = fica como está, vazia = limpa). |

@@ -109,7 +109,7 @@ public final class ProficiencySuggestions {
         };
     }
 
-    static String untag(String text) {
+    public static String untag(String text) {
         Matcher m = TAG.matcher(text);
         StringBuilder out = new StringBuilder();
         while (m.find()) m.appendReplacement(out, Matcher.quoteReplacement(m.group(2) != null ? m.group(2) : m.group(1)));
