@@ -65,8 +65,13 @@ public final class ClassResources {
 
     /** Recursos que as classes desta ficha dao, no nivel atual de cada uma. */
     public static List<ClassResource> of(Sheet sheet) {
+        return of(sheet, sheet.getClasses());
+    }
+
+    /** Mesmos recursos, mas pra outra lista de classes (ex.: a previa do proximo nivel). */
+    public static List<ClassResource> of(Sheet sheet, List<CharacterClass> classes) {
         List<ClassResource> out = new ArrayList<>();
-        for (CharacterClass cc : sheet.getClasses()) {
+        for (CharacterClass cc : classes) {
             DndClass dnd = cc.getDndClass();
             boolean classic = isClassic(dnd);
             for (Rule rule : RULES) {
@@ -86,7 +91,7 @@ public final class ClassResources {
         return dnd.getClassName().toLowerCase().replace(' ', '-') + "." + key;
     }
 
-    static boolean isClassic(DndClass dnd) {
+    public static boolean isClassic(DndClass dnd) {
         if (dnd.getEdition() != null) return "classic".equalsIgnoreCase(dnd.getEdition());
         return "PHB".equalsIgnoreCase(dnd.getSourceCode());
     }

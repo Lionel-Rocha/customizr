@@ -204,6 +204,8 @@ Abaixo estão todos os endpoints atualmente expostos pelo backend da aplicação
 | `POST` | `/character/{id}/resources/recover` | Devolve usos (`amount` vazio = todos). |
 | `POST` | `/character/{id}/resources` | Cria um recurso à mão (`name`, `maxUses` 1–999, `recharge`, `notes`): cargas de item, usos de talento. |
 | `PUT` / `DELETE` | `/character/{id}/resources/{resourceId}` | Edita / apaga um recurso criado à mão. |
+| `GET` | `/character/{id}/level-up?classId=` | Prévia do próximo nível: PV (média, dado), proficiência, habilidades que chegam, escolhas que abrem, subclasse a escolher, Aumento de Valor de Atributo / Dádiva Épica, espaços de magia e recursos que mudam, avisos (XP, pré-requisito de multiclasse). `classId` vazio = a única classe; outra classe = multiclasse. |
+| `POST` | `/character/{id}/level-up` | Sobe o nível: `classId`, `hpMethod` (`AVERAGE`, `ROLL`, `MANUAL` + `hpValue`), `subclassId`, `abilityIncreases` (+2 em um ou +1 em dois) ou `featId` (+1 opcional de meio-talento), `announce` (cartão no chat). CON que sobe soma PV nos níveis anteriores. Dono ou mestre. |
 | `PUT` | `/character/{id}/inspiration` | Inspiração Heroica: só o mestre dá (`true`); dono ou mestre tira (`false`). Gastar = `heroicInspiration: true` no `/roll` (ou no ataque), que rola de novo e anota no resultado. |
 | `POST` / `DELETE` | `/character/{id}/attacks[/{attackId}]` | Ataques da ficha (nome, bônus, dano, tipo). |
 | `POST` | `/character/{id}/attacks/{attackId}/roll` | Rola o ataque e o dano (crítico dobra os dados); `targetArmorClass` diz se acertou; `toChat` manda pro chat. |

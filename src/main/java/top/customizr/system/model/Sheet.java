@@ -151,6 +151,68 @@ public class Sheet {
         return characterClass;
     }
 
+    // ------------------------------------------------------------------ subir de nivel
+
+    public static final int MAX_LEVEL = 20;
+
+    /** Sobe 1 nivel na classe (ou entra nela no nivel 1, se for multiclasse nova). */
+    public CharacterClass gainClassLevel(DndClass dndClass) {
+        if (getTotalLevel() >= MAX_LEVEL) {
+            throw new IllegalStateException("The character is already level " + MAX_LEVEL);
+        }
+        CharacterClass existing = classOf(dndClass);
+        if (existing == null) return addClass(dndClass, 1);
+        existing.setLevel(existing.getLevel() + 1);
+        return existing;
+    }
+
+    /** A classe da ficha que e esta {@link DndClass}, ou null. */
+    public CharacterClass classOf(DndClass dndClass) {
+        return classes.stream().filter(c -> c.getDndClass().getClassId().equals(dndClass.getClassId()))
+                .findFirst().orElse(null);
+    }
+
+    /**
+     * Como as classes ficariam depois de subir na {@code dndClass}: copias soltas (fora da ficha, nao vao pro banco),
+     * pra calcular espacos de magia e recursos do proximo nivel sem mexer na ficha.
+     */
+    public List<CharacterClass> classesAfterLevelUp(DndClass dndClass) {
+        List<CharacterClass> copy = new ArrayList<>();
+        boolean found = false;
+        for (CharacterClass c : classes) {
+            boolean target = c.getDndClass().getClassId().equals(dndClass.getClassId());
+            found |= target;
+            copy.add(new CharacterClass(this, c.getDndClass(), Math.min(MAX_LEVEL, c.getLevel() + (target ? 1 : 0))));
+        }
+        if (!found) copy.add(new CharacterClass(this, dndClass, 1));
+        return copy;
+    }
+
+    /** PV ganho no nivel: soma no maximo e no atual (quem ainda nao tinha PV comeca com o ganho). */
+    public void raiseMaxHp(int gain) {
+        if (gain < 1) throw new IllegalArgumentException("Hit point gain must be at least 1");
+        hpMax = (hpMax == null ? 0 : hpMax) + gain;
+        hpCurrent = Math.min(hpMax, (hpCurrent == null ? 0 : hpCurrent) + gain);
+    }
+
+    /** Aumento de atributo (Aumento de Valor de Atributo, talento, Dadiva Epica), sem passar de {@code cap}. */
+    public void increaseAbilities(Map<AbilityScore, Integer> increases, int cap) {
+        if (increases == null || increases.isEmpty()) return;
+        if (attributes == null) throw new IllegalStateException("Set the ability scores before increasing them");
+        int[] v = {attributes.getStrength(), attributes.getDexterity(), attributes.getConstitution(),
+                attributes.getIntelligence(), attributes.getWisdom(), attributes.getCharisma()};
+        for (Map.Entry<AbilityScore, Integer> e : increases.entrySet()) {
+            int amount = e.getValue() == null ? 0 : e.getValue();
+            if (e.getKey() == null || amount < 0) throw new IllegalArgumentException("Invalid ability increase");
+            int i = e.getKey().ordinal();
+            if (v[i] + amount > cap) {
+                throw new IllegalArgumentException(e.getKey().name().toLowerCase() + " cannot go above " + cap);
+            }
+            v[i] += amount;
+        }
+        attributes = new Attributes(v[0], v[1], v[2], v[3], v[4], v[5]);
+    }
+
     @Transient
     public List<SpellSlotCount> getSpellSlots() {
         return SpellSlotCalculator.calculate(classes);

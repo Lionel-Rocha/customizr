@@ -66,6 +66,12 @@
   .insp .star { font-size: 20px; color: var(--muted); }
   .insp.on .star { color: var(--accent-2); text-shadow: 0 0 6px var(--accent); }
   .insp b { flex: 1; }
+  .lvl-ready { color: var(--accent-2); font-weight: 600; }
+  .lvl-box { display: grid; gap: 6px; font-size: 13px; }
+  .lvl-box ul { margin: 0; padding-left: 18px; }
+  .lvl-box .warn { color: #FFB38A; font-size: 12px; }
+  .lvl-box fieldset { border: 1px solid var(--line); border-radius: 8px; padding: 6px; display: grid; gap: 6px; }
+  .lvl-box legend { color: var(--muted); font-size: 12px; padding: 0 4px; }
   .msg.card { border-color: var(--accent); }
   .msg.card .title { color: var(--accent-2); font-weight: 600; }
   .msg.card .body { white-space: pre-wrap; font-size: 13px; }
@@ -333,6 +339,14 @@
             <button id="resAdd" class="primary">Criar</button>
           </div>
         </details>
+      </div>
+      <div class="card">
+        <h3>Subir de nível <span id="lvlReady" class="lvl-ready"></span></h3>
+        <div class="row">
+          <select id="lvlClass"></select>
+          <button id="lvlPreview">Ver o que muda</button>
+        </div>
+        <div id="lvlBox" class="lvl-box"></div>
       </div>
       <div class="card">
         <h3>Gerar atributos</h3>
@@ -1016,6 +1030,7 @@ async function loadSheet() {
   $('sheetStats').innerHTML = stat('PV', c.hpMax != null ? c.hpCurrent + '/' + c.hpMax : null) + stat('CA', c.armorClass)
     + stat('Nível', c.totalLevel) + (a ? ABILITIES.map(([, pt, key]) => stat(pt, a[key] + ' (' + (Math.floor((a[key] - 10) / 2) >= 0 ? '+' : '') + Math.floor((a[key] - 10) / 2) + ')')).join('') : '');
   renderResources(id, sheet);
+  renderLevelUp(id, sheet).catch(err => toast(err.message));
   const box = $('sheetFeatures'); box.innerHTML = '';
   if (!features.length) box.textContent = 'Nada ainda: adicione classe, espécie ou itens.';
   for (const f of features) {
@@ -1120,6 +1135,130 @@ async function rest(type) {
     toast(parts.join(' · '), true); $('restDice').value = 0; loadSheet();
   } catch (err) { toast(err.message); }
 }
+// ------------------------------------------------------------------ subir de nivel
+const ABILITY_PT = { STRENGTH: 'FOR', DEXTERITY: 'DES', CONSTITUTION: 'CON', INTELLIGENCE: 'INT', WISDOM: 'SAB', CHARISMA: 'CAR' };
+let lvlAllClasses = null, lvlPlan = null;
+
+async function renderLevelUp(id, sheet) {
+  const d = sheet.details || {}, total = (sheet.combat || {}).totalLevel || 0;
+  $('lvlReady').textContent = total >= 20 ? '(nível máximo)' : d.levelByExperience > total ? '· pronto pelo XP!' : '';
+  $('lvlBox').innerHTML = ''; lvlPlan = null;
+  const sel = $('lvlClass'), keep = sel.value; sel.innerHTML = '';
+  for (const c of sheet.classes || []) sel.append(new Option(c.className + ' ' + c.level + ' → ' + (c.level + 1), c.classId));
+  // multiclasse (ou a primeira classe): todas as classes do catalogo que o personagem ainda nao tem
+  if (!lvlAllClasses) lvlAllClasses = await api('/class/all').catch(() => []);
+  const owned = new Set((sheet.classes || []).map(c => c.classId));
+  const others = lvlAllClasses.filter(c => !owned.has(c.classId));
+  if (others.length) {
+    const group = document.createElement('optgroup'); group.label = (sheet.classes || []).length ? 'Multiclasse (nível 1)' : 'Primeira classe';
+    others.forEach(c => group.append(new Option(c.name + ' (' + c.source + ')', c.classId)));
+    sel.append(group);
+  }
+  if (keep && [...sel.options].some(o => o.value === keep)) sel.value = keep;
+  $('lvlPreview').disabled = total >= 20 || !sel.options.length;
+  $('lvlPreview').onclick = () => previewLevelUp(id).catch(err => toast(err.message));
+}
+
+const LVL_WARN_PT = [
+  [/^Experience is below level (\d+)/, m => 'O XP ainda não chega ao nível ' + m[1] + ' (tudo bem se a mesa sobe por marco).'],
+  [/^Multiclassing with (.+) needs (.+)$/, m => 'Multiclasse com ' + m[1] + ' pede ' + m[2].replace(/ and /g, ' e ').replace(/ or /g, ' ou ') + '.'],
+  [/^No subclasses imported for (.+)$/, m => 'Nenhuma subclasse de ' + m[1] + ' foi importada.'],
+  [/^Class features were not imported/, () => 'A classe veio sem a lista de habilidades: os níveis de aumento de atributo seguem a tabela padrão.'],
+  [/^Ability scores are not set/, () => 'Atributos ainda não definidos: a CON conta como +0.'],
+];
+const lvlWarn = w => { for (const [re, f] of LVL_WARN_PT) { const m = w.match(re); if (m) return f(m); } return w; };
+
+async function previewLevelUp(id) {
+  const p = lvlPlan = await api('/character/' + id + '/level-up?classId=' + encodeURIComponent($('lvlClass').value));
+  const box = $('lvlBox'); box.innerHTML = '';
+  const add = html => { const div = document.createElement('div'); div.innerHTML = html; box.append(div); return div; };
+  const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch]);
+  add('<b>' + esc(p.className) + ' ' + p.classLevel + '</b> · nível de personagem ' + p.totalLevel + (p.newClass && p.totalLevel > 1 ? ' · multiclasse' : '')
+    + (p.proficiencyAfter > p.proficiencyBefore ? ' · <b>bônus de proficiência +' + p.proficiencyAfter + '</b>' : ''));
+  // PV
+  const hp = document.createElement('fieldset'); hp.innerHTML = '<legend>Pontos de vida (d' + p.hitDie + ', CON ' + (p.constitutionModifier >= 0 ? '+' : '') + p.constitutionModifier + ')</legend>';
+  if (p.fixedHp != null) hp.append(Object.assign(document.createElement('div'), { textContent: 'Primeiro nível: dado cheio + CON = ' + p.fixedHp + ' PV' }));
+  else hp.insertAdjacentHTML('beforeend', '<div class="row"><select id="lvlHp"><option value="AVERAGE">Média: +' + p.averageHp + ' PV</option>'
+    + '<option value="ROLL">Rolar 1d' + p.hitDie + ' aqui</option><option value="MANUAL">Já rolei na mesa</option></select>'
+    + '<input id="lvlHpValue" type="number" min="1" max="' + p.hitDie + '" placeholder="dado" class="hidden" style="max-width:64px"></div>');
+  box.append(hp);
+  const hpSel = hp.querySelector('#lvlHp');
+  if (hpSel) hpSel.onchange = () => hp.querySelector('#lvlHpValue').classList.toggle('hidden', hpSel.value !== 'MANUAL');
+  // habilidades
+  if (p.features.length) add('Habilidades novas:<ul>' + p.features.map(f => '<li>' + esc(f) + '</li>').join('') + '</ul>');
+  if (p.choices.length) add('<span class="muted">Escolhas que abrem (faça depois na lista de features abaixo): ' + p.choices.map(esc).join(', ') + '</span>');
+  // subclasse
+  if (p.subclassRequired && p.subclasses.length) {
+    const f = document.createElement('fieldset'); f.innerHTML = '<legend>Subclasse</legend>';
+    const s = document.createElement('select'); s.id = 'lvlSubclass'; s.append(new Option('— escolha —', ''));
+    p.subclasses.forEach(o => s.append(new Option(o.name + ' (' + o.sourceCode + ')', o.id)));
+    f.append(s); box.append(f);
+  }
+  // aumento de valor de atributo / talento
+  if (p.abilityScoreImprovement || p.epicBoon) {
+    const f = document.createElement('fieldset');
+    f.innerHTML = '<legend>' + (p.epicBoon ? 'Dádiva Épica (talento) ou aumento de atributo' : 'Aumento de valor de atributo ou talento') + '</legend>'
+      + '<div class="row"><select id="lvlAsiMode"><option value="">Decidir depois</option><option value="TWO">+2 em um atributo</option>'
+      + '<option value="ONE_ONE">+1 em dois atributos</option><option value="FEAT">Talento</option></select></div>'
+      + '<div class="row hidden" id="lvlAsiAbilities"><select id="lvlAb1"></select><select id="lvlAb2"></select></div>'
+      + '<div class="hidden" id="lvlFeatBox" style="display:grid;gap:6px"><div class="row"><input id="lvlFeatSearch" placeholder="buscar talento">'
+      + '<button id="lvlFeatGo">Buscar</button></div><select id="lvlFeat"></select>'
+      + '<div class="row"><span class="muted" style="font-size:12px">+1 do meio-talento:</span><select id="lvlFeatAb"></select></div></div>';
+    box.append(f);
+    for (const sid of ['lvlAb1', 'lvlAb2', 'lvlFeatAb']) {
+      const s = f.querySelector('#' + sid); if (sid === 'lvlFeatAb') s.append(new Option('nenhum', ''));
+      Object.entries(ABILITY_PT).forEach(([en, pt]) => s.append(new Option(pt, en)));
+    }
+    const mode = f.querySelector('#lvlAsiMode');
+    mode.onchange = () => {
+      f.querySelector('#lvlAsiAbilities').classList.toggle('hidden', mode.value !== 'TWO' && mode.value !== 'ONE_ONE');
+      f.querySelector('#lvlAb2').classList.toggle('hidden', mode.value !== 'ONE_ONE');
+      f.querySelector('#lvlFeatBox').classList.toggle('hidden', mode.value !== 'FEAT');
+    };
+    const search = async () => {
+      const list = await api('/content/feats?name=' + encodeURIComponent(f.querySelector('#lvlFeatSearch').value || ''));
+      const wanted = p.epicBoon ? ['EB', 'G'] : ['G'];   // talentos gerais (e Dadivas Epicas no 19)
+      const pick = f.querySelector('#lvlFeat'); pick.innerHTML = '';
+      list.filter(t => !t.category || wanted.includes(t.category)).slice(0, 200)
+        .forEach(t => pick.append(new Option(t.name + ' (' + t.source + ')' + (t.prerequisite ? ' — ' + t.prerequisite : ''), t.id)));
+      if (!pick.options.length) pick.append(new Option('nenhum talento encontrado', ''));
+    };
+    f.querySelector('#lvlFeatGo').onclick = () => search().catch(err => toast(err.message));
+    mode.addEventListener('change', () => { if (mode.value === 'FEAT' && !f.querySelector('#lvlFeat').options.length) search().catch(() => {}); });
+  }
+  // magia e recursos
+  if (p.spellSlots.length) add('Espaços de magia: ' + p.spellSlots.map(s => (s.pool === 'PACT' ? 'pacto ' : '') + s.level + 'º ' + s.before + ' → <b>' + s.after + '</b>').join(', '));
+  if (p.resources.length) add('Recursos: ' + p.resources.map(r => esc(RESOURCE_PT[r.id.split('.').pop()] || r.name) + ' ' + (r.before ? r.before + ' → ' : 'novo: ') + '<b>' + r.after + '</b>').join(', '));
+  for (const w of p.warnings) add('<span class="warn">' + esc(lvlWarn(w)) + '</span>');
+  const row = add('<div class="row"><label class="row" style="flex:1"><input id="lvlAnnounce" type="checkbox" checked style="flex:0"> avisar no chat</label>'
+    + '<button id="lvlGo" class="primary">Subir para ' + p.className + ' ' + p.classLevel + '</button></div>');
+  row.querySelector('#lvlGo').onclick = () => applyLevelUp(id).catch(err => toast(err.message));
+}
+
+async function applyLevelUp(id) {
+  const p = lvlPlan; if (!p) return;
+  const body = { classId: p.classId, announce: $('lvlAnnounce').checked };
+  const hpSel = $('lvlHp');
+  if (hpSel) { body.hpMethod = hpSel.value; if (hpSel.value === 'MANUAL') body.hpValue = Number($('lvlHpValue').value); }
+  if ($('lvlSubclass')) { if (!$('lvlSubclass').value) return toast('Escolha a subclasse.'); body.subclassId = $('lvlSubclass').value; }
+  const mode = $('lvlAsiMode') ? $('lvlAsiMode').value : '';
+  if (mode === 'TWO') body.abilityIncreases = { [$('lvlAb1').value]: 2 };
+  if (mode === 'ONE_ONE') {
+    if ($('lvlAb1').value === $('lvlAb2').value) return toast('Escolha dois atributos diferentes.');
+    body.abilityIncreases = { [$('lvlAb1').value]: 1, [$('lvlAb2').value]: 1 };
+  }
+  if (mode === 'FEAT') {
+    if (!$('lvlFeat').value) return toast('Escolha o talento.');
+    body.featId = $('lvlFeat').value;
+    if ($('lvlFeatAb').value) body.abilityIncreases = { [$('lvlFeatAb').value]: 1 };
+  }
+  const res = await api('/character/' + id + '/level-up', { method: 'POST', body });
+  toast(p.className + ' ' + p.classLevel + ': +' + res.hpGained + ' PV' + (res.hpRoll ? ' (' + res.hpRoll + ')' : '')
+    + (res.retroactiveHp ? ' (inclui +' + res.retroactiveHp + ' da CON nova)' : '')
+    + (res.subclassName ? ' · ' + res.subclassName : '') + (res.featName ? ' · ' + res.featName : ''), true);
+  loadSheet();
+}
+
 $('restShort').onclick = () => rest('SHORT');
 $('restLong').onclick = () => confirm('Descanso longo: PV cheio, magias e recursos de volta. Confirmar?') && rest('LONG');
 $('resAdd').onclick = () => {
