@@ -209,6 +209,8 @@ Abaixo estão todos os endpoints atualmente expostos pelo backend da aplicação
 | `POST` | `/character/{id}/resources/recover` | Devolve usos (`amount` vazio = todos). |
 | `POST` | `/character/{id}/resources` | Cria um recurso à mão (`name`, `maxUses` 1–999, `recharge`, `notes`): cargas de item, usos de talento. |
 | `PUT` / `DELETE` | `/character/{id}/resources/{resourceId}` | Edita / apaga um recurso criado à mão. |
+| `GET` / `PUT` | `/character/{id}/story` | História e anotações: tendência, idade, altura, peso, olhos, cabelo, pele, aparência, traços de personalidade, ideais, vínculos, defeitos, história, aliados, anotações. `gmNotes` = segredo do mestre: só ele grava e só ele recebe (o jogador recebe nulo). Campo nulo = fica; texto vazio = apaga. |
+| `POST` | `/character/{id}/story/share` | Mostra no chat a aparência (com os detalhes) ou a história (`part`: `APPEARANCE`, `BACKSTORY`). |
 | `PUT` | `/character/{id}/other-proficiencies` | Idiomas, ferramentas, armas e armaduras (`languages`, `tools`, `weapons`, `armor`; texto livre; lista nula = fica como está, vazia = limpa). |
 | `GET` | `/character/{id}/other-proficiencies/suggested` | O que a espécie, o antecedente e as classes dão (lido do `metadata` do 5etools; a primeira classe dá as proficiências iniciais, as outras só as de multiclasse) e as escolhas pendentes. |
 | `GET` | `/character/{id}/level-up?classId=` | Prévia do próximo nível: PV (média, dado), proficiência, habilidades que chegam, escolhas que abrem, subclasse a escolher, Aumento de Valor de Atributo / Dádiva Épica, espaços de magia e recursos que mudam, avisos (XP, pré-requisito de multiclasse). `classId` vazio = a única classe; outra classe = multiclasse. |

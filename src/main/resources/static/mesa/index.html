@@ -69,6 +69,9 @@
   .lvl-ready { color: var(--accent-2); font-weight: 600; }
   .coins { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
   .profs label { display: grid; gap: 2px; font-size: 12px; color: var(--muted); }
+  .story-short { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+  .story-short input { width: 100%; box-sizing: border-box; }
+  .gm-notes textarea { border-color: var(--accent) !important; }
   .profs textarea { min-height: 34px; resize: vertical; font: inherit; color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 4px 6px; }
   .coins .stat b { display: block; font-size: 16px; }
   .lvl-box { display: grid; gap: 6px; font-size: 13px; }
@@ -382,6 +385,16 @@
             <option value="INTELLIGENCE">INT</option><option value="WISDOM">SAB</option><option value="CHARISMA">CAR</option></select>
           <button id="toolRoll">Teste de ferramenta</button>
         </div>
+      </div>
+      <div class="card profs" id="storyCard">
+        <h3>Anotações e história</h3>
+        <div class="story-short"><label>Tendência<input data-story="alignment" maxlength="60"></label><label>Idade<input data-story="age" maxlength="60"></label><label>Altura<input data-story="height" maxlength="60"></label><label>Peso<input data-story="weight" maxlength="60"></label><label>Olhos<input data-story="eyes" maxlength="60"></label><label>Cabelo<input data-story="hair" maxlength="60"></label><label>Pele<input data-story="skin" maxlength="60"></label></div>
+        <label>Aparência<textarea data-story="appearance"></textarea></label><label>Traços de personalidade<textarea data-story="personality"></textarea></label><label>Ideais<textarea data-story="ideals"></textarea></label><label>Vínculos<textarea data-story="bonds"></textarea></label><label>Defeitos<textarea data-story="flaws"></textarea></label><label>História<textarea data-story="backstory"></textarea></label><label>Aliados e organizações<textarea data-story="allies"></textarea></label><label>Anotações<textarea data-story="notes"></textarea></label>
+        <label class="master-only gm-notes">Notas do mestre (o jogador não vê)<textarea data-story="gmNotes"></textarea></label>
+        <div class="row"><button id="storySave" class="primary">Gravar</button>
+          <button id="storyShareLook" title="Mostra aparência e detalhes no chat">Aparência no chat</button>
+          <button id="storyShareBack" title="Mostra a história no chat">História no chat</button></div>
+        <div id="storyState" class="muted" style="font-size:12px"></div>
       </div>
       <div class="card">
         <h3>Subir de nível <span id="lvlReady" class="lvl-ready"></span></h3>
@@ -1076,6 +1089,7 @@ async function loadSheet() {
   renderLevelUp(id, sheet).catch(err => toast(err.message));
   renderPurse(id, sheet).catch(err => toast(err.message));
   renderProficiencies(id, sheet);
+  loadStory(id).catch(err => toast(err.message));
   const box = $('sheetFeatures'); box.innerHTML = '';
   if (!features.length) box.textContent = 'Nada ainda: adicione classe, espécie ou itens.';
   for (const f of features) {
@@ -1275,6 +1289,37 @@ $('toolRoll').onclick = async () => {
     toast(tool + ': ' + res.roll.total + (res.notes.some(n => n.startsWith('Not proficient')) ? ' (sem proficiência)' : ''), true);
   } catch (err) { toast(err.message); }
 };
+
+// ------------------------------------------------------------------ anotacoes e historia
+let storyFor = null, storyDirty = false;
+const storyFields = () => [...document.querySelectorAll('[data-story]')];
+
+async function loadStory(id) {
+  // nao apaga o que esta sendo escrito quando a ficha recarrega por outro motivo (descanso, moedas...)
+  if (storyDirty && storyFor === id) return;
+  const st = await api('/character/' + id + '/story');
+  storyFields().forEach(el => { el.value = st[el.dataset.story] || ''; });
+  storyFor = id; storyDirty = false; $('storyState').textContent = '';
+}
+storyFields().forEach(el => el.addEventListener('input', () => { storyDirty = true; $('storyState').textContent = 'Alterações não gravadas.'; }));
+
+$('storySave').onclick = async () => {
+  const id = $('sheetChar').value; if (!id) return;
+  const body = {};
+  storyFields().forEach(el => { if (el.dataset.story !== 'gmNotes' || S.master) body[el.dataset.story] = el.value; });
+  try {
+    await api('/character/' + id + '/story', { method: 'PUT', body });
+    storyDirty = false; $('storyState').textContent = 'Gravado.'; toast('História gravada.', true);
+  } catch (err) { toast(err.message); }
+};
+async function shareStory(part) {
+  const id = $('sheetChar').value; if (!id) return;
+  if (storyDirty) return toast('Grave antes de mostrar no chat.');
+  try { await api('/character/' + id + '/story/share', { method: 'POST', body: { part } }); toast('Enviado ao chat.', true); }
+  catch (err) { toast(/Nothing written/.test(err.message) ? 'Nada escrito aí ainda.' : err.message); }
+}
+$('storyShareLook').onclick = () => shareStory('APPEARANCE');
+$('storyShareBack').onclick = () => shareStory('BACKSTORY');
 
 // ------------------------------------------------------------------ subir de nivel
 const ABILITY_PT = { STRENGTH: 'FOR', DEXTERITY: 'DES', CONSTITUTION: 'CON', INTELLIGENCE: 'INT', WISDOM: 'SAB', CHARISMA: 'CAR' };

@@ -8,6 +8,10 @@ import top.customizr.system.dto.CustomResourceRequest;
 import top.customizr.system.dto.InspirationRequest;
 import top.customizr.system.dto.ResourceRequest;
 import top.customizr.system.dto.OtherProficienciesRequest;
+import top.customizr.system.dto.CharacterStoryRequest;
+import top.customizr.system.dto.CharacterStoryResponse;
+import top.customizr.system.dto.ChatMessageResponse;
+import top.customizr.system.dto.StoryShareRequest;
 import top.customizr.system.dto.SuggestedProficienciesResponse;
 import top.customizr.system.model.ProficiencySuggestions;
 import top.customizr.system.dto.ExperienceRequest;
@@ -140,6 +144,70 @@ public class CharacterSheetService {
         liveTable.characterChanged(character);
         return new RestResponse("SHORT", result.rolls(), result.healed(), result.recovered(),
                 CharacterSheetResponse.from(character));
+    }
+
+    // ------------------------------------------------------------------ historia e anotacoes
+
+    @Transactional
+    public CharacterStoryResponse story(UUID characterId, String username) {
+        Character character = manageable(characterId, username);
+        return storyResponse(character, username);
+    }
+
+    /** Dono ou mestre gravam a historia; as notas do mestre, so o mestre. */
+    @Transactional
+    public CharacterStoryResponse updateStory(UUID characterId, CharacterStoryRequest r, String username) {
+        Character character = manageable(characterId, username);
+        requireBody(r);
+        boolean master = isMaster(character, username);
+        if (r.gmNotes() != null && !master) throw new AccessDeniedException("Only the game master writes the game master notes");
+        var story = character.getSheet().getStory();
+        valid(() -> {
+            story.update(r.alignment(), r.age(), r.height(), r.weight(), r.eyes(), r.hair(), r.skin(), r.appearance(),
+                    r.personality(), r.ideals(), r.bonds(), r.flaws(), r.backstory(), r.allies(), r.notes());
+            if (r.gmNotes() != null) story.updateGmNotes(r.gmNotes());
+            return null;
+        });
+        return storyResponse(character, username);
+    }
+
+    /** Mostra no chat a aparencia (com os detalhes) ou a historia do personagem. */
+    @Transactional
+    public ChatMessageResponse shareStory(UUID characterId, StoryShareRequest request, String username) {
+        Character character = manageable(characterId, username);
+        if (request == null || request.part() == null) throw badRequest("Part is required");
+        var s = character.getSheet().getStory();
+        String text;
+        if (request.part() == StoryShareRequest.Part.APPEARANCE) {
+            List<String> details = new ArrayList<>();
+            addDetail(details, "Age", s.getAge());
+            addDetail(details, "Height", s.getHeight());
+            addDetail(details, "Weight", s.getWeight());
+            addDetail(details, "Eyes", s.getEyes());
+            addDetail(details, "Hair", s.getHair());
+            addDetail(details, "Skin", s.getSkin());
+            String joined = String.join(" | ", details);
+            text = s.getAppearance() == null ? joined : joined.isEmpty() ? s.getAppearance() : joined + "\n" + s.getAppearance();
+        } else {
+            text = s.getBackstory() == null ? "" : s.getBackstory();
+        }
+        if (text.isBlank()) throw badRequest("Nothing written there yet");
+        return chatService.postCard(character.getCampaign().getId(), character.getCharacterId(),
+                character.getName() + (request.part() == StoryShareRequest.Part.APPEARANCE ? " - appearance" : " - backstory"),
+                text, username);
+    }
+
+    private static void addDetail(List<String> out, String label, String value) {
+        if (value != null) out.add(label + ": " + value);
+    }
+
+    private CharacterStoryResponse storyResponse(Character character, String username) {
+        return CharacterStoryResponse.from(character.getCharacterId(), character.getName(), character.getSheet().getStory(),
+                isMaster(character, username));
+    }
+
+    private static boolean isMaster(Character character, String username) {
+        return character.getCampaign().getMaster().getName().equals(username);
     }
 
     // ------------------------------------------------------------------ idiomas, ferramentas, armas e armaduras

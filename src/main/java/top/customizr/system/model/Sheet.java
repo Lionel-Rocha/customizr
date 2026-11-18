@@ -157,6 +157,17 @@ public class Sheet {
     @Column(name = "armor", nullable = false, length = 80)
     private Set<String> armorProficiencies = new LinkedHashSet<>();
 
+    /** Historia, aparencia, personalidade e anotacoes (e o segredo do mestre). */
+    @jakarta.persistence.Embedded
+    @lombok.Getter(lombok.AccessLevel.NONE)
+    private CharacterStory story;
+
+    /** A historia da ficha (ficha antiga, com tudo nulo, ganha uma vazia). */
+    public CharacterStory getStory() {
+        if (story == null) story = new CharacterStory();
+        return story;
+    }
+
     /** Inspiracao Heroica (2024): tem ou nao tem; gastar = rolar um dado de novo. */
     @Column(name = "heroic_inspiration")
     private Boolean heroicInspiration;

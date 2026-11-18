@@ -130,6 +130,28 @@ public class CharacterController {
         return sheetService.rest(id, request, loggedUser.getUsername());
     }
 
+    /** Historia e anotacoes (as notas do mestre so vem pro mestre). */
+    @GetMapping("/{id}/story")
+    public top.customizr.system.dto.CharacterStoryResponse story(@PathVariable UUID id,
+                                                                 @AuthenticationPrincipal UserDetails loggedUser) {
+        return sheetService.story(id, loggedUser.getUsername());
+    }
+
+    @PutMapping("/{id}/story")
+    public top.customizr.system.dto.CharacterStoryResponse updateStory(@PathVariable UUID id,
+                                                                       @RequestBody top.customizr.system.dto.CharacterStoryRequest request,
+                                                                       @AuthenticationPrincipal UserDetails loggedUser) {
+        return sheetService.updateStory(id, request, loggedUser.getUsername());
+    }
+
+    /** Mostra no chat a aparencia ou a historia do personagem. */
+    @PostMapping("/{id}/story/share")
+    public top.customizr.system.dto.ChatMessageResponse shareStory(@PathVariable UUID id,
+                                                                   @RequestBody top.customizr.system.dto.StoryShareRequest request,
+                                                                   @AuthenticationPrincipal UserDetails loggedUser) {
+        return sheetService.shareStory(id, request, loggedUser.getUsername());
+    }
+
     /** Idiomas, ferramentas, armas e armaduras (lista nula = deixa como esta). */
     @PutMapping("/{id}/other-proficiencies")
     public CharacterSheetResponse updateOtherProficiencies(@PathVariable UUID id,

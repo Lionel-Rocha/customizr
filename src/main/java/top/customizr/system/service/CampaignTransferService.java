@@ -188,7 +188,8 @@ public class CampaignTransferService {
                     s.getCustomResources().stream().map(r -> new CampaignExport.ResourceData(r.getName(), r.getMaxUses(),
                             r.getUsed(), r.getRecharge().name(), r.getNotes())).toList(),
                     List.copyOf(s.getLanguages()), List.copyOf(s.getToolProficiencies()),
-                    List.copyOf(s.getWeaponProficiencies()), List.copyOf(s.getArmorProficiencies())));
+                    List.copyOf(s.getWeaponProficiencies()), List.copyOf(s.getArmorProficiencies()),
+                    story(s.getStory())));
         }
 
         List<CampaignExport.PartyData> parties = partyRepository.findByCampaign(campaign).stream()
@@ -271,6 +272,13 @@ public class CampaignTransferService {
                 i.getEntries().stream().map(e -> new CampaignExport.ItemData(e.getItem().getName(),
                         e.getItem().getSource().getCode(), e.getQuantity())).toList(),
                 coins(i))).orElse(null);
+    }
+
+    /** A historia inteira, com as notas do mestre (quem exporta e o mestre). */
+    private static top.customizr.system.dto.CharacterStoryRequest story(top.customizr.system.model.CharacterStory st) {
+        return new top.customizr.system.dto.CharacterStoryRequest(st.getAlignment(), st.getAge(), st.getHeight(),
+                st.getWeight(), st.getEyes(), st.getHair(), st.getSkin(), st.getAppearance(), st.getPersonality(),
+                st.getIdeals(), st.getBonds(), st.getFlaws(), st.getBackstory(), st.getAllies(), st.getNotes(), st.getGmNotes());
     }
 
     private static java.util.Map<String, Long> coins(Inventory inventory) {
@@ -408,6 +416,17 @@ public class CampaignTransferService {
                                 () -> warnings.add(d.name() + ": feat " + f.name() + " not found"));
             }
             if (Boolean.TRUE.equals(d.heroicInspiration())) sheet.changeHeroicInspiration(true);
+            if (d.story() != null) {
+                var st = d.story();
+                try {
+                    sheet.getStory().update(st.alignment(), st.age(), st.height(), st.weight(), st.eyes(), st.hair(), st.skin(),
+                            st.appearance(), st.personality(), st.ideals(), st.bonds(), st.flaws(), st.backstory(),
+                            st.allies(), st.notes());
+                    sheet.getStory().updateGmNotes(st.gmNotes());
+                } catch (IllegalArgumentException ex) {
+                    warnings.add(d.name() + ": story skipped (" + ex.getMessage() + ")");
+                }
+            }
             try {
                 sheet.updateOtherProficiencies(d.languages(), d.toolProficiencies(), d.weaponProficiencies(), d.armorProficiencies());
             } catch (IllegalArgumentException ex) {

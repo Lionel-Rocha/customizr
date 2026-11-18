@@ -153,7 +153,8 @@ public record CampaignExport(
             List<String> languages,
             List<String> toolProficiencies,
             List<String> weaponProficiencies,
-            List<String> armorProficiencies
+            List<String> armorProficiencies,
+            CharacterStoryRequest story
     ) {}
 
     /** Recurso criado a mao na ficha (cargas de item, usos de talento). */

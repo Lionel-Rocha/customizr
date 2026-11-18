@@ -154,6 +154,8 @@ class CampaignTransferAndCoinsTests {
                 .filter(r -> r.name().equals("Wand of Magic Missiles")).findFirst().orElseThrow().id();
         sheetService.spendResource(hero.getCharacterId(), new top.customizr.system.dto.ResourceRequest(wandId, 2), player);
         sheetService.changeInspiration(hero.getCharacterId(), new top.customizr.system.dto.InspirationRequest(true), master);
+        sheetService.updateStory(hero.getCharacterId(), new top.customizr.system.dto.CharacterStoryRequest(null, null, null,
+                null, null, null, null, null, null, null, null, null, "Raised in Phandalin", null, null, "Secret heir"), master);
         sheetService.updateOtherProficiencies(hero.getCharacterId(), new top.customizr.system.dto.OtherProficienciesRequest(
                 java.util.List.of("Common", "Dwarvish"), java.util.List.of("Smith's Tools"), null, null), player);
         var party = partyService.create(campaign.getId(), new CreatePartyRequest("Heroes", 4), master);
@@ -193,6 +195,9 @@ class CampaignTransferAndCoinsTests {
         assertEquals(newWorld.mapUrl(), sheet.details().portraitUrl());
         assertEquals("Heroes", sheet.party().name());
         assertTrue(sheet.details().heroicInspiration());
+        var copiedStory = sheetService.story(copy.getCharacterId(), importer);
+        assertEquals("Raised in Phandalin", copiedStory.backstory());
+        assertEquals("Secret heir", copiedStory.gmNotes(), "quem importa vira o mestre e ve as notas");
         assertEquals(java.util.List.of("Common", "Dwarvish"), sheet.details().languages());
         assertEquals(java.util.List.of("Smith's Tools"), sheet.details().toolProficiencies());
         var wand = sheet.details().resources().stream().filter(r -> r.name().equals("Wand of Magic Missiles")).findFirst().orElseThrow();
