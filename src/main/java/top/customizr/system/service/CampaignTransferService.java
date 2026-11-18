@@ -86,6 +86,8 @@ public class CampaignTransferService {
     private final top.customizr.system.repository.MapObjectRepository mapObjectRepository;
     private final top.customizr.system.repository.CampaignIconRepository iconRepository;
     private final MonsterService monsterService;
+    private final top.customizr.system.repository.ShopRepository shopRepository;
+    private final top.customizr.system.repository.LootRepository lootRepository;
 
     public CampaignTransferService(
             CampaignRepository campaignRepository, CampaignSourceRepository campaignSourceRepository,
@@ -97,8 +99,12 @@ public class CampaignTransferService {
             MonsterRepository monsterRepository, MasterGuard masterGuard,
             top.customizr.system.repository.SceneRepository sceneRepository,
             top.customizr.system.repository.MapObjectRepository mapObjectRepository,
-            top.customizr.system.repository.CampaignIconRepository iconRepository, MonsterService monsterService
+            top.customizr.system.repository.CampaignIconRepository iconRepository, MonsterService monsterService,
+            top.customizr.system.repository.ShopRepository shopRepository,
+            top.customizr.system.repository.LootRepository lootRepository
     ) {
+        this.shopRepository = shopRepository;
+        this.lootRepository = lootRepository;
         this.sceneRepository = sceneRepository;
         this.mapObjectRepository = mapObjectRepository;
         this.iconRepository = iconRepository;
@@ -196,7 +202,13 @@ public class CampaignTransferService {
                 mapObjectRepository.findByCampaignOrderByName(campaign).stream().map(o -> new CampaignExport.ObjectData(o.getName(),
                         o.getImage().getUrl(), o.getWidthCells(), o.getHeightCells(), o.getLayer())).toList(),
                 iconRepository.findByCampaignOrderByLabel(campaign).stream().map(i -> new CampaignExport.IconData(i.getKey(),
-                        i.getLabel(), i.getImage().getUrl())).toList());
+                        i.getLabel(), i.getImage().getUrl())).toList(),
+                shopRepository.findByCampaignOrderByName(campaign).stream().map(s -> new CampaignExport.ShopData(s.getName(),
+                        s.getDescription(), s.isOpen(), s.getBuyBackPercent(), s.getEntries().stream().map(e -> new CampaignExport.ShopItemData(
+                        new CampaignExport.Ref(e.getItem().getName(), e.getItem().getSource().getCode()), e.getPriceGp(), e.getStock())).toList())).toList(),
+                lootRepository.findByCampaignOrderByName(campaign).stream().map(l -> new CampaignExport.LootData(l.getName(), l.isVisible(),
+                        l.getMoneyGp(), l.getEntries().stream().map(e -> new CampaignExport.LootItemData(
+                        new CampaignExport.Ref(e.getItem().getName(), e.getItem().getSource().getCode()), e.getQuantity())).toList())).toList());
     }
 
     /** id -> nome dos verbetes da enciclopedia (os alfinetes levam o verbete pelo nome). */
@@ -417,6 +429,22 @@ public class CampaignTransferService {
                 warnings.add("Icon " + i.label() + ": " + ex.getMessage());
             }
         }
+        for (CampaignExport.ShopData sd : nullSafe(data.shops())) {
+            var shop = new top.customizr.system.model.Shop(campaign, sd.name(), sd.description(), sd.open(), sd.buyBackPercent());
+            for (CampaignExport.ShopItemData it : nullSafe(sd.items())) {
+                catalogItem(it.item()).ifPresentOrElse(item -> shop.addItem(item, it.priceGp(), it.stock()),
+                        () -> warnings.add("Shop " + sd.name() + ": item " + it.item().name() + " not found"));
+            }
+            shopRepository.save(shop);
+        }
+        for (CampaignExport.LootData ld : nullSafe(data.loot())) {
+            var loot = new top.customizr.system.model.Loot(campaign, ld.name(), ld.moneyGp(), ld.visible());
+            for (CampaignExport.LootItemData it : nullSafe(ld.items())) {
+                catalogItem(it.item()).ifPresentOrElse(item -> loot.addItem(item, it.quantity()),
+                        () -> warnings.add("Loot " + ld.name() + ": item " + it.item().name() + " not found"));
+            }
+            lootRepository.save(loot);
+        }
         if (scenes > 0 || !customMonsters.isEmpty()) {
             warnings.add(scenes + " scene(s) and " + customMonsters.size() + " custom monster(s) restored");
         }
@@ -482,6 +510,11 @@ public class CampaignTransferService {
                     .map(a -> new top.customizr.system.model.TokenAura(a.radiusFt(), a.color(), a.label())).toList());
         }
         sceneRepository.save(scene);
+    }
+
+    private Optional<top.customizr.system.model.Item> catalogItem(CampaignExport.Ref ref) {
+        if (ref == null) return Optional.empty();
+        return sourceRepository.getSourceByCode(ref.source()).flatMap(s -> itemRepository.findByNameAndSource_Id(ref.name(), s.getId()));
     }
 
     /** Imagem de outra campanha (export sem imagens, mesmo servidor): copia se quem importa tem acesso a ela. */

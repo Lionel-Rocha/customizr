@@ -235,6 +235,7 @@
       <button data-tab="chat" class="on">Chat</button>
       <button data-tab="init">Iniciativa</button>
       <button data-tab="sheet">Ficha</button>
+      <button data-tab="trade">Comércio</button>
       <button data-tab="gm" class="master-only">Mestre</button>
     </div>
     <div id="tab-chat" class="tab">
@@ -258,6 +259,17 @@
         <input id="initName" placeholder="nome (ex.: ação de covil)"><input id="initValue" type="number" placeholder="valor" style="max-width:80px">
         <button>Pôr</button>
       </form>
+    </div>
+    <div id="tab-trade" class="tab hidden">
+      <div class="row"><select id="tradeChar"></select><b id="tradeMoney" class="muted"></b></div>
+      <div class="card master-only">
+        <h3>Montar</h3>
+        <div class="row"><input id="newShopName" placeholder="nova loja (ex.: Ferreiro)"><input id="newShopRate" type="number" min="0" max="100" value="50" title="% que a loja paga ao comprar do jogador" style="max-width:60px"><button id="newShop">Loja</button></div>
+        <div class="row"><input id="newLootName" placeholder="novo espólio (ex.: Baú do dragão)"><input id="newLootGp" type="number" min="0" step="0.01" placeholder="po" style="max-width:80px"><button id="newLoot">Espólio</button></div>
+      </div>
+      <div id="tradeShops" style="display:grid;gap:8px"></div>
+      <div id="tradeLoot" style="display:grid;gap:8px"></div>
+      <div class="card"><h3>Vender</h3><div id="tradeSell" style="display:grid;gap:4px"></div></div>
     </div>
     <div id="tab-sheet" class="tab hidden">
       <div class="row"><select id="sheetChar"></select></div>
@@ -525,6 +537,7 @@ function onEvent(type, d) {
       break;
     }
     case 'icons': loadIcons(); break;
+    case 'trade': if (!$('tab-trade').classList.contains('hidden')) loadTrade(); break;
     case 'pins': {
       const target = S.scenes.find(x => x.id === d.sceneId); if (target) target.pins = d.pins;
       if (sc && sc.id === d.sceneId) { sc.pins = d.pins; draw(); }
@@ -835,8 +848,9 @@ window.addEventListener('resize', () => { if (S.telao) fitTelao(); else draw(); 
 // ------------------------------------------------------------------ abas
 document.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => {
   document.querySelectorAll('[data-tab]').forEach(x => x.classList.toggle('on', x === b));
-  ['chat', 'init', 'sheet', 'gm'].forEach(n => $('tab-' + n).classList.toggle('hidden', n !== b.dataset.tab));
+  ['chat', 'init', 'sheet', 'trade', 'gm'].forEach(n => $('tab-' + n).classList.toggle('hidden', n !== b.dataset.tab));
   if (b.dataset.tab === 'sheet') loadSheetTab();
+  if (b.dataset.tab === 'trade') loadTrade();
 });
 
 // ------------------------------------------------------------------ chat
@@ -2298,6 +2312,120 @@ function turnAnimation() {
   if (active && !turnTimer) turnTimer = setInterval(() => { if (!S.drag && !S.areaDraw && !S.wallDraw) draw(); }, 120);
   if (!active && turnTimer) { clearInterval(turnTimer); turnTimer = null; }
 }
+
+// ------------------------------------------------------------------ comercio: lojas e espolio
+const gp = v => (Math.round(Number(v || 0) * 100) / 100).toLocaleString('pt-BR') + ' po';
+/** Carrega personagem escolhido, dinheiro, lojas, espolio e o que da pra vender. */
+async function loadTrade() {
+  const chars = await api('/character/' + S.campaign.id + '/characters');
+  const mine = S.master ? chars : chars.filter(c => c.ownerId === S.me.userId);
+  const sel = $('tradeChar'), keep = sel.value; sel.innerHTML = '';
+  mine.forEach(c => sel.append(new Option(c.name, c.characterId)));
+  if (keep && mine.some(c => c.characterId === keep)) sel.value = keep;
+  sel.onchange = loadTrade;
+  let inventory = null;
+  if (sel.value) {
+    try { inventory = (await api('/inventory/character/' + sel.value)).find(i => i.ownerType === 'CHARACTER'); } catch (e) { inventory = null; }
+  }
+  $('tradeMoney').textContent = inventory ? gp(inventory.moneyGp) : (mine.length ? '' : 'sem personagem');
+  const [shops, loot] = await Promise.all([api('/shops/campaign/' + S.campaign.id), api('/loot/campaign/' + S.campaign.id)]);
+  renderShops(shops); renderLoot(loot); renderSell(shops, inventory);
+}
+function qtyInput() { const q = el('input', { type: 'number', min: '1', value: '1', style: 'max-width:52px' }); return q; }
+function tradeCall(path, body, okText) {
+  return api(path, { method: 'POST', body }).then(() => { toast(okText, true); loadTrade(); }).catch(err => toast(err.message));
+}
+/** Busca no catalogo e devolve o id escolhido (prompt simples). */
+async function pickItem() {
+  const q = prompt('Buscar item no catálogo (nome):'); if (!q) return null;
+  const found = await api('/item/search?name=' + encodeURIComponent(q));
+  if (!found.length) { toast('Nenhum item com esse nome.'); return null; }
+  if (found.length === 1) return found[0];
+  const list = found.slice(0, 15).map((it, i) => (i + 1) + ') ' + it.name + (it.priceGp != null ? ' — ' + gp(it.priceGp) : '')).join('\n');
+  const n = Number(prompt('Qual?\n' + list, '1'));
+  return found[n - 1] || null;
+}
+function renderShops(shops) {
+  const box = $('tradeShops'); box.innerHTML = '';
+  for (const shop of shops) {
+    const card = el('div', { class: 'card' });
+    card.append(el('div', { class: 'row' }, el('h3', { text: '🛒 ' + shop.name + (shop.open ? '' : ' (fechada)'), style: 'flex:1;margin:0' }),
+      ...(S.master ? [
+        el('button', { text: shop.open ? 'Fechar' : 'Abrir', onclick: () => api('/shops/' + shop.id, { method: 'PUT', body: { open: !shop.open } }).then(loadTrade).catch(err => toast(err.message)) }),
+        el('button', { text: '+ item', onclick: async () => {
+          const item = await pickItem(); if (!item) return;
+          const price = prompt('Preço em po (vazio = ' + (item.priceGp != null ? gp(item.priceGp) : 'sem preço') + '):', '');
+          const stock = prompt('Estoque (vazio = sem limite):', '');
+          api('/shops/' + shop.id + '/items', { method: 'POST', body: { itemId: item.id, priceGp: price === '' || price == null ? null : Number(price),
+            stock: stock === '' || stock == null ? null : Number(stock) } }).then(loadTrade).catch(err => toast(err.message));
+        } }),
+        el('button', { text: '✕', title: 'Apagar loja', onclick: () => confirm('Apagar a loja ' + shop.name + '?') && api('/shops/' + shop.id, { method: 'DELETE' }).then(loadTrade).catch(err => toast(err.message)) })] : [])));
+    if (shop.description) card.append(el('div', { class: 'muted', text: shop.description }));
+    if (!shop.items.length) card.append(el('div', { class: 'muted', text: 'Nada à venda.' }));
+    for (const it of shop.items) {
+      const q = qtyInput();
+      card.append(el('div', { class: 'atk' },
+        el('span', { text: it.name }, el('small', { text: (it.priceGp != null ? gp(it.priceGp) : 'sem preço') + (it.stock != null ? ' · estoque ' + it.stock : '') })),
+        q, el('button', { text: 'Comprar', class: 'primary', onclick: () => {
+          if (!$('tradeChar').value) return toast('Escolha o personagem.');
+          tradeCall('/shops/' + shop.id + '/buy', { characterId: $('tradeChar').value, entryId: it.entryId, quantity: Number(q.value) || 1 }, 'Comprado: ' + it.name);
+        } }),
+        ...(S.master ? [el('button', { text: '✕', onclick: () => api('/shops/' + shop.id + '/items/' + it.entryId, { method: 'DELETE' }).then(loadTrade).catch(err => toast(err.message)) })] : [])));
+    }
+    box.append(card);
+  }
+}
+function renderLoot(loot) {
+  const box = $('tradeLoot'); box.innerHTML = '';
+  for (const chest of loot) {
+    const card = el('div', { class: 'card' });
+    card.append(el('div', { class: 'row' }, el('h3', { text: '🎁 ' + chest.name + (chest.visible ? '' : ' (escondido)'), style: 'flex:1;margin:0' }),
+      ...(S.master ? [
+        el('button', { text: chest.visible ? 'Esconder' : 'Mostrar', onclick: () => api('/loot/' + chest.id, { method: 'PUT', body: { visible: !chest.visible } }).then(loadTrade).catch(err => toast(err.message)) }),
+        el('button', { text: '+ item', onclick: async () => {
+          const item = await pickItem(); if (!item) return;
+          const qty = Number(prompt('Quantidade:', '1')) || 1;
+          api('/loot/' + chest.id + '/items', { method: 'POST', body: { itemId: item.id, quantity: qty } }).then(loadTrade).catch(err => toast(err.message));
+        } }),
+        el('button', { text: '✕', title: 'Apagar espólio', onclick: () => confirm('Apagar ' + chest.name + '?') && api('/loot/' + chest.id, { method: 'DELETE' }).then(loadTrade).catch(err => toast(err.message)) })] : [])));
+    card.append(el('div', { class: 'row' }, el('span', { text: '🪙 ' + gp(chest.moneyGp), style: 'flex:1' }),
+      ...(S.master && Number(chest.moneyGp) > 0 ? [el('button', { text: 'Dividir moedas', title: 'Igualmente entre todos os personagens da campanha',
+        onclick: () => api('/loot/' + chest.id + '/split-money', { method: 'POST', body: {} }).then(() => { toast('Moedas divididas.', true); loadTrade(); }).catch(err => toast(err.message)) })] : [])));
+    for (const it of chest.items) {
+      const q = qtyInput(), party = el('input', { type: 'checkbox', title: 'pro inventário do grupo', style: 'flex:0' });
+      card.append(el('div', { class: 'atk' }, el('span', { text: it.name }, el('small', { text: 'x' + it.quantity })), q,
+        el('label', { class: 'row', style: 'flex:0;white-space:nowrap;font-size:12px' }, party, 'grupo'),
+        el('button', { text: 'Pegar', class: 'primary', onclick: () => {
+          if (!$('tradeChar').value) return toast('Escolha o personagem.');
+          tradeCall('/loot/' + chest.id + '/take', { characterId: $('tradeChar').value, entryId: it.entryId, quantity: Number(q.value) || 1, toParty: party.checked },
+            'Pegou: ' + it.name);
+        } }),
+        ...(S.master ? [el('button', { text: '✕', onclick: () => api('/loot/' + chest.id + '/items/' + it.entryId, { method: 'DELETE' }).then(loadTrade).catch(err => toast(err.message)) })] : [])));
+    }
+    box.append(card);
+  }
+}
+/** O que o personagem pode vender e quanto cada loja aberta paga. */
+function renderSell(shops, inventory) {
+  const box = $('tradeSell'); box.innerHTML = '';
+  const open = shops.filter(s => s.open || S.master);
+  if (!inventory || !inventory.entries.length) { box.textContent = 'Nada no inventário.'; return; }
+  if (!open.length) { box.textContent = 'Nenhuma loja aberta pra vender.'; return; }
+  const shopSel = el('select'); open.forEach(s => shopSel.append(new Option(s.name + ' (paga ' + s.buyBackPercent + '%)', s.id)));
+  box.append(el('div', { class: 'row' }, el('span', { class: 'muted', text: 'Vender para' }), shopSel));
+  for (const e of inventory.entries) {
+    const q = qtyInput();
+    box.append(el('div', { class: 'atk' }, el('span', { text: e.name }, el('small', { text: 'x' + e.quantity + (e.priceGp != null ? ' · vale ' + gp(e.priceGp) : ' · sem preço') })), q,
+      el('button', { text: 'Vender', onclick: () => tradeCall('/shops/' + shopSel.value + '/sell',
+        { characterId: $('tradeChar').value, itemId: e.itemId, quantity: Number(q.value) || 1 }, 'Vendido: ' + e.name) })));
+  }
+}
+$('newShop').onclick = () => $('newShopName').value.trim() && api('/shops/campaign/' + S.campaign.id, { method: 'POST',
+  body: { name: $('newShopName').value, buyBackPercent: Number($('newShopRate').value), open: false } })
+  .then(() => { $('newShopName').value = ''; loadTrade(); }).catch(err => toast(err.message));
+$('newLoot').onclick = () => $('newLootName').value.trim() && api('/loot/campaign/' + S.campaign.id, { method: 'POST',
+  body: { name: $('newLootName').value, moneyGp: $('newLootGp').value === '' ? 0 : Number($('newLootGp').value), visible: false } })
+  .then(() => { $('newLootName').value = ''; $('newLootGp').value = ''; loadTrade(); }).catch(err => toast(err.message));
 
 // ------------------------------------------------------------------ inicio
 S.token = load('customizr_token');

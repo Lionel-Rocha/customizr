@@ -31,7 +31,9 @@ public record CampaignExport(
         List<SceneData> scenes,
         List<MonsterData> monsters,
         List<ObjectData> objects,
-        List<IconData> icons
+        List<IconData> icons,
+        List<ShopData> shops,
+        List<LootData> loot
 ) {
     /** 2: cenas (paredes, areas, tokens, luz), monstros customizados, objetos e pacote de icones. */
     public static final int FORMAT_VERSION = 2;
@@ -77,6 +79,14 @@ public record CampaignExport(
                              top.customizr.system.model.TokenLayer layer) {}
 
     public record IconData(String key, String label, String imageUrl) {}
+
+    public record ShopData(String name, String description, boolean open, int buyBackPercent, List<ShopItemData> items) {}
+
+    public record ShopItemData(Ref item, BigDecimal priceGp, Integer stock) {}
+
+    public record LootData(String name, boolean visible, BigDecimal moneyGp, List<LootItemData> items) {}
+
+    public record LootItemData(Ref item, int quantity) {}
 
     public record Ref(String name, String source) {}
 
