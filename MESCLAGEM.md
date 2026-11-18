@@ -54,6 +54,21 @@ Este branch (`mesclagem-mesa`) traz para o Customizr o que foi feito no programa
 
 As tabelas e colunas novas o Hibernate cria sozinho (`ddl-auto=update`). Todas aceitam nulo ou têm valor padrão, para não quebrar as linhas que já existem.
 
+## Testado com PostgreSQL 17 (cópia local, não o banco de produção)
+
+Simulação do deploy, feita num Postgres 17.12 temporário no PC:
+
+1. A versão que está no ar (`main`, `e740c23`) criou o banco e os dados: usuários, campanha com convite, personagem e grupo. O bug de INT/SAB apareceu como no banco real: INT 8 / SAB 16 digitados ficaram gravados como INT 16 / SAB 8.
+2. Esta versão subiu no mesmo banco e criou sozinha as tabelas e colunas novas (59 tabelas no total), sem nenhum erro. Os dados antigos continuaram abrindo, e os campos novos vêm vazios sem quebrar nada.
+3. O script `20261117_swap_intelligence_wisdom.sql` destrocou INT/SAB (a Percepção passiva foi de 9 para 13). Rodado de novo, viu que já estava aplicado e não destrocou.
+4. As 36 chamadas das funções novas passaram sem erro no Postgres: combate, áreas, marcadores, tamanho, luz, monstros customizados, objetos, ícones, portas, exportar e importar.
+
+**Pontos de segurança vistos no caminho (no código que já existia):**
+
+* Sem a variável `SPRING_DATASOURCE_URL`, o `application.properties` conecta direto no banco de produção do Railway. Quem rodar o projeto no próprio PC sem configurar nada mexe nos dados reais. Sugestão: tirar o endereço de produção do arquivo e deixar só a variável.
+* `jwt.secret` está escrito no `application.properties`, num repositório público: qualquer um consegue gerar um login válido. Sugestão: ler de uma variável de ambiente e trocar a chave.
+* Dá pra criar dois usuários com o mesmo nome (`/user/create`); o login desse nome passa a falhar. O mesmo vale pra fontes com o mesmo código (`/source/create`), que quebra a importação de monstros.
+
 ## Ajustes ao seu padrão (feitos depois de estudar o `ClassService`)
 
 * **Catálogo novo (espécies, antecedentes, talentos e monstros)** segue o `Feature`:
