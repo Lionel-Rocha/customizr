@@ -13,6 +13,9 @@ import top.customizr.system.dto.TokenRequest;
 import top.customizr.system.dto.TokenResponse;
 import top.customizr.system.dto.DoorRequest;
 import top.customizr.system.dto.MarkersRequest;
+import top.customizr.system.dto.PingRequest;
+import top.customizr.system.dto.PinRequest;
+import top.customizr.system.dto.PinResponse;
 import top.customizr.system.dto.AurasRequest;
 import top.customizr.system.dto.RulerRequest;
 import top.customizr.system.dto.SceneLightingRequest;
@@ -80,6 +83,7 @@ public class LiveTableService {
     private final top.customizr.system.repository.MapObjectRepository mapObjectRepository;
     private final top.customizr.system.repository.ImageAssetRepository imageAssetRepository;
     private final top.customizr.system.repository.CampaignIconRepository iconRepository;
+    private final top.customizr.system.repository.MapPinRepository pinRepository;
 
     public LiveTableService(SceneRepository sceneRepository, TokenRepository tokenRepository,
                             InitiativeTrackerRepository trackerRepository, CampaignRepository campaignRepository,
@@ -89,7 +93,9 @@ public class LiveTableService {
                             top.customizr.system.repository.AreaTemplateRepository templateRepository,
                             top.customizr.system.repository.MapObjectRepository mapObjectRepository,
                             top.customizr.system.repository.ImageAssetRepository imageAssetRepository,
-                            top.customizr.system.repository.CampaignIconRepository iconRepository) {
+                            top.customizr.system.repository.CampaignIconRepository iconRepository,
+                            top.customizr.system.repository.MapPinRepository pinRepository) {
+        this.pinRepository = pinRepository;
         this.iconRepository = iconRepository;
         this.mapObjectRepository = mapObjectRepository;
         this.imageAssetRepository = imageAssetRepository;
@@ -542,6 +548,70 @@ public class LiveTableService {
         });
         broadcastToken(token, "token_updated");
         return TokenResponse.from(token, master);
+    }
+
+    // ------------------------------------------------------------------ ping e alfinetes
+
+    /** Ping: ondas no ponto pra todos. focus (so o mestre) centraliza a tela de todo mundo ali. */
+    @Transactional
+    public void ping(UUID sceneId, PingRequest r, String username) {
+        Scene scene = scene(sceneId);
+        User user = masterGuard.user(username);
+        masterGuard.assertMember(user, scene.getCampaign());
+        boolean master = masterGuard.canManage(user, scene.getCampaign());
+        if (!master && !scene.isActive()) throw new AccessDeniedException("This scene is not active");
+        if (r == null || r.x() == null || r.y() == null) throw badRequest("x and y are required");
+        boolean focus = Boolean.TRUE.equals(r.focus());
+        if (focus && !master) throw new AccessDeniedException("Only the master moves everyone's view");
+        Map<String, Object> payload = Map.of("sceneId", sceneId, "x", r.x(), "y", r.y(), "userId", user.getUserId(),
+                "name", user.getName(), "focus", focus);
+        if (scene.isActive()) events.publish(scene.getCampaign().getId(), "ping", payload);
+        else events.publishToMaster(scene.getCampaign().getId(), "ping", payload);
+    }
+
+    @Transactional
+    public PinResponse addPin(UUID sceneId, PinRequest r, String username) {
+        Scene scene = scene(sceneId);
+        masterGuard.requireMaster(username, scene.getCampaign());
+        if (r == null || r.x() == null || r.y() == null) throw badRequest("x and y are required");
+        var pin = valid(() -> scene.addPin(r.x(), r.y(), r.label(), r.icon(), r.note(), r.entryId(),
+                Boolean.TRUE.equals(r.visibleToPlayers())));
+        sceneRepository.flush();
+        broadcastPins(scene);
+        return PinResponse.from(pin);
+    }
+
+    /** Edita o alfinete (campo vazio fica como esta; arrastar = mudar x/y). */
+    @Transactional
+    public PinResponse updatePin(UUID pinId, PinRequest r, String username) {
+        var pin = pinRepository.findById(pinId).orElseThrow(() -> notFound("Pin"));
+        masterGuard.requireMaster(username, pin.getScene().getCampaign());
+        if (r == null) throw badRequest("Request body is required");
+        valid(() -> { pin.update(r.x() == null ? pin.getX() : r.x(), r.y() == null ? pin.getY() : r.y(),
+                r.label() == null ? pin.getLabel() : r.label(), r.icon() == null ? pin.getIcon() : r.icon(),
+                r.note() == null ? pin.getNote() : r.note(), r.entryId() == null ? pin.getEntryId() : r.entryId(),
+                r.visibleToPlayers() == null ? pin.isVisibleToPlayers() : r.visibleToPlayers()); return null; });
+        broadcastPins(pin.getScene());
+        return PinResponse.from(pin);
+    }
+
+    @Transactional
+    public void deletePin(UUID pinId, String username) {
+        var pin = pinRepository.findById(pinId).orElseThrow(() -> notFound("Pin"));
+        Scene scene = pin.getScene();
+        masterGuard.requireMaster(username, scene.getCampaign());
+        scene.getPins().remove(pin);
+        broadcastPins(scene);
+    }
+
+    private void broadcastPins(Scene scene) {
+        UUID campaignId = scene.getCampaign().getId();
+        events.publishToMaster(campaignId, "pins", Map.of("sceneId", scene.getId(),
+                "pins", scene.getPins().stream().map(PinResponse::from).toList()));
+        if (scene.isActive()) {
+            events.publish(campaignId, "pins", Map.of("sceneId", scene.getId(), "pins", scene.getPins().stream()
+                    .filter(top.customizr.system.model.MapPin::isVisibleToPlayers).map(PinResponse::from).toList()), l -> !l.master());
+        }
     }
 
     /** Regua compartilhada: so repassa os pontos pra mesa (nada fica gravado). */

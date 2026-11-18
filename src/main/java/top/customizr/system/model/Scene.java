@@ -83,6 +83,9 @@ public class Scene {
     @OneToMany(mappedBy = "scene", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<AreaTemplate> templates = new ArrayList<>();
 
+    @OneToMany(mappedBy = "scene", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<MapPin> pins = new ArrayList<>();
+
     /** So uma cena ativa por campanha: e a que os jogadores veem. */
     @Column(nullable = false)
     private boolean active;
@@ -234,6 +237,13 @@ public class Scene {
         AreaTemplate template = addTemplate(shape, x, y, angle, sizeFt, widthFt, label, color, ownerId);
         template.setDarkness(darkness);
         return template;
+    }
+
+    public MapPin addPin(double x, double y, String label, String icon, String note, java.util.UUID entryId, boolean visible) {
+        if (pins.size() >= 300) throw new IllegalArgumentException("Too many pins in this scene");
+        MapPin pin = new MapPin(this, x, y, label, icon, note, entryId, visible);
+        pins.add(pin);
+        return pin;
     }
 
     public void clearWalls() {

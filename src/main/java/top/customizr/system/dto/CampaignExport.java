@@ -42,7 +42,10 @@ public record CampaignExport(
     public record SceneData(String name, String mapUrl, top.customizr.system.model.GridType gridType, int gridSizePx,
                             int feetPerCell, Integer widthPx, Integer heightPx, boolean fogEnabled, boolean active,
                             Set<String> revealedCells, boolean visionEnabled, top.customizr.system.model.SceneLighting lighting,
-                            List<WallData> walls, List<TemplateData> templates, List<TokenData> tokens) {}
+                            List<WallData> walls, List<TemplateData> templates, List<TokenData> tokens,
+                            List<PinData> pins) {}
+
+    public record PinData(double x, double y, String label, String icon, String note, String entryName, boolean visibleToPlayers) {}
 
     public record WallData(double x1, double y1, double x2, double y2, top.customizr.system.model.Wall.Type type,
                            boolean open, boolean locked) {}

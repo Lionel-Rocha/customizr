@@ -136,6 +136,7 @@
       <button data-tool="wall" class="master-only" title="Arraste para desenhar uma parede">Parede</button>
       <button data-tool="door" class="master-only" title="Arraste para desenhar uma porta">Porta</button>
       <button data-tool="erase" class="master-only" title="Clique numa parede ou porta para apagar">Apagar parede</button>
+      <button data-tool="pin" class="master-only" title="Clique no mapa pra pôr um alfinete (nota e verbete da enciclopédia)">Alfinete</button>
       <button data-tool="ruler" title="Clique pra marcar pontos; duplo clique ou Esc termina. Todos da mesa veem.">Régua</button>
       <button data-tool="area" title="Arraste para posicionar uma área de efeito (cone, círculo, linha, quadrado)">Área</button>
       <span id="areaOpts" class="hidden">
@@ -153,7 +154,7 @@
       </select>
       <button id="center">Centralizar</button>
     </div>
-    <div id="hint">arraste seu token · roda = zoom · arraste o fundo para mover o mapa</div>
+    <div id="hint">arraste seu token · roda = zoom · arraste o fundo para mover o mapa · segure o clique (ou Alt+clique) para pingar</div>
     <div id="viewAsBanner" class="hidden"><span id="viewAsText"></span><button id="viewAsExit">Voltar à visão do mestre</button></div>
     <div id="targetHint" class="hidden"><span id="targetText">Clique no alvo</span> · Esc cancela</div>
     <div id="areaPanel" class="hidden">
@@ -361,7 +362,7 @@
    porque o EventSource do navegador nao manda o header Authorization. */
 const S = { token: null, me: null, campaign: null, master: false, scenes: [], scene: null, images: {},
   view: { tx: 40, ty: 40, z: 1 }, tool: 'move', drag: null, paint: null, pan: null, selected: null,
-  initiative: null, stream: null, targeting: null, wallDraw: null, explored: null, areaDraw: null, selectedTemplate: null, pendingArea: null, chars: [], icons: [], iconMap: {}, viewAs: null, ruler: null, rulers: {}, hoverWorld: null };
+  initiative: null, stream: null, targeting: null, wallDraw: null, explored: null, areaDraw: null, selectedTemplate: null, pendingArea: null, chars: [], icons: [], iconMap: {}, viewAs: null, ruler: null, rulers: {}, hoverWorld: null, pings: [], press: null, pinDrag: null };
 const $ = id => document.getElementById(id);
 const cv = $('map'), ctx = cv.getContext('2d');
 
@@ -511,6 +512,18 @@ function onEvent(type, d) {
       break;
     }
     case 'icons': loadIcons(); break;
+    case 'pins': {
+      const target = S.scenes.find(x => x.id === d.sceneId); if (target) target.pins = d.pins;
+      if (sc && sc.id === d.sceneId) { sc.pins = d.pins; draw(); }
+      break;
+    }
+    case 'ping':
+      if (sc && sc.id === d.sceneId) {
+        S.pings.push({ x: d.x, y: d.y, name: d.name, color: rulerColor(d.userId), at: Date.now() });
+        if (d.focus) centerOn(d.x, d.y);
+        animatePings();
+      }
+      break;
     case 'ruler':
       if (sc && sc.id === d.sceneId && d.userId !== S.me.userId) {
         if (d.points && d.points.length) S.rulers[d.userId] = { name: d.name, points: d.points, at: Date.now() };
@@ -602,6 +615,8 @@ function draw() {
   else if (asMaster()) drawMasterLight(sc, w, h);
   for (const t of ordered) if (above(t) && seen(t)) drawToken(t, g);
   drawWalls(sc, sight);
+  drawPins(sc);
+  drawPings();
   if (S.areaDraw) drawTemplateShape(S.areaDraw, true);
   if (S.wallDraw) {
     const d = S.wallDraw; ctx.beginPath(); ctx.moveTo(d.x1, d.y1); ctx.lineTo(d.x2, d.y2);
@@ -716,9 +731,16 @@ cv.addEventListener('pointerdown', e => {
   if (S.master && (S.tool === 'reveal' || S.tool === 'hide')) { S.paint = new Map(); paintAt(x, y); return; }
   if (S.master && (S.tool === 'wall' || S.tool === 'door')) { const [sx, sy] = snapPoint(x, y); S.wallDraw = { x1: sx, y1: sy, x2: sx, y2: sy }; return; }
   if (S.master && S.tool === 'erase') { const wall = wallAt(x, y); if (wall) api('/live/scenes/' + S.scene.id + '/walls/' + wall.id, { method: 'DELETE' }).catch(err => toast(err.message)); return; }
+  if (e.altKey) { sendPing(x, y, e.shiftKey && S.master); return; }
+  if (S.master && S.tool === 'pin') { openPinEditor({ x, y, visibleToPlayers: true }); return; }
   if (S.tool === 'ruler') { rulerClick(x, y); return; }
   if (S.tool === 'area') { const [sx, sy] = snapPoint(x, y); S.areaDraw = areaDraft(sx, sy); draw(); return; }
   if (!S.targeting) { const door = doorAt(x, y); if (door) { toggleDoor(door, e.shiftKey); return; } }
+  if (!S.targeting) {
+    const pin = pinAt(x, y);
+    if (pin) { S.pinDrag = { pin, offX: x - pin.x, offY: y - pin.y, fromX: pin.x, fromY: pin.y, moved: false }; return; }
+  }
+  startPress(e, x, y); // segurar o clique = ping
   const t = tokenAt(x, y);
   if (S.targeting) { if (t) { const a = S.targeting; stopTargeting(); fireAttack(a, t); } return; }
   if (t) {
@@ -734,10 +756,24 @@ window.addEventListener('pointermove', e => {
   if (S.targeting) { S.hoverWorld = toWorld(e); draw(); }
   if (S.areaDraw) { const [x, y] = toWorld(e); S.areaDraw.angle = Math.atan2(y - S.areaDraw.y, x - S.areaDraw.x) * 180 / Math.PI; draw(); return; }
   if (S.wallDraw) { const [x, y] = toWorld(e); const [sx, sy] = snapPoint(x, y); S.wallDraw.x2 = sx; S.wallDraw.y2 = sy; draw(); return; }
+  if (S.press && Math.hypot(e.clientX - S.press.cx, e.clientY - S.press.cy) > 6) cancelPress();
+  if (S.pinDrag && S.master) {
+    const [x, y] = toWorld(e), d = S.pinDrag;
+    if (d.moved || Math.hypot(x - d.offX - d.fromX, y - d.offY - d.fromY) > 4) { d.moved = true; d.pin.x = x - d.offX; d.pin.y = y - d.offY; draw(); }
+    return;
+  }
   if (S.drag) { const [x, y] = toWorld(e); S.drag.token.x = x - S.drag.offX; S.drag.token.y = y - S.drag.offY; S.drag.moved = true; draw(); return; }
   if (S.pan) { S.view.tx = S.pan.tx + e.clientX - S.pan.x; S.view.ty = S.pan.ty + e.clientY - S.pan.y; draw(); }
 });
 window.addEventListener('pointerup', async () => {
+  cancelPress();
+  if (S.pinDrag) {
+    const d = S.pinDrag; S.pinDrag = null;
+    if (!d.moved) { showPin(d.pin); return; }
+    api('/live/pins/' + d.pin.id, { method: 'PUT', body: { x: d.pin.x, y: d.pin.y } })
+      .catch(err => { d.pin.x = d.fromX; d.pin.y = d.fromY; draw(); toast(err.message); });
+    return;
+  }
   if (S.areaDraw) { const d = S.areaDraw; S.areaDraw = null; await placeTemplate(d); return; }
   if (S.wallDraw) {
     const d = S.wallDraw; S.wallDraw = null; draw();
@@ -2044,6 +2080,112 @@ $('cbAuraAdd').onclick = () => {
   saveAuras(t, [...(t.auras || []), { radiusFt: ft, color: $('cbAuraColor').value, label: $('cbAuraLabel').value || null }]);
   $('cbAuraFt').value = ''; $('cbAuraLabel').value = '';
 };
+
+// ------------------------------------------------------------------ ping e alfinetes
+/** Segurar o clique parado ~0,6 s = ping. */
+function startPress(e, x, y) {
+  cancelPress();
+  S.press = { cx: e.clientX, cy: e.clientY, timer: setTimeout(() => { S.press = null; S.pan = null; S.drag = null; sendPing(x, y, false); }, 600) };
+}
+function cancelPress() { if (S.press) { clearTimeout(S.press.timer); S.press = null; } }
+function sendPing(x, y, focus) {
+  if (!S.scene) return;
+  api('/live/scenes/' + S.scene.id + '/ping', { method: 'POST', body: { x, y, focus: !!focus } }).catch(err => toast(err.message));
+}
+function centerOn(x, y) {
+  const r = cv.getBoundingClientRect();
+  S.view.tx = r.width / 2 - x * S.view.z; S.view.ty = r.height / 2 - y * S.view.z; draw();
+}
+let pingFrame = null;
+function animatePings() {
+  if (pingFrame) return;
+  const step = () => {
+    S.pings = S.pings.filter(p => Date.now() - p.at < 2200);
+    draw();
+    pingFrame = S.pings.length ? requestAnimationFrame(step) : null;
+  };
+  pingFrame = requestAnimationFrame(step);
+}
+/** Ondas que se abrem no ponto, com o nome de quem pingou. */
+function drawPings() {
+  const z = S.view.z;
+  for (const p of S.pings) {
+    const age = (Date.now() - p.at) / 2200;
+    for (let k = 0; k < 3; k++) {
+      const a = (age * 1.6 + k / 3) % 1;
+      ctx.save(); ctx.globalAlpha = Math.max(0, 1 - a) * (1 - age * 0.5); ctx.strokeStyle = p.color; ctx.lineWidth = 3 / z;
+      ctx.beginPath(); ctx.arc(p.x, p.y, (8 + a * 60) / z, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+    }
+    ctx.save(); ctx.globalAlpha = 1 - age * 0.7; ctx.fillStyle = p.color;
+    ctx.beginPath(); ctx.arc(p.x, p.y, 5 / z, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+    if (age < 0.8) label(p.x, p.y - 24 / z, p.name, p.color, 12);
+  }
+}
+const PIN_ICONS = ['📍', '🍺', '🏰', '⛪', '⚔', '💀', '⚠', '💰', '🗝', '🌲', '🏠', '⭐', '❓'];
+function visiblePins(sc) { return (sc.pins || []).filter(p => !S.viewAs || p.visibleToPlayers); }
+function pinAt(x, y) {
+  const r = 16 / S.view.z;
+  const list = S.scene ? visiblePins(S.scene) : [];
+  for (let i = list.length - 1; i >= 0; i--) { const p = list[i]; if (Math.hypot(x - p.x, y - (p.y - r)) <= r) return p; }
+  return null;
+}
+/** Alfinete: gota com o icone, o nome embaixo; oculto aparece apagado pro mestre. */
+function drawPins(sc) {
+  const z = S.view.z, r = 13 / z;
+  for (const p of visiblePins(sc)) {
+    ctx.save(); ctx.globalAlpha = p.visibleToPlayers ? 1 : 0.5;
+    const cy = p.y - r * 1.3;
+    ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - r * 0.7, cy + r * 0.5); ctx.arc(p.x, cy, r, Math.PI * 0.8, Math.PI * 0.2); ctx.closePath();
+    ctx.fillStyle = '#26324A'; ctx.fill(); ctx.strokeStyle = '#FFCF7F'; ctx.lineWidth = 2 / z; ctx.stroke();
+    ctx.font = r * 1.1 + 'px Segoe UI'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#fff';
+    ctx.fillText(p.icon || '📍', p.x, cy + 1 / z);
+    ctx.restore();
+    label(p.x, p.y + 10 / z, p.label + (p.visibleToPlayers ? '' : ' (só você)'), '#FFCF7F', 11);
+  }
+}
+/** Clique no alfinete: nota e verbete da enciclopedia (o jogador so ve verbete visivel). */
+async function showPin(p) {
+  const box = $('modalBox'); box.innerHTML = '';
+  box.append(el('div', { class: 'row' }, el('h2', { text: (p.icon ? p.icon + ' ' : '') + p.label, style: 'flex:1;margin:0' }),
+    ...(S.master ? [el('button', { text: 'Editar', onclick: () => openPinEditor(p) }),
+      el('button', { text: 'Apagar', onclick: () => confirm('Apagar o alfinete ' + p.label + '?')
+        && api('/live/pins/' + p.id, { method: 'DELETE' }).then(closeModal).catch(err => toast(err.message)) })] : []),
+    el('button', { text: 'Fechar', onclick: closeModal })));
+  if (p.note) box.append(el('div', { class: 'statblock', text: p.note }));
+  if (p.entryId) {
+    try {
+      const entry = await api('/encyclopedia/' + p.entryId);
+      box.append(el('h3', { text: '📖 ' + entry.entryName, style: 'margin-top:8px' }), el('div', { class: 'statblock', text: entry.information || '' }));
+    } catch (err) { box.append(el('div', { class: 'muted', text: 'Verbete da enciclopédia indisponível.' })); }
+  }
+  if (!p.note && !p.entryId) box.append(el('div', { class: 'muted', text: 'Sem nota.' }));
+  $('modal').classList.remove('hidden');
+}
+/** Formulario do alfinete (novo ou edicao). */
+async function openPinEditor(p) {
+  let entries = [];
+  try { entries = await api('/encyclopedia/campaign/' + S.campaign.id); } catch (e) { entries = []; }
+  const box = $('modalBox'); box.innerHTML = '';
+  const label = el('input', { placeholder: 'nome (ex.: Taverna do Javali)' }); label.value = p.label || '';
+  const icon = el('select'); PIN_ICONS.forEach(i => icon.append(new Option(i, i))); icon.value = p.icon || '📍';
+  const note = el('textarea', { placeholder: 'nota (o que os jogadores leem ao clicar)' }); note.value = p.note || '';
+  const entry = el('select'); entry.append(new Option('— sem verbete —', ''));
+  entries.forEach(e => entry.append(new Option(e.entryName + (e.visible ? '' : ' (oculto)'), e.id))); entry.value = p.entryId || '';
+  const visible = el('input', { type: 'checkbox' }); visible.checked = p.visibleToPlayers !== false;
+  box.append(el('div', { class: 'row' }, el('h2', { text: p.id ? 'Editar alfinete' : 'Novo alfinete', style: 'flex:1;margin:0' }),
+    el('button', { text: 'Fechar', onclick: closeModal })));
+  box.append(el('div', { class: 'row' }, icon, label), note, el('label', { text: 'Verbete da enciclopédia' }, entry),
+    el('label', { class: 'row', style: 'display:flex' }, visible, ' os jogadores veem este alfinete'));
+  box.append(el('div', { class: 'row' }, el('button', { text: 'Salvar', class: 'primary', onclick: async () => {
+    const body = { x: p.x, y: p.y, label: label.value, icon: icon.value, note: note.value, entryId: entry.value || null, visibleToPlayers: visible.checked };
+    try {
+      if (p.id) await api('/live/pins/' + p.id, { method: 'PUT', body });
+      else await api('/live/scenes/' + S.scene.id + '/pins', { method: 'POST', body });
+      closeModal();
+    } catch (err) { toast(err.message); }
+  } })));
+  $('modal').classList.remove('hidden'); label.focus();
+}
 
 // ------------------------------------------------------------------ inicio
 S.token = load('customizr_token');

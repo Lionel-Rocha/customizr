@@ -3,6 +3,9 @@ package top.customizr.system.controllers;
 import top.customizr.system.dto.ConditionsRequest;
 import top.customizr.system.dto.DoorRequest;
 import top.customizr.system.dto.MarkersRequest;
+import top.customizr.system.dto.PingRequest;
+import top.customizr.system.dto.PinRequest;
+import top.customizr.system.dto.PinResponse;
 import top.customizr.system.dto.AurasRequest;
 import top.customizr.system.dto.RulerRequest;
 import top.customizr.system.dto.SceneLightingRequest;
@@ -209,6 +212,31 @@ public class LiveTableController {
     public ResponseEntity<TokenResponse> auras(@PathVariable UUID tokenId, @RequestBody AurasRequest request,
                                                @AuthenticationPrincipal UserDetails user) {
         return ResponseEntity.ok(live.updateAuras(tokenId, request, user.getUsername()));
+    }
+
+    @PostMapping("/scenes/{sceneId}/ping")
+    public ResponseEntity<Void> ping(@PathVariable UUID sceneId, @RequestBody PingRequest request,
+                                     @AuthenticationPrincipal UserDetails user) {
+        live.ping(sceneId, request, user.getUsername());
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/scenes/{sceneId}/pins")
+    public ResponseEntity<PinResponse> addPin(@PathVariable UUID sceneId, @RequestBody PinRequest request,
+                                              @AuthenticationPrincipal UserDetails user) {
+        return ResponseEntity.ok(live.addPin(sceneId, request, user.getUsername()));
+    }
+
+    @PutMapping("/pins/{pinId}")
+    public ResponseEntity<PinResponse> updatePin(@PathVariable UUID pinId, @RequestBody PinRequest request,
+                                                 @AuthenticationPrincipal UserDetails user) {
+        return ResponseEntity.ok(live.updatePin(pinId, request, user.getUsername()));
+    }
+
+    @DeleteMapping("/pins/{pinId}")
+    public ResponseEntity<Void> deletePin(@PathVariable UUID pinId, @AuthenticationPrincipal UserDetails user) {
+        live.deletePin(pinId, user.getUsername());
+        return ResponseEntity.noContent().build();
     }
 
     /** Regua que todos da mesa veem enquanto alguem mede. */

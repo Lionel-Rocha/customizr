@@ -191,7 +191,7 @@ public class CampaignTransferService {
                 campaign.getSourceConfigs().stream().filter(CampaignSourceConfig::isEnabled)
                         .map(sc -> sc.getSource().getCode()).toList(),
                 worlds, entries, npcs, characters, parties, images,
-                sceneRepository.findByCampaignOrderByName(campaign).stream().map(CampaignTransferService::sceneData).toList(),
+                sceneRepository.findByCampaignOrderByName(campaign).stream().map(s -> sceneData(s, entryNames(campaign))).toList(),
                 monsterRepository.findByCampaign(campaign).stream().map(CampaignTransferService::monsterData).toList(),
                 mapObjectRepository.findByCampaignOrderByName(campaign).stream().map(o -> new CampaignExport.ObjectData(o.getName(),
                         o.getImage().getUrl(), o.getWidthCells(), o.getHeightCells(), o.getLayer())).toList(),
@@ -199,7 +199,14 @@ public class CampaignTransferService {
                         i.getLabel(), i.getImage().getUrl())).toList());
     }
 
-    private static CampaignExport.SceneData sceneData(top.customizr.system.model.Scene s) {
+    /** id -> nome dos verbetes da enciclopedia (os alfinetes levam o verbete pelo nome). */
+    private Map<UUID, String> entryNames(Campaign campaign) {
+        Map<UUID, String> names = new HashMap<>();
+        encyclopediaRepository.findByCampaign(campaign).ifPresent(e -> e.getEntries().forEach(x -> names.put(x.getId(), x.getEntryName())));
+        return names;
+    }
+
+    private static CampaignExport.SceneData sceneData(top.customizr.system.model.Scene s, Map<UUID, String> entryNames) {
         return new CampaignExport.SceneData(s.getName(), s.getMapUrl(), s.getGridType(), s.getGridSizePx(), s.getFeetPerCell(),
                 s.getWidthPx(), s.getHeightPx(), s.isFogEnabled(), s.isActive(), java.util.Set.copyOf(s.getRevealedCells()),
                 s.isVisionEnabled(), s.getLighting(),
@@ -218,7 +225,9 @@ public class CampaignTransferService {
                         t.getMarkers().stream().map(m -> new CampaignExport.MarkerData(m.getLabel(), m.getIcon(), m.getRoundsLeft())).toList(),
                         t.getMembers().stream().map(Character::getName).toList(),
                         t.getLightBrightFt(), t.getLightDimFt(), t.getDarkvisionFt(),
-                        t.getAuras().stream().map(a -> new CampaignExport.AuraData(a.getRadiusFt(), a.getColor(), a.getLabel())).toList())).toList());
+                        t.getAuras().stream().map(a -> new CampaignExport.AuraData(a.getRadiusFt(), a.getColor(), a.getLabel())).toList())).toList(),
+                s.getPins().stream().map(p -> new CampaignExport.PinData(p.getX(), p.getY(), p.getLabel(), p.getIcon(), p.getNote(),
+                        p.getEntryId() == null ? null : entryNames.get(p.getEntryId()), p.isVisibleToPlayers())).toList());
     }
 
     private static CampaignExport.MonsterData monsterData(Monster m) {
@@ -438,6 +447,12 @@ public class CampaignTransferService {
         }
         for (CampaignExport.TemplateData t : nullSafe(sd.templates())) {
             scene.addTemplate(t.shape(), t.x(), t.y(), t.angle(), t.sizeFt(), t.widthFt(), t.label(), t.color(), master.getUserId(), t.darkness());
+        }
+        Map<String, UUID> entriesByName = new HashMap<>();
+        encyclopediaRepository.findByCampaign(campaign).ifPresent(e -> e.getEntries().forEach(x -> entriesByName.put(x.getEntryName(), x.getId())));
+        for (CampaignExport.PinData p : nullSafe(sd.pins())) {
+            scene.addPin(p.x(), p.y(), p.label(), p.icon(), p.note(), p.entryName() == null ? null : entriesByName.get(p.entryName()),
+                    p.visibleToPlayers());
         }
         for (CampaignExport.TokenData td : nullSafe(sd.tokens())) {
             Character character = td.characterName() == null ? null : characters.get(td.characterName());

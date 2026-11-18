@@ -242,6 +242,8 @@ Abaixo estão todos os endpoints atualmente expostos pelo backend da aplicação
 | `PUT` / `DELETE` | `/live/objects/{objectId}` | Edita / tira um objeto da biblioteca. |
 | `POST` | `/live/scenes/{sceneId}/objects/{objectId}` | Põe o objeto no mapa (`x`, `y`, `rotation`): vira um token da camada dele, com a imagem e o tamanho. |
 | `PUT` | `/live/tokens/{tokenId}/auras` | Auras do token (até 4: `radiusFt`, `color`, `label`), medidas da borda dele; todos veem. |
+| `POST` | `/live/scenes/{sceneId}/ping` | Ping no mapa (`x`, `y`) pra todos; `focus` (só o mestre) centraliza a tela de todo mundo no ponto. |
+| `POST` | `/live/scenes/{sceneId}/pins` · `PUT` / `DELETE` `/live/pins/{pinId}` | Alfinetes no mapa (`label`, `icon`, `note`, `entryId` da enciclopédia, `visibleToPlayers`). Só o mestre põe, move e apaga; o jogador só recebe os visíveis. |
 | `POST` | `/live/scenes/{sceneId}/ruler` | Régua compartilhada: repassa os pontos pra mesa (nada fica gravado); lista vazia apaga. |
 | `PUT` | `/live/tokens/{tokenId}/markers` | Marcadores do token (`label`, `icon`, `roundsLeft`): a contagem desce no início do turno do token na iniciativa e o marcador some ao chegar a zero. |
 | `POST` | `/live/scenes/{sceneId}/templates` | Área de efeito (`shape` CIRCLE/CONE/LINE/SQUARE, `x`, `y`, `angle`, `sizeFt`). Mestre ou jogador. |
@@ -438,6 +440,11 @@ A parte da mesa de jogo, desenvolvida à parte em JavaFX, foi trazida para cá n
 * **Movimento colorido:** ao arrastar, o caminho fica verde até o deslocamento do token (da ficha ou da ficha de monstro), amarelo até o dobro (disparada) e vermelho além disso.
 * **Auras:** cada token pode ter até 4 auras com raio, cor e nome (a do paladino a 10 pés...), visíveis pra todos; vão na exportação.
 * **Alcance do ataque:** ao escolher um ataque, aparece o anel do alcance (normal e longo, lido do texto da ação) e a distância até o ponteiro, considerando a altura: verde no alcance, amarelo no longo (desvantagem), vermelho fora.
+
+**Alfinetes e ping:**
+
+* **Alfinetes:** a ferramenta "Alfinete" (mestre) põe um marcador no mapa com ícone, nome, nota e, se quiser, um verbete da enciclopédia ligado. Clicando, abre a nota e o texto do verbete (o jogador só vê verbete visível). Pode ficar só pro mestre; o mestre arrasta pra mover. Vai na exportação, ligado ao verbete pelo nome.
+* **Ping:** segurar o clique no mapa (ou Alt+clique) solta ondas no ponto pra todos, com o nome de quem pingou. Shift+Alt+clique do mestre também centraliza a tela de todos ali.
 
 **Ver como jogador:** o mestre escolhe "Ver como jogador de ..." na barra da mesa e vê exatamente o que aquele jogador vê (visão dinâmica, luz, neblina, memória do que já foi visto). Tokens ocultos, camada do mestre, paredes e PV de monstro somem como somem pro jogador. As ferramentas continuam de mestre, e uma faixa no alto lembra o modo, com o botão de voltar.
 

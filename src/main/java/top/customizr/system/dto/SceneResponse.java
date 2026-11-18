@@ -10,7 +10,7 @@ public record SceneResponse(UUID id, String name, String mapUrl, GridType gridTy
                             Integer widthPx, Integer heightPx, boolean fogEnabled, boolean active,
                             Set<String> revealedCells, List<TokenResponse> tokens, boolean visionEnabled,
                             List<WallResponse> walls, List<TemplateResponse> templates,
-                            top.customizr.system.model.SceneLighting lighting) {
+                            top.customizr.system.model.SceneLighting lighting, List<PinResponse> pins) {
 
     /** Jogador nao recebe tokens ocultos. */
     public static SceneResponse from(Scene s, boolean master) {
@@ -19,6 +19,7 @@ public record SceneResponse(UUID id, String name, String mapUrl, GridType gridTy
                 Set.copyOf(s.getRevealedCells()),
                 s.getTokens().stream().filter(t -> master || !t.isHiddenFromPlayers()).map(t -> TokenResponse.from(t, master)).toList(),
                 s.isVisionEnabled(), s.getWalls().stream().map(WallResponse::from).toList(),
-                s.getTemplates().stream().map(TemplateResponse::from).toList(), s.getLighting());
+                s.getTemplates().stream().map(TemplateResponse::from).toList(), s.getLighting(),
+                s.getPins().stream().filter(p -> master || p.isVisibleToPlayers()).map(PinResponse::from).toList());
     }
 }
