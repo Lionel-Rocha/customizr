@@ -13,6 +13,8 @@ import top.customizr.system.dto.TokenRequest;
 import top.customizr.system.dto.TokenResponse;
 import top.customizr.system.dto.DoorRequest;
 import top.customizr.system.dto.MarkersRequest;
+import top.customizr.system.dto.CampaignIconRequest;
+import top.customizr.system.dto.CampaignIconResponse;
 import top.customizr.system.dto.MapObjectRequest;
 import top.customizr.system.dto.MapObjectResponse;
 import top.customizr.system.dto.PlaceObjectRequest;
@@ -73,6 +75,7 @@ public class LiveTableService {
     private final top.customizr.system.repository.AreaTemplateRepository templateRepository;
     private final top.customizr.system.repository.MapObjectRepository mapObjectRepository;
     private final top.customizr.system.repository.ImageAssetRepository imageAssetRepository;
+    private final top.customizr.system.repository.CampaignIconRepository iconRepository;
 
     public LiveTableService(SceneRepository sceneRepository, TokenRepository tokenRepository,
                             InitiativeTrackerRepository trackerRepository, CampaignRepository campaignRepository,
@@ -81,7 +84,9 @@ public class LiveTableService {
                             top.customizr.system.repository.WallRepository wallRepository,
                             top.customizr.system.repository.AreaTemplateRepository templateRepository,
                             top.customizr.system.repository.MapObjectRepository mapObjectRepository,
-                            top.customizr.system.repository.ImageAssetRepository imageAssetRepository) {
+                            top.customizr.system.repository.ImageAssetRepository imageAssetRepository,
+                            top.customizr.system.repository.CampaignIconRepository iconRepository) {
+        this.iconRepository = iconRepository;
         this.mapObjectRepository = mapObjectRepository;
         this.imageAssetRepository = imageAssetRepository;
         this.templateRepository = templateRepository;
@@ -529,6 +534,49 @@ public class LiveTableService {
             t.tickMarkers();
             broadcastToken(t, "token_updated");
         }
+    }
+
+    // ------------------------------------------------------------------ pacote de icones da campanha
+
+    /** Icones da campanha (todos da mesa precisam, pra desenhar condicoes e marcadores). */
+    @Transactional
+    public List<CampaignIconResponse> listIcons(UUID campaignId, String username) {
+        Campaign campaign = campaign(campaignId);
+        masterGuard.requireMember(username, campaign);
+        return iconRepository.findByCampaignOrderByLabel(campaign).stream().map(CampaignIconResponse::from).toList();
+    }
+
+    /** Poe (ou troca, se a key ja existir) um icone do pacote. So o mestre. */
+    @Transactional
+    public CampaignIconResponse putIcon(UUID campaignId, CampaignIconRequest r, String username) {
+        Campaign campaign = campaign(campaignId);
+        masterGuard.requireMaster(username, campaign);
+        if (r == null || r.imageId() == null || r.key() == null) throw badRequest("key and imageId are required");
+        var image = imageAssetRepository.findById(r.imageId()).orElseThrow(() -> notFound("Image"));
+        if (!image.getCampaign().getId().equals(campaignId)) throw notFound("Image");
+        var icon = valid(() -> iconRepository.findByCampaignAndKey(campaign, r.key())
+                .map(existing -> { existing.replace(r.label(), image); return existing; })
+                .orElseGet(() -> new top.customizr.system.model.CampaignIcon(campaign, r.key(), r.label(), image)));
+        var saved = iconRepository.save(icon);
+        events.publish(campaignId, "icons", Map.of("campaignId", campaignId));
+        return CampaignIconResponse.from(saved);
+    }
+
+    @Transactional
+    public void deleteIcon(UUID iconId, String username) {
+        var icon = iconRepository.findById(iconId).orElseThrow(() -> notFound("Icon"));
+        masterGuard.requireMaster(username, icon.getCampaign());
+        UUID campaignId = icon.getCampaign().getId();
+        iconRepository.delete(icon);
+        events.publish(campaignId, "icons", Map.of("campaignId", campaignId));
+    }
+
+    @Transactional
+    public void clearIcons(UUID campaignId, String username) {
+        Campaign campaign = campaign(campaignId);
+        masterGuard.requireMaster(username, campaign);
+        iconRepository.deleteAll(iconRepository.findByCampaignOrderByLabel(campaign));
+        events.publish(campaignId, "icons", Map.of("campaignId", campaignId));
     }
 
     // ------------------------------------------------------------------ biblioteca de objetos (mesa, barril...)

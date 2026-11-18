@@ -262,6 +262,12 @@
         <button class="primary">Criar cena</button>
       </form>
       <div class="card">
+        <h3>Ícones da campanha</h3>
+        <div class="row"><input id="iconFiles" type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple><button id="iconImport" class="primary">Importar pacote</button></div>
+        <div class="muted" style="font-size:12px">Imagens com o nome da condição (Poisoned.png, Prone.png...) trocam o ícone dela; as outras (Blessed, On-Fire, Concentrating...) viram marcadores prontos. Ficam só nesta campanha.</div>
+        <div class="row"><span id="iconSummary" class="muted" style="flex:1"></span><button id="iconClear">Limpar pacote</button></div>
+      </div>
+      <div class="card">
         <h3>Objetos</h3>
         <div class="row"><input id="objFiles" type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple><button id="objImport" class="primary">Importar</button></div>
         <div class="muted" style="font-size:12px">PNG com fundo transparente fica melhor. O tamanho inicial sai da proporção da imagem (dá pra mudar depois).</div>
@@ -316,7 +322,7 @@
    porque o EventSource do navegador nao manda o header Authorization. */
 const S = { token: null, me: null, campaign: null, master: false, scenes: [], scene: null, images: {},
   view: { tx: 40, ty: 40, z: 1 }, tool: 'move', drag: null, paint: null, pan: null, selected: null,
-  initiative: null, stream: null, targeting: null, wallDraw: null, explored: null, areaDraw: null, selectedTemplate: null, pendingArea: null, chars: [] };
+  initiative: null, stream: null, targeting: null, wallDraw: null, explored: null, areaDraw: null, selectedTemplate: null, pendingArea: null, chars: [], icons: [], iconMap: {} };
 const $ = id => document.getElementById(id);
 const cv = $('map'), ctx = cv.getContext('2d');
 
@@ -377,6 +383,7 @@ async function openCampaign(c) {
   requestAnimationFrame(() => $('center').click());
   await loadChat();
   S.initiative = await api('/live/campaign/' + c.id + '/initiative'); renderInitiative();
+  await loadIcons();
   if (S.master) await loadCharacters();
   listen();
 }
@@ -463,6 +470,7 @@ function onEvent(type, d) {
       if (sc && sc.id === d.sceneId) { sc.walls = d.walls; draw(); }
       break;
     }
+    case 'icons': loadIcons(); break;
     case 'initiative': S.initiative = d; renderInitiative(); break;
     case 'initiative_ended': S.initiative = { round: 1, turnIndex: 0, entries: [] }; renderInitiative(); break;
     case 'chat': addChat(d); break;
@@ -476,7 +484,9 @@ async function loadImage(url) {
   try {
     let src = url;
     if (url.startsWith('/image/')) { const res = await fetch(url, { headers: { Authorization: 'Bearer ' + S.token } }); src = URL.createObjectURL(await res.blob()); }
-    const img = new Image(); img.src = src; await img.decode();
+    // onload em vez de img.decode(): o decode pode ficar pendurado em aba que nao esta sendo desenhada
+    const img = new Image();
+    await new Promise((ok, fail) => { img.onload = ok; img.onerror = fail; img.src = src; });
     S.images[url] = img; draw();
   } catch (e) { delete S.images[url]; }
 }
@@ -583,7 +593,9 @@ function drawToken(t, g) {
   const right = t.x + g * TW(t);
   badges.slice(0, 5).forEach((c, i) => { // icones das condicoes no alto, da direita pra esquerda
     const r = Math.max(7, size * 0.13), bx = right - r - i * r * 1.9, by = t.y + r, icon = conditionIcon(c);
-    if (icon.complete && icon.naturalWidth) ctx.drawImage(icon, bx - r, by - r, r * 2, r * 2);
+    if (icon.complete && icon.naturalWidth) {
+      ctx.save(); ctx.beginPath(); ctx.arc(bx, by, r, 0, Math.PI * 2); ctx.clip(); ctx.drawImage(icon, bx - r, by - r, r * 2, r * 2); ctx.restore();
+    }
     else {
       ctx.beginPath(); ctx.arc(bx, by, r, 0, Math.PI * 2); ctx.fillStyle = '#000'; ctx.fill();
       ctx.fillStyle = '#fff'; ctx.font = 700 + ' ' + r * 1.1 + 'px Segoe UI'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -592,11 +604,16 @@ function drawToken(t, g) {
     if (c === 'EXHAUSTION') { ctx.font = 700 + ' ' + r * 0.9 + 'px Segoe UI'; ctx.fillStyle = '#FFCF7F'; ctx.textAlign = 'center'; ctx.fillText(t.exhaustion, bx + r * 0.8, by + r * 0.8); }
   });
   (t.markers || []).slice(0, 4).forEach((m, i) => { // marcadores no lado esquerdo
-    const r = Math.max(7, size * 0.13), bx = t.x + r, by = t.y + r + i * r * 1.9;
-    ctx.beginPath(); ctx.arc(bx, by, r, 0, Math.PI * 2); ctx.fillStyle = '#26324A'; ctx.fill();
-    ctx.strokeStyle = '#8FB3FF'; ctx.lineWidth = 1.5 / S.view.z; ctx.stroke();
-    ctx.fillStyle = '#F6E9D3'; ctx.font = 700 + ' ' + r * 1.1 + 'px Segoe UI'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(m.icon || m.label[0], bx, by + 1);
+    const r = Math.max(7, size * 0.13), bx = t.x + r, by = t.y + r + i * r * 1.9, packImg = markerImage(m);
+    if (packImg) {
+      ctx.save(); ctx.beginPath(); ctx.arc(bx, by, r, 0, Math.PI * 2); ctx.clip(); ctx.drawImage(packImg, bx - r, by - r, r * 2, r * 2); ctx.restore();
+      ctx.beginPath(); ctx.arc(bx, by, r, 0, Math.PI * 2); ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5 / S.view.z; ctx.stroke();
+    } else {
+      ctx.beginPath(); ctx.arc(bx, by, r, 0, Math.PI * 2); ctx.fillStyle = '#26324A'; ctx.fill();
+      ctx.strokeStyle = '#8FB3FF'; ctx.lineWidth = 1.5 / S.view.z; ctx.stroke();
+      ctx.fillStyle = '#F6E9D3'; ctx.font = 700 + ' ' + r * 1.1 + 'px Segoe UI'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(m.icon && m.icon !== 'pack' ? m.icon : m.label[0], bx, by + 1);
+    }
     if (m.roundsLeft != null) { ctx.font = 700 + ' ' + r * 0.8 + 'px Segoe UI'; ctx.fillStyle = '#FFCF7F'; ctx.fillText(m.roundsLeft, bx + r, by + r * 0.8); }
   });
   const badgeFont = 700 + ' ' + Math.max(10, size * 0.16) + 'px Segoe UI';
@@ -1329,7 +1346,10 @@ function renderTokenExtras(t) {
   const marks = $('cbMarkers'); marks.innerHTML = '';
   for (const [i, m] of (t.markers || []).entries()) {
     const b = document.createElement('button'); b.className = 'chip on'; b.title = 'Clique para tirar';
-    b.textContent = (m.icon ? m.icon + ' ' : '') + m.label + (m.roundsLeft != null ? ' (' + m.roundsLeft + ')' : '');
+    const packImg = markerImage(m);
+    if (packImg) { const im = document.createElement('img'); im.src = packImg.src; im.alt = ''; b.append(im); }
+    else if (m.icon) b.append(m.icon + ' ');
+    b.append(m.label + (m.roundsLeft != null ? ' (' + m.roundsLeft + ')' : ''));
     b.onclick = () => saveMarkers(t, (t.markers || []).filter((_, j) => j !== i));
     marks.append(b);
   }
@@ -1500,6 +1520,8 @@ function TH(t) { return t.heightCells || t.sizeCells || 1; }
 const CONDITION_IMAGES = {};
 /** Icone da condicao (desenho proprio, preto e branco), em /mesa/icons/conditions. */
 function conditionIcon(code) {
+  const pack = S.iconMap && S.iconMap['condition:' + code];
+  if (pack) { const img = S.images[pack.imageUrl]; if (img && img !== 'loading') return img; loadImage(pack.imageUrl); }
   if (!CONDITION_IMAGES[code]) {
     const img = new Image(); img.onload = () => draw();
     img.src = '/mesa/icons/conditions/' + code.toLowerCase() + '.svg';
@@ -1567,6 +1589,78 @@ $('objImport').onclick = async () => {
   }
   $('objFiles').value = ''; if (ok) toast(ok + ' objeto(s) importado(s).', true); loadObjects();
 };
+
+// ------------------------------------------------------------------ pacote de icones da campanha
+/** Nome de arquivo -> condicao (os pacotes costumam usar o nome em ingles). */
+const CONDITION_FILES = { blind: 'BLINDED', blinded: 'BLINDED', charmed: 'CHARMED', deaf: 'DEAFENED', deafened: 'DEAFENED',
+  exhaustion: 'EXHAUSTION', exhausted: 'EXHAUSTION', frightened: 'FRIGHTENED', grappled: 'GRAPPLED', incapacitated: 'INCAPACITATED',
+  invisible: 'INVISIBLE', paralyzed: 'PARALYZED', petrified: 'PETRIFIED', poisoned: 'POISONED', prone: 'PRONE',
+  restrained: 'RESTRAINED', stunned: 'STUNNED', unconscious: 'UNCONSCIOUS' };
+/** Nomes mais comuns de marcador em portugues (o resto fica com o nome do arquivo). */
+const MARKER_NAMES = { bane: 'Perdição', banished: 'Banido', chilltouch: 'Toque arrepiante', confused: 'Confuso', cursed: 'Amaldiçoado',
+  dead: 'Morto', drowning: 'Afogando', dying: 'Morrendo', encumbered: 'Sobrecarregado', frozen: 'Congelado', hexed: 'Enfeitiçado (Hex)',
+  marked: 'Marcado', mockingblade: 'Lâmina zombeteira', onfire: 'Em chamas', silenced: 'Silenciado', slowed: 'Lento', suffocating: 'Sufocando',
+  aid: 'Auxílio', aura: 'Aura', blessed: 'Abençoado', burrowing: 'Escavando', climbing: 'Escalando', enlarged: 'Aumentado', flying: 'Voando',
+  hasted: 'Acelerado', heroism: 'Heroísmo', hidden: 'Escondido', inspiration: 'Inspiração', mirrorimage: 'Imagem espelhada',
+  raging: 'Em fúria', ritual: 'Ritual', sacredweapon: 'Arma sagrada', shrunken: 'Reduzido', stable: 'Estável', warded: 'Protegido',
+  concentrating: 'Concentração', heldaction: 'Ação preparada' };
+
+async function loadIcons() {
+  try { S.icons = await api('/live/campaign/' + S.campaign.id + '/icons'); } catch (e) { S.icons = []; }
+  S.iconMap = Object.fromEntries(S.icons.map(i => [i.key, i]));
+  S.icons.forEach(i => loadImage(i.imageUrl));
+  const conditions = S.icons.filter(i => i.key.startsWith('condition:')).length, markers = S.icons.length - conditions;
+  if ($('iconSummary')) $('iconSummary').textContent = S.icons.length ? conditions + ' condição(ões), ' + markers + ' marcador(es)' : 'Sem pacote: usando os ícones padrão.';
+  renderMarkerPresets(); draw();
+  if (S.selected) renderCombatHeader(S.selected);
+}
+/** Imagem do pacote pra um marcador posto com icone "pack" (pelo rotulo). */
+function markerImage(m) {
+  if (m.icon !== 'pack') return null;
+  const icon = S.icons.find(i => i.key.startsWith('marker:') && i.label === m.label);
+  const img = icon && S.images[icon.imageUrl];
+  if (icon && !img) loadImage(icon.imageUrl);
+  return img && img !== 'loading' ? img : null;
+}
+/** Lista de marcadores: os do pacote primeiro, depois os de emoji. */
+function renderMarkerPresets() {
+  const sel = $('cbMarkerPreset'); sel.innerHTML = '';
+  for (const i of S.icons.filter(x => x.key.startsWith('marker:'))) sel.append(new Option('▣ ' + i.label, 'p:' + i.label));
+  MARKER_PRESETS.forEach(([icon, label], i) => sel.append(new Option(icon + ' ' + label, 'e:' + i)));
+}
+$('cbMarkerAdd').onclick = () => {
+  const t = S.selected; if (!t) return;
+  const v = $('cbMarkerPreset').value;
+  let icon, label;
+  if (v.startsWith('p:')) { icon = 'pack'; label = v.slice(2); }
+  else {
+    [icon, label] = MARKER_PRESETS[Number(v.slice(2))];
+    if (label === 'Outro...') { label = prompt('Nome do marcador:'); if (!label) return; }
+  }
+  const rounds = $('cbMarkerRounds').value === '' ? null : Number($('cbMarkerRounds').value);
+  saveMarkers(t, [...(t.markers || []), { label, icon, roundsLeft: rounds }]); $('cbMarkerRounds').value = '';
+};
+/** Importa o pacote: cada imagem sobe e vira icone de condicao (pelo nome) ou marcador. */
+$('iconImport').onclick = async () => {
+  const files = [...$('iconFiles').files].filter(f => /\.(png|jpe?g|webp|gif)$/i.test(f.name));
+  if (!files.length) return toast('Escolha as imagens do pacote.');
+  let conditions = 0, markers = 0;
+  for (const file of files) {
+    const base = file.name.replace(/\.[^.]+$/, ''), slug = base.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const code = CONDITION_FILES[slug];
+    const key = code ? 'condition:' + code : 'marker:' + base.replace(/[^\p{L}0-9 _'().-]/gu, ' ').trim().slice(0, 70);
+    const label = code ? conditionLabel(code === 'EXHAUSTION' ? 'EXHAUSTION' : code) : (MARKER_NAMES[slug] || base.replace(/[-_]+/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2'));
+    try {
+      const fd = new FormData(); fd.append('campaignId', S.campaign.id); fd.append('file', file);
+      const image = await api('/image', { method: 'POST', body: fd });
+      await api('/live/campaign/' + S.campaign.id + '/icons', { method: 'POST', body: { key, label: code === 'EXHAUSTION' ? 'Exaustão' : label, imageId: image.id } });
+      code ? conditions++ : markers++;
+    } catch (err) { toast(file.name + ': ' + err.message); }
+  }
+  $('iconFiles').value = ''; toast(conditions + ' condição(ões) e ' + markers + ' marcador(es) importados.', true); loadIcons();
+};
+$('iconClear').onclick = () => confirm('Tirar todos os ícones do pacote desta campanha? (volta aos ícones padrão)')
+  && api('/live/campaign/' + S.campaign.id + '/icons', { method: 'DELETE' }).then(loadIcons).catch(err => toast(err.message));
 
 // ------------------------------------------------------------------ inicio
 S.token = load('customizr_token');

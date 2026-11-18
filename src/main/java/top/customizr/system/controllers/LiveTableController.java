@@ -3,6 +3,8 @@ package top.customizr.system.controllers;
 import top.customizr.system.dto.ConditionsRequest;
 import top.customizr.system.dto.DoorRequest;
 import top.customizr.system.dto.MarkersRequest;
+import top.customizr.system.dto.CampaignIconRequest;
+import top.customizr.system.dto.CampaignIconResponse;
 import top.customizr.system.dto.MapObjectRequest;
 import top.customizr.system.dto.MapObjectResponse;
 import top.customizr.system.dto.PlaceObjectRequest;
@@ -190,6 +192,30 @@ public class LiveTableController {
     public ResponseEntity<TokenResponse> markers(@PathVariable UUID tokenId, @RequestBody MarkersRequest request,
                                                  @AuthenticationPrincipal UserDetails user) {
         return ResponseEntity.ok(live.updateMarkers(tokenId, request, user.getUsername()));
+    }
+
+    @GetMapping("/campaign/{campaignId}/icons")
+    public ResponseEntity<List<CampaignIconResponse>> icons(@PathVariable UUID campaignId, @AuthenticationPrincipal UserDetails user) {
+        return ResponseEntity.ok(live.listIcons(campaignId, user.getUsername()));
+    }
+
+    /** Icone do pacote da campanha (condition:CODIGO ou marker:Nome); a imagem sobe antes por POST /image. */
+    @PostMapping("/campaign/{campaignId}/icons")
+    public ResponseEntity<CampaignIconResponse> putIcon(@PathVariable UUID campaignId, @RequestBody CampaignIconRequest request,
+                                                        @AuthenticationPrincipal UserDetails user) {
+        return ResponseEntity.ok(live.putIcon(campaignId, request, user.getUsername()));
+    }
+
+    @DeleteMapping("/icons/{iconId}")
+    public ResponseEntity<Void> deleteIcon(@PathVariable UUID iconId, @AuthenticationPrincipal UserDetails user) {
+        live.deleteIcon(iconId, user.getUsername());
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/campaign/{campaignId}/icons")
+    public ResponseEntity<Void> clearIcons(@PathVariable UUID campaignId, @AuthenticationPrincipal UserDetails user) {
+        live.clearIcons(campaignId, user.getUsername());
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/campaign/{campaignId}/objects")

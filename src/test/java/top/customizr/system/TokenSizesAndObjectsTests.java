@@ -138,6 +138,31 @@ class TokenSizesAndObjectsTests {
         assertTrue(live.listObjects(campaign.getId(), master).isEmpty());
     }
 
+    @Test
+    void theCampaignIconPackReplacesConditionIconsAndAddsMarkers() {
+        ImageResponse poisoned = imageService.upload(campaign.getId(), PNG, "Poisoned.png", master);
+        byte[] other = PNG.clone();
+        other[15] = 'X'; // outra imagem (outro hash)
+        ImageResponse blessed = imageService.upload(campaign.getId(), other, "Blessed.png", master);
+
+        live.putIcon(campaign.getId(), new top.customizr.system.dto.CampaignIconRequest("condition:POISONED", "Envenenado", poisoned.id()), master);
+        live.putIcon(campaign.getId(), new top.customizr.system.dto.CampaignIconRequest("condition:POISONED", "Envenenado", blessed.id()), master);
+        live.putIcon(campaign.getId(), new top.customizr.system.dto.CampaignIconRequest("marker:Blessed", "Abençoado", blessed.id()), master);
+        var icons = live.listIcons(campaign.getId(), ana);
+        assertEquals(2, icons.size(), "a mesma key troca a imagem, nao duplica");
+        assertEquals(blessed.url(), icons.stream().filter(i -> i.key().equals("condition:POISONED")).findFirst().orElseThrow().imageUrl());
+
+        assertThrows(ResponseStatusException.class, () -> live.putIcon(campaign.getId(),
+                new top.customizr.system.dto.CampaignIconRequest("condition:SLEEPY", null, poisoned.id()), master), "condicao que nao existe");
+        assertThrows(AccessDeniedException.class, () -> live.putIcon(campaign.getId(),
+                new top.customizr.system.dto.CampaignIconRequest("marker:Mine", null, poisoned.id()), ana));
+
+        live.deleteIcon(icons.getFirst().id(), master);
+        assertEquals(1, live.listIcons(campaign.getId(), master).size());
+        live.clearIcons(campaign.getId(), master);
+        assertTrue(live.listIcons(campaign.getId(), master).isEmpty());
+    }
+
     private TokenRequest monster(String name) {
         UUID id = monsterService.search(name, null, null).getFirst().id();
         return new TokenRequest(null, 0.0, 0.0, null, null, false, null, null, id, null, null, null);

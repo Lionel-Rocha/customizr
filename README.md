@@ -234,6 +234,8 @@ Abaixo estão todos os endpoints atualmente expostos pelo backend da aplicação
 | `PUT` | `/live/scenes/{sceneId}/vision` | Liga/desliga a visão dinâmica da cena (`enabled`). |
 | `PUT` | `/live/tokens/{tokenId}/vision` | Alcance da visão do token em pés (`visionFt`; vazio = até onde as paredes deixam). |
 | `PUT` | `/live/tokens/{tokenId}/placement` | Altura em pés (`elevationFt`; o dono também muda), tamanho (`widthCells` × `heightCells`, de 0,5 a 30 casas), camada (`layer`: SCENERY, BATTLE, OVERHEAD, GM) e fichas que viajam no token (`memberIds`, ex.: a caravana; o dono de qualquer uma move o token e vê por ele). Camada e fichas: só o mestre. |
+| `GET` / `POST` / `DELETE` | `/live/campaign/{campaignId}/icons` | Pacote de ícones da campanha: `key` `condition:CODIGO` troca o ícone da condição, `marker:Nome` vira marcador pronto (`imageId` de `POST /image`). Todos da campanha leem; só o mestre põe ou tira. |
+| `DELETE` | `/live/icons/{iconId}` | Tira um ícone do pacote. |
 | `GET` / `POST` | `/live/campaign/{campaignId}/objects` | Biblioteca de objetos da campanha (mesa, barril...): `name`, `imageId` (de `POST /image`), `widthCells`, `heightCells`, `layer` (padrão: cenário). Só o mestre. |
 | `PUT` / `DELETE` | `/live/objects/{objectId}` | Edita / tira um objeto da biblioteca. |
 | `POST` | `/live/scenes/{sceneId}/objects/{objectId}` | Põe o objeto no mapa (`x`, `y`, `rotation`): vira um token da camada dele, com a imagem e o tamanho. |
@@ -400,6 +402,9 @@ A parte da mesa de jogo, desenvolvida à parte em JavaFX, foi trazida para cá n
 * **Objetos:** cada campanha tem uma biblioteca de imagens de objetos (mesa, barril, árvore...).
   * A tela importa várias imagens de uma vez; o tamanho inicial sai da proporção da imagem (200×100 vira 2×1).
   * Posto no mapa, o objeto vira um token da camada de cenário, com a imagem, o tamanho e o giro.
+* **Pacote de ícones da campanha:** o mestre importa um pacote de marcadores (ex.: os "D&D Light Status Markers").
+  * O nome do arquivo decide o que é: Poisoned.png troca o ícone de envenenado; Blessed, On-Fire, Concentrating... viram marcadores prontos, com nome em português.
+  * As imagens ficam no banco, junto da campanha. Pacote de terceiros não entra no repositório.
 * **Ícones das condições:** desenho próprio em preto e branco (`static/mesa/icons/conditions`), um para cada uma das 15 condições de 2024, incluindo exaustão, que aparece no token com o nível.
 
 Ficaram de fora por não se encaixarem numa API REST sem uma interface de jogo:
