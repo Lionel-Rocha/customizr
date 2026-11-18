@@ -137,6 +137,28 @@ public class CharacterSheetView {
         void rollD20(CharacterSheet sheet, String label, int modifier, RollKind kind, Ability ability, RollMode mode,
                      boolean hidden);
 
+        /** Igual a rollD20, mas avisa o d20 natural quando a rolagem voltar (pela rede, quem rola e o servidor). */
+        default void rollD20Then(CharacterSheet sheet, String label, int modifier, RollKind kind, Ability ability,
+                                 RollMode mode, boolean hidden, java.util.function.IntConsumer onNatural) {
+            rollD20(sheet, label, modifier, kind, ability, mode, hidden);
+        }
+
+        /**
+         * Ataque completo num botao so: rola o acerto e, em seguida, o dano. 20 natural dobra todos os dados do
+         * dano; 1 natural nao rola dano. Ataque sem bonus (CD de salvaguarda) so rola o dano.
+         */
+        default void attack(CharacterSheet sheet, Attack attack, RollMode mode, boolean hidden) {
+            var bonus = attack.attackBonus();
+            if (bonus.isPresent()) rollD20(sheet, "Ataque: " + attack.getName(), bonus.getAsInt(), RollKind.ATTACK, null, mode, hidden);
+            attack.damageExpression().ifPresent(expr -> roll(sheet, "Dano: " + attack.getName(), expr, hidden));
+        }
+
+        /** Iniciativa: com o token no mapa, entra na ordem de combate; sem token, so rola no chat. */
+        default void rollInitiative(CharacterSheet sheet, RollMode mode, boolean hidden) {
+            rollD20(sheet, "Iniciativa", sheet.initiative(), RollKind.INITIATIVE, Ability.DEXTERITY, mode, hidden);
+            if (!sheet.getInitiativeDice().isBlank()) roll(sheet, "Iniciativa (dados extras)", sheet.getInitiativeDice(), hidden);
+        }
+
         /** Rola uma expressao livre ("1d8+3") com um rotulo. hidden = so quem
          * rolou e o mestre veem. */
         void roll(CharacterSheet sheet, String label, String expression, boolean hidden);
@@ -590,10 +612,11 @@ public class CharacterSheetView {
     // ==================================================================
 
     private Node buildCombatTab() {
-        // --- CA ---
+        // --- CA --- (sem a caixa de escudo: escudo e itens magicos entram no valor da CA)
+        if (sheet.migrateShieldIntoArmorClass()) changedLater();
         VBox ac = card(sectionLabel("CLASSE DE ARMADURA"),
-                row(new Label("CA base"), nullableIntField(sheet::getArmorClass, sheet::setArmorClass, 3),
-                        checkBox("Escudo (+2)", sheet::isShieldEquipped, sheet::setShieldEquipped)),
+                row(new Label("CA"), nullableIntField(sheet::getArmorClass, sheet::setArmorClass, 3)),
+                mutedLabel("Some armadura, escudo e itens (ex.: Anel de Proteção)."),
                 bigStat("CA total", derived(() -> String.valueOf(sheet.totalArmorClass()))));
 
         // --- PV ---
@@ -621,42 +644,72 @@ public class CharacterSheetView {
                 row(new Label("Atual"), hpCurrent, new Label("Max"), hpMax, new Label("Temp"), hpTemp),
                 row(amount, damage, heal));
 
-        // --- Dados de vida ---
-        ComboBox<String> hitDie = new ComboBox<>();
-        hitDie.getItems().addAll(HIT_DICE);
-        hitDie.setValue(sheet.getHitDie());
-        hitDie.valueProperty().addListener((obs, old, v) -> {
-            sheet.setHitDie(v);
-            changed();
-        });
-        Button spendHitDie = new Button("Gastar 1 (descanso curto)");
-        spendHitDie.setOnAction(e -> onSpendHitDie());
+        // --- Dados de vida: quantos de cada tipo (multiclasse) e gastar o tipo escolhido ---
+        GridPane dice = new GridPane();
+        dice.setHgap(8);
+        dice.setVgap(4);
+        dice.add(mutedLabel("Dado"), 0, 0);
+        dice.add(mutedLabel("Total"), 1, 0);
+        dice.add(mutedLabel("Restam"), 2, 0);
+        int diceRow = 1;
+        for (String die : CharacterSheet.HIT_DIE_TYPES) {
+            Spinner<Integer> total = new Spinner<>(0, 40, sheet.hitDiceTotals().getOrDefault(die, 0));
+            total.setPrefWidth(70);
+            total.setEditable(true);
+            total.valueProperty().addListener((obs, old, v) -> {
+                if (v == null || v.equals(sheet.hitDiceTotals().getOrDefault(die, 0))) return;
+                sheet.setHitDiceCount(die, v);
+                changed();
+            });
+            derivedUpdaters.add(() -> {
+                int now = sheet.hitDiceTotals().getOrDefault(die, 0);
+                if (!Integer.valueOf(now).equals(total.getValue())) total.getValueFactory().setValue(now);
+            });
+            Button spend = new Button("Gastar");
+            spend.setTooltip(new Tooltip("Descanso curto: rola 1" + die + " + CON e cura"));
+            spend.setOnAction(e -> onSpendHitDie(die));
+            derivedUpdaters.add(() -> spend.setDisable(sheet.hitDiceRemainingOf(die) <= 0));
+            dice.add(new Label(die), 0, diceRow);
+            dice.add(total, 1, diceRow);
+            dice.add(derived(() -> sheet.hitDiceRemainingOf(die) + " / " + sheet.hitDiceTotals().getOrDefault(die, 0)), 2, diceRow);
+            dice.add(spend, 3, diceRow);
+            diceRow++;
+        }
         Button longRest = new Button("Descanso longo");
         longRest.setOnAction(e -> {
             sheet.longRest();
             actions.chat(sheet, sheet.getName() + " terminou um descanso longo (PV, dados de vida e slots recuperados).");
             changed();
         });
-        VBox hitDice = card(sectionLabel("DADOS DE VIDA"),
-                row(new Label("Dado"), hitDie,
-                        derived(() -> "Restantes: " + sheet.hitDiceRemaining() + " / " + sheet.hitDiceMax())),
-                row(spendHitDie, longRest));
+        VBox hitDice = card(sectionLabel("DADOS DE VIDA"), dice,
+                derived(() -> "Restam " + sheet.hitDiceRemaining() + " de " + sheet.hitDiceMax()), row(longRest));
 
-        // --- Testes contra a morte ---
+        // --- Testes contra a morte: a rolagem ja marca e aplica (20 volta com 1 PV; 3 sucessos = estavel) ---
         HBox successes = deathSaveBoxes(true);
         HBox failures = deathSaveBoxes(false);
         Button deathRoll = new Button("Rolar teste contra a morte");
-        deathRoll.setOnAction(e -> rollD20("Teste contra a morte (10+ sucesso; 20 = volta com 1 PV; 1 = duas falhas)",
-                0, RollKind.DEATH_SAVE, null));
+        deathRoll.setOnAction(e -> onDeathSave());
+        derivedUpdaters.add(() -> deathRoll.setDisable(sheet.getHpCurrent() == null || sheet.getHpCurrent() > 0
+                || sheet.getDeathSaveFailures() >= 3));
         VBox death = card(sectionLabel("TESTES CONTRA A MORTE"),
-                row(new Label("Sucessos"), successes), row(new Label("Falhas    "), failures), deathRoll);
+                row(new Label("Sucessos"), successes), row(new Label("Falhas    "), failures), deathRoll,
+                mutedLabel("10+ sucesso · 1 = duas falhas · 20 = volta com 1 PV"));
 
-        // --- Iniciativa, deslocamento, tamanho, percepcao passiva ---
-        Button initRoll = derivedButton(() -> signed(sheet.initiative()), () -> rollD20("Iniciativa", sheet.initiative(), RollKind.INITIATIVE, Ability.DEXTERITY));
-        initRoll.setStyle(BIG_NUMBER_STYLE);
+        // --- Iniciativa: DES + bonus extra + dados extras, e o botao de rolar ---
+        Button initRoll = new Button("Rolar iniciativa");
+        initRoll.getStyleClass().add("button-primary");
+        initRoll.setOnAction(e -> actions.rollInitiative(sheet, rollMode, hiddenRolls));
+        TextField initDice = textField(sheet::getInitiativeDice, sheet::setInitiativeDice);
+        initDice.setPromptText("ex.: 1d4");
+        initDice.setPrefColumnCount(6);
+        Label initTotal = derived(() -> signed(sheet.initiative())
+                + (sheet.getInitiativeDice().isBlank() ? "" : " + " + sheet.getInitiativeDice()));
+        initTotal.setStyle(BIG_NUMBER_STYLE);
         VBox misc = card(sectionLabel("INICIATIVA / DESLOCAMENTO"),
-                row(new Label("Iniciativa"), initRoll, new Label("bonus extra"),
-                        intField(sheet::getInitiativeBonus, sheet::setInitiativeBonus, 2)),
+                row(new Label("Iniciativa"), initTotal, initRoll),
+                row(new Label("DES"), derived(() -> signed(CharacterSheet.abilityModifier(sheet.getDexterity()))),
+                        new Label("bônus extra"), intField(sheet::getInitiativeBonus, sheet::setInitiativeBonus, 2),
+                        new Label("dados"), initDice),
                 row(new Label("Deslocamento"), textField(sheet::getSpeed, sheet::setSpeed),
                         new Label("Tamanho"), textField(sheet::getSize, sheet::setSize)),
                 bigStat("Percepção passiva", derived(() -> String.valueOf(sheet.passivePerception()))));
@@ -810,17 +863,23 @@ public class CharacterSheetView {
             if (!shown[0].equals(resourcesSignature(sheet))) rebuild[0].run();
         });
 
+        // O texto de exemplo era confundido com um nome ja escrito (campo vazio = o botao nao fazia nada).
         TextField newName = new TextField();
-        newName.setPromptText("Furia");
+        newName.setPromptText("nome do recurso");
         newName.setPrefColumnCount(12);
         Spinner<Integer> newMax = new Spinner<>(1, 99, 3);
         newMax.setPrefWidth(70);
+        newMax.setEditable(true);
         javafx.scene.control.ComboBox<String> newRecharge = new javafx.scene.control.ComboBox<>();
         newRecharge.getItems().addAll("descanso longo", "descanso curto", "consumivel");
         newRecharge.setValue("descanso longo");
         Button add = new Button("Adicionar");
+        add.disableProperty().bind(newName.textProperty().isEmpty());
+        add.setTooltip(new Tooltip("Escreva o nome (ex.: Fúria) e os usos"));
+        newName.setOnAction(e -> add.fire());
         add.setOnAction(e -> {
             if (newName.getText().isBlank()) return;
+            newMax.increment(0);   // aplica o numero digitado no campo de usos
             String recharge = switch (newRecharge.getValue()) {
                 case "descanso curto" -> com.vttcaseiro.character.Resource.SHORT;
                 case "consumivel" -> com.vttcaseiro.character.Resource.NEVER;
@@ -860,13 +919,37 @@ public class CharacterSheetView {
         changed();
     }
 
-    private void onSpendHitDie() {
-        if (!sheet.spendHitDie()) {
-            actions.chat(sheet, sheet.getName() + " não tem mais dados de vida.");
+    /** Mudanca feita enquanto a tela monta (ex.: CA antiga com escudo): grava logo depois. */
+    private void changedLater() {
+        javafx.application.Platform.runLater(this::changed);
+    }
+
+    /** Teste contra a morte: rola, marca a caixa certa e aplica o efeito (o resultado vai pro chat). */
+    private void onDeathSave() {
+        CharacterSheet target = sheet;
+        actions.rollD20Then(target, "Teste contra a morte", 0, RollKind.DEATH_SAVE, null, rollMode, hiddenRolls, natural -> {
+            CharacterSheet.DeathSaveOutcome outcome = target.applyDeathSave(natural);
+            String text = switch (outcome) {
+                case REVIVED -> target.getName() + " tira 20 no teste contra a morte e volta com 1 PV!";
+                case SUCCESS -> target.getName() + ": sucesso no teste contra a morte (" + target.getDeathSaveSuccesses() + "/3).";
+                case STABLE -> target.getName() + " está estável (3 sucessos): fica a 0 PV, inconsciente, sem rolar mais.";
+                case FAILURE -> target.getName() + ": falha no teste contra a morte (" + target.getDeathSaveFailures() + "/3)"
+                        + (natural <= 1 ? " -- 1 natural conta como duas." : ".");
+                case DEAD -> target.getName() + " morreu (3 falhas no teste contra a morte).";
+                case NONE -> null;
+            };
+            if (text != null) actions.chat(target, text);
+            if (target == sheet) changed();
+        });
+    }
+
+    private void onSpendHitDie(String die) {
+        if (!sheet.spendHitDie(die)) {
+            actions.chat(sheet, sheet.getName() + " não tem mais " + die + " de vida.");
             return;
         }
         int con = CharacterSheet.abilityModifier(sheet.getConstitution());
-        String expression = "1" + sheet.getHitDie() + (con >= 0 ? "+" + con : String.valueOf(con));
+        String expression = "1" + die + (con >= 0 ? "+" + con : String.valueOf(con));
         // O valor curado e aplicado aqui mesmo: rola localmente pra saber o
         // numero, e manda o resultado pro chat.
         try {
@@ -943,40 +1026,27 @@ public class CharacterSheetView {
                 changed();
             }
         });
-        Button rollAttack = new Button("Rolar ataque");
-        rollAttack.setOnAction(e -> {
+        // Um botao so: acerto e dano juntos. 20 natural dobra os dados do dano; 1 natural nao rola dano.
+        Button attackBtn = new Button("Atacar");
+        attackBtn.getStyleClass().add("button-primary");
+        attackBtn.setTooltip(new Tooltip("Rola o acerto e o dano juntos. Crítico (20) dobra todos os dados do dano; "
+                + "falha crítica (1) não rola dano. Com CD (sem bônus de acerto), rola só o dano."));
+        attackBtn.disableProperty().bind(table.getSelectionModel().selectedItemProperty().isNull());
+        attackBtn.setOnAction(e -> {
             Attack a = table.getSelectionModel().getSelectedItem();
             if (a == null) return;
-            var bonus = a.attackBonus();
-            if (bonus.isPresent()) {
-                rollD20("Ataque: " + a.getName(), bonus.getAsInt(), RollKind.ATTACK, null);
-            } else {
+            if (a.attackBonus().isEmpty() && a.damageExpression().isEmpty()) {
                 actions.chat(sheet, sheet.getName() + " usa " + a.getName()
                         + (a.getAttackBonusOrDc().isBlank() ? "" : " (" + a.getAttackBonusOrDc() + ")"));
+                return;
             }
+            actions.attack(sheet, a, rollMode, hiddenRolls);
         });
-        Button rollDamage = new Button("Rolar dano");
-        rollDamage.setOnAction(e -> {
-            Attack a = table.getSelectionModel().getSelectedItem();
-            if (a == null) return;
-            a.damageExpression().ifPresentOrElse(
-                    expr -> actions.roll(sheet, "Dano: " + a.getName() + " (" + a.getDamageAndType() + ")", expr, hiddenRolls),
-                    () -> actions.chat(sheet, a.getName() + ": " + a.getDamageAndType()));
-        });
-        Button rollCrit = new Button("Dano crítico");
-        rollCrit.setTooltip(new Tooltip("Dobra os dados (não o modificador): 1d8+3 vira 2d8+3"));
-        rollCrit.setOnAction(e -> {
-            Attack a = table.getSelectionModel().getSelectedItem();
-            if (a == null) return;
-            a.damageExpression().ifPresent(expr -> actions.roll(sheet,
-                    "Dano CRÍTICO: " + a.getName() + " (" + a.getDamageAndType() + ")",
-                    com.vttcaseiro.dice.DiceRoller.doubleDice(expr), hiddenRolls));
-        });
-        Label hint = new Label("Clique duplo para editar. Bonus como \"+5\" rola o d20; \"1d8+3 cortante\" rola o dano. "
-                + "Botão direito numa rolagem de dano no chat aplica no token selecionado.");
+        Label hint = new Label("Clique duplo para editar (ou para atacar com o botão). Bonus como \"+5\" rola o d20; "
+                + "\"1d8+3 cortante\" rola o dano. Com alvos marcados no mapa, o dano cai sozinho em quem foi acertado.");
         hint.setWrapText(true);
         hint.getStyleClass().add("label-muted");
-        return new VBox(6, table, row(add, remove, rollAttack, rollDamage, rollCrit), hint);
+        return new VBox(6, table, row(attackBtn, add, remove), hint);
     }
 
     private boolean editAttack(Attack attack) {
@@ -986,25 +1056,64 @@ public class CharacterSheetView {
         TextField damage = new TextField(attack.getDamageAndType());
         damage.setPromptText("1d8+3 cortante");
         TextField notes = new TextField(attack.getNotes());
-        // Atalho: preenche o bonus a partir de FOR/DES + proficiencia.
-        Button useStr = new Button("FOR+prof");
-        useStr.setOnAction(e -> bonus.setText(signed(CharacterSheet.abilityModifier(sheet.getStrength()) + sheet.proficiencyBonus())));
-        Button useDex = new Button("DES+prof");
-        useDex.setOnAction(e -> bonus.setText(signed(CharacterSheet.abilityModifier(sheet.getDexterity()) + sheet.proficiencyBonus())));
-        Button useSpell = new Button("Magia");
-        useSpell.setOnAction(e -> bonus.setText(signed(sheet.spellAttackBonus())));
+        // Qualquer atributo (arma com FOR, DES, CAR do Pacto da Lâmina...) ou o de conjuração.
+        ComboBox<String> ability = new ComboBox<>();
+        ability.getItems().add("(digitar o bônus)");
+        for (Ability a : Ability.values()) ability.getItems().add(a.abbreviationPt());
+        ability.getItems().add("Magia");
+        ability.setValue("(digitar o bônus)");
+        CheckBox proficient = new CheckBox("proficiente");
+        proficient.setSelected(true);
+        CheckBox addToDamage = new CheckBox("somar o atributo no dano");
+        addToDamage.setSelected(true);
+        Runnable fill = () -> {
+            String v = ability.getValue();
+            if (v == null || v.startsWith("(")) return;
+            if (v.equals("Magia")) {
+                bonus.setText(signed(sheet.spellAttackBonus()));
+                return;
+            }
+            Ability a = abilityByAbbreviation(v);
+            bonus.setText(signed(CharacterSheet.abilityModifier(sheet.abilityScore(a))
+                    + (proficient.isSelected() ? sheet.proficiencyBonus() : 0)));
+        };
+        ability.valueProperty().addListener((obs, old, v) -> fill.run());
+        proficient.selectedProperty().addListener((obs, old, v) -> fill.run());
         boolean ok = formDialog("Ataque", List.of(
                 labeled("Nome", name),
-                labeled("Bonus / CD", new HBox(4, bonus, useStr, useDex, useSpell)),
-                labeled("Dano e tipo", damage),
+                labeled("Atributo", new HBox(8, ability, proficient)),
+                labeled("Bonus / CD", bonus),
+                labeled("Dano e tipo", new HBox(8, damage, addToDamage)),
                 labeled("Notas", notes)));
         if (ok) {
             attack.setName(name.getText().trim());
             attack.setAttackBonusOrDc(bonus.getText().trim());
-            attack.setDamageAndType(damage.getText().trim());
+            String dmg = damage.getText().trim();
+            String chosen = ability.getValue();
+            if (addToDamage.isSelected() && chosen != null && !chosen.startsWith("(") && !chosen.equals("Magia")) {
+                dmg = withDamageModifier(dmg, CharacterSheet.abilityModifier(sheet.abilityScore(abilityByAbbreviation(chosen))));
+            }
+            attack.setDamageAndType(dmg);
             attack.setNotes(notes.getText().trim());
         }
         return ok;
+    }
+
+    private static Ability abilityByAbbreviation(String abbreviation) {
+        for (Ability a : Ability.values()) if (a.abbreviationPt().equals(abbreviation)) return a;
+        return Ability.STRENGTH;
+    }
+
+    /**
+     * Troca o modificador fixo do dano pelo do atributo: "1d8+2 cortante" com +4 vira "1d8+4 cortante";
+     * "2d6 fogo" vira "2d6+4 fogo". Os dados e o tipo ficam como estao.
+     */
+    static String withDamageModifier(String damage, int modifier) {
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("^((?:\\d*d\\d+)(?:\\s*\\+\\s*\\d*d\\d+)*)(\\s*[+-]\\s*\\d+)?(.*)$")
+                .matcher(damage == null ? "" : damage.trim());
+        if (!m.matches()) return damage;
+        String mod = modifier == 0 ? "" : (modifier > 0 ? "+" + modifier : String.valueOf(modifier));
+        return m.group(1).replaceAll("\\s+", "") + mod + m.group(3);
     }
 
     // ==================================================================

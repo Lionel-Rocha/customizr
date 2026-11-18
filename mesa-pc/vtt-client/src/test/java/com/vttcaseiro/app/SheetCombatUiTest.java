@@ -1,0 +1,310 @@
+package com.vttcaseiro.app;
+
+import com.vttcaseiro.character.CharacterSheet;
+import com.vttcaseiro.library.LibraryStorage;
+import com.vttcaseiro.repository.MesaRepository;
+import com.vttcaseiro.service.CharacterService;
+import com.vttcaseiro.view.CharacterSheetView;
+import javafx.application.Platform;
+import javafx.scene.Node;
+import javafx.scene.Parent;
+import javafx.scene.control.Button;
+import javafx.scene.control.Label;
+import javafx.scene.control.TextField;
+import javafx.stage.Stage;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+/**
+ * Aba Combate da ficha, com a tela montada de verdade: clica nos botoes como o jogador clicaria.
+ * Pula sozinho onde nao ha tela.
+ */
+class SheetCombatUiTest {
+
+    private static boolean fxReady;
+
+    @BeforeAll
+    static void startFx() {
+        if (Boolean.getBoolean("vtt.skipUi") || java.awt.GraphicsEnvironment.isHeadless()) return;
+        try {
+            CountDownLatch started = new CountDownLatch(1);
+            Platform.startup(started::countDown);
+            fxReady = started.await(10, TimeUnit.SECONDS);
+        } catch (IllegalStateException alreadyStarted) {
+            fxReady = true;
+        } catch (Throwable ex) {
+            fxReady = false;
+        }
+        if (fxReady) Platform.setImplicitExit(false);
+    }
+
+    interface ThrowingRunnable {
+        void run() throws Exception;
+    }
+
+    private static void onFx(ThrowingRunnable r) throws Exception {
+        AtomicReference<Throwable> error = new AtomicReference<>();
+        CountDownLatch done = new CountDownLatch(1);
+        Platform.runLater(() -> {
+            try {
+                r.run();
+            } catch (Throwable t) {
+                error.set(t);
+            } finally {
+                done.countDown();
+            }
+        });
+        assertTrue(done.await(60, TimeUnit.SECONDS), "acao na tela demorou demais");
+        if (error.get() instanceof Exception e) throw e;
+        if (error.get() instanceof Error e) throw e;
+    }
+
+    private static Object field(Object o, String name) throws Exception {
+        Field f = o.getClass().getDeclaredField(name);
+        f.setAccessible(true);
+        return f.get(o);
+    }
+
+    private static Object call(Object o, String name, Class<?>[] types, Object... args) throws Exception {
+        Method m = o.getClass().getDeclaredMethod(name, types);
+        m.setAccessible(true);
+        return m.invoke(o, args);
+    }
+
+    static List<Node> find(Node root, Predicate<Node> test) {
+        List<Node> out = new ArrayList<>();
+        if (test.test(root)) out.add(root);
+        if (root instanceof Parent p) for (Node c : p.getChildrenUnmodifiable()) out.addAll(find(c, test));
+        // abas: o conteudo de cada Tab nao e filho direto do TabPane
+        if (root instanceof javafx.scene.control.TabPane tp) {
+            for (var tab : tp.getTabs()) if (tab.getContent() != null) out.addAll(find(tab.getContent(), test));
+        }
+        if (root instanceof javafx.scene.control.ScrollPane sp && sp.getContent() != null) out.addAll(find(sp.getContent(), test));
+        return out;
+    }
+
+    /** Linha (HBox) que tem um Label com esse texto. */
+    static Parent rowWithLabel(Node root, String label) {
+        return (Parent) find(root, n -> n instanceof javafx.scene.layout.HBox h && h.getChildrenUnmodifiable().stream()
+                .anyMatch(c -> c instanceof Label l && label.equals(l.getText()))).get(0);
+    }
+
+    static Button button(Node root, String text) {
+        return (Button) find(root, n -> n instanceof Button b && text.equals(b.getText())).get(0);
+    }
+
+    record Opened(Main main, CharacterSheet sheet, CharacterSheetView view, Node root) {}
+
+    private Opened open(Path dir) throws Exception {
+        Main main = new Main();
+        AtomicReference<Opened> out = new AtomicReference<>();
+        onFx(() -> {
+            Field stageField = Main.class.getDeclaredField("stage");
+            stageField.setAccessible(true);
+            stageField.set(main, new Stage());
+            call(main, "onMesaChosen", new Class<?>[]{MesaRepository.class}, new LibraryStorage(dir));
+            CharacterService chars = (CharacterService) field(main, "characterService");
+            CharacterSheet sheet = chars.create("Elora");
+            sheet.setHpMax(20);
+            sheet.setHpCurrent(20);
+            chars.save(sheet);
+            call(main, "openSheetView", new Class<?>[]{CharacterSheet.class}, sheet);
+            @SuppressWarnings("unchecked")
+            Map<String, CharacterSheetView> views = (Map<String, CharacterSheetView>) field(main, "openSheetViews");
+            CharacterSheetView view = views.get(sheet.getId());
+            Stage stage = (Stage) field(view, "stage");
+            out.set(new Opened(main, sheet, view, stage.getScene().getRoot()));
+        });
+        return out.get();
+    }
+
+    private void close(Opened o) throws Exception {
+        onFx(() -> {
+            o.view().close();
+            for (javafx.stage.Window w : new ArrayList<>(javafx.stage.Window.getWindows())) {
+                if (w instanceof Stage s) s.close();
+            }
+        });
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<String> chat(Main main) throws Exception {
+        return ((javafx.collections.ObservableList<LogEntry>) field(main, "logEntries")).stream()
+                .map(LogEntry::text).filter(java.util.Objects::nonNull).toList();
+    }
+
+    @Test
+    void attackButtonRollsHitAndDamageTogether() throws Exception {
+        Assumptions.assumeTrue(fxReady, "sem tela disponivel");
+        Path dir = Files.createTempDirectory("sheet-ui");
+        Opened o = open(dir);
+        try {
+            onFx(() -> {
+                o.sheet().addAttack(new com.vttcaseiro.character.Attack("Espada", "+5", "1d8+3 cortante", ""));
+                o.view().reload(o.sheet());
+            });
+            // 40 ataques: cada um tem o acerto e, menos na falha critica, o dano logo em seguida
+            for (int i = 0; i < 40; i++) {
+                onFx(() -> {
+                    Stage stage = (Stage) field(o.view(), "stage");
+                    Node root = stage.getScene().getRoot();
+                    @SuppressWarnings("unchecked")
+                    javafx.scene.control.TableView<com.vttcaseiro.character.Attack> table =
+                            (javafx.scene.control.TableView<com.vttcaseiro.character.Attack>) find(root,
+                                    n -> n instanceof javafx.scene.control.TableView<?> tv && !tv.getItems().isEmpty()
+                                            && tv.getItems().get(0) instanceof com.vttcaseiro.character.Attack).get(0);
+                    table.getSelectionModel().select(0);
+                    button(root, "Atacar").fire();
+                });
+            }
+            onFx(() -> {
+                List<String> log = chat(o.main());
+                List<String> attacks = log.stream().filter(t -> t.contains("Ataque: Espada")).toList();
+                assertEquals(40, attacks.size(), log.toString());
+                long damage = log.stream().filter(t -> t.contains("Dano: Espada") || t.contains("Dano CRÍTICO: Espada")).count();
+                long fumbles = log.stream().filter(t -> t.contains("falha crítica")).count();
+                assertEquals(40, damage + fumbles, "cada ataque tem dano ou o aviso de falha critica");
+                for (String crit : log.stream().filter(t -> t.contains("Dano CRÍTICO: Espada")).toList()) {
+                    assertTrue(crit.contains("2d8"), "critico dobra os dados: " + crit);
+                }
+                assertTrue(find(((Stage) field(o.view(), "stage")).getScene().getRoot(),
+                        n -> n instanceof Button b && ("Rolar dano".equals(b.getText()) || "Dano crítico".equals(b.getText()))).isEmpty(),
+                        "os botoes separados sairam");
+            });
+        } finally {
+            close(o);
+        }
+    }
+
+    @Test
+    void deathSaveRollMarksTheBoxesAndHitDiceArePerType() throws Exception {
+        Assumptions.assumeTrue(fxReady, "sem tela disponivel");
+        Path dir = Files.createTempDirectory("sheet-ui");
+        Opened o = open(dir);
+        try {
+            onFx(() -> {
+                o.sheet().setHpCurrent(0);
+                o.sheet().setLevel(5);
+                o.view().reload(o.sheet());
+            });
+            onFx(() -> {
+                Node root = ((Stage) field(o.view(), "stage")).getScene().getRoot();
+                button(root, "Rolar teste contra a morte").fire();
+                CharacterSheet s = o.view().getSheet();
+                boolean marked = s.getDeathSaveSuccesses() + s.getDeathSaveFailures() > 0 || s.getHpCurrent() == 1;
+                assertTrue(marked, "a rolagem marcou uma caixa (ou o 20 trouxe de volta com 1 PV)");
+                assertTrue(chat(o.main()).stream().anyMatch(t -> t.contains("teste contra a morte")), "resultado no chat");
+                // ficha sem a caixa de escudo
+                assertTrue(find(root, n -> n instanceof javafx.scene.control.CheckBox c && c.getText() != null
+                        && c.getText().equals("Escudo (+2)")).isEmpty(), "caixa de escudo saiu da CA");
+                assertFalse(find(root, n -> n instanceof Button b && "Rolar iniciativa".equals(b.getText())).isEmpty());
+            });
+            onFx(() -> {
+                CharacterSheet s = o.view().getSheet();
+                s.setHitDiceCount("d10", 3);
+                s.setHitDiceCount("d8", 2);
+                o.view().reload(s);
+                Node root = ((Stage) field(o.view(), "stage")).getScene().getRoot();
+                long spendButtons = find(root, n -> n instanceof Button b && "Gastar".equals(b.getText())).size();
+                assertEquals(4, spendButtons, "um Gastar por tipo de dado");
+                assertEquals(5, s.hitDiceMax());
+            });
+        } finally {
+            close(o);
+        }
+    }
+
+    @Test
+    void portraitGoesToTheTokenAndTheMobSheetLooksLikeTheCharacterOne() throws Exception {
+        // retrato da ficha -> imagem do token (sem tela)
+        CharacterSheet sheet = new CharacterSheet("Aria");
+        com.vttcaseiro.model.TokenModel token = com.vttcaseiro.service.TokenLink.tokenFromSheet(sheet);
+        sheet.setPortraitImageAssetId("asset-novo");
+        assertTrue(com.vttcaseiro.service.TokenLink.pushSheetToToken(sheet, token));
+        assertEquals("asset-novo", token.getImageAssetId());
+
+        Assumptions.assumeTrue(fxReady, "sem tela disponivel");
+        com.vttcaseiro.mob.MobSheet mob = new com.vttcaseiro.mob.MobSheet("Goblin");
+        mob.setDexterity(14);
+        mob.getSkillBonuses().put("stealth", 6);
+        mob.getSavingThrowBonuses().put("dex", 4);
+        mob.getActions().add(new com.vttcaseiro.character.CharacterTrait("Cimitarra",
+                "Melee Weapon Attack: +4 to hit, reach 5 ft. Hit: 5 (1d6 + 2) slashing damage.", "action"));
+        java.util.List<String> rolled = new ArrayList<>();
+        com.vttcaseiro.view.MobSheetView.Actions actions = new com.vttcaseiro.view.MobSheetView.Actions() {
+            @Override public void rollD20(String label, int modifier, com.vttcaseiro.character.RollKind kind,
+                                          com.vttcaseiro.character.Ability ability, com.vttcaseiro.character.RollMode mode,
+                                          boolean hidden) { rolled.add(label + " " + modifier); }
+            @Override public void roll(String label, String expression, boolean hidden) { rolled.add(label + " " + expression); }
+            @Override public void chat(String text) { rolled.add(text); }
+            @Override public void attack(String attackLabel, int bonus, String damageLabel, String damageExpression,
+                                         com.vttcaseiro.character.RollMode mode, boolean hidden) {
+                rolled.add("ATAQUE " + attackLabel + " " + bonus + " " + damageExpression);
+            }
+            @Override public String hpText() { return "7 / 7"; }
+        };
+        onFx(() -> {
+            com.vttcaseiro.view.MobSheetView view = new com.vttcaseiro.view.MobSheetView(mob, "Goblin 2", actions, t -> { });
+            view.show();
+            Node root = javafx.stage.Window.getWindows().stream().filter(w -> w instanceof Stage s && "Goblin 2".equals(s.getTitle()))
+                    .map(w -> ((Stage) w).getScene().getRoot()).findFirst().orElseThrow();
+            assertFalse(find(root, n -> n instanceof Label l && "DESTREZA".equals(l.getText())).isEmpty(), "caixas de atributo");
+            assertFalse(find(root, n -> n instanceof Label l && "7 / 7".equals(l.getText())).isEmpty(), "PV do token");
+            Button stealth = (Button) find(root, n -> n instanceof Button b && b.getText() != null
+                    && b.getText().contains("Furtividade")).get(0);
+            stealth.fire();
+            Button save = (Button) find(root, n -> n instanceof Button b && b.getText() != null
+                    && b.getText().startsWith("◆ Salvaguarda  +4")).get(0);
+            save.fire();
+            button(root, "Atacar").fire();
+            for (javafx.stage.Window w : new ArrayList<>(javafx.stage.Window.getWindows())) if (w instanceof Stage s) s.close();
+        });
+        assertTrue(rolled.stream().anyMatch(r -> r.contains("Furtividade") && r.endsWith(" 6")), rolled.toString());
+        assertTrue(rolled.stream().anyMatch(r -> r.contains("Salvaguarda de DES") && r.endsWith(" 4")), rolled.toString());
+        assertTrue(rolled.stream().anyMatch(r -> r.startsWith("ATAQUE Goblin 2 - Ataque: Cimitarra 4 1d6+2")), rolled.toString());
+    }
+
+    @Test
+    void addingAResourceShowsAndKeepsIt() throws Exception {
+        Assumptions.assumeTrue(fxReady, "sem tela disponivel");
+        Path dir = Files.createTempDirectory("sheet-ui");
+        Opened o = open(dir);
+        try {
+            onFx(() -> {
+                Parent row = rowWithLabel(o.root(), "Novo");
+                TextField name = (TextField) find(row, n -> n instanceof TextField).get(0);
+                name.setText("Fúria");
+                button(row, "Adicionar").fire();
+                assertEquals(1, o.sheet().getResources().size(), "o recurso entrou na ficha");
+                assertEquals("Fúria", o.sheet().getResources().get(0).getName());
+            });
+            // a janela pode remontar (salvar / sincronizar): o recurso continua na tela
+            Thread.sleep(1500);
+            onFx(() -> {
+                Stage stage = (Stage) field(o.view(), "stage");
+                Node root = stage.getScene().getRoot();
+                CharacterSheet current = o.view().getSheet();
+                assertEquals(1, current.getResources().size(), "continua na ficha depois de salvar");
+                assertFalse(find(root, n -> n instanceof Label l && "Fúria".equals(l.getText())).isEmpty(),
+                        "o recurso aparece na tela");
+            });
+        } finally {
+            close(o);
+        }
+    }
+}

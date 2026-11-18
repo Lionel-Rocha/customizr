@@ -407,6 +407,43 @@ public class CharacterSheet {
         return Math.max(0, Math.min(3, count));
     }
 
+    /** O que um teste contra a morte fez (ver applyDeathSave). */
+    public enum DeathSaveOutcome {
+        /** 20 natural: volta com 1 PV. */
+        REVIVED,
+        SUCCESS,
+        /** Terceiro sucesso: estavel (continua a 0 PV, inconsciente, sem rolar mais). */
+        STABLE,
+        FAILURE,
+        /** Terceira falha. */
+        DEAD,
+        /** Nao estava a 0 PV (ou ja estava estavel/morto): nada mudou. */
+        NONE
+    }
+
+    /**
+     * Marca o resultado do d20 natural do teste contra a morte: 20 = volta com 1 PV (zera os testes e tira o
+     * Inconsciente); 10+ = sucesso; 1 = duas falhas; o resto = uma falha. Tres sucessos = estavel (os testes
+     * zeram); tres falhas = morto.
+     */
+    public DeathSaveOutcome applyDeathSave(int natural) {
+        if (hpCurrent == null || hpCurrent > 0 || deathSaveFailures >= 3) return DeathSaveOutcome.NONE;
+        if (natural >= 20) {
+            heal(1);
+            return DeathSaveOutcome.REVIVED;
+        }
+        if (natural >= 10) {
+            setDeathSaveSuccesses(deathSaveSuccesses + 1);
+            if (deathSaveSuccesses >= 3) {
+                resetDeathSaves();
+                return DeathSaveOutcome.STABLE;
+            }
+            return DeathSaveOutcome.SUCCESS;
+        }
+        setDeathSaveFailures(deathSaveFailures + (natural <= 1 ? 2 : 1));
+        return deathSaveFailures >= 3 ? DeathSaveOutcome.DEAD : DeathSaveOutcome.FAILURE;
+    }
+
     public List<Attack> getAttacks() { return attacks; }
     public void addAttack(Attack attack) { attacks.add(attack); }
 
@@ -501,10 +538,118 @@ public class CharacterSheet {
     public String getHitDie() { return hitDie; }
     public void setHitDie(String hitDie) { this.hitDie = hitDie; }
 
-    public int hitDiceMax() { return level; }
-    public int getHitDiceSpent() { return hitDiceSpent; }
-    public void setHitDiceSpent(int spent) { this.hitDiceSpent = Math.max(0, Math.min(hitDiceMax(), spent)); }
-    public int hitDiceRemaining() { return hitDiceMax() - Math.min(hitDiceSpent, hitDiceMax()); }
+    // ---------------- dados de vida por tipo (multiclasse: d10 x4 + d8 x3)
+
+    public static final List<String> HIT_DIE_TYPES = List.of("d6", "d8", "d10", "d12");
+
+    /** Quantos dados de cada tipo o personagem tem. Vazio = ficha antiga: {@code hitDie} x nivel. */
+    private java.util.Map<String, Integer> hitDicePool;
+    /** Gastos de cada tipo. */
+    private java.util.Map<String, Integer> hitDiceSpentByDie;
+
+    /** Total de cada tipo, do maior dado pro menor. */
+    public java.util.Map<String, Integer> hitDiceTotals() {
+        java.util.Map<String, Integer> out = new java.util.LinkedHashMap<>();
+        boolean any = hitDicePool != null && hitDicePool.values().stream().anyMatch(n -> n != null && n > 0);
+        for (int i = HIT_DIE_TYPES.size() - 1; i >= 0; i--) {
+            String die = HIT_DIE_TYPES.get(i);
+            int n = any ? hitDicePool.getOrDefault(die, 0) : (die.equals(hitDie) ? level : 0);
+            if (n > 0) out.put(die, n);
+        }
+        if (!any && !out.containsKey(hitDie) && level > 0) out.put(hitDie == null ? "d8" : hitDie, level);
+        return out;
+    }
+
+    /** Define quantos dados de um tipo o personagem tem (0 tira o tipo). */
+    public void setHitDiceCount(String die, int count) {
+        if (hitDicePool == null || hitDicePool.values().stream().noneMatch(n -> n != null && n > 0)) {
+            hitDicePool = new java.util.LinkedHashMap<>(hitDiceTotals());   // comeca do que a ficha antiga dizia
+        }
+        hitDicePool.put(die, Math.max(0, Math.min(40, count)));
+        hitDicePool.values().removeIf(n -> n == null || n <= 0);
+        if (hitDicePool.isEmpty()) hitDicePool.put(die, 0);
+        if (spentByDie().getOrDefault(die, 0) > Math.max(0, count)) spentByDie().put(die, Math.max(0, count));
+    }
+
+    private java.util.Map<String, Integer> spentByDie() {
+        if (hitDiceSpentByDie == null) {
+            hitDiceSpentByDie = new java.util.LinkedHashMap<>();
+            // ficha antiga: os gastos eram um numero so -> entram no maior dado
+            int legacy = hitDiceSpent;
+            for (var e : hitDiceTotals().entrySet()) {
+                int take = Math.min(legacy, e.getValue());
+                if (take > 0) hitDiceSpentByDie.put(e.getKey(), take);
+                legacy -= take;
+            }
+        }
+        return hitDiceSpentByDie;
+    }
+
+    public int hitDiceSpentOf(String die) {
+        return Math.min(spentByDie().getOrDefault(die, 0), hitDiceTotals().getOrDefault(die, 0));
+    }
+
+    public int hitDiceRemainingOf(String die) {
+        return hitDiceTotals().getOrDefault(die, 0) - hitDiceSpentOf(die);
+    }
+
+    public int hitDiceMax() {
+        return hitDiceTotals().values().stream().mapToInt(Integer::intValue).sum();
+    }
+
+    public int getHitDiceSpent() {
+        return hitDiceTotals().keySet().stream().mapToInt(this::hitDiceSpentOf).sum();
+    }
+
+    /** Gastos no total (os do maior dado primeiro) -- usado ao recortar quando o nivel cai. */
+    public void setHitDiceSpent(int spent) {
+        int left = Math.max(0, spent);
+        java.util.Map<String, Integer> map = spentByDie();
+        map.clear();
+        for (var e : hitDiceTotals().entrySet()) {
+            int take = Math.min(left, e.getValue());
+            if (take > 0) map.put(e.getKey(), take);
+            left -= take;
+        }
+        hitDiceSpent = getHitDiceSpent();
+    }
+
+    public int hitDiceRemaining() { return hitDiceMax() - getHitDiceSpent(); }
+
+    /** Gasta um dado desse tipo. false se nao sobrou nenhum. */
+    public boolean spendHitDie(String die) {
+        if (die == null || hitDiceRemainingOf(die) <= 0) return false;
+        spentByDie().merge(die, 1, Integer::sum);
+        hitDiceSpent = getHitDiceSpent();
+        return true;
+    }
+
+    /** Gasta o maior dado que sobrou; devolve qual foi (ou null). */
+    public String spendLargestHitDie() {
+        for (String die : hitDiceTotals().keySet()) {
+            if (spendHitDie(die)) return die;
+        }
+        return null;
+    }
+
+    // ---------------- iniciativa com dados extras
+
+    /** Dados somados a iniciativa ("1d4", "1d8"), de habilidades como Inspiracao de Bardo ou Gloom Stalker. */
+    private String initiativeDice;
+
+    public String getInitiativeDice() { return initiativeDice == null ? "" : initiativeDice; }
+    public void setInitiativeDice(String dice) {
+        this.initiativeDice = dice == null || dice.isBlank() ? null : dice.replaceAll("\\s+", "");
+    }
+
+    /** CA da ficha antiga com a caixa "Escudo (+2)": passa os +2 pra CA e desliga a caixa (o escudo vira item). */
+    public boolean migrateShieldIntoArmorClass() {
+        if (!shieldEquipped) return false;
+        int base = armorClass != null ? armorClass : 10 + abilityModifier(dexterity);
+        armorClass = base + 2;
+        shieldEquipped = false;
+        return true;
+    }
 
     public boolean hasHeroicInspiration() { return heroicInspiration; }
     public void setHeroicInspiration(boolean value) { this.heroicInspiration = value; }
@@ -759,9 +904,7 @@ public class CharacterSheet {
     /** Gasta um dado de vida (descanso curto). Devolve false se nao tiver
      * nenhum sobrando -- quem chama rola o dado e chama heal(). */
     public boolean spendHitDie() {
-        if (hitDiceRemaining() <= 0) return false;
-        hitDiceSpent++;
-        return true;
+        return spendLargestHitDie() != null;
     }
 
     /** Descanso longo nas regras de 2024: PV no maximo, PV temporario some,
@@ -771,6 +914,7 @@ public class CharacterSheet {
         if (hpMax != null) hpCurrent = hpMax;
         hpTemp = 0;
         hitDiceSpent = 0;
+        if (hitDiceSpentByDie != null) hitDiceSpentByDie.clear();
         spellSlots.restoreAll();
         recoverResources(true);
         resetDeathSaves();

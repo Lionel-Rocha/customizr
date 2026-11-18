@@ -756,6 +756,28 @@ public class Main extends Application {
         }
 
         @Override
+        public void changeImage(TokenModel token) {
+            ChoiceDialog<String> from = new ChoiceDialog<>("Arquivo do computador", "Arquivo do computador", "Galeria da mesa");
+            from.setTitle("Imagem de " + token.getName());
+            from.setHeaderText(token.getCharacterSheetId() != null ? "Também troca o retrato da ficha." : null);
+            from.setContentText("De onde vem a imagem?");
+            Optional<String> choice = from.showAndWait();
+            if (choice.isEmpty()) return;
+            if (choice.get().startsWith("Galeria")) {
+                new com.vttcaseiro.view.ImageGalleryView(imageAssetService, assetId -> recorded("Imagem de " + token.getName(),
+                        token, () -> table.setTokenImage(token, assetId, null))).show();
+                return;
+            }
+            FileChooser chooser = new FileChooser();
+            chooser.setTitle("Escolher imagem de " + token.getName());
+            chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Imagens", "*.png", "*.jpg", "*.jpeg", "*.webp"));
+            File file = chooser.showOpenDialog(stage);
+            if (file == null) return;
+            importIntoAssetStoreOrWarn(file).ifPresent(assetId -> recorded("Imagem de " + token.getName(), token,
+                    () -> table.setTokenImage(token, assetId, file.getAbsolutePath())));
+        }
+
+        @Override
         public void setVision(TokenModel token, int visionFeet, int lightFeet) {
             recorded("Visão de " + token.getName(), token, () -> table.setTokenVision(token, visionFeet, lightFeet));
         }
@@ -803,6 +825,49 @@ public class Main extends Application {
             @Override
             public void followUp(String attackLabel, String damageLabel, String expression) {
                 registerFollowUp(attackLabel, damageLabel, expression, this::roll);
+            }
+
+            @Override
+            public void attack(String attackLabel, int bonus, String damageLabel, String damageExpression,
+                               com.vttcaseiro.character.RollMode chosen, boolean hidden) {
+                var adj = com.vttcaseiro.character.CombatRules.rollAdjustment(
+                        token == null ? List.of() : token.getConditions(), 0, com.vttcaseiro.character.RollKind.ATTACK,
+                        null, chosen, token == null ? List.of() : token.getEffects(), com.vttcaseiro.character.CombatRules::rollDice);
+                java.util.function.Consumer<RollResult> againstTargets = resolveAgainstTargets(mobKey, name);
+                rollD20WithAdjustment(attackLabel, bonus, adj, hidden, r -> {
+                    if (againstTargets != null) againstTargets.accept(r);
+                    if (r.isCriticalFail()) {
+                        announce(name + ": falha crítica -- sem dano.");
+                        return;
+                    }
+                    if (damageExpression == null) return;
+                    if (r.isCriticalHit()) {
+                        roll(damageLabel.replace("Dano:", "Dano CRÍTICO:"), DiceRoller.doubleDice(damageExpression), hidden);
+                    } else {
+                        roll(damageLabel, damageExpression, hidden);
+                    }
+                });
+            }
+
+            @Override
+            public void rollInitiative() {
+                if (token != null) tokenActions.rollInitiative(token);
+                else rollD20(name + " - Iniciativa", MobSheet.abilityModifier(mob.getDexterity()),
+                        com.vttcaseiro.character.RollKind.INITIATIVE, com.vttcaseiro.character.Ability.DEXTERITY,
+                        com.vttcaseiro.character.RollMode.NORMAL, true);
+            }
+
+            @Override
+            public String hpText() {
+                if (token == null || token.getCurrentHp() == null) return null;
+                return token.getCurrentHp() + (token.getMaxHp() == null ? "" : " / " + token.getMaxHp())
+                        + (token.getTempHp() == null ? "" : " (+" + token.getTempHp() + ")");
+            }
+
+            @Override
+            public void changeImage() {
+                if (token != null) tokenActions.changeImage(token);
+                else showError("Abra a ficha pelo token no mapa pra trocar a imagem dele.");
             }
 
             @Override
@@ -4093,6 +4158,62 @@ public class Main extends Application {
                     sheet.rollAdjustment(kind, ability, chosen), hidden,
                     kind == com.vttcaseiro.character.RollKind.ATTACK
                             ? resolveAgainstTargets("sheet:" + sheet.getId(), sheet.getName()) : null);
+        }
+
+        @Override
+        public void rollD20Then(CharacterSheet sheet, String label, int modifier, com.vttcaseiro.character.RollKind kind,
+                                com.vttcaseiro.character.Ability ability, com.vttcaseiro.character.RollMode chosen,
+                                boolean hidden, java.util.function.IntConsumer onNatural) {
+            rollD20WithAdjustment(sheet.getName() + " - " + label, modifier, sheet.rollAdjustment(kind, ability, chosen),
+                    hidden, r -> {
+                        if (onNatural != null && r.naturalD20() != null) onNatural.accept(r.naturalD20());
+                    });
+        }
+
+        @Override
+        public void attack(CharacterSheet sheet, com.vttcaseiro.character.Attack attack,
+                           com.vttcaseiro.character.RollMode chosen, boolean hidden) {
+            String damageLabel = attack.getName() + (attack.getDamageAndType().isBlank() ? "" : " (" + attack.getDamageAndType() + ")");
+            var bonus = attack.attackBonus();
+            if (bonus.isEmpty()) {
+                // CD de salvaguarda (sem acerto): so o dano
+                attack.damageExpression().ifPresent(expr -> this.roll(sheet, "Dano: " + damageLabel, expr, hidden));
+                return;
+            }
+            java.util.function.Consumer<RollResult> againstTargets = resolveAgainstTargets("sheet:" + sheet.getId(), sheet.getName());
+            rollD20WithAdjustment(sheet.getName() + " - Ataque: " + attack.getName(), bonus.getAsInt(),
+                    sheet.rollAdjustment(com.vttcaseiro.character.RollKind.ATTACK, null, chosen), hidden, r -> {
+                        if (againstTargets != null) againstTargets.accept(r);
+                        if (r.isCriticalFail()) {
+                            announce(sheet.getName() + ": falha crítica com " + attack.getName() + " -- sem dano.");
+                            return;
+                        }
+                        attack.damageExpression().ifPresent(expr -> {
+                            if (r.isCriticalHit()) {
+                                // critico: todos os dados do dano em dobro (o modificador nao)
+                                this.roll(sheet, "Dano CRÍTICO: " + damageLabel, DiceRoller.doubleDice(expr), hidden);
+                            } else {
+                                this.roll(sheet, "Dano: " + damageLabel, expr, hidden);
+                            }
+                        });
+                    });
+        }
+
+        @Override
+        public void rollInitiative(CharacterSheet sheet, com.vttcaseiro.character.RollMode chosen, boolean hidden) {
+            List<TokenModel> mine = sceneService.getScene().getTokens().stream()
+                    .filter(t -> sheet.getId().equals(t.getCharacterSheetId())).toList();
+            if (!mine.isEmpty()) {
+                // com o token no mapa a iniciativa entra na ordem de combate (com os dados extras da ficha)
+                for (TokenModel t : mine) tokenActions.rollInitiative(t);
+                return;
+            }
+            rollD20WithAdjustment(sheet.getName() + " - Iniciativa", sheet.initiative(),
+                    sheet.rollAdjustment(com.vttcaseiro.character.RollKind.INITIATIVE,
+                            com.vttcaseiro.character.Ability.DEXTERITY, chosen), hidden, null);
+            if (!sheet.getInitiativeDice().isBlank()) {
+                this.roll(sheet, "Iniciativa (dados extras)", sheet.getInitiativeDice(), hidden);
+            }
         }
 
         @Override

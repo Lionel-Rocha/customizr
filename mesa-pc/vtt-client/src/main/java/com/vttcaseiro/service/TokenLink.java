@@ -54,6 +54,12 @@ public final class TokenLink {
             token.setEffects(effects);
             changed = true;
         }
+        // retrato da ficha = imagem do token (trocou na ficha, troca no mapa)
+        if (sheet.getPortraitImageAssetId() != null && !Objects.equals(token.getImageAssetId(), sheet.getPortraitImageAssetId())) {
+            token.setImageAssetId(sheet.getPortraitImageAssetId());
+            if (sheet.getPortraitImagePath() != null) token.setImagePath(sheet.getPortraitImagePath());
+            changed = true;
+        }
         return changed;
     }
 

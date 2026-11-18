@@ -52,7 +52,8 @@ public final class CombatFlow {
     public static void rollFromSource(TableService table, Roller roller, String sourceKey, String label,
                                       String expression, boolean hidden) {
         boolean damage = label.contains("Dano");
-        if (damage && !label.contains("CRITICO") && table.lastAttackWasCritical(sourceKey)) {
+        // ja vem dobrado quando o rotulo diz CRITICO/CRÍTICO (o botao Atacar da ficha dobra antes)
+        if (damage && !label.contains("CRITICO") && !label.contains("CRÍTICO") && table.lastAttackWasCritical(sourceKey)) {
             expression = DiceRoller.doubleDice(expression);
             label = label.replace("Dano:", "Dano CRÍTICO:");
         }

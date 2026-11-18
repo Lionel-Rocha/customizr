@@ -330,6 +330,12 @@ public class TableService {
             case DISADVANTAGE -> DiceRoller.rollWithDisadvantage(bonus);
             case NORMAL -> rollOrZero(d20(bonus));
         };
+        // dados extras da ficha (Inspiracao de Bardo, Gloom Stalker...) somam no mesmo resultado
+        String extra = sheet.map(CharacterSheet::getInitiativeDice).orElse("");
+        if (!extra.isBlank()) {
+            RollResult more = rollOrZero(extra);
+            result = new RollResult(result.total() + more.total(), result.detail() + " + " + more.detail(), result.naturalD20());
+        }
         return finishInitiative(token, result, notes, announceIt);
     }
 
@@ -916,18 +922,20 @@ public class TableService {
         }
         StringBuilder text = new StringBuilder("Descanso curto:");
         for (CharacterSheet s : sheets) {
-            int sides = dieSides(s.getHitDie());
             int con = CharacterSheet.abilityModifier(s.getConstitution());
-            int average = sides / 2 + 1;
             List<String> rolls = new ArrayList<>();
             int healed = 0;
-            while (s.getHpMax() != null && s.getHpCurrent() != null
-                    && s.getHpMax() - s.getHpCurrent() >= average && s.spendHitDie()) {
+            // gasta do maior dado que sobrou (multiclasse: d10 antes do d8) enquanto falta pelo menos a media dele
+            while (s.getHpMax() != null && s.getHpCurrent() != null) {
+                String die = s.hitDiceTotals().keySet().stream().filter(d -> s.hitDiceRemainingOf(d) > 0).findFirst().orElse(null);
+                if (die == null) break;
+                int sides = dieSides(die);
+                if (s.getHpMax() - s.getHpCurrent() < sides / 2 + 1 || !s.spendHitDie(die)) break;
                 RollResult r = rollOrZero("1d" + sides);
                 int gain = Math.max(1, r.total() + con);
                 healed += s.getHpMax() - s.getHpCurrent() < gain ? s.getHpMax() - s.getHpCurrent() : gain;
                 s.heal(gain);
-                rolls.add(String.valueOf(gain));
+                rolls.add(die + ": " + gain);
             }
             List<String> recovered = s.recoverResources(false);
             if (!recovered.isEmpty()) {
@@ -938,7 +946,7 @@ public class TableService {
                 text.append("\n  ").append(s.getName()).append(": não precisou gastar dados de vida");
             } else {
                 text.append("\n  ").append(s.getName()).append(": gastou ").append(rolls.size())
-                        .append(" d").append(sides).append(" (").append(String.join(" + ", rolls))
+                        .append(rolls.size() == 1 ? " dado de vida (" : " dados de vida (").append(String.join(" + ", rolls))
                         .append(") = +").append(healed).append(" PV");
                 afterSheetEditedOutside(s);
             }
@@ -1112,6 +1120,23 @@ public class TableService {
     }
 
     /** Visao no escuro e luz do token (dono ou mestre). */
+    /** Nova imagem no token; se ele e de uma ficha, o retrato da ficha muda junto (e os outros tokens dela). */
+    public void setTokenImage(TokenModel token, String assetId, String imagePath) {
+        if (!canControl(token)) {
+            port.error("Você não controla " + token.getName() + ".");
+            return;
+        }
+        token.setImageAssetId(assetId);
+        token.setImagePath(imagePath);
+        publishTokenUpdate(token);
+        Optional<CharacterSheet> sheet = linkedSheet(token);
+        if (sheet.isPresent() && assetId != null && canEditSheet(sheet.get())) {
+            sheet.get().setPortraitImageAssetId(assetId);
+            if (imagePath != null) sheet.get().setPortraitImagePath(imagePath);
+            afterSheetEditedOutside(sheet.get());
+        }
+    }
+
     public void setTokenVision(TokenModel token, int visionFeet, int lightFeet) {
         if (!canControl(token)) {
             port.error("Você não controla " + token.getName() + ".");

@@ -1372,6 +1372,10 @@ public class MapView extends Pane {
         default void addTimedEffect(TokenModel token, String name, int rounds) {
         }
 
+        /** Troca a imagem do token (arquivo ou galeria). Token de personagem troca o retrato da ficha junto. */
+        default void changeImage(TokenModel token) {
+        }
+
         /** So mestre: escolher qual jogador controla o token (e a ficha). */
         default void giveControl(TokenModel token) {
         }
@@ -1529,6 +1533,7 @@ public class MapView extends Pane {
                     sizeMenu(token),
                     rotateMenu(token),
                     menuItem("Visão e luz...", () -> askVision(token)),
+                    menuItem("Trocar imagem...", () -> tokenActions.changeImage(token)),
                     new javafx.scene.control.SeparatorMenuItem(),
                     menuItem("Remover do mapa", () -> tokenActions.remove(token)));
             if (tokenActions.isGm()) {

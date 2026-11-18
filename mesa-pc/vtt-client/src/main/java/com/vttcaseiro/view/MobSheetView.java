@@ -56,6 +56,29 @@ public class MobSheetView {
         /** Avisa que o ataque {@code attackLabel} tem este dano (pro botao "Rolar dano" do chat). */
         default void followUp(String attackLabel, String damageLabel, String expression) {
         }
+
+        /**
+         * Ataque num botao so: acerto e dano juntos; 20 natural dobra os dados do dano; 1 natural nao rola dano.
+         * {@code damageExpression} pode ser null (ataque sem dado de dano).
+         */
+        default void attack(String attackLabel, int bonus, String damageLabel, String damageExpression, RollMode mode,
+                            boolean hidden) {
+            if (damageExpression != null) followUp(attackLabel, damageLabel, damageExpression);
+            rollD20(attackLabel, bonus, RollKind.ATTACK, null, mode, hidden);
+        }
+
+        /** Iniciativa do token (entra na ordem de combate). */
+        default void rollInitiative() {
+        }
+
+        /** PV do token ("12 / 18"), ou null sem token. */
+        default String hpText() {
+            return null;
+        }
+
+        /** Troca a imagem do token deste monstro. */
+        default void changeImage() {
+        }
     }
 
     private final MobSheet mob;
@@ -103,18 +126,10 @@ public class MobSheetView {
     }
 
     private void refresh() {
-        root.getChildren().setAll(
-                buildHeader(),
-                buildAbilityRow(),
-                statChips()
-        );
-        if (actions != null) {
-            root.getChildren().addAll(buildRollControls(), sectionLabel("Salvaguardas (clique pra rolar)"),
-                    buildSaveRow());
-            if (!mob.getSkillBonuses().isEmpty()) {
-                root.getChildren().addAll(sectionLabel("Perícias (clique pra rolar)"), buildSkillRow());
-            }
-        }
+        root.getChildren().setAll(buildHeader(), buildCombatChips());
+        if (actions != null) root.getChildren().add(buildRollControls());
+        root.getChildren().addAll(sectionLabel(actions != null ? "Atributos, salvaguardas e perícias (clique pra rolar)"
+                : "Atributos, salvaguardas e perícias"), buildAbilityGrid());
         String extras = buildExtrasText();
         if (!extras.isBlank()) {
             root.getChildren().add(sectionLabel("Sentidos, idiomas e resistências"));
@@ -149,7 +164,14 @@ public class MobSheetView {
 
     private HBox buildHeader() {
         HBox header = new HBox(12);
-        header.getChildren().add(buildPortrait());
+        Node portrait = buildPortrait();
+        if (actions != null) {
+            // como o retrato da ficha de personagem: clicar troca a imagem (vale pro token no mapa)
+            portrait.setCursor(javafx.scene.Cursor.HAND);
+            javafx.scene.control.Tooltip.install(portrait, new javafx.scene.control.Tooltip("Trocar a imagem do token"));
+            portrait.setOnMouseClicked(e -> actions.changeImage());
+        }
+        header.getChildren().add(portrait);
 
         VBox info = new VBox(4);
         Label name = new Label(mob.getName());
@@ -190,6 +212,124 @@ public class MobSheetView {
         } catch (Exception ex) {
             return null;
         }
+    }
+
+    /** Faixa de combate: CA, PV (do token), deslocamento, iniciativa (clique rola), percepcao passiva, ND e XP. */
+    private FlowPane buildCombatChips() {
+        FlowPane pane = new FlowPane(8, 8);
+        String ac = mob.getArmorClass() + (mob.getArmorNote() == null || mob.getArmorNote().isBlank()
+                ? "" : " (" + mob.getArmorNote() + ")");
+        pane.getChildren().add(statLabel("CA", ac));
+        String hp = actions == null ? null : actions.hpText();
+        pane.getChildren().add(statLabel("PV", hp != null ? hp
+                : mob.getHitPointsAverage() + " (" + mob.getHitPointsFormula() + ")"));
+        StringBuilder speed = new StringBuilder(mob.getSpeedWalk() + " pés");
+        if (mob.getSpeedFly() > 0) speed.append(" · voar ").append(mob.getSpeedFly());
+        if (mob.getSpeedSwim() > 0) speed.append(" · nadar ").append(mob.getSpeedSwim());
+        if (mob.getSpeedClimb() > 0) speed.append(" · escalar ").append(mob.getSpeedClimb());
+        if (mob.getSpeedBurrow() > 0) speed.append(" · escavar ").append(mob.getSpeedBurrow());
+        pane.getChildren().add(statLabel("Deslocamento", speed.toString()));
+        Node init = statLabel("Iniciativa", signed(MobSheet.abilityModifier(mob.getDexterity())));
+        if (actions != null) {
+            init.getStyleClass().add("stat-chip-clickable");
+            init.setCursor(javafx.scene.Cursor.HAND);
+            javafx.scene.control.Tooltip.install(init, new javafx.scene.control.Tooltip("Rolar iniciativa"));
+            init.setOnMouseClicked(e -> actions.rollInitiative());
+        }
+        pane.getChildren().add(init);
+        pane.getChildren().add(statLabel("Percepção passiva", String.valueOf(passivePerception())));
+        pane.getChildren().add(statLabel("ND", formatCr(mob.getChallengeRating())));
+        pane.getChildren().add(statLabel("XP", String.valueOf(mob.getExperiencePoints())));
+        return pane;
+    }
+
+    /** "passive Perception 14" dos sentidos; senao 10 + Percepcao (ou SAB). */
+    private int passivePerception() {
+        for (String s : mob.getSenses()) {
+            java.util.regex.Matcher m = java.util.regex.Pattern.compile("(?i)passiv[ae]\\s+(?:perception|percep\\S*)\\s+(\\d+)").matcher(s);
+            if (m.find()) return Integer.parseInt(m.group(1));
+        }
+        for (Map.Entry<String, Integer> e : mob.getSkillBonuses().entrySet()) {
+            var skill = com.vttcaseiro.service.CompendiumToSheet.skillFromToolsName(e.getKey());
+            if (skill == com.vttcaseiro.character.Skill.PERCEPTION) return 10 + e.getValue();
+        }
+        return 10 + MobSheet.abilityModifier(mob.getWisdom());
+    }
+
+    /** Seis caixas (3 x 2), como a ficha de personagem: modificador, valor, salvaguarda e as pericias do atributo. */
+    private javafx.scene.layout.GridPane buildAbilityGrid() {
+        javafx.scene.layout.GridPane grid = new javafx.scene.layout.GridPane();
+        grid.setHgap(8);
+        grid.setVgap(8);
+        for (int i = 0; i < 3; i++) {
+            javafx.scene.layout.ColumnConstraints c = new javafx.scene.layout.ColumnConstraints();
+            c.setPercentWidth(33.3);
+            grid.getColumnConstraints().add(c);
+        }
+        Ability[] all = Ability.values();
+        for (int i = 0; i < all.length; i++) grid.add(abilityCard(all[i]), i % 3, i / 3);
+        return grid;
+    }
+
+    private VBox abilityCard(Ability a) {
+        int score = abilityScore(a);
+        int mod = MobSheet.abilityModifier(score);
+        Label title = new Label(fullName(a));
+        title.getStyleClass().add("stat-chip-label");
+        Label modLabel = new Label(signed(mod));
+        modLabel.setStyle("-fx-font-size: 22px; -fx-font-weight: bold; -fx-text-fill: #FFCF7F;");
+        Label scoreLabel = new Label(String.valueOf(score));
+        scoreLabel.getStyleClass().add("label-muted");
+        HBox top = new HBox(8, modLabel, scoreLabel);
+        top.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+        if (actions != null) {
+            modLabel.setCursor(javafx.scene.Cursor.HAND);
+            modLabel.setOnMouseClicked(e -> actions.rollD20(displayName + " - Teste de " + a.abbreviationPt(), mod,
+                    RollKind.ABILITY_CHECK, a, mode, hidden));
+        }
+        VBox card = new VBox(4, title, top);
+        card.getStyleClass().add("stat-chip");
+        card.setMaxWidth(Double.MAX_VALUE);
+        Integer listed = mob.getSavingThrowBonuses().get(codeOf(a));
+        int save = listed != null ? listed : mod;
+        card.getChildren().add(line("◆ Salvaguarda", save, listed != null, () -> actions.rollD20(
+                displayName + " - Salvaguarda de " + a.abbreviationPt(), save, RollKind.SAVING_THROW, a, mode, hidden)));
+        for (Map.Entry<String, Integer> e : mob.getSkillBonuses().entrySet()) {
+            var skill = com.vttcaseiro.service.CompendiumToSheet.skillFromToolsName(e.getKey());
+            if (skill == null || skill.getAbility() != a) continue;
+            int bonus = e.getValue();
+            card.getChildren().add(line("● " + skill.getDisplayNamePt(), bonus, true, () -> actions.rollD20(
+                    displayName + " - " + skill.getDisplayNamePt(), bonus, RollKind.ABILITY_CHECK, a, mode, hidden)));
+        }
+        return card;
+    }
+
+    /** Linha "◆ Salvaguarda +5": botao quando da pra rolar, rotulo quando a ficha e so de leitura. */
+    private Node line(String label, int bonus, boolean proficient, Runnable roll) {
+        String text = label + "  " + signed(bonus);
+        if (actions == null) {
+            Label l = new Label(text);
+            if (proficient) l.setStyle("-fx-font-weight: bold;");
+            return l;
+        }
+        Button b = new Button(text);
+        b.getStyleClass().add("button-flat");
+        if (proficient) b.setStyle("-fx-font-weight: bold;");
+        b.setMaxWidth(Double.MAX_VALUE);
+        b.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+        b.setOnAction(e -> roll.run());
+        return b;
+    }
+
+    private static String fullName(Ability a) {
+        return switch (a) {
+            case STRENGTH -> "FORÇA";
+            case DEXTERITY -> "DESTREZA";
+            case CONSTITUTION -> "CONSTITUIÇÃO";
+            case INTELLIGENCE -> "INTELIGÊNCIA";
+            case WISDOM -> "SABEDORIA";
+            case CHARISMA -> "CARISMA";
+        };
     }
 
     private HBox buildAbilityRow() {
@@ -318,30 +458,31 @@ public class MobSheetView {
             }
         });
         Button attack = new Button("Atacar");
+        attack.getStyleClass().add("button-primary");
+        attack.setTooltip(new javafx.scene.control.Tooltip("Acerto e dano juntos. Crítico (20) dobra os dados do dano; "
+                + "falha crítica (1) não rola dano. Ação com CD rola só o dano."));
         attack.setOnAction(e -> {
             CharacterTrait t = view.getSelectionModel().getSelectedItem();
             if (t == null) return;
             var bonus = MobAttack.attackBonus(t.getDescription());
+            String type = MobAttack.damageType(t.getDescription());
+            String typeText = type == null ? "" : " (" + com.vttcaseiro.character.DamageTypes.namePt(type) + ")";
+            String expr = MobAttack.damage(t.getDescription()).orElse(null);
             if (bonus.isPresent()) {
-                String type = MobAttack.damageType(t.getDescription());
-                String typeText = type == null ? "" : " (" + com.vttcaseiro.character.DamageTypes.namePt(type) + ")";
-                MobAttack.damage(t.getDescription()).ifPresent(expr -> actions.followUp(displayName + " - Ataque: " + t.getName(),
-                        displayName + " - Dano: " + t.getName() + typeText, expr));
-                actions.rollD20(displayName + " - Ataque: " + t.getName(), bonus.getAsInt(), RollKind.ATTACK, null, mode, hidden);
+                actions.attack(displayName + " - Ataque: " + t.getName(), bonus.getAsInt(),
+                        displayName + " - Dano: " + t.getName() + typeText, expr, mode, hidden);
+            } else if (expr != null) {
+                rollDamage(t, false);
             } else {
                 actions.chat(displayName + " usa " + t.toChatText());
             }
         });
-        Button damage = new Button("Dano");
-        damage.setOnAction(e -> rollDamage(view.getSelectionModel().getSelectedItem(), false));
-        Button crit = new Button("Dano crítico");
-        crit.setOnAction(e -> rollDamage(view.getSelectionModel().getSelectedItem(), true));
         Button chat = new Button("Mandar ao chat");
         chat.setOnAction(e -> {
             CharacterTrait t = view.getSelectionModel().getSelectedItem();
             if (t != null) actions.chat(displayName + " usa " + t.toChatText());
         });
-        return new VBox(4, view, new HBox(6, attack, damage, crit, chat));
+        return new VBox(4, view, new HBox(6, attack, chat));
     }
 
     private void rollDamage(CharacterTrait t, boolean critical) {
@@ -421,8 +562,6 @@ public class MobSheetView {
      * separada pra cada lista, a maioria vem vazia na pratica). */
     private String buildExtrasText() {
         StringBuilder sb = new StringBuilder();
-        appendBonusLine(sb, "Salvaguardas", mob.getSavingThrowBonuses());
-        appendBonusLine(sb, "Pericias", mob.getSkillBonuses());
         appendListLine(sb, "Vulnerabilidade a dano", mob.getDamageVulnerabilities());
         appendListLine(sb, "Resistência a dano", mob.getDamageResistances());
         appendListLine(sb, "Imunidade a dano", mob.getDamageImmunities());
