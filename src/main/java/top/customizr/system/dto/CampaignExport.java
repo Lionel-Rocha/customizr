@@ -141,8 +141,14 @@ public record CampaignExport(
             String portraitUrl,
             List<AttackData> attacks,
             List<Ref> feats,
-            InventoryData inventory
+            InventoryData inventory,
+            Boolean heroicInspiration,
+            java.util.Map<String, Integer> spentResources,
+            List<ResourceData> customResources
     ) {}
+
+    /** Recurso criado a mao na ficha (cargas de item, usos de talento). */
+    public record ResourceData(String name, int maxUses, int used, String recharge, String notes) {}
 
     public record PartyData(String name, Integer maxSize, List<String> members, InventoryData inventory) {}
 

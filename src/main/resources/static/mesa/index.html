@@ -55,6 +55,17 @@
   .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
   .stat { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 6px; text-align: center; }
   .stat small { display: block; color: var(--muted); font-size: 11px; }
+  .res { border: 1px solid var(--line); border-radius: 10px; padding: 6px 8px; display: grid; gap: 4px; }
+  .res .head { display: flex; gap: 6px; align-items: center; }
+  .res .head b { flex: 1; }
+  .res .sub { color: var(--muted); font-size: 12px; }
+  .pips { display: flex; gap: 4px; flex-wrap: wrap; }
+  .pip { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--accent); background: var(--accent); cursor: pointer; padding: 0; }
+  .pip.spent { background: transparent; }
+  .insp { display: flex; gap: 6px; align-items: center; }
+  .insp .star { font-size: 20px; color: var(--muted); }
+  .insp.on .star { color: var(--accent-2); text-shadow: 0 0 6px var(--accent); }
+  .insp b { flex: 1; }
   .msg.card { border-color: var(--accent); }
   .msg.card .title { color: var(--accent-2); font-weight: 600; }
   .msg.card .body { white-space: pre-wrap; font-size: 13px; }
@@ -228,6 +239,7 @@
         <button id="cbCheck">Teste</button><button id="cbSave">Salvaguarda</button>
       </div>
       <div class="row"><select id="cbSkill"></select><button id="cbSkillGo">Perícia</button><button id="cbStat" class="master-only">Ficha</button></div>
+      <div class="row"><button id="cbInsp" disabled title="Gasta a Inspiração Heroica e rola de novo o último teste">&#9733; Rolar de novo (Inspiração)</button></div>
     </div>
   </div>
   <aside>
@@ -298,6 +310,30 @@
     <div id="tab-sheet" class="tab hidden">
       <div class="row"><select id="sheetChar"></select></div>
       <div id="sheetStats" class="stats"></div>
+      <div class="card">
+        <h3>Recursos e descanso</h3>
+        <div id="sheetInsp" class="insp"><span class="star">&#9733;</span><b>Inspiração Heroica</b>
+          <button id="inspGive" class="master-only">Dar</button><button id="inspTake">Tirar</button></div>
+        <div id="sheetResources" style="display:grid;gap:6px"></div>
+        <div class="row">
+          <button id="restShort">Descanso curto</button>
+          <input id="restDice" type="number" min="0" value="0" title="dados de vida a gastar" style="max-width:56px">
+          <span class="muted" id="restDiceInfo" style="font-size:12px"></span>
+          <button id="restLong">Descanso longo</button>
+        </div>
+        <details>
+          <summary class="muted" style="cursor:pointer">Novo recurso (cargas de item, usos de talento...)</summary>
+          <div class="row" style="margin-top:6px">
+            <input id="resName" placeholder="Nome (ex.: Varinha de Mísseis Mágicos)">
+            <input id="resMax" type="number" min="1" max="999" value="1" title="usos máximos" style="max-width:64px;flex:0 0 64px">
+          </div>
+          <div class="row">
+            <select id="resRecharge"><option value="LONG_REST">Volta no descanso longo</option><option value="SHORT_REST">Volta no descanso curto</option>
+              <option value="SHORT_REST_ONE">1 no curto, tudo no longo</option><option value="MANUAL">Não volta sozinho</option></select>
+            <button id="resAdd" class="primary">Criar</button>
+          </div>
+        </details>
+      </div>
       <div class="card">
         <h3>Gerar atributos</h3>
         <div class="row">
@@ -979,6 +1015,7 @@ async function loadSheet() {
   const stat = (label, value) => '<div class="stat"><small>' + label + '</small>' + (value ?? '—') + '</div>';
   $('sheetStats').innerHTML = stat('PV', c.hpMax != null ? c.hpCurrent + '/' + c.hpMax : null) + stat('CA', c.armorClass)
     + stat('Nível', c.totalLevel) + (a ? ABILITIES.map(([, pt, key]) => stat(pt, a[key] + ' (' + (Math.floor((a[key] - 10) / 2) >= 0 ? '+' : '') + Math.floor((a[key] - 10) / 2) + ')')).join('') : '');
+  renderResources(id, sheet);
   const box = $('sheetFeatures'); box.innerHTML = '';
   if (!features.length) box.textContent = 'Nada ainda: adicione classe, espécie ou itens.';
   for (const f of features) {
@@ -1002,6 +1039,94 @@ async function loadSheet() {
   }
 }
 $('sheetReload').onclick = () => loadSheet().catch(err => toast(err.message));
+
+// ------------------------------------------------------------------ recursos, Inspiracao Heroica e descanso
+const RESOURCE_PT = { 'rage': 'Fúria', 'bardic-inspiration': 'Inspiração de Bardo', 'channel-divinity': 'Canalizar Divindade',
+  'divine-intervention': 'Intervenção Divina', 'wild-shape': 'Forma Selvagem', 'second-wind': 'Retomar o Fôlego',
+  'action-surge': 'Surto de Ação', 'indomitable': 'Indomável', 'focus-points': 'Pontos de Foco', 'ki': 'Pontos de Ki',
+  'uncanny-metabolism': 'Metabolismo Sobrenatural', 'lay-on-hands': 'Cura pelas Mãos', 'favored-enemy': 'Inimigo Favorito (Marca do Caçador)',
+  'stroke-of-luck': 'Golpe de Sorte', 'innate-sorcery': 'Feitiçaria Inata', 'sorcery-points': 'Pontos de Feitiçaria',
+  'magical-cunning': 'Astúcia Mágica', 'arcane-recovery': 'Recuperação Arcana' };
+const RECHARGE_PT = { SHORT_REST: 'volta no descanso curto', SHORT_REST_ONE: '1 volta no curto, tudo no longo',
+  LONG_REST: 'volta no descanso longo', MANUAL: 'não volta sozinho' };
+const resourceName = r => r.custom ? r.name : (RESOURCE_PT[r.id.split('.').pop()] || r.name);
+
+function resourceCall(id, path, body, method) {
+  return api('/character/' + id + path, { method: method || 'POST', body }).then(loadSheet).catch(err => toast(err.message));
+}
+
+function renderResources(id, sheet) {
+  const d = sheet.details || {}, insp = !!d.heroicInspiration;
+  $('sheetInsp').classList.toggle('on', insp);
+  $('sheetInsp').querySelector('b').textContent = 'Inspiração Heroica: ' + (insp ? 'sim' : 'não');
+  $('inspGive').disabled = insp; $('inspTake').disabled = !insp;
+  $('inspGive').onclick = () => resourceCall(id, '/inspiration', { heroicInspiration: true }, 'PUT');
+  $('inspTake').onclick = () => resourceCall(id, '/inspiration', { heroicInspiration: false }, 'PUT');
+  $('restDice').max = d.hitDiceRemaining ?? 0;
+  $('restDiceInfo').textContent = 'dados de vida (' + (d.hitDiceRemaining ?? 0) + '/' + (d.hitDiceTotal ?? 0) + ')';
+  const box = $('sheetResources'); box.innerHTML = '';
+  const list = d.resources || [];
+  if (!list.length) box.innerHTML = '<div class="muted" style="font-size:12px">Nenhum recurso: as classes dão os delas sozinhas (Fúria, Foco, Canalizar Divindade...). Itens e talentos você cria abaixo.</div>';
+  for (const r of list) {
+    const row = document.createElement('div'); row.className = 'res';
+    const head = document.createElement('div'); head.className = 'head';
+    const name = document.createElement('b'); name.textContent = resourceName(r);
+    const count = document.createElement('span'); count.textContent = r.remaining + '/' + r.max + (r.unit === 'HP' ? ' PV' : '');
+    head.append(name, count);
+    const pool = r.max > 10;   // reserva grande (Cura pelas Maos, Pontos de Feiticaria): usa quantidade
+    let amount = null;
+    if (pool) { amount = document.createElement('input'); amount.type = 'number'; amount.min = 1; amount.value = 1; amount.style.maxWidth = '56px'; head.append(amount); }
+    const qty = () => amount ? Math.max(1, Number(amount.value) || 1) : 1;
+    const use = document.createElement('button'); use.textContent = 'Usar'; use.disabled = r.remaining <= 0;
+    use.onclick = () => resourceCall(id, '/resources/spend', { resource: r.id, amount: qty() });
+    const back = document.createElement('button'); back.textContent = 'Devolver'; back.disabled = r.spent <= 0;
+    back.onclick = () => resourceCall(id, '/resources/recover', { resource: r.id, amount: qty() });
+    head.append(use, back);
+    if (r.custom) {
+      const del = document.createElement('button'); del.textContent = '×'; del.title = 'Apagar recurso';
+      del.onclick = () => confirm('Apagar "' + r.name + '"?') && resourceCall(id, '/resources/' + r.id, undefined, 'DELETE');
+      head.append(del);
+    }
+    const sub = document.createElement('div'); sub.className = 'sub';
+    sub.textContent = (r.className ? r.className + ' · ' : '') + RECHARGE_PT[r.recharge] + (r.notes ? ' · ' + r.notes : '');
+    row.append(head, sub);
+    if (!pool) {
+      const pips = document.createElement('div'); pips.className = 'pips';
+      for (let i = 0; i < r.max; i++) {
+        const pip = document.createElement('button'); pip.className = 'pip' + (i < r.remaining ? '' : ' spent');
+        pip.title = i < r.remaining ? 'Usar 1' : 'Devolver 1';
+        pip.onclick = () => resourceCall(id, i < r.remaining ? '/resources/spend' : '/resources/recover', { resource: r.id, amount: 1 });
+        pips.append(pip);
+      }
+      row.append(pips);
+    }
+    box.append(row);
+  }
+}
+
+async function rest(type) {
+  const id = $('sheetChar').value; if (!id) return toast('Escolha o personagem.');
+  try {
+    const res = await api('/character/' + id + '/rest', { method: 'POST', body: { type, hitDice: type === 'SHORT' ? Number($('restDice').value) || 0 : 0 } });
+    // o servidor manda o nome do livro ("Rage +1"); a tela traduz pelo recurso da ficha
+    const pt = { 'Heroic Inspiration': 'Inspiração Heroica' };
+    ((res.sheet.details || {}).resources || []).forEach(r => { pt[r.name] = resourceName(r); });
+    const parts = [type === 'SHORT' ? 'Descanso curto' : 'Descanso longo'];
+    if (res.healed) parts.push('+' + res.healed + ' PV' + (res.hitDiceRolls.length ? ' (' + res.hitDiceRolls.join(', ') + ')' : ''));
+    if (res.recovered && res.recovered.length) parts.push('voltou: ' + res.recovered.map(x => {
+      const i = x.lastIndexOf(' +'), n = i > 0 ? x.slice(0, i) : x;
+      return (pt[n] || n) + (i > 0 ? x.slice(i) : '');
+    }).join(', '));
+    toast(parts.join(' · '), true); $('restDice').value = 0; loadSheet();
+  } catch (err) { toast(err.message); }
+}
+$('restShort').onclick = () => rest('SHORT');
+$('restLong').onclick = () => confirm('Descanso longo: PV cheio, magias e recursos de volta. Confirmar?') && rest('LONG');
+$('resAdd').onclick = () => {
+  const id = $('sheetChar').value; if (!id) return toast('Escolha o personagem.');
+  resourceCall(id, '/resources', { name: $('resName').value, maxUses: Number($('resMax').value), recharge: $('resRecharge').value })
+    .then(() => { $('resName').value = ''; $('resMax').value = 1; });
+};
 
 function renderAbilityAssign() {
   const box = $('abAssign'); box.innerHTML = '';
@@ -1480,12 +1605,23 @@ const SKILLS = [['ACROBATICS', 'Acrobacia'], ['ANIMAL_HANDLING', 'Lidar com anim
   ['MEDICINE', 'Medicina'], ['NATURE', 'Natureza'], ['PERCEPTION', 'Percepção'], ['PERFORMANCE', 'Atuação'], ['PERSUASION', 'Persuasão'],
   ['RELIGION', 'Religião'], ['SLEIGHT_OF_HAND', 'Prestidigitação'], ['STEALTH', 'Furtividade'], ['SURVIVAL', 'Sobrevivência']];
 SKILLS.forEach(([v, l]) => $('cbSkill').append(new Option(l, v)));
-function tokenRoll(body) {
+function tokenRoll(body, reroll) {
   const t = S.selected; if (!t) return;
-  api('/live/tokens/' + t.id + '/roll', { method: 'POST', body: Object.assign({ mode: $('cbMode').value }, body) })
-    .then(res => toast(res.label + ': ' + res.roll.total + (res.outcome === 'AUTOMATIC_FAILURE' ? ' (falha automática)' : ''), res.outcome !== 'AUTOMATIC_FAILURE'))
+  const sent = Object.assign({ mode: $('cbMode').value }, body, reroll ? { heroicInspiration: true } : {});
+  api('/live/tokens/' + t.id + '/roll', { method: 'POST', body: sent })
+    .then(res => {
+      toast((reroll ? '★ ' : '') + res.label + ': ' + res.roll.total + (res.outcome === 'AUTOMATIC_FAILURE' ? ' (falha automática)' : ''), res.outcome !== 'AUTOMATIC_FAILURE');
+      // so personagem tem Inspiracao Heroica; depois de usar, nao rola de novo a mesma
+      S.lastRoll = !reroll && t.characterId ? { tokenId: t.id, body: Object.assign({}, body, { mode: sent.mode }) } : null;
+      $('cbInsp').disabled = !S.lastRoll;
+      if (reroll && !$('tab-sheet').classList.contains('hidden')) loadSheet().catch(() => {});
+    })
     .catch(err => toast(err.message));
 }
+$('cbInsp').onclick = () => {
+  if (!S.lastRoll || !S.selected || S.selected.id !== S.lastRoll.tokenId) return toast('Role um teste com este token primeiro.');
+  tokenRoll(S.lastRoll.body, true);
+};
 $('cbCheck').onclick = () => tokenRoll({ kind: 'ABILITY', ability: $('cbAbility').value });
 $('cbSave').onclick = () => tokenRoll({ kind: 'SAVE', ability: $('cbAbility').value });
 $('cbSkillGo').onclick = () => tokenRoll({ kind: 'SKILL', skill: $('cbSkill').value });

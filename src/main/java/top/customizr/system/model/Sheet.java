@@ -117,6 +117,22 @@ public class Sheet {
     @OrderBy("characterLevel")
     private List<CharacterFeat> catalogFeats = new ArrayList<>();
 
+    /** Usos gastos dos recursos de classe (chave "classe.recurso"; o maximo vem do {@link ClassResources}). */
+    @ElementCollection
+    @CollectionTable(name = "sheet_spent_resources", joinColumns = @JoinColumn(name = "sheet_id"))
+    @MapKeyColumn(name = "resource_key", length = 80)
+    @Column(name = "spent", nullable = false)
+    private Map<String, Integer> spentResources = new HashMap<>();
+
+    /** Recursos criados a mao (cargas de item, usos de talento...). */
+    @OneToMany(mappedBy = "sheet", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("name")
+    private List<SheetResource> customResources = new ArrayList<>();
+
+    /** Inspiracao Heroica (2024): tem ou nao tem; gastar = rolar um dado de novo. */
+    @Column(name = "heroic_inspiration")
+    private Boolean heroicInspiration;
+
     protected Sheet() {}
 
     public Sheet(Character character) {
@@ -403,7 +419,7 @@ public class Sheet {
     }
 
     /** Resultado do descanso curto: dados gastos (com o valor rolado) e PV recuperado. */
-    public record ShortRestResult(List<String> rolls, int healed) {}
+    public record ShortRestResult(List<String> rolls, int healed, List<String> recovered) {}
 
     /**
      * Descanso curto: gasta dados de vida (o maior primeiro), cada um cura dado + CON (minimo 0),
@@ -431,14 +447,17 @@ public class Sheet {
         }
         hitDiceSpent = getHitDiceSpent() + hitDice;
         pactSlotsSpent = 0;
-        return new ShortRestResult(rolls, (hpCurrent == null ? 0 : hpCurrent) - before);
+        List<String> recovered = rechargeResources(false);
+        return new ShortRestResult(rolls, (hpCurrent == null ? 0 : hpCurrent) - before, recovered);
     }
 
     /**
      * Descanso longo: PV cheio, PV temporario zera, recupera todos os espacos de magia e metade dos
-     * dados de vida (minimo 1), tira 1 de exaustao e zera os testes contra a morte.
+     * dados de vida (minimo 1), tira 1 de exaustao, zera os testes contra a morte e recupera os recursos
+     * (menos os de recarga manual). Humano de 2024 (Engenhoso) ganha Inspiracao Heroica.
+     * Devolve o nome dos recursos que voltaram.
      */
-    public void longRest() {
+    public List<String> longRest() {
         if (hpMax != null) {
             hpCurrent = hpMax;
             character.revive();
@@ -449,6 +468,140 @@ public class Sheet {
         hitDiceSpent = Math.max(0, getHitDiceSpent() - Math.max(1, getTotalLevel() / 2));
         if (getExhaustion() > 0) exhaustion = getExhaustion() - 1;
         resetDeathSaves();
+        List<String> recovered = rechargeResources(true);
+        if (isResourcefulHuman() && !getHeroicInspiration()) {
+            heroicInspiration = true;
+            recovered.add("Heroic Inspiration");
+        }
+        return recovered;
+    }
+
+    // ------------------------------------------------------------------ recursos e Inspiracao Heroica
+
+    /**
+     * Um recurso como a tela mostra. {@code id} = chave da classe ("barbarian.rage") ou o UUID do recurso criado a mao.
+     */
+    public record ResourceUse(String id, String name, String className, int max, int spent, ResourceRecharge recharge,
+                              String unit, boolean custom, String notes) {
+        public int remaining() {
+            return Math.max(0, max - spent);
+        }
+    }
+
+    /** Recursos de classe (pelo nivel) e os criados a mao, com quanto ja foi gasto. */
+    @Transient
+    public List<ResourceUse> getResources() {
+        List<ResourceUse> out = new ArrayList<>();
+        for (ClassResources.ClassResource r : ClassResources.of(this)) {
+            out.add(new ResourceUse(r.key(), r.name(), r.className(), r.max(),
+                    Math.min(r.max(), spentResources.getOrDefault(r.key(), 0)), r.recharge(), r.unit(), false, null));
+        }
+        for (SheetResource r : customResources) {
+            out.add(new ResourceUse(r.getId().toString(), r.getName(), null, r.getMaxUses(), r.getUsed(), r.getRecharge(),
+                    null, true, r.getNotes()));
+        }
+        return out;
+    }
+
+    /** Gasta {@code amount} usos (pontos, no caso de Cura pelas Maos). */
+    public ResourceUse spendResource(String resourceId, int amount) {
+        if (amount < 1) throw new IllegalArgumentException("Amount must be at least 1");
+        ResourceUse use = resource(resourceId);
+        if (amount > use.remaining()) {
+            throw new IllegalStateException("Only " + use.remaining() + " " + use.name() + " left");
+        }
+        setSpent(use, use.spent() + amount);
+        return resource(resourceId);
+    }
+
+    /** Devolve usos; {@code amount} nulo = devolve tudo. */
+    public ResourceUse recoverResource(String resourceId, Integer amount) {
+        if (amount != null && amount < 1) throw new IllegalArgumentException("Amount must be at least 1");
+        ResourceUse use = resource(resourceId);
+        setSpent(use, amount == null ? 0 : Math.max(0, use.spent() - amount));
+        return resource(resourceId);
+    }
+
+    public SheetResource addCustomResource(String name, int maxUses, ResourceRecharge recharge, String notes) {
+        if (customResources.size() >= 50) throw new IllegalStateException("A sheet can have at most 50 custom resources");
+        SheetResource resource = new SheetResource(this, name, maxUses, recharge, notes);
+        customResources.add(resource);
+        return resource;
+    }
+
+    public SheetResource updateCustomResource(UUID resourceId, String name, int maxUses, ResourceRecharge recharge, String notes) {
+        SheetResource resource = customResource(resourceId);
+        resource.update(name, maxUses, recharge, notes);
+        return resource;
+    }
+
+    public void removeCustomResource(UUID resourceId) {
+        customResources.remove(customResource(resourceId));
+    }
+
+    public boolean getHeroicInspiration() {
+        return Boolean.TRUE.equals(heroicInspiration);
+    }
+
+    public void changeHeroicInspiration(boolean value) {
+        heroicInspiration = value;
+    }
+
+    /** Gasta a Inspiracao Heroica (pra rolar um dado de novo). */
+    public void useHeroicInspiration() {
+        if (!getHeroicInspiration()) throw new IllegalStateException("The character has no Heroic Inspiration");
+        heroicInspiration = false;
+    }
+
+    private ResourceUse resource(String resourceId) {
+        if (resourceId == null || resourceId.isBlank()) throw new IllegalArgumentException("Resource is required");
+        return getResources().stream().filter(r -> r.id().equalsIgnoreCase(resourceId.trim())).findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("The character has no resource " + resourceId));
+    }
+
+    private SheetResource customResource(UUID resourceId) {
+        return customResources.stream().filter(r -> r.getId().equals(resourceId)).findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Custom resource not found"));
+    }
+
+    private void setSpent(ResourceUse use, int spent) {
+        if (use.custom()) {
+            customResource(UUID.fromString(use.id())).setUsed(spent);
+        } else if (spent <= 0) {
+            spentResources.remove(use.id());
+        } else {
+            spentResources.put(use.id(), spent);
+        }
+    }
+
+    /** Descanso: devolve o que a regra manda e diz o que voltou ("Rage +1", "Focus Points"). */
+    private List<String> rechargeResources(boolean longRest) {
+        List<String> recovered = new ArrayList<>();
+        for (ResourceUse use : getResources()) {
+            if (use.spent() == 0 || use.recharge() == ResourceRecharge.MANUAL) continue;
+            int spent = use.spent();
+            if (longRest || use.recharge() == ResourceRecharge.SHORT_REST) spent = 0;
+            else if (use.recharge() == ResourceRecharge.SHORT_REST_ONE) spent = spent - 1;
+            if (spent == use.spent()) continue;
+            setSpent(use, spent);
+            recovered.add(spent == 0 ? use.name() : use.name() + " +" + (use.spent() - spent));
+        }
+        if (longRest) {
+            // chave de recurso que a ficha nao tem mais (classe saiu, nivel caiu) sai junto
+            java.util.Set<String> current = new java.util.HashSet<>();
+            ClassResources.of(this).forEach(r -> current.add(r.key()));
+            spentResources.keySet().retainAll(current);
+        }
+        return recovered;
+    }
+
+    /** Humano do Livro do Jogador de 2024: o traco Engenhoso da Inspiracao Heroica a cada descanso longo. */
+    private boolean isResourcefulHuman() {
+        Species species = character == null ? null : character.getSpecies();
+        if (species == null || !"Human".equalsIgnoreCase(species.getName())) return false;
+        String code = species.getSourceCode() != null ? species.getSourceCode()
+                : species.getSource() == null ? null : species.getSource().getCode();
+        return "XPHB".equalsIgnoreCase(code);
     }
 
     // ------------------------------------------------------------------ ataques e talentos

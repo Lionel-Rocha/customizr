@@ -199,10 +199,32 @@ Abaixo estão todos os endpoints atualmente expostos pelo backend da aplicação
 | `PUT` | `/character/{id}/proficiencies` | Perícias, especialização e salvaguardas (`skills`, `expertise`, `savingThrows`). |
 | `PUT` | `/character/{id}/conditions` | Condições (`BLINDED`, `POISONED`...) e exaustão (0 a 6). |
 | `POST` | `/character/{id}/spell-slots/spend` | Gasta um espaço de magia (`pool`: STANDARD ou PACT, `level`). |
-| `POST` | `/character/{id}/rest` | Descanso curto (gasta `hitDice`) ou longo. |
+| `POST` | `/character/{id}/rest` | Descanso curto (gasta `hitDice`) ou longo. Devolve os recursos pela regra de cada um e diz o que voltou (`recovered`). |
+| `POST` | `/character/{id}/resources/spend` | Gasta usos de um recurso (`resource` = chave da classe, ex. `barbarian.rage`, ou o id do recurso criado à mão; `amount`, padrão 1). |
+| `POST` | `/character/{id}/resources/recover` | Devolve usos (`amount` vazio = todos). |
+| `POST` | `/character/{id}/resources` | Cria um recurso à mão (`name`, `maxUses` 1–999, `recharge`, `notes`): cargas de item, usos de talento. |
+| `PUT` / `DELETE` | `/character/{id}/resources/{resourceId}` | Edita / apaga um recurso criado à mão. |
+| `PUT` | `/character/{id}/inspiration` | Inspiração Heroica: só o mestre dá (`true`); dono ou mestre tira (`false`). Gastar = `heroicInspiration: true` no `/roll` (ou no ataque), que rola de novo e anota no resultado. |
 | `POST` / `DELETE` | `/character/{id}/attacks[/{attackId}]` | Ataques da ficha (nome, bônus, dano, tipo). |
 | `POST` | `/character/{id}/attacks/{attackId}/roll` | Rola o ataque e o dano (crítico dobra os dados); `targetArmorClass` diz se acertou; `toChat` manda pro chat. |
 | `POST` | `/character/{id}/roll` | Teste de perícia, atributo, salvaguarda, iniciativa ou contra a morte, com as condições e a exaustão aplicadas. |
+
+**Recursos de classe** (`ClassResources`): o máximo sai do nível de cada classe e a recarga da regra da edição da classe (2024 = `edition` `one`; 2014 = `classic` ou fonte PHB). Só números das regras, nenhum texto de livro. A ficha guarda apenas quanto foi gasto (`sheet_spent_resources`).
+
+| Classe | 2024 | 2014 |
+|---|---|---|
+| Bárbaro | Fúria 2–6 (1 volta no curto) | Fúria 2–6, só no longo; ilimitada no 20 |
+| Bardo | Inspiração de Bardo = CAR (mín. 1); volta no curto a partir do 5 | igual |
+| Clérigo | Canalizar Divindade 2/3/4 (1 no curto); Intervenção Divina (10) | Canalizar 1/2/3 (curto) |
+| Druida | Forma Selvagem 2/3/4 (1 no curto) | 2 (curto); ilimitada no 20 |
+| Guerreiro | Retomar o Fôlego 2/3/4 (1 no curto), Surto de Ação 1/2, Indomável 1/2/3 | Retomar 1, Surto e Indomável iguais |
+| Monge | Pontos de Foco = nível; Metabolismo Sobrenatural | Ki = nível |
+| Paladino | Cura pelas Mãos 5×nível (reserva de PV); Canalizar 2/3 (1 no curto) | Cura pelas Mãos igual; Canalizar 1 |
+| Patrulheiro | Inimigo Favorito (Marca do Caçador grátis) 2–6 | — |
+| Feiticeiro | Pontos de Feitiçaria = nível; Feitiçaria Inata 2 | Pontos de Feitiçaria |
+| Bruxo / Mago / Ladino | Astúcia Mágica / Recuperação Arcana / Golpe de Sorte (20) | Recuperação Arcana / Golpe de Sorte |
+
+Recarga: `SHORT_REST` (tudo no curto), `SHORT_REST_ONE` (1 no curto, tudo no longo), `LONG_REST`, `MANUAL` (não volta sozinho). Humano de 2024 (traço Engenhoso) ganha a Inspiração Heroica a cada descanso longo.
 | `POST` / `DELETE` | `/character/{id}/catalog-feats[/{id}]` | Talentos do catálogo escolhidos pelo personagem. |
 | `POST` | `/character/{id}/experience` | Dá (ou tira) XP; só o mestre. |
 | `PUT` | `/character/{id}/portrait` | Retrato do personagem (ex.: `/image/{id}`). |

@@ -90,8 +90,9 @@ Simulação do deploy, feita num Postgres 17.12 temporário no PC:
 
 1. **Proteção das campanhas (item 3 do roadmap):** `deleteCampaign`, `updateCampaign`, `addSource`, `readCampaign` e a listagem de personagens não conferem quem chama. Não mexi, mas deixei a sugestão no README: usar o `MasterGuard`.
 2. **Tela de jogo:** `/mesa` funciona hoje, mas o lugar dela pode ser o seu Angular. Toda a lógica está na API (`/live/...`) e a página serve de exemplo de uso.
-3. **`management.endpoints.web.exposure.include=env`** no `application.properties`: se um dia o Actuator entrar, isso expõe segredos. Sugiro tirar.
-4. **O que ainda não existe:** encomendas, bastiões, conexões entre cidades e migrações versionadas (Flyway).
+3. **Token vencido dá erro 500:** quando o JWT expira, o filtro de login deixa a `ExpiredJwtException` escapar e o servidor responde 500 em vez de 401. Não mexi no `security/`; sugestão: pegar a exceção no filtro e seguir sem autenticar (aí vira 401/403).
+4. **`management.endpoints.web.exposure.include=env`** no `application.properties`: se um dia o Actuator entrar, isso expõe segredos. Sugiro tirar.
+5. **O que ainda não existe:** encomendas, bastiões, conexões entre cidades e migrações versionadas (Flyway).
 
 ## Commits
 
@@ -126,3 +127,4 @@ Simulação do deploy, feita num Postgres 17.12 temporário no PC:
 | 27 | Categorias dos itens nas suas 10 tags (`ItemCategory`): venenos, montarias e veículos, bugigangas/tesouro e maravilhosos passam a ser preenchidos; munição (`A` no 5etools) deixa de virar armadura e navio (que tem `ac`) também. O foco mágico continua `ADVENTURING_GEAR`, como no seu teste |
 | 28 | Importação aberta a todas as fontes cadastradas (sai a lista fixa `IMPORTABLE_SOURCES`); `Source.official` (coluna nova opcional); atualização direto do 5etools (`FiveToolsSyncService`, oficial = autor da Wizards); itens próprios do mestre por campanha (`Item.campaign`, coluna nova opcional; `CampaignItemService`), na busca com filtro de origem e na exportação |
 | 29 | Mescla do seu `220ea25` ("Spells de classes": `GET /class/{id}`, `/class-spell/add` com JSON) sem conflito; as magias que a mesa liga às classes (`/spell/class-lists/import`) aparecem no seu detalhe da classe; `SourceResponse` + `official`; dois testes seus corrigidos (ver acima) |
+| 30 | Ficha: recursos de classe com usos (`ClassResources`, regras de 2014 e 2024, recarga por descanso), recursos criados à mão (`SheetResource`, tabela nova `sheet_resources`) e Inspiração Heroica (`Sheet.heroicInspiration`, coluna nova opcional; o mestre dá, gastar rola de novo). Descanso devolve e diz o que voltou. Tudo vai na exportação. Na `/mesa`: bloco "Recursos e descanso" na aba Ficha e "Rolar de novo (Inspiração)" no painel do token |

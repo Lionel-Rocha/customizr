@@ -212,7 +212,8 @@ public class LiveCombatService {
         if (request == null || request.kind() == null) throw badRequest("Roll kind is required");
         if (token.getCharacter() != null) {
             return sheetService.roll(token.getCharacter().getCharacterId(),
-                    new SheetRollRequest(request.kind(), request.skill(), request.ability(), request.mode(), true), username);
+                    new SheetRollRequest(request.kind(), request.skill(), request.ability(), request.mode(), true,
+                            request.heroicInspiration()), username);
         }
         MonsterRoll rolled = monsterRoll(token, request);
         String speaker = token.isHiddenFromPlayers() ? "Unseen creature" : token.getName();

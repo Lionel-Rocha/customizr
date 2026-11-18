@@ -4,8 +4,16 @@ import top.customizr.system.model.AbilityScore;
 import top.customizr.system.model.RollMode;
 import top.customizr.system.model.Skill;
 
-/** skill pra SKILL; ability pra ABILITY/SAVE. toChat = manda o resultado pro chat da campanha. */
-public record SheetRollRequest(RollKind kind, Skill skill, AbilityScore ability, RollMode mode, Boolean toChat) {
+/**
+ * skill pra SKILL; ability pra ABILITY/SAVE. toChat = manda o resultado pro chat da campanha.
+ * heroicInspiration = gasta a Inspiracao Heroica nesta rolagem (rolar de novo um teste que acabou de sair).
+ */
+public record SheetRollRequest(RollKind kind, Skill skill, AbilityScore ability, RollMode mode, Boolean toChat,
+                               Boolean heroicInspiration) {
+
+    public SheetRollRequest(RollKind kind, Skill skill, AbilityScore ability, RollMode mode, Boolean toChat) {
+        this(kind, skill, ability, mode, toChat, null);
+    }
 
     public enum RollKind { ABILITY, SAVE, SKILL, INITIATIVE, DEATH_SAVE }
 }

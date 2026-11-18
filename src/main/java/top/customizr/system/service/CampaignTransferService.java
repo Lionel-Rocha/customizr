@@ -182,7 +182,11 @@ public class CampaignTransferService {
                             at.getDamage(), at.getDamageType(), at.getNotes())).toList(),
                     s.getCatalogFeats().stream().map(f -> new CampaignExport.Ref(f.getFeat().getName(),
                             f.getFeat().getSource().getCode())).toList(),
-                    inventory(inventoryRepository.findByCharacter(c))));
+                    inventory(inventoryRepository.findByCharacter(c)),
+                    s.getHeroicInspiration(),
+                    java.util.Map.copyOf(s.getSpentResources()),
+                    s.getCustomResources().stream().map(r -> new CampaignExport.ResourceData(r.getName(), r.getMaxUses(),
+                            r.getUsed(), r.getRecharge().name(), r.getNotes())).toList()));
         }
 
         List<CampaignExport.PartyData> parties = partyRepository.findByCampaign(campaign).stream()
@@ -393,6 +397,18 @@ public class CampaignTransferService {
                         .flatMap(s -> featRepository.findByNameAndSource_Id(f.name(), s.getId()))
                         .ifPresentOrElse(feat -> sheet.addCatalogFeat(feat, Math.max(1, sheet.getTotalLevel()), null),
                                 () -> warnings.add(d.name() + ": feat " + f.name() + " not found"));
+            }
+            if (Boolean.TRUE.equals(d.heroicInspiration())) sheet.changeHeroicInspiration(true);
+            if (d.spentResources() != null) sheet.getSpentResources().putAll(d.spentResources());
+            for (CampaignExport.ResourceData r : nullSafe(d.customResources())) {
+                try {
+                    top.customizr.system.model.ResourceRecharge recharge = r.recharge() == null ? null
+                            : top.customizr.system.model.ResourceRecharge.valueOf(r.recharge());
+                    var created = sheet.addCustomResource(r.name(), r.maxUses(), recharge, r.notes());
+                    if (r.used() > 0) sheet.spendResource(created.getId().toString(), Math.min(r.used(), r.maxUses()));
+                } catch (IllegalArgumentException | IllegalStateException ex) {
+                    warnings.add(d.name() + ": resource " + r.name() + " skipped (" + ex.getMessage() + ")");
+                }
             }
             restoreInventory(d.inventory(), Inventory.forCharacter(character), warnings);
             charactersByName.put(d.name(), character);

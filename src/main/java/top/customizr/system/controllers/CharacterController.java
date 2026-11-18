@@ -130,6 +130,50 @@ public class CharacterController {
         return sheetService.rest(id, request, loggedUser.getUsername());
     }
 
+    /** Gasta usos de um recurso (Furia, Pontos de Foco, cargas de item...). */
+    @PostMapping("/{id}/resources/spend")
+    public CharacterSheetResponse spendResource(@PathVariable UUID id,
+                                                @RequestBody top.customizr.system.dto.ResourceRequest request,
+                                                @AuthenticationPrincipal UserDetails loggedUser) {
+        return sheetService.spendResource(id, request, loggedUser.getUsername());
+    }
+
+    /** Devolve usos (amount vazio = todos). */
+    @PostMapping("/{id}/resources/recover")
+    public CharacterSheetResponse recoverResource(@PathVariable UUID id,
+                                                  @RequestBody top.customizr.system.dto.ResourceRequest request,
+                                                  @AuthenticationPrincipal UserDetails loggedUser) {
+        return sheetService.recoverResource(id, request, loggedUser.getUsername());
+    }
+
+    @PostMapping("/{id}/resources")
+    public CharacterSheetResponse addCustomResource(@PathVariable UUID id,
+                                                    @RequestBody top.customizr.system.dto.CustomResourceRequest request,
+                                                    @AuthenticationPrincipal UserDetails loggedUser) {
+        return sheetService.addCustomResource(id, request, loggedUser.getUsername());
+    }
+
+    @PutMapping("/{id}/resources/{resourceId}")
+    public CharacterSheetResponse updateCustomResource(@PathVariable UUID id, @PathVariable UUID resourceId,
+                                                       @RequestBody top.customizr.system.dto.CustomResourceRequest request,
+                                                       @AuthenticationPrincipal UserDetails loggedUser) {
+        return sheetService.updateCustomResource(id, resourceId, request, loggedUser.getUsername());
+    }
+
+    @DeleteMapping("/{id}/resources/{resourceId}")
+    public CharacterSheetResponse removeCustomResource(@PathVariable UUID id, @PathVariable UUID resourceId,
+                                                       @AuthenticationPrincipal UserDetails loggedUser) {
+        return sheetService.removeCustomResource(id, resourceId, loggedUser.getUsername());
+    }
+
+    /** Inspiracao Heroica: o mestre da (true); o dono ou o mestre tira (false). */
+    @PutMapping("/{id}/inspiration")
+    public CharacterSheetResponse changeInspiration(@PathVariable UUID id,
+                                                    @RequestBody top.customizr.system.dto.InspirationRequest request,
+                                                    @AuthenticationPrincipal UserDetails loggedUser) {
+        return sheetService.changeInspiration(id, request, loggedUser.getUsername());
+    }
+
     @PostMapping("/{id}/attacks")
     public CharacterSheetResponse addAttack(@PathVariable UUID id, @RequestBody AttackRequest request,
                                             @AuthenticationPrincipal UserDetails loggedUser) {

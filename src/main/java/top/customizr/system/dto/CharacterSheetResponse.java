@@ -58,7 +58,9 @@ public record CharacterSheetResponse(
             int hitDiceRemaining,
             int hitDiceTotal,
             List<AttackInfo> attacks,
-            List<CatalogFeatInfo> feats
+            List<CatalogFeatInfo> feats,
+            List<ResourceInfo> resources,
+            boolean heroicInspiration
     ) {
         private static DetailsInfo from(Character character) {
             top.customizr.system.model.Sheet sheet = character.getSheet();
@@ -98,10 +100,18 @@ public record CharacterSheetResponse(
                     sheet.getAttacks().stream().map(a -> new AttackInfo(a.getId(), a.getName(), a.getAttackBonus(),
                             a.getDamage(), a.getDamageType(), a.getNotes())).toList(),
                     sheet.getCatalogFeats().stream().map(f -> new CatalogFeatInfo(f.getId(), f.getFeat().getId(),
-                            f.getFeat().getName(), f.getCharacterLevel(), f.getChoices())).toList()
+                            f.getFeat().getName(), f.getCharacterLevel(), f.getChoices())).toList(),
+                    sheet.getResources().stream().map(r -> new ResourceInfo(r.id(), r.name(), r.className(), r.max(),
+                            r.spent(), r.remaining(), r.recharge(), r.unit(), r.custom(), r.notes())).toList(),
+                    sheet.getHeroicInspiration()
             );
         }
     }
+
+    /** Recurso com usos: {@code id} = chave da classe ("barbarian.rage") ou o id do recurso criado a mao. */
+    public record ResourceInfo(String id, String name, String className, int max, int spent, int remaining,
+                               top.customizr.system.model.ResourceRecharge recharge, String unit, boolean custom,
+                               String notes) {}
 
     public record SimpleRef(UUID id, String name) {}
 

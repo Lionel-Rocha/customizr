@@ -4,6 +4,9 @@ import top.customizr.system.dto.AttackRequest;
 import top.customizr.system.dto.AttackRollRequest;
 import top.customizr.system.dto.CatalogFeatRequest;
 import top.customizr.system.dto.ConditionsRequest;
+import top.customizr.system.dto.CustomResourceRequest;
+import top.customizr.system.dto.InspirationRequest;
+import top.customizr.system.dto.ResourceRequest;
 import top.customizr.system.dto.ExperienceRequest;
 import top.customizr.system.dto.OriginRequest;
 import top.customizr.system.dto.PortraitRequest;
@@ -125,14 +128,83 @@ public class CharacterSheetService {
         Character character = manageable(characterId, username);
         requireBody(request);
         if (request.type() == RestRequest.RestType.LONG) {
-            character.getSheet().longRest();
+            List<String> recovered = character.getSheet().longRest();
             liveTable.characterChanged(character);
-            return new RestResponse("LONG", List.of(), 0, CharacterSheetResponse.from(character));
+            return new RestResponse("LONG", List.of(), 0, recovered, CharacterSheetResponse.from(character));
         }
         Sheet.ShortRestResult result = valid(() -> character.getSheet().shortRest(request.hitDice(),
                 sides -> ThreadLocalRandom.current().nextInt(1, sides + 1)));
         liveTable.characterChanged(character);
-        return new RestResponse("SHORT", result.rolls(), result.healed(), CharacterSheetResponse.from(character));
+        return new RestResponse("SHORT", result.rolls(), result.healed(), result.recovered(),
+                CharacterSheetResponse.from(character));
+    }
+
+    // ------------------------------------------------------------------ recursos e Inspiracao Heroica
+
+    @Transactional
+    public CharacterSheetResponse spendResource(UUID characterId, ResourceRequest request, String username) {
+        Character character = manageable(characterId, username);
+        requireBody(request);
+        valid(() -> character.getSheet().spendResource(request.resource(), request.amount() == null ? 1 : request.amount()));
+        return CharacterSheetResponse.from(character);
+    }
+
+    @Transactional
+    public CharacterSheetResponse recoverResource(UUID characterId, ResourceRequest request, String username) {
+        Character character = manageable(characterId, username);
+        requireBody(request);
+        valid(() -> character.getSheet().recoverResource(request.resource(), request.amount()));
+        return CharacterSheetResponse.from(character);
+    }
+
+    @Transactional
+    public CharacterSheetResponse addCustomResource(UUID characterId, CustomResourceRequest request, String username) {
+        Character character = manageable(characterId, username);
+        requireBody(request);
+        valid(() -> character.getSheet().addCustomResource(request.name(), require(request.maxUses(), "Maximum uses"),
+                request.recharge(), request.notes()));
+        return CharacterSheetResponse.from(character);
+    }
+
+    @Transactional
+    public CharacterSheetResponse updateCustomResource(UUID characterId, UUID resourceId, CustomResourceRequest request,
+                                                       String username) {
+        Character character = manageable(characterId, username);
+        requireBody(request);
+        valid(() -> character.getSheet().updateCustomResource(resourceId, request.name(),
+                require(request.maxUses(), "Maximum uses"), request.recharge(), request.notes()));
+        return CharacterSheetResponse.from(character);
+    }
+
+    @Transactional
+    public CharacterSheetResponse removeCustomResource(UUID characterId, UUID resourceId, String username) {
+        Character character = manageable(characterId, username);
+        try {
+            character.getSheet().removeCustomResource(resourceId);
+        } catch (IllegalArgumentException ex) {
+            throw notFound("Custom resource");
+        }
+        return CharacterSheetResponse.from(character);
+    }
+
+    /** O mestre da a Inspiracao Heroica; o dono pode tirar (ou gastar numa rolagem). */
+    @Transactional
+    public CharacterSheetResponse changeInspiration(UUID characterId, InspirationRequest request, String username) {
+        Character character = manageable(characterId, username);
+        requireBody(request);
+        boolean give = require(request.heroicInspiration(), "heroicInspiration");
+        if (give && !character.getCampaign().getMaster().getName().equals(username)) {
+            throw new AccessDeniedException("Only the game master gives Heroic Inspiration");
+        }
+        character.getSheet().changeHeroicInspiration(give);
+        return CharacterSheetResponse.from(character);
+    }
+
+    /** Gasta a Inspiracao Heroica antes de rolar de novo e anota no resultado. */
+    private void useInspiration(Sheet sheet, Boolean requested, List<String> notes) {
+        if (!Boolean.TRUE.equals(requested)) return;
+        valid(() -> { sheet.useHeroicInspiration(); return null; });
+        notes.add("Heroic Inspiration: reroll");
     }
 
     @Transactional
@@ -259,12 +331,17 @@ public class CharacterSheetService {
                 bonus = sheet.getInitiative();
             }
             case DEATH_SAVE -> {
+                // o resultado ja conta na ficha: rolar de novo contaria duas vezes
+                if (Boolean.TRUE.equals(request.heroicInspiration())) {
+                    throw badRequest("Heroic Inspiration cannot reroll a death saving throw here");
+                }
                 RollResult d20 = DiceRoller.roll("1d20");
                 Sheet.DeathSaveOutcome result = valid(() -> sheet.deathSave(d20.naturalD20()));
                 return finish(character, "Death saving throw", d20, null, null, result.name(), notes, request.toChat(), username);
             }
             default -> throw badRequest("Unknown roll kind");
         }
+        useInspiration(sheet, request.heroicInspiration(), notes);
         int penalty = sheet.getD20Penalty();
         if (penalty > 0) notes.add("Exhaustion " + sheet.getExhaustion() + ": -" + penalty);
         RollResult roll = DiceRoller.roll(d20(mode) + signed(bonus - penalty));
@@ -281,6 +358,7 @@ public class CharacterSheetService {
         List<String> notes = new ArrayList<>();
         RollMode mode = withConditions(request == null || request.mode() == null ? RollMode.NORMAL : request.mode(),
                 sheet, DISADVANTAGE_ON_ATTACKS, notes);
+        useInspiration(sheet, request == null ? null : request.heroicInspiration(), notes);
         int penalty = sheet.getD20Penalty();
         if (penalty > 0) notes.add("Exhaustion " + sheet.getExhaustion() + ": -" + penalty);
         RollResult hit = DiceRoller.roll(d20(mode) + signed(attack.getAttackBonus() - penalty));

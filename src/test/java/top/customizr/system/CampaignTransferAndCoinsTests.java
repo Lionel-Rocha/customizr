@@ -145,6 +145,14 @@ class CampaignTransferAndCoinsTests {
         var inventory = inventoryService.getOrCreateCharacterInventory(hero);
         inventoryService.addItem(hero, inventory.getId(), rope.getId(), 2);
         inventoryService.changeMoney(hero, inventory.getId(), new BigDecimal("12.5"));
+        // recurso feito a mao (2 de 7 cargas gastas) e Inspiracao Heroica viajam no arquivo
+        sheetService.addCustomResource(hero.getCharacterId(), new top.customizr.system.dto.CustomResourceRequest(
+                "Wand of Magic Missiles", 7, top.customizr.system.model.ResourceRecharge.MANUAL, null), player);
+        String wandId = sheetService.addCustomResource(hero.getCharacterId(), new top.customizr.system.dto.CustomResourceRequest(
+                "Ring charges", 3, null, null), player).details().resources().stream()
+                .filter(r -> r.name().equals("Wand of Magic Missiles")).findFirst().orElseThrow().id();
+        sheetService.spendResource(hero.getCharacterId(), new top.customizr.system.dto.ResourceRequest(wandId, 2), player);
+        sheetService.changeInspiration(hero.getCharacterId(), new top.customizr.system.dto.InspirationRequest(true), master);
         var party = partyService.create(campaign.getId(), new CreatePartyRequest("Heroes", 4), master);
         partyService.addCharacter(party.partyId(), hero.getCharacterId(), master);
 
@@ -181,6 +189,10 @@ class CampaignTransferAndCoinsTests {
         assertEquals("Longsword", sheet.details().attacks().getFirst().name());
         assertEquals(newWorld.mapUrl(), sheet.details().portraitUrl());
         assertEquals("Heroes", sheet.party().name());
+        assertTrue(sheet.details().heroicInspiration());
+        var wand = sheet.details().resources().stream().filter(r -> r.name().equals("Wand of Magic Missiles")).findFirst().orElseThrow();
+        assertEquals(5, wand.remaining());
+        assertEquals(top.customizr.system.model.ResourceRecharge.MANUAL, wand.recharge());
         var copiedInventory = InventoryResponse.from(inventoryService.getOrCreateCharacterInventory(copy));
         assertEquals(2, copiedInventory.entries().getFirst().quantity());
         assertEquals(0, new BigDecimal("12.5").compareTo(copiedInventory.moneyGp()));
