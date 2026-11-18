@@ -42,7 +42,7 @@ public record InventoryResponse(
                 ownerId,
                 ownerName,
                 inventory.getMoneyGp(),
-                coins(inventory.getMoneyGp()),
+                coins(inventory),
                 inventory.getEntries().stream()
                         .map(EntryInfo::from)
                         .sorted(Comparator.comparing(EntryInfo::name, String.CASE_INSENSITIVE_ORDER))
@@ -50,11 +50,10 @@ public record InventoryResponse(
         );
     }
 
-    /** O dinheiro em moedas: {"pp": 12, "gp": 3, "sp": 4, "cp": 5}. */
-    private static java.util.Map<String, Long> coins(BigDecimal gold) {
+    /** As moedas que estao na bolsa: {"pp": 2, "gp": 31, "ep": 0, "sp": 4, "cp": 5} (o total em po e o moneyGp). */
+    private static java.util.Map<String, Long> coins(Inventory inventory) {
         java.util.Map<String, Long> out = new java.util.LinkedHashMap<>();
-        top.customizr.system.model.Currency.breakdown(gold == null ? BigDecimal.ZERO : gold, true)
-                .forEach((currency, amount) -> out.put(currency.getSymbol(), amount));
+        inventory.getCoins().asMap().forEach((currency, amount) -> out.put(currency.getSymbol(), amount));
         return out;
     }
 

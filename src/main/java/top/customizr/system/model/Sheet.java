@@ -242,6 +242,35 @@ public class Sheet {
         return attributes == null ? 0 : attributes.getModifier("dexterity");
     }
 
+    /**
+     * Capacidade de carga (2014 e 2024): FOR x 15 lb, vezes o tamanho da especie (Miudo 0,5; Pequeno/Medio 1;
+     * Grande 2; Enorme 4; Imenso 8). Nulo sem atributos.
+     */
+    @Transient
+    public Integer getCarryingCapacityLb() {
+        return attributes == null ? null : (int) Math.floor(attributes.getStrength() * 15 * sizeMultiplier());
+    }
+
+    /** Empurrar, arrastar ou erguer: o dobro da capacidade (FOR x 30 lb, vezes o tamanho). */
+    @Transient
+    public Integer getPushDragLiftLb() {
+        Integer capacity = getCarryingCapacityLb();
+        return capacity == null ? null : capacity * 2;
+    }
+
+    private double sizeMultiplier() {
+        String size = character == null || character.getSpecies() == null ? null : character.getSpecies().getSize();
+        if (size == null || size.isBlank()) return 1;
+        // "Small or Medium": vale o primeiro (os dois contam como 1)
+        return switch (size.trim().split("\\s+")[0].toLowerCase()) {
+            case "tiny", "t" -> 0.5;
+            case "large", "l" -> 2;
+            case "huge", "h" -> 4;
+            case "gargantuan", "g" -> 8;
+            default -> 1;
+        };
+    }
+
     /** Percepcao passiva: 10 + bonus de Percepcao (com proficiencia/especializacao). */
     @Transient
     public int getPassivePerception() {

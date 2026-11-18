@@ -102,7 +102,7 @@ class CampaignTransferAndCoinsTests {
         var inventory = inventoryService.getOrCreateCharacterInventory(hero);
         inventoryService.changeMoney(hero, inventory.getId(), new InventoryMoneyRequest(null, new BigDecimal("37"), Currency.SILVER).amountInGold());
         InventoryResponse response = InventoryResponse.from(inventoryService.read(hero, inventory.getId()));
-        assertEquals(Map.of("pp", 0L, "gp", 3L, "sp", 7L, "cp", 0L), response.coins());
+        assertEquals(Map.of("pp", 0L, "gp", 3L, "ep", 0L, "sp", 7L, "cp", 0L), response.coins());
     }
 
     @Test
@@ -145,6 +145,7 @@ class CampaignTransferAndCoinsTests {
         var inventory = inventoryService.getOrCreateCharacterInventory(hero);
         inventoryService.addItem(hero, inventory.getId(), rope.getId(), 2);
         inventoryService.changeMoney(hero, inventory.getId(), new BigDecimal("12.5"));
+        inventoryService.changeCoins(hero, inventory.getId(), Currency.SILVER, 30);
         // recurso feito a mao (2 de 7 cargas gastas) e Inspiracao Heroica viajam no arquivo
         sheetService.addCustomResource(hero.getCharacterId(), new top.customizr.system.dto.CustomResourceRequest(
                 "Wand of Magic Missiles", 7, top.customizr.system.model.ResourceRecharge.MANUAL, null), player);
@@ -195,7 +196,8 @@ class CampaignTransferAndCoinsTests {
         assertEquals(top.customizr.system.model.ResourceRecharge.MANUAL, wand.recharge());
         var copiedInventory = InventoryResponse.from(inventoryService.getOrCreateCharacterInventory(copy));
         assertEquals(2, copiedInventory.entries().getFirst().quantity());
-        assertEquals(0, new BigDecimal("12.5").compareTo(copiedInventory.moneyGp()));
+        assertEquals(35L, copiedInventory.coins().get("sp"), "moedas separadas viajam no arquivo (5 pp do 12,5 po + 30 pp)");
+        assertEquals(0, new BigDecimal("15.5").compareTo(copiedInventory.moneyGp()), "12,5 po + 30 pp");
 
         assertThrows(ResponseStatusException.class, () -> transferService.importCampaign(
                 objectMapper.readValue("{\"formatVersion\": 1}", CampaignExport.class), importer));

@@ -145,6 +145,33 @@ public class InventoryService {
         return inventoryRepository.save(inventory);
     }
 
+    /** Poe ou tira moedas de um tipo (tirar alem do que tem dessa moeda paga o resto pelo valor, com troco). */
+    @Transactional
+    public Inventory changeCoins(Character actor, UUID inventoryId, top.customizr.system.model.Currency currency, long amount) {
+        Inventory inventory = findInventory(inventoryId);
+        inventoryAccessService.assertCanModify(actor, inventory);
+        try {
+            inventory.changeCoins(currency, amount);
+        } catch (IllegalArgumentException ex) {
+            throw badRequest(ex.getMessage());
+        }
+        return inventoryRepository.save(inventory);
+    }
+
+    /** Cambio entre moedas do mesmo inventario. */
+    @Transactional
+    public Inventory exchangeCoins(Character actor, UUID inventoryId, top.customizr.system.model.Currency from,
+                                   top.customizr.system.model.Currency to, long amount) {
+        Inventory inventory = findInventory(inventoryId);
+        inventoryAccessService.assertCanModify(actor, inventory);
+        try {
+            inventory.exchangeCoins(from, to, amount);
+        } catch (IllegalArgumentException ex) {
+            throw badRequest(ex.getMessage());
+        }
+        return inventoryRepository.save(inventory);
+    }
+
     private Inventory findInventory(UUID inventoryId) {
         if (inventoryId == null) {
             throw badRequest("Inventory ID is required");

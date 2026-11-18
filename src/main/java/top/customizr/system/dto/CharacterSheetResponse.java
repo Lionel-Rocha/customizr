@@ -60,7 +60,9 @@ public record CharacterSheetResponse(
             List<AttackInfo> attacks,
             List<CatalogFeatInfo> feats,
             List<ResourceInfo> resources,
-            boolean heroicInspiration
+            boolean heroicInspiration,
+            Integer carryingCapacityLb,
+            Integer pushDragLiftLb
     ) {
         private static DetailsInfo from(Character character) {
             top.customizr.system.model.Sheet sheet = character.getSheet();
@@ -103,7 +105,9 @@ public record CharacterSheetResponse(
                             f.getFeat().getName(), f.getCharacterLevel(), f.getChoices())).toList(),
                     sheet.getResources().stream().map(r -> new ResourceInfo(r.id(), r.name(), r.className(), r.max(),
                             r.spent(), r.remaining(), r.recharge(), r.unit(), r.custom(), r.notes())).toList(),
-                    sheet.getHeroicInspiration()
+                    sheet.getHeroicInspiration(),
+                    sheet.getCarryingCapacityLb(),
+                    sheet.getPushDragLiftLb()
             );
         }
     }

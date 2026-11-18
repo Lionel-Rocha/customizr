@@ -93,6 +93,24 @@ public class InventoryController {
             @AuthenticationPrincipal UserDetails loggedUser
     ) {
         Character actor = inventoryService.actorFor(request.actorCharacterId(), loggedUser.getUsername());
+        // moeda escolhida e quantidade inteira: entra (ou sai) como essas moedas, nao convertida pra ouro
+        if (request.currency() != null && request.amount() != null && request.amount().signum() != 0
+                && request.amount().stripTrailingZeros().scale() <= 0) {
+            return InventoryResponse.from(inventoryService.changeCoins(actor, inventoryId, request.currency(),
+                    request.amount().longValueExact()));
+        }
         return InventoryResponse.from(inventoryService.changeMoney(actor, inventoryId, request.amountInGold()));
+    }
+
+    /** Cambio: troca {@code amount} moedas de {@code from} por {@code to} (ex.: 30 pp -> 3 po). */
+    @PostMapping("/{inventoryId}/coins/exchange")
+    public InventoryResponse exchangeCoins(
+            @PathVariable UUID inventoryId,
+            @RequestBody top.customizr.system.dto.CoinExchangeRequest request,
+            @AuthenticationPrincipal UserDetails loggedUser
+    ) {
+        Character actor = inventoryService.actorFor(request.actorCharacterId(), loggedUser.getUsername());
+        return InventoryResponse.from(inventoryService.exchangeCoins(actor, inventoryId, request.from(), request.to(),
+                request.amount() == null ? 0 : request.amount()));
     }
 }

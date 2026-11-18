@@ -267,7 +267,14 @@ public class CampaignTransferService {
     private static CampaignExport.InventoryData inventory(Optional<Inventory> inventory) {
         return inventory.map(i -> new CampaignExport.InventoryData(i.getMoneyGp(),
                 i.getEntries().stream().map(e -> new CampaignExport.ItemData(e.getItem().getName(),
-                        e.getItem().getSource().getCode(), e.getQuantity())).toList())).orElse(null);
+                        e.getItem().getSource().getCode(), e.getQuantity())).toList(),
+                coins(i))).orElse(null);
+    }
+
+    private static java.util.Map<String, Long> coins(Inventory inventory) {
+        java.util.Map<String, Long> out = new java.util.LinkedHashMap<>();
+        inventory.getCoins().asMap().forEach((c, n) -> out.put(c.getSymbol(), n));
+        return out;
     }
 
     // ------------------------------------------------------------------ importar
@@ -603,7 +610,16 @@ public class CampaignTransferService {
 
     private void restoreInventory(CampaignExport.InventoryData data, Inventory inventory, List<String> warnings) {
         if (data == null) return;
-        if (data.moneyGp() != null && data.moneyGp().signum() > 0) inventory.changeMoney(data.moneyGp());
+        if (data.coins() != null && !data.coins().isEmpty()) {
+            java.util.Map<top.customizr.system.model.Currency, Long> coins = new java.util.EnumMap<>(top.customizr.system.model.Currency.class);
+            for (top.customizr.system.model.Currency c : top.customizr.system.model.Currency.values()) {
+                Long n = data.coins().get(c.getSymbol());
+                if (n != null) coins.put(c, n);
+            }
+            inventory.replaceCoins(coins);
+        } else if (data.moneyGp() != null && data.moneyGp().signum() > 0) {
+            inventory.changeMoney(data.moneyGp());
+        }
         for (CampaignExport.ItemData item : nullSafe(data.items())) {
             Optional<Item> found = findItem(item.name(), item.source());
             if (found.isPresent() && item.quantity() > 0) inventory.addItem(found.get(), item.quantity());

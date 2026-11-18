@@ -121,7 +121,12 @@ public record CampaignExport(
 
     public record ItemData(String name, String source, int quantity) {}
 
-    public record InventoryData(BigDecimal moneyGp, List<ItemData> items) {}
+    /** {@code coins}: as moedas separadas (pp/gp/ep/sp/cp); arquivo antigo sem elas usa o moneyGp. */
+    public record InventoryData(BigDecimal moneyGp, List<ItemData> items, java.util.Map<String, Long> coins) {
+        public InventoryData(BigDecimal moneyGp, List<ItemData> items) {
+            this(moneyGp, items, null);
+        }
+    }
 
     public record CharacterData(
             String name,

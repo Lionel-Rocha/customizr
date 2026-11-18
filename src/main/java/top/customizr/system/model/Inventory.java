@@ -14,6 +14,7 @@ import lombok.Getter;
 
 import java.math.BigDecimal;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -43,6 +44,14 @@ public class Inventory {
 
     @Column(name = "money_gp", nullable = false, precision = 12, scale = 2)
     private BigDecimal moneyGp = BigDecimal.ZERO;
+
+    /**
+     * As moedas separadas (pl/po/pe/pp/pc). Colunas novas e opcionais: inventario antigo (tudo nulo) comeca com o
+     * {@code moneyGp} quebrado em po/pp/pc. {@code moneyGp} continua sendo o valor total, pra loja e espolio.
+     */
+    @jakarta.persistence.Embedded
+    @lombok.Getter(lombok.AccessLevel.NONE)
+    private CoinPurse coins;
 
     protected Inventory() {}
 
@@ -122,6 +131,60 @@ public class Inventory {
         if (updatedAmount.signum() < 0) {
             throw new IllegalArgumentException("Inventory money cannot be negative");
         }
-        moneyGp = updatedAmount;
+        // as moedas acompanham: receber vira po/pp/pc; pagar usa as moedas menores primeiro e volta troco
+        CoinPurse purse = getCoins();
+        long copper = CoinPurse.toCopper(amount.abs());
+        if (amount.signum() > 0) {
+            CoinPurse change = CoinPurse.ofGold(amount);
+            for (Currency c : Currency.values()) purse.add(c, change.count(c));
+        } else if (amount.signum() < 0) {
+            purse.pay(copper);
+        }
+        moneyGp = purse.totalGold();
+    }
+
+    // ------------------------------------------------------------------ moedas separadas
+
+    /** A bolsa de moedas (inventario antigo ganha a dele a partir do {@code moneyGp}). */
+    public CoinPurse getCoins() {
+        if (coins == null) coins = CoinPurse.ofGold(moneyGp == null ? BigDecimal.ZERO : moneyGp);
+        return coins;
+    }
+
+    /**
+     * Poe ({@code amount} positivo) ou tira moedas de uma moeda. Tirar mais do que tem dessa moeda paga o resto
+     * pelo valor, com troco (ex.: tirar 30 pp tendo 10 pp e 5 po).
+     */
+    public void changeCoins(Currency currency, long amount) {
+        if (currency == null) throw new IllegalArgumentException("Currency is required");
+        if (amount == 0) throw new IllegalArgumentException("Amount cannot be zero");
+        CoinPurse purse = getCoins();
+        if (amount > 0) {
+            purse.add(currency, amount);
+        } else {
+            long want = -amount;
+            long fromSame = Math.min(want, purse.count(currency));
+            long rest = (want - fromSame) * CoinPurse.copperValue(currency);
+            if (rest > purse.totalCopper() - fromSame * CoinPurse.copperValue(currency)) {
+                throw new IllegalArgumentException("Inventory money cannot be negative");
+            }
+            purse.add(currency, -fromSame);
+            if (rest > 0) purse.pay(rest);
+        }
+        moneyGp = purse.totalGold();
+    }
+
+    /** Cambio: troca moedas de um tipo por outro (o valor tem que fechar em moedas inteiras). */
+    public void exchangeCoins(Currency from, Currency to, long amount) {
+        getCoins().exchange(from, to, amount);
+        moneyGp = getCoins().totalGold();
+    }
+
+    /** Usado pela importacao da campanha: poe exatamente estas moedas. */
+    public void replaceCoins(Map<Currency, Long> amounts) {
+        CoinPurse purse = CoinPurse.empty();
+        if (amounts != null) amounts.forEach((c, n) -> { if (c != null && n != null && n > 0) purse.add(c, n); });
+        coins = purse;
+        moneyGp = purse.totalGold();
     }
 }

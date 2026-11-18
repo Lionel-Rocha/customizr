@@ -67,6 +67,8 @@
   .insp.on .star { color: var(--accent-2); text-shadow: 0 0 6px var(--accent); }
   .insp b { flex: 1; }
   .lvl-ready { color: var(--accent-2); font-weight: 600; }
+  .coins { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+  .coins .stat b { display: block; font-size: 16px; }
   .lvl-box { display: grid; gap: 6px; font-size: 13px; }
   .lvl-box ul { margin: 0; padding-left: 18px; }
   .lvl-box .warn { color: #FFB38A; font-size: 12px; }
@@ -339,6 +341,28 @@
             <button id="resAdd" class="primary">Criar</button>
           </div>
         </details>
+      </div>
+      <div class="card">
+        <h3>Bolsa e carga</h3>
+        <div id="purseCoins" class="coins"></div>
+        <div id="purseTotal" class="muted" style="font-size:12px"></div>
+        <div class="row">
+          <input id="purseAmount" type="number" min="1" step="1" value="1" style="max-width:72px">
+          <select id="purseCurrency"><option value="PLATINUM">pl</option><option value="GOLD" selected>po</option>
+            <option value="ELECTRUM">pe</option><option value="SILVER">pp</option><option value="COPPER">pc</option></select>
+          <button id="purseGain">Receber</button><button id="purseSpend">Gastar</button>
+        </div>
+        <div class="row">
+          <span class="muted" style="font-size:12px">Trocar</span>
+          <input id="xAmount" type="number" min="1" step="1" value="10" style="max-width:64px">
+          <select id="xFrom"><option value="PLATINUM">pl</option><option value="GOLD">po</option><option value="ELECTRUM">pe</option>
+            <option value="SILVER" selected>pp</option><option value="COPPER">pc</option></select>
+          <span class="muted">→</span>
+          <select id="xTo"><option value="PLATINUM">pl</option><option value="GOLD" selected>po</option><option value="ELECTRUM">pe</option>
+            <option value="SILVER">pp</option><option value="COPPER">pc</option></select>
+          <button id="xGo">Trocar</button>
+        </div>
+        <div id="carryInfo" class="muted" style="font-size:12px"></div>
       </div>
       <div class="card">
         <h3>Subir de nível <span id="lvlReady" class="lvl-ready"></span></h3>
@@ -1031,6 +1055,7 @@ async function loadSheet() {
     + stat('Nível', c.totalLevel) + (a ? ABILITIES.map(([, pt, key]) => stat(pt, a[key] + ' (' + (Math.floor((a[key] - 10) / 2) >= 0 ? '+' : '') + Math.floor((a[key] - 10) / 2) + ')')).join('') : '');
   renderResources(id, sheet);
   renderLevelUp(id, sheet).catch(err => toast(err.message));
+  renderPurse(id, sheet).catch(err => toast(err.message));
   const box = $('sheetFeatures'); box.innerHTML = '';
   if (!features.length) box.textContent = 'Nada ainda: adicione classe, espécie ou itens.';
   for (const f of features) {
@@ -1135,6 +1160,53 @@ async function rest(type) {
     toast(parts.join(' · '), true); $('restDice').value = 0; loadSheet();
   } catch (err) { toast(err.message); }
 }
+// ------------------------------------------------------------------ bolsa de moedas e carga
+const COIN_PT = [['pp', 'pl', 'platina'], ['gp', 'po', 'ouro'], ['ep', 'pe', 'electro'], ['sp', 'pp', 'prata'], ['cp', 'pc', 'cobre']];
+const lb = v => v == null ? '—' : v.toLocaleString('pt-BR') + ' lb (' + (Math.round(v * 0.45 * 10) / 10).toLocaleString('pt-BR') + ' kg)';
+let purseInventory = null;
+
+async function renderPurse(id, sheet) {
+  const d = sheet.details || {};
+  $('carryInfo').textContent = d.carryingCapacityLb == null ? 'Carga: defina os atributos (FOR × 15 lb).'
+    : 'Carga: até ' + lb(d.carryingCapacityLb) + ' · empurrar, arrastar ou erguer: ' + lb(d.pushDragLiftLb);
+  try { purseInventory = (await api('/inventory/character/' + id)).find(i => i.ownerType === 'CHARACTER') || null; }
+  catch (e) { purseInventory = null; }
+  const box = $('purseCoins'); box.innerHTML = '';
+  const coins = (purseInventory && purseInventory.coins) || {};
+  for (const [key, short, name] of COIN_PT) {
+    const cell = document.createElement('div'); cell.className = 'stat'; cell.title = name;
+    cell.innerHTML = '<small>' + short + '</small><b>' + (coins[key] || 0).toLocaleString('pt-BR') + '</b>';
+    box.append(cell);
+  }
+  const total = Object.values(coins).reduce((a, b) => a + b, 0);
+  $('purseTotal').textContent = purseInventory ? 'Total: ' + gp(purseInventory.moneyGp) + ' · ' + total + ' moedas (pesam ' + (Math.round(total / 50 * 100) / 100).toLocaleString('pt-BR') + ' lb)' : 'Sem inventário.';
+  for (const b of ['purseGain', 'purseSpend', 'xGo']) $(b).disabled = !purseInventory;
+}
+
+async function purseMoney(sign) {
+  const id = $('sheetChar').value; if (!id || !purseInventory) return;
+  const amount = Math.floor(Number($('purseAmount').value));
+  if (!(amount > 0)) return toast('Digite uma quantidade inteira.');
+  try {
+    await api('/inventory/' + purseInventory.inventoryId + '/money', { method: 'PATCH',
+      body: { actorCharacterId: id, amount: sign * amount, currency: $('purseCurrency').value } });
+    loadSheet();
+  } catch (err) { toast(err.message.includes('negative') ? 'Não tem dinheiro suficiente.' : err.message); }
+}
+$('purseGain').onclick = () => purseMoney(1);
+$('purseSpend').onclick = () => purseMoney(-1);
+$('xGo').onclick = async () => {
+  const id = $('sheetChar').value; if (!id || !purseInventory) return;
+  try {
+    await api('/inventory/' + purseInventory.inventoryId + '/coins/exchange', { method: 'POST',
+      body: { actorCharacterId: id, from: $('xFrom').value, to: $('xTo').value, amount: Math.floor(Number($('xAmount').value)) } });
+    loadSheet();
+  } catch (err) {
+    const m = err.message;
+    toast(/does not make whole/.test(m) ? 'Esse valor não fecha em moedas inteiras.' : /Only (\d+)/.test(m) ? 'Só tem ' + m.match(/Only (\d+)/)[1] + ' dessa moeda.' : m);
+  }
+};
+
 // ------------------------------------------------------------------ subir de nivel
 const ABILITY_PT = { STRENGTH: 'FOR', DEXTERITY: 'DES', CONSTITUTION: 'CON', INTELLIGENCE: 'INT', WISDOM: 'SAB', CHARISMA: 'CAR' };
 let lvlAllClasses = null, lvlPlan = null;

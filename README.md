@@ -162,7 +162,12 @@ Abaixo estão todos os endpoints atualmente expostos pelo backend da aplicação
 | `GET` | `/inventory/{inventoryId}?actorCharacterId=` | Consulta um inventário. |
 | `POST` | `/inventory/{inventoryId}/items` | Adiciona item (`actorCharacterId`, `itemId`, `quantity`). |
 | `DELETE` | `/inventory/{inventoryId}/items/{itemId}?actorCharacterId=&quantity=` | Remove item. |
-| `PATCH` | `/inventory/{inventoryId}/money` | Soma ou tira dinheiro, em po (`actorCharacterId`, `amount`). |
+| `PATCH` | `/inventory/{inventoryId}/money` | Soma ou tira dinheiro (`actorCharacterId`, `amount`, `currency` opcional). Com moeda e quantidade inteira, entram ou saem essas moedas (37 pp ficam 37 pp); sem moeda, o valor em po entra quebrado em po/pp/pc. Pagar usa as moedas menores primeiro e devolve troco. |
+| `POST` | `/inventory/{inventoryId}/coins/exchange` | Câmbio: `from`, `to`, `amount` (ex.: 30 pp → 3 po; o valor precisa fechar em moedas inteiras). |
+
+**Moedas separadas:** o inventário guarda quantas pl, po, pe, pp e pc tem (`coins` na resposta). O `moneyGp` continua sendo o valor total, então loja, espólio e divisão de moedas seguem funcionando em po. Inventário antigo (colunas novas vazias) começa com o `moneyGp` quebrado em po/pp/pc.
+
+**Capacidade de carga** (na ficha, `details.carryingCapacityLb` e `pushDragLiftLb`): FOR × 15 lb e o dobro para empurrar, arrastar ou erguer, vezes o tamanho da espécie (Miúdo ½, Pequeno/Médio 1, Grande 2, Enorme 4, Imenso 8). O peso dos itens não é somado: a mesa não usa a regra de peso.
 | `POST` | `/npc/campaign/{campaignId}` | Cria NPC (mestre). |
 | `GET` | `/npc/campaign/{campaignId}` | Lista NPCs (jogadores não recebem `masterInformation`). |
 | `GET` / `PUT` / `DELETE` | `/npc/{id}` | Consulta, atualiza ou exclui um NPC. |
