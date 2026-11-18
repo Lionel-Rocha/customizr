@@ -111,7 +111,7 @@ public class TradeService {
     public ShopResponse addShopItem(UUID shopId, ShopItemRequest r, String username) {
         Shop shop = shopOfMaster(shopId, username);
         if (r == null || r.itemId() == null) throw badRequest("itemId is required");
-        Item item = item(r.itemId());
+        Item item = itemFor(r.itemId(), shop.getCampaign());
         valid(() -> shop.addItem(item, r.priceGp(), r.stock()));
         shopRepository.flush();
         return broadcast(shop);
@@ -232,7 +232,7 @@ public class TradeService {
     public LootResponse addLootItem(UUID lootId, LootItemRequest r, String username) {
         Loot loot = lootOfMaster(lootId, username);
         if (r == null || r.itemId() == null) throw badRequest("itemId is required");
-        Item item = item(r.itemId());
+        Item item = itemFor(r.itemId(), loot.getCampaign());
         valid(() -> loot.addItem(item, r.quantity() == null ? 1 : r.quantity()));
         lootRepository.flush();
         return broadcast(loot);
@@ -350,6 +350,13 @@ public class TradeService {
 
     private Item item(UUID id) {
         return itemRepository.findById(id).orElseThrow(() -> notFound("Item"));
+    }
+
+    /** Item do catalogo, ou item proprio desta campanha (o de outra campanha nao entra). */
+    private Item itemFor(UUID id, Campaign campaign) {
+        Item item = item(id);
+        if (item.getCampaign() != null && !item.getCampaign().getId().equals(campaign.getId())) throw notFound("Item");
+        return item;
     }
 
     private Campaign campaign(UUID id) {

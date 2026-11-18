@@ -32,10 +32,6 @@ import java.util.UUID;
 @Service
 public class ItemService {
 
-    private static final Set<String> IMPORTABLE_SOURCES = Set.of(
-            "XPHB", "EFA", "RHW", "XDMG", "FRAIF", "AU"
-    );
-
     private final ItemRepository itemRepository;
     private final InventoryEntryRepository inventoryEntryRepository;
     private final SourceRepository sourceRepository;
@@ -248,8 +244,8 @@ public class ItemService {
      */
     private BigDecimal price(JsonNode entry, Map<String, BigDecimal> bases) {
         BigDecimal official = parsePrice(entry);
-        if (official != null || !isMagical(entry)) {
-            return official;
+        if (official != null || !isMagical(entry) || unknownRarity(text(entry, "rarity"))) {
+            return official;   // raridade desconhecida: o DMG nao da valor, o mestre define
         }
         return MagicItemPricing.price(parseRarity(entry), text(entry, "type"), text(entry, "name"), baseValue(entry, bases));
     }
@@ -342,7 +338,9 @@ public class ItemService {
         if (name == null || name.isBlank()) {
             throw badRequest("Item search name is required");
         }
-        return itemRepository.findByNameContainingIgnoreCase(name.trim());
+        // item proprio de campanha nao aparece na busca geral (so na busca da campanha dele)
+        return itemRepository.findByNameContainingIgnoreCase(name.trim()).stream()
+                .filter(item -> item.getCampaign() == null).toList();
     }
 
     @Transactional
@@ -443,8 +441,10 @@ public class ItemService {
         if (sourceCode == null || sourceCode.isBlank()) {
             return "Item source is required";
         }
-        if (!IMPORTABLE_SOURCES.contains(sourceCode)) {
-            return "Source is not enabled for import";
+        // qualquer fonte cadastrada no banco entra (a sincronizacao com o 5etools cadastra os livros);
+        // so a fonte homebrew de campanha fica de fora: item do mestre nasce pela tela dele
+        if (sourceCode.startsWith("HB-")) {
+            return "Campaign homebrew items are created by the master";
         }
         if (!hasValidRarity(entry)) {
             return "Item rarity is unsupported";
@@ -471,16 +471,24 @@ public class ItemService {
             return Rarity.COMMON;
         }
         String normalized = rarity.replaceAll("[^A-Za-z_]", "").toUpperCase(Locale.ROOT);
-        if ("NONE".equals(normalized)) {
-            return Rarity.COMMON;   // item comum (nao magico): o 5etools usa "none"
+        if ("NONE".equals(normalized) || unknownRarity(rarity)) {
+            return Rarity.COMMON;   // "none" = item comum; "unknown" = sem raridade definida (fica sem preco)
         }
         return Rarity.valueOf(normalized);
+    }
+
+    /** "unknown" e "unknown (magic)": o 5etools nao diz a raridade. */
+    private static boolean unknownRarity(String rarity) {
+        if (rarity == null) return false;
+        String r = rarity.trim().toLowerCase(Locale.ROOT);
+        return r.startsWith("unknown");   // "varies" (familias de itens) continua de fora, como no teste dela
     }
 
     private boolean isMagical(JsonNode entry) {
         String type = text(entry, "type");
         String rarity = text(entry, "rarity");
-        boolean rare = rarity != null && !rarity.isBlank() && !"none".equalsIgnoreCase(rarity.trim());
+        String r = rarity == null ? "" : rarity.trim().toLowerCase(Locale.ROOT);
+        boolean rare = !r.isEmpty() && !r.equals("none") && !r.equals("unknown");   // "unknown (magic)" e magico
         return rare
                 || entry.path("wondrous").asBoolean(false)
                 || (type != null && type.contains("MAGIC"))   // ex.: MAGIC_VARIANT

@@ -11,6 +11,7 @@ public interface ItemRepository extends JpaRepository<Item, UUID> {
     List<Item> findBySource_Id(UUID sourceId);
     List<Item> findByNameContainingIgnoreCase(String name);
     List<Item> findByPriceGpIsNull();
+    List<Item> findByCampaign(top.customizr.system.model.Campaign campaign);
     boolean existsByNameAndSource_Id(String name, UUID sourceId);
     Optional<Item> findByNameAndSource_Id(String name, UUID sourceId);
     Optional<Item> findFirstByNameIgnoreCaseAndSource_Id(String name, UUID sourceId);

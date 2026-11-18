@@ -34,7 +34,8 @@ public record CampaignExport(
         List<IconData> icons,
         List<ShopData> shops,
         List<LootData> loot,
-        List<PriceData> prices
+        List<PriceData> prices,
+        List<CustomItemData> customItems
 ) {
     /** 2: cenas (paredes, areas, tokens, luz), monstros customizados, objetos e pacote de icones. */
     public static final int FORMAT_VERSION = 2;
@@ -91,6 +92,10 @@ public record CampaignExport(
 
     /** Preco que o mestre deu a um item sem preco oficial. */
     public record PriceData(Ref item, BigDecimal priceGp) {}
+
+    /** Item proprio do mestre (referencias a ele usam a fonte HB-... da campanha de origem). */
+    public record CustomItemData(String name, String type, String category, String rarity, BigDecimal priceGp,
+                                 String referenceLink) {}
 
     public record Ref(String name, String source) {}
 

@@ -71,6 +71,7 @@ public class ItemPriceService {
         Map<UUID, BigDecimal> mine = pricesOf(campaign);
         String q = name == null ? "" : name.trim().toLowerCase(Locale.ROOT);
         return itemRepository.findByPriceGpIsNull().stream()
+                .filter(i -> i.getCampaign() == null)   // item do mestre ja tem o preco que ele quiser
                 .filter(i -> includeMagic || i.getType() == ItemType.MUNDANE)
                 .filter(i -> q.isEmpty() || i.getName().toLowerCase(Locale.ROOT).contains(q))
                 .sorted(Comparator.comparing(Item::getName, String.CASE_INSENSITIVE_ORDER))

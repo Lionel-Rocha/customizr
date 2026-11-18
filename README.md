@@ -245,6 +245,10 @@ Abaixo estão todos os endpoints atualmente expostos pelo backend da aplicação
 | `GET` / `POST` | `/shops/campaign/{campaignId}` | Lojas da campanha (o jogador só vê as abertas) / nova loja (`name`, `description`, `open`, `buyBackPercent`). |
 | `PUT` / `DELETE` | `/shops/{shopId}` · `POST` `/shops/{shopId}/items` · `PUT` / `DELETE` `/shops/{shopId}/items/{entryId}` | Edita a loja e os itens à venda (`itemId` do catálogo, `priceGp` (vazio = o do catálogo), `stock` (vazio = sem limite)). Só o mestre. |
 | `POST` | `/shops/{shopId}/buy` · `/shops/{shopId}/sell` | Compra (`characterId`, `entryId`, `quantity`) ou vende (`itemId`) pelo personagem: mexe no dinheiro e no inventário dele e no estoque; vai pro chat. |
+| `GET` | `/item/campaign/{campaignId}/search` | Busca de itens pra quem está na campanha: catálogo + itens do mestre desta campanha. `name`; `origin` = `OFFICIAL`, `UNOFFICIAL`, `UNKNOWN`, `CUSTOM` (pode juntar com vírgula; vazio = todos). Já traz o preço que vale na campanha. |
+| `GET` / `POST` | `/item/campaign/{campaignId}/custom` | Itens próprios do mestre (todo membro vê) / novo item (`name`, `type`, `category`, `rarity`, `priceGp`, `referenceLink`). Só o mestre cria. |
+| `PUT` / `DELETE` | `/item/campaign/{campaignId}/custom/{itemId}` | Edita (`clearPrice` apaga o preço) / apaga o item do mestre (sai das lojas e espólios; não apaga se estiver em inventário). |
+| `POST` | `/item/campaign/{campaignId}/sync-5etools` | Atualiza o catálogo direto do 5etools (`includeUnofficial=true` traz também o não oficial). Só o mestre. |
 | `GET` | `/item/prices/campaign/{campaignId}` | Preços que o mestre deu na campanha aos itens sem preço oficial (`itemId` → po). Todo membro vê. |
 | `GET` | `/item/prices/campaign/{campaignId}/unpriced` | Itens sem preço oficial (`name` filtra; `includeMagic=true` mostra também os mágicos, como artefatos), com o preço da campanha. Só o mestre. |
 | `PUT` | `/item/prices/campaign/{campaignId}/{itemId}` | O mestre define o preço (`priceGp`; vazio apaga) de um item sem preço oficial. Vale só nesta campanha; o catálogo não muda. |
@@ -277,6 +281,18 @@ Os dois aceitam o arquivo de itens do 5etools com o array `item` e/ou `baseitem`
 * **Preço oficial:** o do arquivo (`value`, em pc, ou `priceGp`). Raridade `none` = item comum (não mágico).
 * **Item mágico sem preço:** a tabela "Magic Item Values" do *Dungeon Master's Guide* (2024): Common 100 po, Uncommon 400, Rare 4.000, Very Rare 40.000, Legendary 200.000; artefato fica sem preço. Consumível (poção, pergaminho, munição, explosivo) vale a metade, menos o *Spell Scroll*, que vale o dobro do custo de escrever (tabela do *Player's Handbook* 2024). Arma ou armadura mágica soma o preço do item de base (`baseItem`). Na atualização, o preço oficial do arquivo manda e a tabela só preenche quem ainda não tem preço.
 * **Item comum sem preço:** fica sem; o mestre dá o preço dele na campanha (aba Comércio, "Preços do mestre").
+
+**Fontes:** qualquer fonte cadastrada no banco entra na importação (antes só XPHB, EFA, RHW, XDMG, FRAIF e AU). A fonte homebrew de campanha (`HB-...`) fica de fora: item do mestre nasce pela tela dele. Raridade `unknown` / `unknown (magic)` entra sem preço (o mestre define); `varies` (famílias de itens) continua de fora.
+
+**Atualizar pelo 5etools** (botão "Atualizar do 5etools" na aba Comércio, só o mestre):
+
+1. Lê `books.json` e `adventures.json` do 5etools: cada livro/aventura vira (ou atualiza) uma fonte com o nome completo e `official` (autor da Wizards: "Wizards RPG Team" / "Wizards of the Coast").
+2. Lê `items-base.json` e `items.json` e cria ou atualiza os itens (preço oficial, valor do DMG 2024, categoria). Sem "incluir não oficiais", itens de parceiros, terceiros e fontes que não estão na lista ficam de fora (e a fonte nem é cadastrada).
+3. Os itens do mestre não são tocados. O conteúdo vai só pro banco.
+
+O endereço é `fivetools.data-url` (padrão: o `data/` do repositório público `5etools-mirror-3/5etools-src` no GitHub). Sem internet, aponte pra uma pasta `data/` local: `--fivetools.data-url=file:///C:/caminho/5etools/data/`.
+
+**Itens do mestre:** ficam na fonte homebrew da campanha, ao lado dos oficiais, só naquela campanha (a busca geral `/item/search` e as outras campanhas não veem; loja e espólio de outra campanha recusam). Vão na exportação da campanha e voltam como itens da campanha nova.
 
 Categoria (`ItemCategory`), pelo código de tipo do 5etools:
 

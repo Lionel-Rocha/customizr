@@ -213,7 +213,10 @@ public class CampaignTransferService {
                         l.getMoneyGp(), l.getEntries().stream().map(e -> new CampaignExport.LootItemData(
                         new CampaignExport.Ref(e.getItem().getName(), e.getItem().getSource().getCode()), e.getQuantity())).toList())).toList(),
                 itemPriceRepository.findByCampaign(campaign).stream().map(p -> new CampaignExport.PriceData(
-                        new CampaignExport.Ref(p.getItem().getName(), p.getItem().getSource().getCode()), p.getPriceGp())).toList());
+                        new CampaignExport.Ref(p.getItem().getName(), p.getItem().getSource().getCode()), p.getPriceGp())).toList(),
+                itemRepository.findByCampaign(campaign).stream().map(i -> new CampaignExport.CustomItemData(i.getName(),
+                        i.getType().name(), i.getCategory() == null ? null : i.getCategory().name(), i.getRarity().name(),
+                        i.getPriceGp(), i.getReferenceLink())).toList());
     }
 
     /** id -> nome dos verbetes da enciclopedia (os alfinetes levam o verbete pelo nome). */
@@ -270,6 +273,7 @@ public class CampaignTransferService {
         if (data == null || data.name() == null || data.name().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This is not a Customizr campaign export");
         }
+        currentCampaign.remove();
         if (data.formatVersion() > CampaignExport.FORMAT_VERSION) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "Export made by a newer version (format " + data.formatVersion() + ")");
@@ -294,6 +298,19 @@ public class CampaignTransferService {
             imageUrls.put("/image/" + image.id(), saved.getUrl());
         }
         Function<String, String> url = u -> u == null ? null : imageUrls.computeIfAbsent(u, old -> copyImage(old, campaign, master));
+
+        // itens do mestre primeiro: inventarios, lojas e espolio apontam pra eles
+        for (CampaignExport.CustomItemData ci : nullSafe(data.customItems())) {
+            try {
+                itemRepository.save(Item.custom(ci.name(), monsterService.homebrewSource(campaign), campaign,
+                        top.customizr.system.model.ItemType.valueOf(ci.type()),
+                        ci.category() == null ? null : top.customizr.system.model.ItemCategory.valueOf(ci.category()),
+                        ci.referenceLink(), top.customizr.system.model.Rarity.valueOf(ci.rarity()), ci.priceGp()));
+            } catch (RuntimeException ex) {
+                warnings.add("Item " + ci.name() + ": " + ex.getMessage());
+            }
+        }
+        currentCampaign.set(campaign);
 
         Map<String, EncyclopediaReferenceable> references = new HashMap<>();
         for (CampaignExport.WorldData w : nullSafe(data.worlds())) {
@@ -458,6 +475,7 @@ public class CampaignTransferService {
             warnings.add(scenes + " scene(s) and " + customMonsters.size() + " custom monster(s) restored");
         }
 
+        currentCampaign.remove();
         return new CampaignImportResponse(campaign.getId(), campaign.getName(), campaign.getCode(),
                 charactersByName.size(), nullSafe(data.npcs()).size(), nullSafe(data.worlds()).size(),
                 nullSafe(data.encyclopedia()).size(), imageUrls.size(), warnings);
@@ -523,7 +541,7 @@ public class CampaignTransferService {
 
     private Optional<top.customizr.system.model.Item> catalogItem(CampaignExport.Ref ref) {
         if (ref == null) return Optional.empty();
-        return sourceRepository.getSourceByCode(ref.source()).flatMap(s -> itemRepository.findByNameAndSource_Id(ref.name(), s.getId()));
+        return findItem(ref.name(), ref.source());
     }
 
     /** Imagem de outra campanha (export sem imagens, mesmo servidor): copia se quem importa tem acesso a ela. */
@@ -571,12 +589,23 @@ public class CampaignTransferService {
         if (data == null) return;
         if (data.moneyGp() != null && data.moneyGp().signum() > 0) inventory.changeMoney(data.moneyGp());
         for (CampaignExport.ItemData item : nullSafe(data.items())) {
-            Optional<Item> found = sourceRepository.getSourceByCode(item.source())
-                    .flatMap(s -> itemRepository.findByNameAndSource_Id(item.name(), s.getId()));
+            Optional<Item> found = findItem(item.name(), item.source());
             if (found.isPresent() && item.quantity() > 0) inventory.addItem(found.get(), item.quantity());
             else warnings.add("Item " + item.name() + " (" + item.source() + ") not found");
         }
         inventoryRepository.save(inventory);
+    }
+
+    /** Campanha sendo importada (pra achar os itens do mestre dela). */
+    private final ThreadLocal<Campaign> currentCampaign = new ThreadLocal<>();
+
+    /** Item pelo nome e fonte; fonte HB-... (item do mestre na campanha de origem) vira a da campanha nova. */
+    private Optional<Item> findItem(String name, String sourceCode) {
+        Campaign campaign = currentCampaign.get();
+        if (sourceCode != null && sourceCode.startsWith("HB-") && campaign != null) {
+            return itemRepository.findByNameAndSource_Id(name, monsterService.homebrewSource(campaign).getId());
+        }
+        return sourceRepository.getSourceByCode(sourceCode).flatMap(s -> itemRepository.findByNameAndSource_Id(name, s.getId()));
     }
 
     private static <T> List<T> nullSafe(List<T> list) {

@@ -265,11 +265,29 @@
       <div class="card master-only">
         <h3>Montar</h3>
         <div class="row"><input id="newShopName" placeholder="nova loja (ex.: Ferreiro)"><input id="newShopRate" type="number" min="0" max="100" value="50" title="% que a loja paga ao comprar do jogador" style="max-width:60px"><button id="newShop">Loja</button></div>
+        <div class="row"><span class="muted" style="flex:0;white-space:nowrap">Buscar itens</span><select id="itemOrigin" title="De onde vêm os itens da busca">
+          <option value="OFFICIAL,CUSTOM">oficiais + do mestre</option><option value="">todos</option><option value="OFFICIAL">só oficiais</option>
+          <option value="UNOFFICIAL,UNKNOWN">só não oficiais</option><option value="CUSTOM">só do mestre</option></select></div>
         <div class="row"><input id="newLootName" placeholder="novo espólio (ex.: Baú do dragão)"><input id="newLootGp" type="number" min="0" step="0.01" placeholder="po" style="max-width:80px"><button id="newLoot">Espólio</button></div>
       </div>
       <div id="tradeShops" style="display:grid;gap:8px"></div>
       <div id="tradeLoot" style="display:grid;gap:8px"></div>
       <div class="card"><h3>Vender</h3><div id="tradeSell" style="display:grid;gap:4px"></div></div>
+      <div class="card master-only">
+        <h3>Itens do mestre</h3>
+        <div class="muted" style="font-size:12px">Itens seus, só desta campanha, ao lado dos oficiais. A atualização do 5etools não mexe neles.</div>
+        <div class="row"><input id="ciName" placeholder="nome do item"><input id="ciPrice" type="number" min="0" step="0.01" placeholder="po" style="max-width:80px"></div>
+        <div class="row"><select id="ciType"><option value="MUNDANE">comum</option><option value="MAGICAL">mágico</option></select>
+          <select id="ciCategory"><option value="">sem categoria</option><option value="ADVENTURING_GEAR">adventuring gear</option><option value="WEAPON">weapon</option><option value="ARMOR">armor</option><option value="CONSUMABLE">consumable</option><option value="AMMUNITION_EXPLOSIVES">ammunition explosives</option><option value="TOOLS">tools</option><option value="POISONS">poisons</option><option value="MOUNTS_VEHICLES">mounts vehicles</option><option value="TRINKETS">trinkets</option><option value="WONDROUS_ITEM">wondrous item</option></select>
+          <select id="ciRarity"><option value="COMMON">common</option><option value="UNCOMMON">uncommon</option><option value="RARE">rare</option><option value="VERYRARE">veryrare</option><option value="LEGENDARY">legendary</option><option value="ARTIFACT">artifact</option></select><button id="ciCreate">Criar</button></div>
+        <div id="ciList" style="display:grid;gap:4px;max-height:260px;overflow:auto"></div>
+      </div>
+      <div class="card master-only">
+        <h3>Catálogo do 5etools</h3>
+        <div class="muted" style="font-size:12px">Busca os itens de todos os livros no 5etools e atualiza o catálogo (preços, categorias). Oficial = livro da Wizards of the Coast.</div>
+        <div class="row"><label class="row" style="flex:0;white-space:nowrap;font-size:12px"><input id="syncUnofficial" type="checkbox" style="flex:0">incluir não oficiais</label><button id="syncFiveTools">Atualizar do 5etools</button></div>
+        <div id="syncResult" class="muted" style="font-size:12px"></div>
+      </div>
       <div class="card master-only">
         <h3>Preços do mestre</h3>
         <div class="muted" style="font-size:12px">Itens comuns sem preço oficial. O preço vale só nesta campanha. Itens mágicos já vêm com o valor do DMG 2024 pela raridade.</div>
@@ -2336,6 +2354,7 @@ async function loadTrade() {
   $('tradeMoney').textContent = inventory ? gp(inventory.moneyGp) : (mine.length ? '' : 'sem personagem');
   const [shops, loot] = await Promise.all([api('/shops/campaign/' + S.campaign.id), api('/loot/campaign/' + S.campaign.id)]);
   try { S.itemPrices = await api('/item/prices/campaign/' + S.campaign.id); } catch (e) { S.itemPrices = {}; }
+  if (S.master && !$('ciList').childElementCount) loadCustomItems();
   renderShops(shops); renderLoot(loot); renderSell(shops, inventory);
 }
 /** Valor do item: oficial ou o que o mestre deu na campanha. */
@@ -2362,6 +2381,38 @@ async function loadUnpriced() {
   }
 }
 $('priceSearch').onclick = loadUnpriced;
+/** Itens proprios do mestre: lista com preco editavel e apagar. */
+async function loadCustomItems() {
+  if (!S.master) return;
+  const box = $('ciList'); box.innerHTML = '';
+  let list;
+  try { list = await api('/item/campaign/' + S.campaign.id + '/custom'); } catch (err) { return toast(err.message); }
+  if (!list.length) { box.textContent = 'Nenhum item seu ainda.'; return; }
+  for (const it of list) {
+    const price = el('input', { type: 'number', min: '0', step: '0.01', placeholder: 'po', style: 'max-width:90px', value: it.priceGp != null ? String(it.priceGp) : '' });
+    price.onchange = () => api('/item/campaign/' + S.campaign.id + '/custom/' + it.id, { method: 'PUT',
+      body: price.value.trim() === '' ? { clearPrice: true } : { priceGp: Number(price.value) } })
+      .then(() => { toast('Salvo: ' + it.name, true); loadTrade(); }).catch(err => toast(err.message));
+    box.append(el('div', { class: 'atk' }, el('span', { text: it.name }, el('small', { text: (it.type === 'MAGICAL' ? 'mágico · ' + it.rarity.toLowerCase() : 'comum') + (it.category ? ' · ' + it.category.replace(/_/g, ' ').toLowerCase() : '') })),
+      price, el('button', { text: '✕', title: 'Apagar item', onclick: () => confirm('Apagar ' + it.name + '?') && api('/item/campaign/' + S.campaign.id + '/custom/' + it.id, { method: 'DELETE' })
+        .then(() => { loadCustomItems(); loadTrade(); }).catch(err => toast(err.message)) })));
+  }
+}
+$('ciCreate').onclick = () => {
+  const name = $('ciName').value.trim(); if (!name) return toast('Dê um nome ao item.');
+  api('/item/campaign/' + S.campaign.id + '/custom', { method: 'POST', body: { name, type: $('ciType').value, category: $('ciCategory').value || null,
+    rarity: $('ciRarity').value, priceGp: $('ciPrice').value === '' ? null : Number($('ciPrice').value) } })
+    .then(() => { $('ciName').value = ''; $('ciPrice').value = ''; toast('Item criado: ' + name, true); loadCustomItems(); }).catch(err => toast(err.message));
+};
+$('syncFiveTools').onclick = async () => {
+  const btn = $('syncFiveTools'); btn.disabled = true; $('syncResult').textContent = 'Buscando no 5etools... (pode levar um minuto)';
+  try {
+    const r = await api('/item/campaign/' + S.campaign.id + '/sync-5etools?includeUnofficial=' + $('syncUnofficial').checked, { method: 'POST' });
+    $('syncResult').textContent = r.itemsCreated + ' itens novos, ' + r.itemsUpdated + ' atualizados, ' + r.itemsSkipped + ' pulados' +
+      (r.includedUnofficial ? '' : ', ' + r.unofficialItemsLeftOut + ' não oficiais deixados de fora') + '. Fontes: ' + r.officialSources + ' oficiais, ' + r.unofficialSources + ' não oficiais.';
+  } catch (err) { $('syncResult').textContent = ''; toast(err.message); }
+  btn.disabled = false;
+};
 $('priceQuery').onkeydown = ev => { if (ev.key === 'Enter') loadUnpriced(); };
 function qtyInput() { const q = el('input', { type: 'number', min: '1', value: '1', style: 'max-width:52px' }); return q; }
 function tradeCall(path, body, okText) {
@@ -2370,10 +2421,11 @@ function tradeCall(path, body, okText) {
 /** Busca no catalogo e devolve o id escolhido (prompt simples). */
 async function pickItem() {
   const q = prompt('Buscar item no catálogo (nome):'); if (!q) return null;
-  const found = await api('/item/search?name=' + encodeURIComponent(q));
+  const found = await api('/item/campaign/' + S.campaign.id + '/search?name=' + encodeURIComponent(q) + '&origin=' + encodeURIComponent($('itemOrigin').value));
   if (!found.length) { toast('Nenhum item com esse nome.'); return null; }
   if (found.length === 1) return found[0];
-  const list = found.slice(0, 15).map((it, i) => (i + 1) + ') ' + it.name + (it.priceGp != null ? ' — ' + gp(it.priceGp) : '')).join('\n');
+  const tag = it => ({ OFFICIAL: '', UNOFFICIAL: ' [não oficial]', UNKNOWN: ' [fonte ?]', CUSTOM: ' [do mestre]' })[it.origin] || '';
+  const list = found.slice(0, 15).map((it, i) => (i + 1) + ') ' + it.name + ' (' + it.source + ')' + tag(it) + (it.priceGp != null ? ' — ' + gp(it.priceGp) : '')).join('\n');
   const n = Number(prompt('Qual?\n' + list, '1'));
   return found[n - 1] || null;
 }
