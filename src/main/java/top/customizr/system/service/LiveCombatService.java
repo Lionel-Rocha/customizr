@@ -65,11 +65,14 @@ public class LiveCombatService {
     private final ChatService chatService;
     private final LiveTableService liveTable;
     private final top.customizr.system.repository.AreaTemplateRepository templateRepository;
+    private final ConcentrationService concentration;
 
     public LiveCombatService(TokenRepository tokenRepository, MasterGuard masterGuard, CharacterSheetService sheetService,
                              CharacterService characterService, ChatService chatService, LiveTableService liveTable,
-                             top.customizr.system.repository.AreaTemplateRepository templateRepository) {
+                             top.customizr.system.repository.AreaTemplateRepository templateRepository,
+                             ConcentrationService concentration) {
         this.templateRepository = templateRepository;
+        this.concentration = concentration;
         this.tokenRepository = tokenRepository;
         this.masterGuard = masterGuard;
         this.sheetService = sheetService;
@@ -176,7 +179,7 @@ public class LiveCombatService {
         Integer applied = null;
         boolean apply = request.applyDamage() == null || request.applyDamage();
         if (apply && target != null && Boolean.TRUE.equals(hit) && damageRoll != null) {
-            applied = applyDamage(target, damageRoll.total(), damageType, notes);
+            applied = applyDamage(target, damageRoll.total(), damageType, notes, username);
         }
 
         // token oculto atacando: o chat nao entrega quem e
@@ -345,16 +348,17 @@ public class LiveCombatService {
             int cover = ability == AbilityScore.DEXTERITY ? Math.max(0, template.getScene().coverFrom(template.getX(), template.getY(), target)) : 0;
             boolean saved = !autoFail && roll.total() + cover >= dc;
             Integer applied = null;
+            List<String> notes = new ArrayList<>();
             if (damageRoll != null) {
                 int amount = saved ? (half ? damageRoll.total() / 2 : 0) : damageRoll.total();
-                List<String> notes = new ArrayList<>();
-                applied = apply ? applyDamage(target, amount, damageType, notes) : amount;
+                applied = apply ? applyDamage(target, amount, damageType, notes, username) : amount;
             }
             String name = target.isHiddenFromPlayers() ? "Unseen creature" : target.getName();
             results.add(new TemplateResolveResponse.Target(target.getId(), target.getName(), roll.total(), saved, autoFail, applied));
             lines.add(name + ": " + roll.total() + (cover > 0 ? " +" + cover + " cover" : "")
                     + (autoFail ? " (automatic failure)" : saved ? " saved" : " failed")
                     + (applied == null ? "" : " -> " + applied + " " + (damageType == null ? "damage" : damageType)));
+            notes.stream().filter(n -> n.contains("concentration")).forEach(n -> lines.add("  " + n));
         }
         String abilityShort = ability.getKey().substring(0, 3).toUpperCase(Locale.ROOT);
         String title = label + " (DC " + dc + " " + abilityShort + (damageRoll == null ? "" : ", damage " + damageRoll.detail()) + ")";
@@ -416,7 +420,10 @@ public class LiveCombatService {
         }
         try {
             switch (request.type()) {
-                case DAMAGE -> token.damage(request.amount());
+                case DAMAGE -> {
+                    token.damage(request.amount());
+                    concentration.afterDamage(token, request.amount(), username);
+                }
                 case HEALING -> token.heal(request.amount());
                 case TEMPORARY -> throw badRequest("Temporary HP is only tracked on character sheets");
             }
@@ -445,7 +452,7 @@ public class LiveCombatService {
     // ------------------------------------------------------------------ regras
 
     /** Aplica o dano no alvo, com resistencia/imunidade/vulnerabilidade do monstro. Devolve o que saiu do PV. */
-    private Integer applyDamage(Token target, int amount, String damageType, List<String> notes) {
+    private Integer applyDamage(Token target, int amount, String damageType, List<String> notes, String username) {
         int finalAmount = amount;
         Monster stats = target.getCharacter() == null ? target.statBlock() : null;
         if (stats != null && damageType != null) {
@@ -478,6 +485,7 @@ public class LiveCombatService {
             notes.add(target.getName() + " has no HP to track");
             return null;
         }
+        concentration.afterDamage(target, finalAmount, username).ifPresent(c -> notes.add(c.note()));
         return finalAmount;
     }
 

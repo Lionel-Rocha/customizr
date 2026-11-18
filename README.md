@@ -422,6 +422,14 @@ A parte da mesa de jogo, desenvolvida à parte em JavaFX, foi trazida para cá n
   * cobertura total impede o ataque;
   * na área de efeito, a cobertura soma na salvaguarda de DES.
 
+**Décima rodada (dano no chat e concentração):**
+
+* **Botões de dano no chat:** toda rolagem de dano (o dano de um ataque, ou uma rolagem solta como `/r 8d6`) ganha os botões "−N", "½", "×2" e "+N cura", aplicados no token selecionado no mapa. Testes de d20 e ataques que erraram não ganham botão.
+* **Concentração automática** (regra de 2024): quem está com o marcador de concentração e leva dano faz uma salvaguarda de CON contra CD 10 ou metade do dano (o maior, até 30), pela ficha ou pela ficha de monstro.
+  * Falhou: o marcador sai sozinho.
+  * Caiu a 0 PV ou ficou incapacitado: perde a concentração sem rolar.
+  * Vale pra qualquer dano: ataque, área, painel ou ficha. O resultado vai pro chat e pras notas do ataque.
+
 Ficaram de fora por não se encaixarem numa API REST sem uma interface de jogo:
 
 * a tela do mapa no front Angular (por enquanto existe a tela simples em `/mesa`, que usa a mesma API);

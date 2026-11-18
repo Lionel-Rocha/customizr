@@ -93,6 +93,9 @@
   .obj img { width: 100%; height: 60px; object-fit: contain; background: #2A201A; border-radius: 6px; }
   .obj .row button { padding: 2px 6px; font-size: 12px; }
   .chip img, .condIcon { width: 14px; height: 14px; vertical-align: -2px; margin-right: 3px; }
+  .dmgBtns { display: flex; gap: 4px; margin-top: 4px; flex-wrap: wrap; }
+  .dmgBtns button { padding: 1px 7px; font-size: 12px; border-radius: 6px; }
+  .dmgBtns button.heal { border-color: var(--good); color: var(--good); }
   #toast.ok { background: #233A26; border-color: var(--good); }
   #toast { position: fixed; right: 16px; bottom: 16px; max-width: 360px; background: #4A2420; border: 1px solid var(--bad); border-radius: 10px; padding: 10px 12px; }
   @media (max-width: 800px) {
@@ -763,7 +766,40 @@ function addChat(m) {
     else body.append(p.text);
   }
   if (m.type === 'ROLL' && m.rollTotal != null) { const s = document.createElement('div'); s.className = 'roll'; s.style.fontSize = '20px'; s.textContent = m.rollTotal; body.append(s); }
-  box.append(who, body); $('chatLog').append(box); $('chatLog').scrollTop = 1e9;
+  box.append(who, body);
+  const amount = damageOf(m);
+  if (amount != null) box.append(damageButtons(amount));
+  $('chatLog').append(box); $('chatLog').scrollTop = 1e9;
+}
+/**
+ * Valor de dano de uma rolagem do chat: o "damage: ... = N" de um ataque, ou o total de uma rolagem solta
+ * (/r 8d6). Testes de d20 (salvaguarda, pericia, concentracao) nao ganham botoes.
+ */
+function damageOf(m) {
+  if (m.type !== 'ROLL') return null;
+  const hit = /damage:[^|]*?=\s*(\d+)/i.exec(m.content || '');
+  if (hit) return /\| MISS/.test(m.content) ? null : Number(hit[1]);
+  if (m.naturalD20 != null || /concentration|save|check|initiative/i.test(m.content || '')) return null;
+  return m.rollTotal != null && m.rollTotal > 0 ? m.rollTotal : null;
+}
+/** Botoes de dano (inteiro, metade, dobro) e cura, aplicados no token selecionado no mapa. */
+function damageButtons(amount) {
+  const row = document.createElement('div'); row.className = 'dmgBtns';
+  const apply = (type, value, label) => {
+    const b = document.createElement('button'); b.textContent = label; if (type === 'HEALING') b.className = 'heal';
+    b.title = (type === 'HEALING' ? 'Curar ' : 'Dano de ') + value + ' no token selecionado';
+    b.onclick = () => {
+      const t = S.selected; if (!t) return toast('Selecione um token no mapa primeiro.');
+      api('/live/tokens/' + t.id + '/hp', { method: 'POST', body: { type, amount: value } })
+        .then(() => toast(t.name + ': ' + (type === 'HEALING' ? '+' : '-') + value + ' PV', true)).catch(err => toast(err.message));
+    };
+    row.append(b);
+  };
+  apply('DAMAGE', amount, '−' + amount);
+  apply('DAMAGE', Math.floor(amount / 2), '½ (' + Math.floor(amount / 2) + ')');
+  apply('DAMAGE', amount * 2, '×2 (' + amount * 2 + ')');
+  apply('HEALING', amount, '+' + amount + ' cura');
+  return row;
 }
 $('chatForm').addEventListener('submit', async e => {
   e.preventDefault(); const text = $('chatText').value.trim(); if (!text) return;

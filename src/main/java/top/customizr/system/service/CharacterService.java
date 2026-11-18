@@ -42,6 +42,7 @@ public class CharacterService {
     private final FeatureRepository featureRepository;
     private final InventoryRepository inventoryRepository;
     private final LiveTableService liveTable;
+    private final ConcentrationService concentration;
 
     public CharacterService(
             CharacterRepository characterRepository,
@@ -52,9 +53,11 @@ public class CharacterService {
             SubclassRepository subclassRepository,
             FeatureRepository featureRepository,
             InventoryRepository inventoryRepository,
-            LiveTableService liveTable
+            LiveTableService liveTable,
+            ConcentrationService concentration
     ) {
         this.liveTable = liveTable;
+        this.concentration = concentration;
         this.characterRepository = characterRepository;
         this.campaignRepository = campaignRepository;
         this.membershipRepository = membershipRepository;
@@ -230,7 +233,10 @@ public class CharacterService {
         Character character = findManageableCharacter(characterId, username);
         try {
             switch (request.type()) {
-                case DAMAGE -> character.getSheet().applyDamage(request.amount());
+                case DAMAGE -> {
+                    character.getSheet().applyDamage(request.amount());
+                    concentration.afterCharacterDamage(character, request.amount(), username);
+                }
                 case HEALING -> character.getSheet().heal(request.amount());
                 case TEMPORARY -> character.getSheet().grantTemporaryHp(request.amount());
             }
