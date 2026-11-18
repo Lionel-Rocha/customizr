@@ -20,6 +20,7 @@ import top.customizr.system.dto.TradeRequest;
 import top.customizr.system.model.Campaign;
 import top.customizr.system.model.Character;
 import top.customizr.system.model.Item;
+import top.customizr.system.model.ItemCategory;
 import top.customizr.system.model.ItemType;
 import top.customizr.system.model.Membership;
 import top.customizr.system.model.Rarity;
@@ -148,6 +149,44 @@ class ItemPricesTests {
 
         itemPrices.set(campaign.getId(), grenade.getId(), null, master);
         assertTrue(itemPrices.campaignPrices(campaign.getId(), master).isEmpty(), "vazio apaga");
+    }
+
+    @Test
+    void everyFivetoolsTypeLandsInOneOfTheCustomizrCategories() {
+        String rows = String.join(",",
+                row("Poison", "G|XPHB", "none", ",\"poison\":true"),
+                row("Horse", "MNT|XPHB", "none", ""),
+                row("Ship", "SHP|XPHB", "none", ",\"ac\":15"),
+                row("Arrows", "A|XPHB", "none", ""),
+                row("Bread", "FD|XPHB", "none", ""),
+                row("Smith", "AT|XPHB", "none", ""),
+                row("Ruby", "$G|XDMG", "none", ""),
+                row("Cloak", null, "uncommon", ",\"wondrous\":true"),
+                row("Ring", "RG|XDMG", "rare", ""),
+                row("Rope", "G|XPHB", "none", ""));
+        itemService.importFromDump(json.readTree("{\"item\":[" + rows + "]}"));
+        assertEquals(ItemCategory.POISONS, category("Poison"));
+        assertEquals(ItemCategory.MOUNTS_VEHICLES, category("Horse"));
+        assertEquals(ItemCategory.MOUNTS_VEHICLES, category("Ship"), "navio tem ac mas nao e armadura");
+        assertEquals(ItemCategory.AMMUNITION_EXPLOSIVES, category("Arrows"), "A = municao no 5etools");
+        assertEquals(ItemCategory.CONSUMABLE, category("Bread"));
+        assertEquals(ItemCategory.TOOLS, category("Smith"));
+        assertEquals(ItemCategory.TRINKETS, category("Ruby"));
+        assertEquals(ItemCategory.WONDROUS_ITEM, category("Cloak"));
+        assertEquals(ItemCategory.WONDROUS_ITEM, category("Ring"));
+        assertEquals(ItemCategory.ADVENTURING_GEAR, category("Rope"));
+    }
+
+    private String row(String name, String type, String rarity, String extra) {
+        String source = type != null && type.endsWith("XDMG") || type == null ? "XDMG" : "XPHB";
+        return "{\"name\":\"" + name + " " + tag + "\",\"source\":\"" + source + "\""
+                + (type == null ? "" : ",\"type\":\"" + type + "\"") + ",\"rarity\":\"" + rarity + "\"" + extra + "}";
+    }
+
+    private ItemCategory category(String name) {
+        String full = name + " " + tag;
+        return itemRepository.findByNameContainingIgnoreCase(full).stream().filter(i -> i.getName().equals(full))
+                .findFirst().orElseThrow().getCategory();
     }
 
     private Item item(String name, Source source) {

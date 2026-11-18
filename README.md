@@ -278,6 +278,23 @@ Os dois aceitam o arquivo de itens do 5etools com o array `item` e/ou `baseitem`
 * **Item mágico sem preço:** a tabela "Magic Item Values" do *Dungeon Master's Guide* (2024): Common 100 po, Uncommon 400, Rare 4.000, Very Rare 40.000, Legendary 200.000; artefato fica sem preço. Consumível (poção, pergaminho, munição, explosivo) vale a metade, menos o *Spell Scroll*, que vale o dobro do custo de escrever (tabela do *Player's Handbook* 2024). Arma ou armadura mágica soma o preço do item de base (`baseItem`). Na atualização, o preço oficial do arquivo manda e a tabela só preenche quem ainda não tem preço.
 * **Item comum sem preço:** fica sem; o mestre dá o preço dele na campanha (aba Comércio, "Preços do mestre").
 
+Categoria (`ItemCategory`), pelo código de tipo do 5etools:
+
+| Categoria | Tipos do 5etools |
+|---|---|
+| `POISONS` | qualquer item com `poison` |
+| `MOUNTS_VEHICLES` | `MNT`, `VEH`, `SHP`, `AIR`, `SPC`, `TAH` (montarias, veículos, navios, arreios) |
+| `AMMUNITION_EXPLOSIVES` | `A`, `AF`, `EXP` |
+| `WEAPON` | `M`, `R` ou com `dmg1` |
+| `ARMOR` | `LA`, `MA`, `HA`, `S` |
+| `CONSUMABLE` | `P`, `SC`, `FD` (poções, pergaminhos, comida e bebida) |
+| `TOOLS` | `T`, `AT`, `INS`, `GS` (ferramentas, de artesão, instrumentos, jogos) |
+| `TRINKETS` | bugigangas (`trinket`) e tesouro: `$G` gemas, `$A` objetos de arte, `TB` barras |
+| `ADVENTURING_GEAR` | `G`, `SCF` (foco, mesmo mágico), `TG` mercadorias, `OTH` |
+| `WONDROUS_ITEM` | `wondrous`, anéis `RG`, bastões `RD`, varinhas `WD` e mágicos sem tipo |
+
+Para corrigir a categoria de itens já importados, mande o mesmo arquivo em `POST /item/update-from-dump`.
+
 `POST /item/update-from-dump` recebe um objeto com um array `item`. Cada item é identificado por `name` e `source`: se já existir, é atualizado; caso contrário, é criado. Itens inválidos, fontes não habilitadas ou fontes ainda não cadastradas são retornados em `skipped`.
 
 ```json

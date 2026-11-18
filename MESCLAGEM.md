@@ -120,3 +120,4 @@ Simulação do deploy, feita num Postgres 17.12 temporário no PC:
 | 24 | Cor de cada jogador (`Membership.color`, coluna nova opcional) e destaque de quem é a vez |
 | 25 | Lojas e espólio (`shops`, `shop_entries`, `loot`, `loot_entries`; `TradeService`), aba Comércio e exportação |
 | 26 | Itens com preço: o importador lê `baseitem`, aceita raridade `none` (item comum) e dá aos mágicos sem preço o valor do DMG 2024 (`MagicItemPricing`); preço do mestre por campanha pros comuns sem preço (`campaign_item_prices`, `ItemPriceService`) |
+| 27 | Categorias dos itens nas suas 10 tags (`ItemCategory`): venenos, montarias e veículos, bugigangas/tesouro e maravilhosos passam a ser preenchidos; munição (`A` no 5etools) deixa de virar armadura e navio (que tem `ac`) também. O foco mágico continua `ADVENTURING_GEAR`, como no seu teste |

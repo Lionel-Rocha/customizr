@@ -491,30 +491,51 @@ public class ItemService {
     }
 
 
+    /**
+     * Categoria do item nas tags do Customizr, a partir do codigo de tipo do 5etools ("M|XPHB" -> "M").
+     * A ordem importa: veneno antes de equipamento, montaria antes de armadura (navio tem "ac"),
+     * municao ("A") nao e armadura.
+     */
     private ItemCategory category(JsonNode entry) {
         String code = text(entry, "type");
         if (code != null) {
             code = code.split("\\|", 2)[0].trim().toUpperCase(Locale.ROOT);
         }
+        String name = text(entry, "name");
+        String lowerName = name == null ? "" : name.toLowerCase(Locale.ROOT);
+        if (entry.path("poison").asBoolean(false)) {
+            return ItemCategory.POISONS;
+        }
+        if (code != null && Set.of("MNT", "VEH", "SHP", "AIR", "SPC", "TAH").contains(code)) {
+            return ItemCategory.MOUNTS_VEHICLES;      // montarias, veiculos e arreios
+        }
+        if (code != null && Set.of("A", "AF", "EXP").contains(code)) {
+            return ItemCategory.AMMUNITION_EXPLOSIVES;
+        }
         if (entry.has("dmg1") || "M".equals(code) || "R".equals(code)) {
             return ItemCategory.WEAPON;
         }
-        if (entry.has("ac") || (code != null && Set.of("A", "HA", "MA", "LA", "S", "SH").contains(code))) {
+        if (code != null && Set.of("LA", "MA", "HA", "S", "SH").contains(code) || entry.has("ac") && code == null) {
             return ItemCategory.ARMOR;
         }
-        if ("P".equals(code)) {
-            return ItemCategory.CONSUMABLE;
+        if (code != null && Set.of("P", "SC", "FD").contains(code)) {
+            return ItemCategory.CONSUMABLE;           // pocoes, pergaminhos, comida e bebida
         }
-        if ("AF".equals(code) || "EXP".equals(code)) {
-            return ItemCategory.AMMUNITION_EXPLOSIVES;
+        if (code != null && Set.of("T", "AT", "INS", "GS").contains(code)) {
+            return ItemCategory.TOOLS;                // ferramentas, de artesao, instrumentos, jogos
         }
-        if ("INS".equals(code)) {
-            return ItemCategory.TOOLS;
+        if (entry.path("trinket").asBoolean(false) || lowerName.contains("trinket")
+                || code != null && Set.of("$A", "$G", "TB").contains(code)) {
+            return ItemCategory.TRINKETS;             // bugigangas e tesouro: gemas, objetos de arte, barras
         }
-        if (code != null && Set.of("G", "SCF", "WD", "RD").contains(code)) {
-            return ItemCategory.ADVENTURING_GEAR;
+        if (code != null && Set.of("G", "SCF", "TG", "OTH", "$C").contains(code)) {
+            return ItemCategory.ADVENTURING_GEAR;     // equipamento, foco (mesmo magico), mercadorias
         }
-        return null;
+        if (entry.path("wondrous").asBoolean(false) || code != null && Set.of("RG", "RD", "WD").contains(code)
+                || code == null && isMagical(entry)) {
+            return ItemCategory.WONDROUS_ITEM;        // maravilhosos e os outros magicos (anel, bastao, varinha)
+        }
+        return code == null ? ItemCategory.ADVENTURING_GEAR : null;
     }
 
     private String text(JsonNode node, String field) {
