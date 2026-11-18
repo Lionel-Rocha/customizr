@@ -258,6 +258,7 @@ public class Main extends Application {
         this.compendiumImportService = new CompendiumImportService(compendiumService);
         this.sceneService = new SceneService(new SceneModel());
         this.classImportService = new ClassImportService(mesa);
+        syncOfficialClasses();
         this.table = new TableService(sceneService, characterService, tablePort);
         this.table.setMobLookup(id -> mobService.findById(id).orElse(null));
         this.macroStore = new com.vttcaseiro.library.MacroStore(mesa.getRoot());
@@ -3982,6 +3983,11 @@ public class Main extends Application {
             String bestiaryJson = readResource("/seed/bestiary-xmm.json");
             Compendium.MergeResult entries = compendiumService.importCompendiumJson(compendiumJson);
             var mobs = mobImportService.importFromJson(bestiaryJson);
+            var classes = classImportService.importOfficial(this::seedClassFile);
+            if (classes.changedSomething()) {
+                logEntries.add(LogEntry.system("Classes oficiais: " + classes.classes() + " classe(s) e "
+                        + classes.subclasses() + " subclasse(s) novas (Wizards e parceiros do D&D Beyond)."));
+            }
             compendiumCountLabel.setText(compendiumCountText());
             mobCountLabel.setText(mobService.list().size() + " monstro(s) nesta mesa.");
             refreshMobList();
@@ -3993,6 +3999,31 @@ public class Main extends Application {
                     + ")."));
         } catch (IOException | RuntimeException ex) {
             showError("Não foi possível carregar o conteúdo pronto: " + ex.getMessage());
+        }
+    }
+
+    /** Arquivo de classe guardado no programa (/seed/classes/), ou null se o programa veio sem ele. */
+    private String seedClassFile(String name) {
+        try {
+            return readResource("/seed/classes/" + name);
+        } catch (IOException ex) {
+            return null;
+        }
+    }
+
+    /**
+     * Ao abrir a mesa: poe as classes e subclasses oficiais que faltam (Wizards e parceiros do D&D Beyond). Rapido e
+     * sem duplicar; so avisa no chat quando entrou algo novo. Programa sem os arquivos (/seed/classes/) nao faz nada.
+     */
+    private void syncOfficialClasses() {
+        try {
+            var result = classImportService.importOfficial(this::seedClassFile);
+            if (result.changedSomething()) {
+                logEntries.add(LogEntry.system("Classes oficiais nesta mesa: +" + result.classes()
+                        + " classe(s) e +" + result.subclasses() + " subclasse(s)."));
+            }
+        } catch (IOException | RuntimeException ex) {
+            logEntries.add(LogEntry.system("Não deu pra carregar as classes oficiais: " + ex.getMessage()));
         }
     }
 

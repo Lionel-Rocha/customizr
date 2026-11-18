@@ -324,7 +324,8 @@ Os dois aceitam o arquivo de itens do 5etools com o array `item` e/ou `baseitem`
 
 1. Lê `books.json` e `adventures.json` do 5etools: cada livro/aventura vira (ou atualiza) uma fonte com o nome completo e `official` (autor da Wizards: "Wizards RPG Team" / "Wizards of the Coast").
 2. Lê `items-base.json` e `items.json` e cria ou atualiza os itens (preço oficial, valor do DMG 2024, categoria). Sem "incluir não oficiais", itens de parceiros, terceiros e fontes que não estão na lista ficam de fora (e a fonte nem é cadastrada).
-3. Os itens do mestre não são tocados. O conteúdo vai só pro banco.
+3. Lê `class/index.json` e cada `class-*.json` e importa classes e subclasses pelo `ClassService` (o mesmo do `/class/import`): entram as da Wizards e as dos parceiros vendidos no D&D Beyond; ficam de fora World of Warcraft e Unearthed Arcana (fontes `UA...`). Classe que já existe só ganha as subclasses que faltam. Os sidekicks (sem subclasse) o importador não aceita.
+4. Os itens do mestre não são tocados. O conteúdo vai só pro banco.
 
 O endereço é `fivetools.data-url` (padrão: o `data/` do repositório público `5etools-mirror-3/5etools-src` no GitHub). Sem internet, aponte pra uma pasta `data/` local: `--fivetools.data-url=file:///C:/caminho/5etools/data/`.
 

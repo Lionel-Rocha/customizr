@@ -45,10 +45,13 @@ public class FiveToolsSyncService {
 
     private static final List<String> SOURCE_FILES = List.of("books.json:book", "adventures.json:adventure");
     private static final List<String> ITEM_FILES = List.of("items-base.json", "items.json");
+    /** Fontes de classe que ficam de fora: nao sao da Wizards nem vendidas no D&D Beyond (World of Warcraft). */
+    private static final java.util.Set<String> EXCLUDED_CLASS_SOURCES = java.util.Set.of("WOW");
 
     private final SourceRepository sourceRepository;
     private final CampaignRepository campaignRepository;
     private final ItemService itemService;
+    private final ClassService classService;
     private final MasterGuard masterGuard;
     private final ObjectMapper json = new ObjectMapper();
     private final String dataUrl;
@@ -56,12 +59,13 @@ public class FiveToolsSyncService {
     private HttpClient http;
 
     public FiveToolsSyncService(SourceRepository sourceRepository, CampaignRepository campaignRepository,
-                                ItemService itemService, MasterGuard masterGuard,
+                                ItemService itemService, ClassService classService, MasterGuard masterGuard,
                                 @Value("${fivetools.data-url:https://raw.githubusercontent.com/5etools-mirror-3/5etools-src/main/data/}")
                                 String dataUrl) {
         this.sourceRepository = sourceRepository;
         this.campaignRepository = campaignRepository;
         this.itemService = itemService;
+        this.classService = classService;
         this.masterGuard = masterGuard;
         this.dataUrl = dataUrl.endsWith("/") ? dataUrl : dataUrl + "/";
     }
@@ -118,8 +122,63 @@ public class FiveToolsSyncService {
             }
         }
         UpdateItemsFromDumpResponse result = itemService.updateFromDump(payload);
+
+        // 3) classes e subclasses: tudo da Wizards e dos parceiros do D&D Beyond (sem Warcraft nem Unearthed Arcana)
+        int[] classes = syncClasses(loader, officialByCode);
         return new FiveToolsSyncResponse(officialSources, unofficialSources, result.created().size(), result.updated().size(),
-                result.skipped().size(), filteredOut, includeUnofficial);
+                result.skipped().size(), filteredOut, includeUnofficial, classes[0], classes[1], classes[2]);
+    }
+
+    /** Fonte de classe fora: Unearthed Arcana (teste gratuito, "UA...") e as da lista {@link #EXCLUDED_CLASS_SOURCES}. */
+    static boolean excludedClassSource(String code) {
+        String c = upper(code);
+        return c == null || c.startsWith("UA") || EXCLUDED_CLASS_SOURCES.contains(c);
+    }
+
+    /**
+     * Le {@code class/index.json} e cada {@code class-*.json}, tira o que e de fora (classe, subclasse e as
+     * habilidades delas) e manda pro {@link ClassService#importClasses}, que cria as classes novas e acrescenta as
+     * subclasses que faltam nas que ja existem. Devolve {novas, subclasses, deixadas de fora}.
+     */
+    private int[] syncClasses(Function<String, JsonNode> loader, Map<String, Boolean> officialByCode) {
+        JsonNode index = loader.apply("class/index.json");
+        if (index == null || !index.isObject()) return new int[]{0, 0, 0};
+        int imported = 0;
+        int subclasses = 0;
+        int leftOut = 0;
+        for (var entry : index.properties()) {
+            JsonNode data;
+            try {
+                data = loader.apply("class/" + entry.getValue().asText());
+            } catch (ResponseStatusException ex) {
+                continue;   // arquivo que nao veio (pasta local so com parte das classes)
+            }
+            if (data == null) continue;
+            ObjectNode filtered = json.createObjectNode();
+            for (String key : List.of("class", "classFeature", "subclass", "subclassFeature")) {
+                ArrayNode out = filtered.putArray(key);
+                for (JsonNode row : data.path(key)) {
+                    boolean out1 = excludedClassSource(text(row, "source"))
+                            || (row.has("classSource") && excludedClassSource(text(row, "classSource")))
+                            || (row.has("subclassSource") && excludedClassSource(text(row, "subclassSource")));
+                    if (out1) {
+                        if (key.equals("class") || key.equals("subclass")) leftOut++;
+                        continue;
+                    }
+                    out.add(row);
+                    String code = upper(text(row, "source"));
+                    if (code != null && sourceRepository.getSourceByCode(code).isEmpty()) {
+                        // fonte que o books.json nao trouxe (Plane Shift, parceiros): entra com o codigo
+                        upsertSource(code, code, officialByCode.getOrDefault(code, true));
+                    }
+                }
+            }
+            if (filtered.path("class").isEmpty()) continue;
+            var result = classService.importClasses(filtered);
+            imported += result.imported().size();
+            subclasses += result.subclassesAdded();   // ja inclui as subclasses das classes novas
+        }
+        return new int[]{imported, subclasses, leftOut};
     }
 
     private void upsertSource(String code, String name, boolean official) {

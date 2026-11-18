@@ -42,7 +42,48 @@ public final class ClassImporter {
     public record SkippedClass(String className, String sourceCode, String reason) {
     }
 
-    public record ImportResult(List<ImportedClass> imported, List<SkippedClass> skipped) {
+    /** {@code subclassesAdded}: subclasses que entraram em classes que ja estavam na mesa. */
+    public record ImportResult(List<ImportedClass> imported, List<SkippedClass> skipped, int subclassesAdded) {
+        public ImportResult(List<ImportedClass> imported, List<SkippedClass> skipped) {
+            this(imported, skipped, 0);
+        }
+    }
+
+    /** Fontes de classe que ficam de fora: World of Warcraft (nao e da Wizards nem do D&D Beyond). */
+    private static final java.util.Set<String> EXCLUDED_SOURCES = java.util.Set.of("WOW");
+
+    /** Unearthed Arcana (teste gratuito, "UA...") e World of Warcraft ficam de fora; o resto (Wizards e parceiros) entra. */
+    public static boolean excludedSource(String code) {
+        if (code == null) return true;
+        String c = code.trim().toUpperCase(java.util.Locale.ROOT);
+        return c.startsWith("UA") || EXCLUDED_SOURCES.contains(c);
+    }
+
+    /** Copia do class-*.json sem as classes, subclasses e habilidades de fonte de fora (ver excludedSource). */
+    public static JsonObject officialOnly(JsonObject payload) {
+        JsonObject out = new JsonObject();
+        for (String key : List.of("class", "classFeature", "subclass", "subclassFeature")) {
+            JsonArray kept = new JsonArray();
+            JsonArray rows = arrayOrNull(payload, key);
+            if (rows != null) {
+                for (JsonElement row : rows) {
+                    if (!row.isJsonObject()) continue;
+                    JsonObject o = row.getAsJsonObject();
+                    if (excludedSource(text(o, "source")) || (o.has("classSource") && excludedSource(text(o, "classSource")))
+                            || (o.has("subclassSource") && excludedSource(text(o, "subclassSource")))) {
+                        continue;
+                    }
+                    kept.add(o);
+                }
+            }
+            out.add(key, kept);
+        }
+        return out;
+    }
+
+    private static String text(JsonObject o, String field) {
+        JsonElement v = o.get(field);
+        return v == null || !v.isJsonPrimitive() ? null : v.getAsString();
     }
 
     private ClassImporter() {
@@ -69,6 +110,7 @@ public final class ClassImporter {
 
         List<ImportedClass> imported = new ArrayList<>();
         List<SkippedClass> skipped = new ArrayList<>();
+        int subclassesAdded = 0;
 
         for (JsonElement el : classEntries) {
             Map<String, Object> classEntry = toMap(el);
@@ -80,9 +122,16 @@ public final class ClassImporter {
                 skipped.add(new SkippedClass(name, sourceCode, incomplete));
                 continue;
             }
-            boolean alreadyImported = classes.stream().anyMatch(c ->
-                    name.equals(c.getClassName()) && Objects.equals(sourceCode, c.getSourceCode()));
-            if (alreadyImported) {
+            DndClass existing = classes.stream().filter(c ->
+                    name.equals(c.getClassName()) && Objects.equals(sourceCode, c.getSourceCode())).findFirst().orElse(null);
+            if (existing != null) {
+                // classe que ja estava na mesa: so completa as subclasses que faltam (de outros livros)
+                List<Map<String, Object>> missing = matching(subclassRows, row ->
+                        ClassJsonAnalyzer.matchesClass(row, name, sourceCode)
+                                && existing.getSubclasses().stream().noneMatch(sc ->
+                                        Objects.equals(sc.getName(), ClassJsonAnalyzer.text(row, "name"))
+                                                && Objects.equals(sc.getSourceCode(), ClassJsonAnalyzer.text(row, "source"))));
+                subclassesAdded += importSubclasses(existing, missing, subclassFeatureRows);
                 skipped.add(new SkippedClass(name, sourceCode, "Ja importada"));
                 continue;
             }
@@ -110,7 +159,7 @@ public final class ClassImporter {
             imported.add(new ImportedClass(name, sourceCode, subclassCount, matchingClassFeatures.size()));
         }
 
-        return new ImportResult(imported, skipped);
+        return new ImportResult(imported, skipped, subclassesAdded);
     }
 
     /** Salvaguardas ("proficiency"), armaduras/armas e escolha de pericias
