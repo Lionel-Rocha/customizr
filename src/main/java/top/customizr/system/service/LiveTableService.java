@@ -13,6 +13,8 @@ import top.customizr.system.dto.TokenRequest;
 import top.customizr.system.dto.TokenResponse;
 import top.customizr.system.dto.DoorRequest;
 import top.customizr.system.dto.MarkersRequest;
+import top.customizr.system.dto.ColorRequest;
+import top.customizr.system.dto.MemberResponse;
 import top.customizr.system.dto.PingRequest;
 import top.customizr.system.dto.PinRequest;
 import top.customizr.system.dto.PinResponse;
@@ -84,6 +86,8 @@ public class LiveTableService {
     private final top.customizr.system.repository.ImageAssetRepository imageAssetRepository;
     private final top.customizr.system.repository.CampaignIconRepository iconRepository;
     private final top.customizr.system.repository.MapPinRepository pinRepository;
+    private final top.customizr.system.repository.MembershipRepository membershipRepository;
+    private final top.customizr.system.repository.UserRepository userRepository;
 
     public LiveTableService(SceneRepository sceneRepository, TokenRepository tokenRepository,
                             InitiativeTrackerRepository trackerRepository, CampaignRepository campaignRepository,
@@ -94,7 +98,11 @@ public class LiveTableService {
                             top.customizr.system.repository.MapObjectRepository mapObjectRepository,
                             top.customizr.system.repository.ImageAssetRepository imageAssetRepository,
                             top.customizr.system.repository.CampaignIconRepository iconRepository,
-                            top.customizr.system.repository.MapPinRepository pinRepository) {
+                            top.customizr.system.repository.MapPinRepository pinRepository,
+                            top.customizr.system.repository.MembershipRepository membershipRepository,
+                            top.customizr.system.repository.UserRepository userRepository) {
+        this.membershipRepository = membershipRepository;
+        this.userRepository = userRepository;
         this.pinRepository = pinRepository;
         this.iconRepository = iconRepository;
         this.mapObjectRepository = mapObjectRepository;
@@ -612,6 +620,37 @@ public class LiveTableService {
             events.publish(campaignId, "pins", Map.of("sceneId", scene.getId(), "pins", scene.getPins().stream()
                     .filter(top.customizr.system.model.MapPin::isVisibleToPlayers).map(PinResponse::from).toList()), l -> !l.master());
         }
+    }
+
+    // ------------------------------------------------------------------ cores dos jogadores
+
+    /** Quem e da campanha, com a cor de cada um (o mestre vem primeiro). */
+    @Transactional
+    public List<MemberResponse> members(UUID campaignId, String username) {
+        Campaign campaign = campaign(campaignId);
+        masterGuard.requireMember(username, campaign);
+        List<MemberResponse> out = new ArrayList<>();
+        out.add(new MemberResponse(campaign.getMaster().getUserId(), campaign.getMaster().getName(), "MASTER", null));
+        for (var m : membershipRepository.findByCampaignId(campaignId)) {
+            userRepository.findById(m.getUserId()).ifPresent(u ->
+                    out.add(new MemberResponse(u.getUserId(), u.getName(), m.getRole() == null ? "PLAYER" : m.getRole().name(), m.getColor())));
+        }
+        return out;
+    }
+
+    /** O jogador escolhe a propria cor. */
+    @Transactional
+    public List<MemberResponse> changeMyColor(UUID campaignId, ColorRequest r, String username) {
+        Campaign campaign = campaign(campaignId);
+        User user = masterGuard.user(username);
+        var membership = membershipRepository.findByCampaignIdAndUserId(campaignId, user.getUserId())
+                .orElseThrow(() -> badRequest("Only players have a color (the master's tokens use the monster colors)"));
+        String color = r == null || r.color() == null || r.color().isBlank() ? null : r.color().trim();
+        valid(() -> { membership.changeColor(color); return null; });
+        membershipRepository.save(membership);
+        List<MemberResponse> list = members(campaignId, username);
+        events.publish(campaignId, "members", Map.of("campaignId", campaignId, "members", list));
+        return list;
     }
 
     /** Regua compartilhada: so repassa os pontos pra mesa (nada fica gravado). */

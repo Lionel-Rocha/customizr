@@ -3,6 +3,8 @@ package top.customizr.system.controllers;
 import top.customizr.system.dto.ConditionsRequest;
 import top.customizr.system.dto.DoorRequest;
 import top.customizr.system.dto.MarkersRequest;
+import top.customizr.system.dto.ColorRequest;
+import top.customizr.system.dto.MemberResponse;
 import top.customizr.system.dto.PingRequest;
 import top.customizr.system.dto.PinRequest;
 import top.customizr.system.dto.PinResponse;
@@ -212,6 +214,18 @@ public class LiveTableController {
     public ResponseEntity<TokenResponse> auras(@PathVariable UUID tokenId, @RequestBody AurasRequest request,
                                                @AuthenticationPrincipal UserDetails user) {
         return ResponseEntity.ok(live.updateAuras(tokenId, request, user.getUsername()));
+    }
+
+    @GetMapping("/campaign/{campaignId}/members")
+    public ResponseEntity<List<MemberResponse>> members(@PathVariable UUID campaignId, @AuthenticationPrincipal UserDetails user) {
+        return ResponseEntity.ok(live.members(campaignId, user.getUsername()));
+    }
+
+    /** O jogador escolhe a propria cor (anel dos tokens, regua, ping). */
+    @PutMapping("/campaign/{campaignId}/my-color")
+    public ResponseEntity<List<MemberResponse>> myColor(@PathVariable UUID campaignId, @RequestBody ColorRequest request,
+                                                        @AuthenticationPrincipal UserDetails user) {
+        return ResponseEntity.ok(live.changeMyColor(campaignId, request, user.getUsername()));
     }
 
     @PostMapping("/scenes/{sceneId}/ping")

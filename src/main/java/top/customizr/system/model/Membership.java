@@ -1,5 +1,6 @@
 package top.customizr.system.model;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -24,6 +25,11 @@ public class Membership {
     @Getter @Setter
     Role role;
 
+    /** Cor do jogador na mesa (#RRGGBB): anel dos tokens dele, regua, ping. Null = cor automatica. */
+    @Getter
+    @Column(length = 7)
+    String color;
+
     protected Membership() {}
 
     public Membership(UUID campaignId, UUID userId, Role role) {
@@ -31,5 +37,10 @@ public class Membership {
         this.campaignId = campaignId;
         this.userId = userId;
         this.role = role;
+    }
+
+    public void changeColor(String color) {
+        if (color != null && !color.matches("#[0-9A-Fa-f]{6}")) throw new IllegalArgumentException("Color must be #RRGGBB");
+        this.color = color;
     }
 }

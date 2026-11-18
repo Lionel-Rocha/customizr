@@ -242,6 +242,8 @@ Abaixo estão todos os endpoints atualmente expostos pelo backend da aplicação
 | `PUT` / `DELETE` | `/live/objects/{objectId}` | Edita / tira um objeto da biblioteca. |
 | `POST` | `/live/scenes/{sceneId}/objects/{objectId}` | Põe o objeto no mapa (`x`, `y`, `rotation`): vira um token da camada dele, com a imagem e o tamanho. |
 | `PUT` | `/live/tokens/{tokenId}/auras` | Auras do token (até 4: `radiusFt`, `color`, `label`), medidas da borda dele; todos veem. |
+| `GET` | `/live/campaign/{campaignId}/members` | Gente da campanha com papel e cor (o mestre primeiro). |
+| `PUT` | `/live/campaign/{campaignId}/my-color` | O jogador escolhe a própria cor (`#RRGGBB`; vazio = automática). |
 | `POST` | `/live/scenes/{sceneId}/ping` | Ping no mapa (`x`, `y`) pra todos; `focus` (só o mestre) centraliza a tela de todo mundo no ponto. |
 | `POST` | `/live/scenes/{sceneId}/pins` · `PUT` / `DELETE` `/live/pins/{pinId}` | Alfinetes no mapa (`label`, `icon`, `note`, `entryId` da enciclopédia, `visibleToPlayers`). Só o mestre põe, move e apaga; o jogador só recebe os visíveis. |
 | `POST` | `/live/scenes/{sceneId}/ruler` | Régua compartilhada: repassa os pontos pra mesa (nada fica gravado); lista vazia apaga. |
@@ -447,6 +449,11 @@ A parte da mesa de jogo, desenvolvida à parte em JavaFX, foi trazida para cá n
 * **Ping:** segurar o clique no mapa (ou Alt+clique) solta ondas no ponto pra todos, com o nome de quem pingou. Shift+Alt+clique do mestre também centraliza a tela de todos ali.
 
 **Modo telão (jogo presencial):** o botão "Telão" (ou `/mesa/?telao=1`) deixa só o mapa, em tela cheia, pra uma TV na mesa. Aberto pelo mestre, mostra a visão do grupo (o que os personagens de todos os jogadores enxergam juntos, com luz, paredes e neblina, sem nada que é só do mestre) e segue sozinho a cena ativa; pings e o "puxar a tela" do mestre valem. Esc ou o botão no canto sai.
+
+**Cores e vez:**
+
+* **Cor de cada jogador:** escolhida no seletor do cabeçalho (sem escolha, uma automática que não repete as outras). Pinta o anel dos tokens dele (e da caravana em que viaja), a régua, o ping e a faixa na lista de iniciativa.
+* **De quem é a vez:** o token da vez na iniciativa ganha um anel pulsante com "▶ vez"; o dono recebe o aviso "É a sua vez!"; no telão, o mapa centraliza no token da vez.
 
 **Ver como jogador:** o mestre escolhe "Ver como jogador de ..." na barra da mesa e vê exatamente o que aquele jogador vê (visão dinâmica, luz, neblina, memória do que já foi visto). Tokens ocultos, camada do mestre, paredes e PV de monstro somem como somem pro jogador. As ferramentas continuam de mestre, e uma faixa no alto lembra o modo, com o botão de voltar.
 

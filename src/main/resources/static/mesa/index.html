@@ -131,6 +131,7 @@
     <span id="sceneName" class="muted"></span>
     <span class="grow"></span>
     <span id="who" class="muted"></span>
+    <input id="myColor" type="color" class="player-only" title="Sua cor na mesa (anel dos seus tokens, régua, ping)" style="width:36px;padding:2px">
     <button id="telaoBtn" title="Tela cheia só com o mapa, pra TV da mesa (mestre: visão do grupo)">Telão</button>
     <button id="logout">Sair</button>
   </header>
@@ -370,7 +371,7 @@
    porque o EventSource do navegador nao manda o header Authorization. */
 const S = { token: null, me: null, campaign: null, master: false, scenes: [], scene: null, images: {},
   view: { tx: 40, ty: 40, z: 1 }, tool: 'move', drag: null, paint: null, pan: null, selected: null,
-  initiative: null, stream: null, targeting: null, wallDraw: null, explored: null, areaDraw: null, selectedTemplate: null, pendingArea: null, chars: [], icons: [], iconMap: {}, viewAs: null, ruler: null, rulers: {}, hoverWorld: null, pings: [], press: null, pinDrag: null, telao: false, viewGroup: false };
+  initiative: null, stream: null, targeting: null, wallDraw: null, explored: null, areaDraw: null, selectedTemplate: null, pendingArea: null, chars: [], icons: [], iconMap: {}, viewAs: null, ruler: null, rulers: {}, hoverWorld: null, pings: [], press: null, pinDrag: null, telao: false, viewGroup: false, members: [] };
 const $ = id => document.getElementById(id);
 const cv = $('map'), ctx = cv.getContext('2d');
 
@@ -426,12 +427,14 @@ async function openCampaign(c) {
   S.campaign = c; store('customizr_campaign', c.id);
   S.master = c.master && c.master.name === S.me.name;
   document.querySelectorAll('.master-only').forEach(el => el.classList.toggle('hidden', !S.master));
+  document.querySelectorAll('.player-only').forEach(el => el.classList.toggle('hidden', S.master));
   S.selected = null; S.scene = null; S.viewAs = null; $('viewAsBanner').classList.add('hidden');
   await refreshScenes();
   requestAnimationFrame(() => $('center').click());
   await loadChat();
-  S.initiative = await api('/live/campaign/' + c.id + '/initiative'); renderInitiative();
+  S.initiative = await api('/live/campaign/' + c.id + '/initiative'); renderInitiative(); turnAnimation();
   await loadIcons();
+  await loadMembers();
   if (S.master) await loadCharacters();
   listen();
   if (load('customizr_telao') === '1' || new URLSearchParams(location.search).get('telao') === '1') setTelao(true);
@@ -541,8 +544,9 @@ function onEvent(type, d) {
         draw();
       }
       break;
-    case 'initiative': S.initiative = d; renderInitiative(); break;
-    case 'initiative_ended': S.initiative = { round: 1, turnIndex: 0, entries: [] }; renderInitiative(); break;
+    case 'initiative': { const before = currentTurnTokenId(); S.initiative = d; renderInitiative(); onTurnChange(before); break; }
+    case 'members': S.members = d.members; renderMyColor(); draw(); break;
+    case 'initiative_ended': S.initiative = { round: 1, turnIndex: 0, entries: [] }; renderInitiative(); turnAnimation(); draw(); break;
     case 'chat': addChat(d); break;
   }
 }
@@ -663,7 +667,10 @@ function drawToken(t, g) {
   if (img && img !== 'loading') { ctx.save(); ctx.clip(); ctx.drawImage(img, cx - rad, cy - rad, rad * 2, rad * 2); ctx.restore(); }
   else { ctx.fillStyle = '#F6E9D3'; ctx.font = 700 + ' ' + rad * 0.9 + 'px Georgia'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText((t.name || '?')[0].toUpperCase(), cx, cy + 1); }
   ctx.lineWidth = S.selected && S.selected.id === t.id ? 4 / S.view.z : 2 / S.view.z;
-  ctx.strokeStyle = S.selected && S.selected.id === t.id ? '#FFCF7F' : '#E8A33D'; ctx.stroke();
+  const owner = tokenOwnerColor(t);
+  if (owner && !(S.selected && S.selected.id === t.id)) ctx.lineWidth = 3.5 / S.view.z;
+  ctx.strokeStyle = S.selected && S.selected.id === t.id ? '#FFCF7F' : owner || '#E8A33D'; ctx.stroke();
+  if (isTurnToken(t)) drawTurnMarker(t, g, cx, cy, rad);
   const showHp = !playerView() || t.characterId || (t.members && t.members.length);
   if (t.hpMax && showHp) {
     const ratio = Math.max(0, Math.min(1, t.hpCurrent / t.hpMax)), bw = g * TW(t) * 0.8, bh = Math.max(4, size * 0.08), by = t.y + g * TH(t) - bh - 1;
@@ -899,6 +906,8 @@ function renderInitiative() {
   it.entries.forEach((en, i) => {
     const row = document.createElement('div'); row.className = 'init' + (i === it.turnIndex ? ' current' : '');
     row.innerHTML = '<span></span><b></b>'; row.children[0].textContent = en.name; row.children[1].textContent = en.initiative;
+    const tok = en.tokenId && S.scene && S.scene.tokens.find(x => x.id === en.tokenId), c = tok && tokenOwnerColor(tok);
+    if (c) row.style.borderLeft = '5px solid ' + c;
     if (S.master) { const x = document.createElement('button'); x.textContent = '×'; x.onclick = () => api('/live/campaign/' + S.campaign.id + '/initiative/entries/' + en.id, { method: 'DELETE' }).catch(err => toast(err.message)); row.append(x); }
     list.append(row);
   });
@@ -1998,6 +2007,7 @@ function shareRuler(now) {
   if (now) { clearTimeout(rulerTimer); send(); } else if (!rulerTimer) rulerTimer = setTimeout(send, 120);
 }
 function rulerColor(id) {
+  const known = colorOf(id); if (known) return known;
   const colors = ['#8FB3FF', '#6FBF73', '#C792EA', '#E07A5F', '#4FD1C5'];
   let h = 0; for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
   return colors[h % colors.length];
@@ -2226,6 +2236,68 @@ function setTelao(on) {
 function fitTelao() { requestAnimationFrame(() => $('center').click()); }
 $('telaoBtn').onclick = () => setTelao(true);
 $('telaoExit').onclick = () => setTelao(false);
+
+// ------------------------------------------------------------------ cores dos jogadores e a vez
+const PLAYER_COLORS = ['#8FB3FF', '#6FBF73', '#C792EA', '#4FD1C5', '#F2A65A', '#E07A5F', '#F6E05E', '#B794F4'];
+async function loadMembers() {
+  try { S.members = await api('/live/campaign/' + S.campaign.id + '/members'); } catch (e) { S.members = []; }
+  renderMyColor();
+}
+/** Cor do jogador: a escolhida ou uma automatica que nao repete as escolhidas. O mestre nao tem cor (null). */
+function colorOf(userId) {
+  const players = (S.members || []).filter(m => m.role !== 'MASTER');
+  const me = players.find(m => m.userId === userId);
+  if (!me) return null;
+  if (me.color) return me.color;
+  const taken = new Set(players.map(m => m.color).filter(Boolean));
+  const free = PLAYER_COLORS.filter(c => !taken.has(c));
+  const auto = players.filter(m => !m.color).sort((a, b) => a.name.localeCompare(b.name));
+  return free[auto.indexOf(me) % Math.max(1, free.length)] || PLAYER_COLORS[0];
+}
+/** Anel do token: a cor do dono (ou do primeiro jogador da caravana). */
+function tokenOwnerColor(t) {
+  if (t.ownerId) { const c = colorOf(t.ownerId); if (c) return c; }
+  for (const m of t.members || []) { const c = colorOf(m.ownerId); if (c) return c; }
+  return null;
+}
+function renderMyColor() {
+  if (S.master) return;
+  const c = colorOf(S.me.userId); if (c) $('myColor').value = c;
+}
+$('myColor').onchange = () => api('/live/campaign/' + S.campaign.id + '/my-color', { method: 'PUT', body: { color: $('myColor').value } })
+  .then(list => { S.members = list; draw(); toast('Sua cor foi salva.', true); }).catch(err => toast(err.message));
+
+function currentTurnTokenId() {
+  const it = S.initiative; if (!it || !it.entries || !it.entries.length) return null;
+  const en = it.entries[it.turnIndex]; return en ? en.tokenId : null;
+}
+function isTurnToken(t) { return t.id === currentTurnTokenId(); }
+/** Anel pulsante e "vez" no token da vez. */
+function drawTurnMarker(t, g, cx, cy, rad) {
+  const z = S.view.z, pulse = (Math.sin(Date.now() / 260) + 1) / 2;
+  ctx.save();
+  ctx.beginPath(); ctx.arc(cx, cy, rad + (5 + pulse * 6) / z, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(255,207,127,' + (0.45 + pulse * 0.5) + ')'; ctx.lineWidth = 4 / z; ctx.stroke();
+  ctx.restore();
+  label(cx, t.y - 12 / z, '▶ vez', '#FFCF7F', 12);
+}
+/** Mudou a vez: avisa o dono, e o telao centraliza no token. */
+function onTurnChange(before) {
+  const now = currentTurnTokenId();
+  turnAnimation();
+  if (!now || now === before || !S.scene) return;
+  const t = S.scene.tokens.find(x => x.id === now);
+  if (!t) return;
+  if (!S.master && isMine(t)) toast('É a sua vez, ' + t.name + '!', true);
+  if (S.telao) centerOn(t.x + S.scene.gridSizePx * TW(t) / 2, t.y + S.scene.gridSizePx * TH(t) / 2);
+}
+/** Enquanto ha combate com token na cena, redesenha devagar pro anel pulsar. */
+let turnTimer = null;
+function turnAnimation() {
+  const active = !!currentTurnTokenId();
+  if (active && !turnTimer) turnTimer = setInterval(() => { if (!S.drag && !S.areaDraw && !S.wallDraw) draw(); }, 120);
+  if (!active && turnTimer) { clearInterval(turnTimer); turnTimer = null; }
+}
 
 // ------------------------------------------------------------------ inicio
 S.token = load('customizr_token');

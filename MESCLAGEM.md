@@ -2,7 +2,7 @@
 
 Este branch (`mesclagem-mesa`) traz para o Customizr o que foi feito no programa de mesa à parte (o antigo "Embertale"), reescrito no padrão deste projeto: entidades JPA em `model/`, serviços com checagem de mestre/membro, DTOs `record` (um por arquivo, `XxxRequest` / `XxxResponse`) e testes com H2. O ponto de partida é o commit `e740c23` ("Consertando import de classes").
 
-* **Testes:** 101, todos passando (antes: 23, com 3 quebrados).
+* **Testes:** 102, todos passando (antes: 23, com 3 quebrados).
 * **Arquivos de exemplo:** o que é do 5etools nos testes são amostras pequenas do SRD 5.2 (licença CC-BY-4.0, atribuição em `src/test/resources/importer/LEIA-ME.txt`).
 * **Fins de linha:** tudo em LF, igual ao resto do repositório.
 
@@ -38,6 +38,7 @@ Este branch (`mesclagem-mesa`) traz para o Customizr o que foi feito no programa
 | `model/Campaign.java` | + listas com cascata (chat, mundos, enciclopédia, imagens, cenas, iniciativa) | Apagar a campanha leva tudo junto |
 | `model/SecurityConfig.java` | + `DispatcherType.ASYNC` liberado; + `GET /mesa/**` liberado | A transmissão ao vivo (SSE) responde de forma assíncrona; a tela da mesa é um arquivo estático |
 | `controllers/UserController.java` | + `GET /user/me` | A tela da mesa precisa saber quem está logado |
+| `model/Membership.java` | + `color` (opcional, `#RRGGBB`) e `changeColor` | Cada jogador escolhe a cor dos próprios tokens na mesa |
 | `controllers/ChatController.java`, `CharacterController.java` | + rotas de cartão no chat, lista de features e preparar magia | Clicar numa feature da ficha e ela aparecer no chat |
 | Formato das respostas | `CharacterSheetResponse` (+ `combat`, `details`), `PartyResponse` (+ `maxSize`, `members`), `NpcResponse` (+ `statBlock*`), `InventoryResponse` (novo) | **O front pode precisar ler os campos novos**; nenhum campo antigo foi removido |
 | `resources/data.sql` | + "Campanha de O Escriba" com O Artífice como jogador | O teste `sqlSeedCreatesCampaign...` já esperava isso e falhava |
@@ -116,3 +117,4 @@ Simulação do deploy, feita num Postgres 17.12 temporário no PC:
 | 21 | Régua compartilhada, movimento colorido pelo deslocamento, auras (`token_auras`) e anel de alcance do ataque |
 | 22 | Alfinetes no mapa com verbete da enciclopédia (`scene_pins`) e ping (o mestre pode centralizar a tela de todos) |
 | 23 | Modo telão na tela `/mesa` (TV da mesa presencial: visão do grupo, cena ativa) |
+| 24 | Cor de cada jogador (`Membership.color`, coluna nova opcional) e destaque de quem é a vez |

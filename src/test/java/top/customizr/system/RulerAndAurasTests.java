@@ -50,6 +50,7 @@ class RulerAndAurasTests {
     @Autowired private MembershipRepository membershipRepository;
     @Autowired private SourceRepository sourceRepository;
     @Autowired private ObjectMapper objectMapper;
+    @Autowired private top.customizr.system.repository.SceneRepository sceneRepository;
 
     private String master;
     private String ana;
@@ -101,6 +102,22 @@ class RulerAndAurasTests {
                 new AurasRequest(List.of(new AurasRequest.Item(1000, null, null))), ana));
         assertThrows(ResponseStatusException.class, () -> live.updateAuras(hero.id(),
                 new AurasRequest(List.of(new AurasRequest.Item(10, "red", null))), ana));
+    }
+
+    @Test
+    void playersPickTheirOwnColor() {
+        UUID campaignId = sceneRepository.findById(sceneId).orElseThrow().getCampaign().getId();
+        var members = live.members(campaignId, bia);
+        assertEquals(3, members.size(), "mestre + duas jogadoras");
+        assertEquals("MASTER", members.getFirst().role());
+
+        var after = live.changeMyColor(campaignId, new top.customizr.system.dto.ColorRequest("#C792EA"), ana);
+        assertEquals("#C792EA", after.stream().filter(m -> m.name().equals(ana)).findFirst().orElseThrow().color());
+        assertThrows(ResponseStatusException.class, () -> live.changeMyColor(campaignId, new top.customizr.system.dto.ColorRequest("roxo"), ana));
+        assertThrows(ResponseStatusException.class, () -> live.changeMyColor(campaignId, new top.customizr.system.dto.ColorRequest("#FFFFFF"), master),
+                "o mestre nao tem cor de jogador");
+        assertEquals(null, live.changeMyColor(campaignId, new top.customizr.system.dto.ColorRequest(""), ana).stream()
+                .filter(m -> m.name().equals(ana)).findFirst().orElseThrow().color(), "vazio volta pra automatica");
     }
 
     @Test
