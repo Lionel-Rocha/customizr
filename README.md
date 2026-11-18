@@ -430,6 +430,8 @@ A parte da mesa de jogo, desenvolvida à parte em JavaFX, foi trazida para cá n
   * Caiu a 0 PV ou ficou incapacitado: perde a concentração sem rolar.
   * Vale pra qualquer dano: ataque, área, painel ou ficha. O resultado vai pro chat e pras notas do ataque.
 
+**Ver como jogador:** o mestre escolhe "Ver como jogador de ..." na barra da mesa e vê exatamente o que aquele jogador vê (visão dinâmica, luz, neblina, memória do que já foi visto). Tokens ocultos, camada do mestre, paredes e PV de monstro somem como somem pro jogador. As ferramentas continuam de mestre, e uma faixa no alto lembra o modo, com o botão de voltar.
+
 Ficaram de fora por não se encaixarem numa API REST sem uma interface de jogo:
 
 * a tela do mapa no front Angular (por enquanto existe a tela simples em `/mesa`, que usa a mesma API);

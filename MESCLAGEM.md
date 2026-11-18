@@ -112,3 +112,4 @@ Simulação do deploy, feita num Postgres 17.12 temporário no PC:
 | 17 | Exportação completa da mesa; luz (cena escura, tochas, visão no escuro, escuridão mágica); cobertura no ataque e na área |
 | 18 | Resultado do teste com PostgreSQL 17 e pontos de segurança |
 | 19 | Botões de dano no chat; concentração automática (`service/ConcentrationService.java`) |
+| 20 | "Ver como jogador" pro mestre na tela `/mesa` |

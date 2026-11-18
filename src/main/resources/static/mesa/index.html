@@ -96,6 +96,9 @@
   .dmgBtns { display: flex; gap: 4px; margin-top: 4px; flex-wrap: wrap; }
   .dmgBtns button { padding: 1px 7px; font-size: 12px; border-radius: 6px; }
   .dmgBtns button.heal { border-color: var(--good); color: var(--good); }
+  #viewAsBanner { position: absolute; top: 52px; left: 50%; transform: translateX(-50%); background: #26324A; border: 1px solid #8FB3FF;
+    color: #DDE7FF; padding: 4px 10px; border-radius: 10px; font-size: 13px; display: flex; gap: 8px; align-items: center; z-index: 5; }
+  #viewAsBanner button { padding: 1px 8px; font-size: 12px; }
   #toast.ok { background: #233A26; border-color: var(--good); }
   #toast { position: fixed; right: 16px; bottom: 16px; max-width: 360px; background: #4A2420; border: 1px solid var(--bad); border-radius: 10px; padding: 10px 12px; }
   @media (max-width: 800px) {
@@ -140,6 +143,9 @@
         <input id="areaLabel" placeholder="nome (ex.: Bola de fogo)" style="width:140px">
         <label class="row" style="flex:0;white-space:nowrap" title="Escuridão mágica: dentro dela nada é visto"><input id="areaDarkness" type="checkbox" style="flex:0"> escuridão</label>
       </span>
+      <select id="viewAs" class="master-only" title="Ver a mesa exatamente como um jogador vê (visão, luz, neblina, o que fica oculto)">
+        <option value="">Visão do mestre</option>
+      </select>
       <select id="layerSelect" class="master-only" title="Camada em que você clica e põe tokens">
         <option value="BATTLE">Camada: Batalha</option><option value="SCENERY">Camada: Cenário</option>
         <option value="OVERHEAD">Camada: Acima</option><option value="GM">Camada: Mestre</option>
@@ -147,6 +153,7 @@
       <button id="center">Centralizar</button>
     </div>
     <div id="hint">arraste seu token · roda = zoom · arraste o fundo para mover o mapa</div>
+    <div id="viewAsBanner" class="hidden"><span id="viewAsText"></span><button id="viewAsExit">Voltar à visão do mestre</button></div>
     <div id="targetHint" class="hidden"><span id="targetText">Clique no alvo</span> · Esc cancela</div>
     <div id="areaPanel" class="hidden">
       <div class="row"><b id="apName" style="flex:1"></b><button id="apClose" title="Fechar">✕</button></div>
@@ -345,7 +352,7 @@
    porque o EventSource do navegador nao manda o header Authorization. */
 const S = { token: null, me: null, campaign: null, master: false, scenes: [], scene: null, images: {},
   view: { tx: 40, ty: 40, z: 1 }, tool: 'move', drag: null, paint: null, pan: null, selected: null,
-  initiative: null, stream: null, targeting: null, wallDraw: null, explored: null, areaDraw: null, selectedTemplate: null, pendingArea: null, chars: [], icons: [], iconMap: {} };
+  initiative: null, stream: null, targeting: null, wallDraw: null, explored: null, areaDraw: null, selectedTemplate: null, pendingArea: null, chars: [], icons: [], iconMap: {}, viewAs: null };
 const $ = id => document.getElementById(id);
 const cv = $('map'), ctx = cv.getContext('2d');
 
@@ -401,7 +408,7 @@ async function openCampaign(c) {
   S.campaign = c; store('customizr_campaign', c.id);
   S.master = c.master && c.master.name === S.me.name;
   document.querySelectorAll('.master-only').forEach(el => el.classList.toggle('hidden', !S.master));
-  S.selected = null; S.scene = null;
+  S.selected = null; S.scene = null; S.viewAs = null; $('viewAsBanner').classList.add('hidden');
   await refreshScenes();
   requestAnimationFrame(() => $('center').click());
   await loadChat();
@@ -561,20 +568,21 @@ function draw() {
     ctx.restore();
   }
   // Mestre ve todos os tokens por cima da neblina; jogador ve os proprios por cima e os outros so nas casas reveladas
-  const above = t => S.master || isMine(t) || !sc.fogEnabled;
+  const above = t => asMaster() || isMine(t) || !sc.fogEnabled;
   const sight = playerSight(sc); // null = sem visao dinamica pra este usuario
   const seen = t => !sight || isMine(t) || canSee(sight, t.x + g * TW(t) / 2, t.y + g * TH(t) / 2);
-  const ordered = [...sc.tokens].sort((a, b) => LAYER_ORDER[a.layer || 'BATTLE'] - LAYER_ORDER[b.layer || 'BATTLE']);
+  // vendo como jogador: o que ele nao recebe do servidor (oculto, camada do mestre) some
+  const ordered = [...sc.tokens].filter(t => !S.viewAs || !(t.hidden || t.layer === 'GM')).sort((a, b) => LAYER_ORDER[a.layer || 'BATTLE'] - LAYER_ORDER[b.layer || 'BATTLE']);
   drawTemplates(sc, g);
   for (const t of ordered) if (!above(t) && seen(t)) drawToken(t, g);
   if (sc.fogEnabled) {
     const revealed = new Set(sc.revealedCells || []);
     ctx.beginPath(); ctx.rect(-g * 2, -g * 2, w + g * 4, h + g * 4);
     eachCell((c, r) => { if (revealed.has(c + ',' + r)) cellShape(c, r); });
-    ctx.fillStyle = S.master ? 'rgba(10,8,7,.55)' : '#0A0807'; ctx.fill('evenodd');
+    ctx.fillStyle = asMaster() ? 'rgba(10,8,7,.55)' : '#0A0807'; ctx.fill('evenodd');
   }
   if (sight) drawDarkness(sight, w, h);
-  else if (S.master) drawMasterLight(sc, w, h);
+  else if (asMaster()) drawMasterLight(sc, w, h);
   for (const t of ordered) if (above(t) && seen(t)) drawToken(t, g);
   drawWalls(sc, sight);
   if (S.areaDraw) drawTemplateShape(S.areaDraw, true);
@@ -604,7 +612,8 @@ function drawToken(t, g) {
   else { ctx.fillStyle = '#F6E9D3'; ctx.font = 700 + ' ' + rad * 0.9 + 'px Georgia'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText((t.name || '?')[0].toUpperCase(), cx, cy + 1); }
   ctx.lineWidth = S.selected && S.selected.id === t.id ? 4 / S.view.z : 2 / S.view.z;
   ctx.strokeStyle = S.selected && S.selected.id === t.id ? '#FFCF7F' : '#E8A33D'; ctx.stroke();
-  if (t.hpMax) {
+  const showHp = !S.viewAs || t.characterId || (t.members && t.members.length);
+  if (t.hpMax && showHp) {
     const ratio = Math.max(0, Math.min(1, t.hpCurrent / t.hpMax)), bw = g * TW(t) * 0.8, bh = Math.max(4, size * 0.08), by = t.y + g * TH(t) - bh - 1;
     ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.fillRect(cx - bw / 2, by, bw, bh);
     ctx.fillStyle = ratio > 0.5 ? '#6FBF73' : ratio > 0.25 ? '#E8C23D' : '#E07A5F'; ctx.fillRect(cx - bw / 2, by, bw * ratio, bh);
@@ -653,7 +662,7 @@ function drawToken(t, g) {
     ctx.fillText('👥' + t.members.length, t.x + size - 2, t.y + size - 6);
   }
   ctx.textAlign = 'center'; ctx.textBaseline = 'top'; ctx.font = 12 / S.view.z + 'px Segoe UI';
-  const label = t.name + (t.hpMax != null ? '  ' + t.hpCurrent + '/' + t.hpMax : '') + (layer === 'GM' ? ' (mestre)' : '');
+  const label = t.name + (t.hpMax != null && showHp ? '  ' + t.hpCurrent + '/' + t.hpMax : '') + (layer === 'GM' ? ' (mestre)' : '');
   const lw = ctx.measureText(label).width + 8 / S.view.z;
   const bottom = t.y + g * TH(t);
   ctx.fillStyle = 'rgba(27,20,17,.8)'; ctx.fillRect(cx - lw / 2, bottom + 2 / S.view.z, lw, 16 / S.view.z);
@@ -949,6 +958,7 @@ $('sceneForm').addEventListener('submit', async e => {
 async function loadCharacters() {
   const sel = $('tokenCharacter'); sel.innerHTML = '<option value="">— personagem —</option>';
   S.chars = await api('/character/' + S.campaign.id + '/characters');
+  renderViewAs();
   for (const c of S.chars) sel.append(new Option(c.name, c.characterId));
   loadCustomMonsters();
   loadObjects();
@@ -1013,7 +1023,10 @@ const CONDITIONS = [['BLINDED', 'Cego'], ['CHARMED', 'Enfeitiçado'], ['DEAFENED
   ['STUNNED', 'Atordoado'], ['UNCONSCIOUS', 'Inconsciente']];
 const conditionLabel = c => (CONDITIONS.find(x => x[0] === c) || [c, c])[1];
 /** Token do jogador: o do personagem dele, ou um token de grupo (caravana) em que viaja uma ficha dele. */
-const isMine = t => !!t && (t.ownerId === S.me.userId || (t.members || []).some(m => m.ownerId === S.me.userId));
+const viewerId = () => S.viewAs || S.me.userId;
+const isMine = t => !!t && (t.ownerId === viewerId() || (t.members || []).some(m => m.ownerId === viewerId()));
+/** Mestre vendo a mesa como mestre (e nao "como jogador"). */
+const asMaster = () => S.master && !S.viewAs;
 const canControl = t => !!t && (S.master || isMine(t));
 
 function renderCombat(t, reloadAttacks) {
@@ -1136,9 +1149,9 @@ function drawWalls(sc, sight) {
   const z = S.view.z;
   for (const w of sc.walls || []) {
     const door = w.type === 'DOOR';
-    if (!S.master && !door) continue; // jogador nao ve o traco das paredes, so o efeito delas
-    if (!S.master && sight && !canSeeDoor(sight, w)) continue;
-    if (S.master) {
+    if (!asMaster() && !door) continue; // jogador nao ve o traco das paredes, so o efeito delas
+    if (!asMaster() && sight && !canSeeDoor(sight, w)) continue;
+    if (asMaster()) {
       ctx.beginPath(); ctx.moveTo(w.x1, w.y1); ctx.lineTo(w.x2, w.y2);
       ctx.strokeStyle = door ? (w.open ? 'rgba(111,191,115,.6)' : '#B5651D') : '#E8A33D';
       ctx.lineWidth = (door ? 5 : 4) / z; if (door && w.open) ctx.setLineDash([6 / z, 6 / z]); ctx.stroke(); ctx.setLineDash([]);
@@ -1211,7 +1224,7 @@ function sceneLights(sc, walls, w, h) {
  * Mestre: null (ve tudo).
  */
 function playerSight(sc) {
-  if (!sc || S.master || !sc.visionEnabled) return null;
+  if (!sc || asMaster() || !sc.visionEnabled) return null;
   const { w, h } = mapSize(), g = sc.gridSizePx, walls = blockingSegments(sc);
   const sources = sc.tokens.filter(t => isMine(t)).map(t => {
     const x = t.x + g * TW(t) / 2, y = t.y + g * TH(t) / 2, half = g * Math.max(TW(t), TH(t)) / 2;
@@ -1471,7 +1484,7 @@ function drawProp(t, g) {
   }
   if (img && img !== 'loading') ctx.drawImage(img, t.x, t.y, w, h);
   else { ctx.fillStyle = t.layer === 'OVERHEAD' ? 'rgba(60,80,50,.85)' : 'rgba(90,70,50,.85)'; ctx.fillRect(t.x, t.y, w, h); }
-  if (S.master) {
+  if (asMaster()) {
     ctx.strokeStyle = S.selected && S.selected.id === t.id ? '#FFCF7F' : 'rgba(232,163,61,.5)'; ctx.lineWidth = 2 / S.view.z;
     ctx.setLineDash([6 / S.view.z, 4 / S.view.z]); ctx.strokeRect(t.x, t.y, w, h); ctx.setLineDash([]);
     ctx.fillStyle = '#F6E9D3'; ctx.font = 11 / S.view.z + 'px Segoe UI'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
@@ -1836,6 +1849,28 @@ $('campImport').onclick = async () => {
     $('campImportFile').value = '';
   } catch (err) { toast(err.message); }
 };
+
+// ------------------------------------------------------------------ ver como jogador
+/** Uma opcao por jogador (pelo nome dos personagens dele). */
+function renderViewAs() {
+  const sel = $('viewAs'), keep = sel.value; sel.innerHTML = '<option value="">Visão do mestre</option>';
+  const owners = new Map();
+  for (const c of S.chars || []) {
+    if (c.ownerId === S.me.userId) continue;
+    owners.set(c.ownerId, [...(owners.get(c.ownerId) || []), c.name]);
+  }
+  for (const [id, names] of owners) sel.append(new Option('Ver como jogador de ' + names.join(', '), id));
+  sel.value = owners.has(keep) ? keep : '';
+}
+function setViewAs(userId) {
+  S.viewAs = userId || null; S.explored = null; // a memoria do que ja viu e de cada jogador
+  $('viewAs').value = userId || '';
+  $('viewAsBanner').classList.toggle('hidden', !S.viewAs);
+  if (S.viewAs) $('viewAsText').textContent = 'Vendo como ' + $('viewAs').selectedOptions[0].text.replace('Ver como ', '');
+  draw();
+}
+$('viewAs').onchange = () => setViewAs($('viewAs').value);
+$('viewAsExit').onclick = () => setViewAs(null);
 
 // ------------------------------------------------------------------ inicio
 S.token = load('customizr_token');
