@@ -3,6 +3,8 @@ package top.customizr.system.controllers;
 import top.customizr.system.dto.ConditionsRequest;
 import top.customizr.system.dto.DoorRequest;
 import top.customizr.system.dto.MarkersRequest;
+import top.customizr.system.dto.AurasRequest;
+import top.customizr.system.dto.RulerRequest;
 import top.customizr.system.dto.SceneLightingRequest;
 import top.customizr.system.dto.TokenLightRequest;
 import top.customizr.system.dto.CampaignIconRequest;
@@ -201,6 +203,20 @@ public class LiveTableController {
     public ResponseEntity<TokenResponse> placement(@PathVariable UUID tokenId, @RequestBody TokenPlacementRequest request,
                                                    @AuthenticationPrincipal UserDetails user) {
         return ResponseEntity.ok(live.updatePlacement(tokenId, request, user.getUsername()));
+    }
+
+    @PutMapping("/tokens/{tokenId}/auras")
+    public ResponseEntity<TokenResponse> auras(@PathVariable UUID tokenId, @RequestBody AurasRequest request,
+                                               @AuthenticationPrincipal UserDetails user) {
+        return ResponseEntity.ok(live.updateAuras(tokenId, request, user.getUsername()));
+    }
+
+    /** Regua que todos da mesa veem enquanto alguem mede. */
+    @PostMapping("/scenes/{sceneId}/ruler")
+    public ResponseEntity<Void> ruler(@PathVariable UUID sceneId, @RequestBody(required = false) RulerRequest request,
+                                      @AuthenticationPrincipal UserDetails user) {
+        live.shareRuler(sceneId, request, user.getUsername());
+        return ResponseEntity.noContent().build();
     }
 
     @PutMapping("/tokens/{tokenId}/markers")

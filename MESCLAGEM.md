@@ -2,7 +2,7 @@
 
 Este branch (`mesclagem-mesa`) traz para o Customizr o que foi feito no programa de mesa à parte (o antigo "Embertale"), reescrito no padrão deste projeto: entidades JPA em `model/`, serviços com checagem de mestre/membro, DTOs `record` (um por arquivo, `XxxRequest` / `XxxResponse`) e testes com H2. O ponto de partida é o commit `e740c23` ("Consertando import de classes").
 
-* **Testes:** 95, todos passando (antes: 23, com 3 quebrados).
+* **Testes:** 98, todos passando (antes: 23, com 3 quebrados).
 * **Arquivos de exemplo:** o que é do 5etools nos testes são amostras pequenas do SRD 5.2 (licença CC-BY-4.0, atribuição em `src/test/resources/importer/LEIA-ME.txt`).
 * **Fins de linha:** tudo em LF, igual ao resto do repositório.
 
@@ -113,3 +113,4 @@ Simulação do deploy, feita num Postgres 17.12 temporário no PC:
 | 18 | Resultado do teste com PostgreSQL 17 e pontos de segurança |
 | 19 | Botões de dano no chat; concentração automática (`service/ConcentrationService.java`) |
 | 20 | "Ver como jogador" pro mestre na tela `/mesa` |
+| 21 | Régua compartilhada, movimento colorido pelo deslocamento, auras (`token_auras`) e anel de alcance do ataque |

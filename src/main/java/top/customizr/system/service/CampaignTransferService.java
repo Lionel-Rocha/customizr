@@ -217,7 +217,8 @@ public class CampaignTransferService {
                         t.getVisionFt(), t.getLayer(), t.getElevationFt(),
                         t.getMarkers().stream().map(m -> new CampaignExport.MarkerData(m.getLabel(), m.getIcon(), m.getRoundsLeft())).toList(),
                         t.getMembers().stream().map(Character::getName).toList(),
-                        t.getLightBrightFt(), t.getLightDimFt(), t.getDarkvisionFt())).toList());
+                        t.getLightBrightFt(), t.getLightDimFt(), t.getDarkvisionFt(),
+                        t.getAuras().stream().map(a -> new CampaignExport.AuraData(a.getRadiusFt(), a.getColor(), a.getLabel())).toList())).toList());
     }
 
     private static CampaignExport.MonsterData monsterData(Monster m) {
@@ -462,6 +463,8 @@ public class CampaignTransferService {
             token.replaceMarkers(nullSafe(td.markers()).stream()
                     .map(m -> new top.customizr.system.model.TokenMarker(m.label(), m.icon(), m.roundsLeft())).toList());
             token.replaceMembers(nullSafe(td.memberNames()).stream().map(characters::get).filter(java.util.Objects::nonNull).toList());
+            token.replaceAuras(nullSafe(td.auras()).stream()
+                    .map(a -> new top.customizr.system.model.TokenAura(a.radiusFt(), a.color(), a.label())).toList());
         }
         sceneRepository.save(scene);
     }

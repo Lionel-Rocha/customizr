@@ -9,7 +9,10 @@ public record TokenResponse(UUID id, UUID sceneId, String name, double x, double
                             Integer armorClass, Integer visionFt, top.customizr.system.model.TokenLayer layer,
                             Integer elevationFt, java.util.List<Marker> markers, java.util.List<Member> members,
                             double widthCells, double heightCells, Integer exhaustion,
-                            Integer lightBrightFt, Integer lightDimFt, Integer darkvisionFt) {
+                            Integer lightBrightFt, Integer lightDimFt, Integer darkvisionFt,
+                            Integer speedFt, java.util.List<Aura> auras) {
+
+    public record Aura(int radiusFt, String color, String label) {}
 
     public record Marker(String label, String icon, Integer roundsLeft) {}
 
@@ -40,6 +43,7 @@ public record TokenResponse(UUID id, UUID sceneId, String name, double x, double
                         c.getSheet().getHpCurrent(), c.getSheet().getHpMax())).toList(),
                 t.width(), t.height(),
                 t.getCharacter() != null && t.getCharacter().getSheet().getExhaustion() > 0 ? t.getCharacter().getSheet().getExhaustion() : null,
-                t.getLightBrightFt(), t.getLightDimFt(), t.getDarkvisionFt());
+                t.getLightBrightFt(), t.getLightDimFt(), t.getDarkvisionFt(), t.speedFt(),
+                t.getAuras().stream().map(a -> new Aura(a.getRadiusFt(), a.getColor(), a.getLabel())).toList());
     }
 }

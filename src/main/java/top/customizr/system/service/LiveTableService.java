@@ -13,6 +13,8 @@ import top.customizr.system.dto.TokenRequest;
 import top.customizr.system.dto.TokenResponse;
 import top.customizr.system.dto.DoorRequest;
 import top.customizr.system.dto.MarkersRequest;
+import top.customizr.system.dto.AurasRequest;
+import top.customizr.system.dto.RulerRequest;
 import top.customizr.system.dto.SceneLightingRequest;
 import top.customizr.system.dto.TokenLightRequest;
 import top.customizr.system.dto.CampaignIconRequest;
@@ -520,6 +522,44 @@ public class LiveTableService {
         }
         broadcastToken(token, "token_updated");
         return TokenResponse.from(token, master);
+    }
+
+    /** Auras do token (mestre ou quem controla o token). */
+    @Transactional
+    public TokenResponse updateAuras(UUID tokenId, AurasRequest r, String username) {
+        Token token = token(tokenId);
+        User user = masterGuard.user(username);
+        masterGuard.assertMember(user, token.getScene().getCampaign());
+        boolean master = masterGuard.canManage(user, token.getScene().getCampaign());
+        if (!master && !token.controlledBy(user.getUserId())) throw new AccessDeniedException("Not your token");
+        if (r == null || r.auras() == null) throw badRequest("auras is required");
+        valid(() -> {
+            token.replaceAuras(r.auras().stream().map(a -> {
+                if (a == null) throw new IllegalArgumentException("Empty aura");
+                return new top.customizr.system.model.TokenAura(a.radiusFt(), a.color(), a.label());
+            }).toList());
+            return null;
+        });
+        broadcastToken(token, "token_updated");
+        return TokenResponse.from(token, master);
+    }
+
+    /** Regua compartilhada: so repassa os pontos pra mesa (nada fica gravado). */
+    @Transactional
+    public void shareRuler(UUID sceneId, RulerRequest r, String username) {
+        Scene scene = scene(sceneId);
+        User user = masterGuard.user(username);
+        masterGuard.assertMember(user, scene.getCampaign());
+        boolean master = masterGuard.canManage(user, scene.getCampaign());
+        if (!master && !scene.isActive()) throw new AccessDeniedException("This scene is not active");
+        List<double[]> points = r == null || r.points() == null ? List.of() : r.points();
+        if (points.size() > 50) throw badRequest("At most 50 ruler points");
+        for (double[] p : points) {
+            if (p == null || p.length != 2 || Double.isNaN(p[0]) || Double.isNaN(p[1])) throw badRequest("Points are [x, y] pairs");
+        }
+        Map<String, Object> payload = Map.of("sceneId", sceneId, "userId", user.getUserId(), "name", user.getName(), "points", points);
+        if (scene.isActive()) events.publish(scene.getCampaign().getId(), "ruler", payload);
+        else events.publishToMaster(scene.getCampaign().getId(), "ruler", payload);
     }
 
     /** Marcadores do token (mestre ou quem controla o token). */

@@ -121,6 +121,11 @@ public class Token {
     private List<Character> members = new ArrayList<>();
 
     @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "token_auras", joinColumns = @JoinColumn(name = "token_id"))
+    @OrderColumn(name = "position")
+    private List<TokenAura> auras = new ArrayList<>();
+
+    @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "token_markers", joinColumns = @JoinColumn(name = "token_id"))
     @OrderColumn(name = "position")
     private List<TokenMarker> markers = new ArrayList<>();
@@ -265,6 +270,21 @@ public class Token {
     public boolean controlledBy(UUID userId) {
         if (character != null && character.getOwner().getUserId().equals(userId)) return true;
         return members.stream().anyMatch(c -> c.getOwner().getUserId().equals(userId));
+    }
+
+    public void replaceAuras(List<TokenAura> newAuras) {
+        if (newAuras.size() > 4) throw new IllegalArgumentException("At most 4 auras per token");
+        auras.clear();
+        auras.addAll(newAuras);
+    }
+
+    /** Deslocamento (andando) em pes: o da ficha do personagem, ou o primeiro da ficha de monstro ("30 ft., fly 60 ft."). */
+    public Integer speedFt() {
+        if (character != null) return character.getSheet().getSpeedFt();
+        Monster stats = statBlock();
+        if (stats == null || stats.getSpeed() == null) return null;
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("^\\s*(\\d+)\\s*ft").matcher(stats.getSpeed());
+        return m.find() ? Integer.valueOf(m.group(1)) : null;
     }
 
     public void replaceMarkers(List<TokenMarker> newMarkers) {

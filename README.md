@@ -241,6 +241,8 @@ Abaixo estão todos os endpoints atualmente expostos pelo backend da aplicação
 | `GET` / `POST` | `/live/campaign/{campaignId}/objects` | Biblioteca de objetos da campanha (mesa, barril...): `name`, `imageId` (de `POST /image`), `widthCells`, `heightCells`, `layer` (padrão: cenário). Só o mestre. |
 | `PUT` / `DELETE` | `/live/objects/{objectId}` | Edita / tira um objeto da biblioteca. |
 | `POST` | `/live/scenes/{sceneId}/objects/{objectId}` | Põe o objeto no mapa (`x`, `y`, `rotation`): vira um token da camada dele, com a imagem e o tamanho. |
+| `PUT` | `/live/tokens/{tokenId}/auras` | Auras do token (até 4: `radiusFt`, `color`, `label`), medidas da borda dele; todos veem. |
+| `POST` | `/live/scenes/{sceneId}/ruler` | Régua compartilhada: repassa os pontos pra mesa (nada fica gravado); lista vazia apaga. |
 | `PUT` | `/live/tokens/{tokenId}/markers` | Marcadores do token (`label`, `icon`, `roundsLeft`): a contagem desce no início do turno do token na iniciativa e o marcador some ao chegar a zero. |
 | `POST` | `/live/scenes/{sceneId}/templates` | Área de efeito (`shape` CIRCLE/CONE/LINE/SQUARE, `x`, `y`, `angle`, `sizeFt`). Mestre ou jogador. |
 | `DELETE` | `/live/templates/{templateId}` · `/live/scenes/{sceneId}/templates` | Tira uma área (quem pôs ou o mestre) / todas (mestre). |
@@ -429,6 +431,13 @@ A parte da mesa de jogo, desenvolvida à parte em JavaFX, foi trazida para cá n
   * Falhou: o marcador sai sozinho.
   * Caiu a 0 PV ou ficou incapacitado: perde a concentração sem rolar.
   * Vale pra qualquer dano: ataque, área, painel ou ficha. O resultado vai pro chat e pras notas do ataque.
+
+**Régua e alcance:**
+
+* **Régua:** a ferramenta "Régua" marca pontos de casa em casa, mostra cada trecho e o total em pés, e todos da mesa veem quem está medindo. Duplo clique ou Esc termina.
+* **Movimento colorido:** ao arrastar, o caminho fica verde até o deslocamento do token (da ficha ou da ficha de monstro), amarelo até o dobro (disparada) e vermelho além disso.
+* **Auras:** cada token pode ter até 4 auras com raio, cor e nome (a do paladino a 10 pés...), visíveis pra todos; vão na exportação.
+* **Alcance do ataque:** ao escolher um ataque, aparece o anel do alcance (normal e longo, lido do texto da ação) e a distância até o ponteiro, considerando a altura: verde no alcance, amarelo no longo (desvantagem), vermelho fora.
 
 **Ver como jogador:** o mestre escolhe "Ver como jogador de ..." na barra da mesa e vê exatamente o que aquele jogador vê (visão dinâmica, luz, neblina, memória do que já foi visto). Tokens ocultos, camada do mestre, paredes e PV de monstro somem como somem pro jogador. As ferramentas continuam de mestre, e uma faixa no alto lembra o modo, com o botão de voltar.
 

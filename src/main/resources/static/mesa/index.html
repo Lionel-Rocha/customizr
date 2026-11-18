@@ -136,6 +136,7 @@
       <button data-tool="wall" class="master-only" title="Arraste para desenhar uma parede">Parede</button>
       <button data-tool="door" class="master-only" title="Arraste para desenhar uma porta">Porta</button>
       <button data-tool="erase" class="master-only" title="Clique numa parede ou porta para apagar">Apagar parede</button>
+      <button data-tool="ruler" title="Clique pra marcar pontos; duplo clique ou Esc termina. Todos da mesa veem.">Régua</button>
       <button data-tool="area" title="Arraste para posicionar uma área de efeito (cone, círculo, linha, quadrado)">Área</button>
       <span id="areaOpts" class="hidden">
         <select id="areaShape"><option value="CIRCLE">Círculo</option><option value="CONE">Cone</option><option value="LINE">Linha</option><option value="SQUARE">Quadrado</option></select>
@@ -183,6 +184,14 @@
         <select id="cbMarkerPreset"></select>
         <input id="cbMarkerRounds" type="number" min="1" placeholder="rodadas" title="vazio = até tirar" style="max-width:76px">
         <button id="cbMarkerAdd">Marcar</button>
+      </div>
+      <div id="cbAuras" class="chips"></div>
+      <div class="row">
+        <input id="cbAuraFt" type="number" min="5" step="5" placeholder="aura (pés)" style="max-width:86px">
+        <select id="cbAuraColor"><option value="#FFCF7F">Dourada</option><option value="#8FB3FF">Azul</option><option value="#6FBF73">Verde</option>
+          <option value="#E07A5F">Vermelha</option><option value="#C792EA">Roxa</option></select>
+        <input id="cbAuraLabel" placeholder="nome (opcional)" style="max-width:110px">
+        <button id="cbAuraAdd">Aura</button>
       </div>
       <div class="row">
         <select id="cbLightPreset" title="Luz que o token carrega">
@@ -352,7 +361,7 @@
    porque o EventSource do navegador nao manda o header Authorization. */
 const S = { token: null, me: null, campaign: null, master: false, scenes: [], scene: null, images: {},
   view: { tx: 40, ty: 40, z: 1 }, tool: 'move', drag: null, paint: null, pan: null, selected: null,
-  initiative: null, stream: null, targeting: null, wallDraw: null, explored: null, areaDraw: null, selectedTemplate: null, pendingArea: null, chars: [], icons: [], iconMap: {}, viewAs: null };
+  initiative: null, stream: null, targeting: null, wallDraw: null, explored: null, areaDraw: null, selectedTemplate: null, pendingArea: null, chars: [], icons: [], iconMap: {}, viewAs: null, ruler: null, rulers: {}, hoverWorld: null };
 const $ = id => document.getElementById(id);
 const cv = $('map'), ctx = cv.getContext('2d');
 
@@ -502,6 +511,13 @@ function onEvent(type, d) {
       break;
     }
     case 'icons': loadIcons(); break;
+    case 'ruler':
+      if (sc && sc.id === d.sceneId && d.userId !== S.me.userId) {
+        if (d.points && d.points.length) S.rulers[d.userId] = { name: d.name, points: d.points, at: Date.now() };
+        else delete S.rulers[d.userId];
+        draw();
+      }
+      break;
     case 'initiative': S.initiative = d; renderInitiative(); break;
     case 'initiative_ended': S.initiative = { round: 1, turnIndex: 0, entries: [] }; renderInitiative(); break;
     case 'chat': addChat(d); break;
@@ -574,6 +590,7 @@ function draw() {
   // vendo como jogador: o que ele nao recebe do servidor (oculto, camada do mestre) some
   const ordered = [...sc.tokens].filter(t => !S.viewAs || !(t.hidden || t.layer === 'GM')).sort((a, b) => LAYER_ORDER[a.layer || 'BATTLE'] - LAYER_ORDER[b.layer || 'BATTLE']);
   drawTemplates(sc, g);
+  for (const t of ordered) if (seen(t)) drawAuras(t, g);
   for (const t of ordered) if (!above(t) && seen(t)) drawToken(t, g);
   if (sc.fogEnabled) {
     const revealed = new Set(sc.revealedCells || []);
@@ -591,12 +608,22 @@ function draw() {
     ctx.strokeStyle = S.tool === 'door' ? '#6FBF73' : '#E8A33D'; ctx.lineWidth = 5 / v.z; ctx.setLineDash([10 / v.z, 6 / v.z]); ctx.stroke(); ctx.setLineDash([]);
   }
   if (S.drag && S.drag.moved) {
+    // verde ate o deslocamento, amarelo ate o dobro (disparada), vermelho alem
     const t = S.drag.token, size = g * TW(t) / 2, hy = g * TH(t) / 2;
+    const dist = distanceFeet(S.drag.fromX, S.drag.fromY, t.x, t.y), speed = t.speedFt;
+    const color = !speed || dist <= speed ? '#6FBF73' : dist <= speed * 2 ? '#E8C23D' : '#E07A5F';
     ctx.beginPath(); ctx.moveTo(S.drag.fromX + size, S.drag.fromY + hy); ctx.lineTo(t.x + size, t.y + hy);
-    ctx.setLineDash([8 / v.z, 6 / v.z]); ctx.strokeStyle = '#6FBF73'; ctx.lineWidth = 3 / v.z; ctx.stroke(); ctx.setLineDash([]);
-    ctx.font = 600 + ' ' + 14 / v.z + 'px Segoe UI'; ctx.fillStyle = '#6FBF73';
-    ctx.fillText(distanceFeet(S.drag.fromX, S.drag.fromY, t.x, t.y) + ' pés', t.x + size * 2 + 6 / v.z, t.y);
+    ctx.setLineDash([8 / v.z, 6 / v.z]); ctx.strokeStyle = color; ctx.lineWidth = 3 / v.z; ctx.stroke(); ctx.setLineDash([]);
+    ctx.font = 600 + ' ' + 14 / v.z + 'px Segoe UI'; ctx.fillStyle = color; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    ctx.fillText(dist + (speed ? ' / ' + speed : '') + ' pés' + (speed && dist > speed && dist <= speed * 2 ? ' (disparada)' : ''),
+      t.x + size * 2 + 6 / v.z, t.y);
   }
+  drawRangeRing(g);
+  for (const [id, other] of Object.entries(S.rulers)) {
+    if (Date.now() - other.at > 8000) { delete S.rulers[id]; continue; }
+    drawRuler(other.points, rulerColor(id), other.name);
+  }
+  if (S.ruler) drawRuler([...S.ruler.points, ...(S.ruler.cursor ? [S.ruler.cursor] : [])], '#FFCF7F', null);
 }
 
 function drawToken(t, g) {
@@ -689,6 +716,7 @@ cv.addEventListener('pointerdown', e => {
   if (S.master && (S.tool === 'reveal' || S.tool === 'hide')) { S.paint = new Map(); paintAt(x, y); return; }
   if (S.master && (S.tool === 'wall' || S.tool === 'door')) { const [sx, sy] = snapPoint(x, y); S.wallDraw = { x1: sx, y1: sy, x2: sx, y2: sy }; return; }
   if (S.master && S.tool === 'erase') { const wall = wallAt(x, y); if (wall) api('/live/scenes/' + S.scene.id + '/walls/' + wall.id, { method: 'DELETE' }).catch(err => toast(err.message)); return; }
+  if (S.tool === 'ruler') { rulerClick(x, y); return; }
   if (S.tool === 'area') { const [sx, sy] = snapPoint(x, y); S.areaDraw = areaDraft(sx, sy); draw(); return; }
   if (!S.targeting) { const door = doorAt(x, y); if (door) { toggleDoor(door, e.shiftKey); return; } }
   const t = tokenAt(x, y);
@@ -702,6 +730,8 @@ cv.addEventListener('pointerdown', e => {
 });
 window.addEventListener('pointermove', e => {
   if (S.paint) { const [x, y] = toWorld(e); paintAt(x, y); return; }
+  if (S.ruler && !S.ruler.done) { S.ruler.cursor = rulerSnap(...toWorld(e)); shareRuler(); draw(); }
+  if (S.targeting) { S.hoverWorld = toWorld(e); draw(); }
   if (S.areaDraw) { const [x, y] = toWorld(e); S.areaDraw.angle = Math.atan2(y - S.areaDraw.y, x - S.areaDraw.x) * 180 / Math.PI; draw(); return; }
   if (S.wallDraw) { const [x, y] = toWorld(e); const [sx, sy] = snapPoint(x, y); S.wallDraw.x2 = sx; S.wallDraw.y2 = sy; draw(); return; }
   if (S.drag) { const [x, y] = toWorld(e); S.drag.token.x = x - S.drag.offX; S.drag.token.y = y - S.drag.offY; S.drag.moved = true; draw(); return; }
@@ -1042,6 +1072,7 @@ function renderCombatHeader(t) {
   $('cbName').textContent = t.name;
   renderTokenExtras(t);
   renderLightControls(t);
+  renderAuras(t);
   $('cbHp').textContent = (t.hpMax != null ? 'PV ' + t.hpCurrent + '/' + t.hpMax : 'sem PV') + (t.armorClass != null ? ' · CA ' + t.armorClass : '');
   const box = $('cbConditions'); box.innerHTML = '';
   const active = new Set(t.conditions || []);
@@ -1111,7 +1142,10 @@ $('cbDamage').onclick = () => changeHp('DAMAGE');
 $('cbHeal').onclick = () => changeHp('HEALING');
 $('cbTemp').onclick = () => changeHp('TEMPORARY');
 $('cbClose').onclick = () => select(null);
-window.addEventListener('keydown', e => { if (e.key === 'Escape' && S.targeting) stopTargeting(); });
+window.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && S.targeting) stopTargeting();
+  if (e.key === 'Escape' && S.ruler) finishRuler();
+});
 
 // ------------------------------------------------------------------ paredes e portas
 function snapPoint(x, y) {
@@ -1530,6 +1564,7 @@ $('cbElevSave').onclick = () => S.selected && api('/live/tokens/' + S.selected.i
 // ------------------------------------------------------------------ areas de efeito
 document.querySelectorAll('[data-tool]').forEach(b => b.addEventListener('click', () => {
   $('areaOpts').classList.toggle('hidden', b.dataset.tool !== 'area');
+  if (b.dataset.tool !== 'ruler' && S.ruler) finishRuler();
   if (b.dataset.tool !== 'area') S.pendingArea = null;
 }));
 function feetToPx(ft) { return ft / S.scene.feetPerCell * S.scene.gridSizePx; }
@@ -1871,6 +1906,144 @@ function setViewAs(userId) {
 }
 $('viewAs').onchange = () => setViewAs($('viewAs').value);
 $('viewAsExit').onclick = () => setViewAs(null);
+
+// ------------------------------------------------------------------ regua, auras e alcance
+/** Ponto da regua: centro da casa (a medida de 5e e de casa em casa); sem grade, o ponto exato. */
+function rulerSnap(x, y) {
+  const sc = S.scene, g = sc.gridSizePx;
+  if (sc.gridType === 'SQUARE') return [Math.floor(x / g) * g + g / 2, Math.floor(y / g) * g + g / 2];
+  if (sc.gridType === 'HEX') { const c = hexAt(x, y, g); return hexCenter(c[0], c[1], g); }
+  return [x, y];
+}
+function rulerClick(x, y) {
+  const p = rulerSnap(x, y);
+  if (!S.ruler || S.ruler.done) S.ruler = { points: [p], cursor: null, done: false };
+  else {
+    const last = S.ruler.points[S.ruler.points.length - 1];
+    if (last[0] === p[0] && last[1] === p[1]) return; // segundo clique do duplo clique
+    S.ruler.points.push(p);
+  }
+  shareRuler(true); draw();
+}
+cv.addEventListener('dblclick', () => { if (S.tool === 'ruler') finishRuler(); });
+/** Termina a medida: fica na tela uns segundos e some (pra todos). */
+function finishRuler() {
+  if (!S.ruler) return;
+  S.ruler.done = true; S.ruler.cursor = null; draw();
+  const mine = S.ruler;
+  setTimeout(() => { if (S.ruler === mine) { S.ruler = null; shareRuler(true); draw(); } }, 3000);
+}
+let rulerTimer = null;
+/** Manda a regua pra mesa (no maximo umas 8 vezes por segundo). */
+function shareRuler(now) {
+  if (!S.scene) return;
+  const send = () => {
+    rulerTimer = null;
+    const pts = S.ruler ? [...S.ruler.points, ...(S.ruler.cursor ? [S.ruler.cursor] : [])] : [];
+    api('/live/scenes/' + S.scene.id + '/ruler', { method: 'POST', body: { points: pts } }).catch(() => {});
+  };
+  if (now) { clearTimeout(rulerTimer); send(); } else if (!rulerTimer) rulerTimer = setTimeout(send, 120);
+}
+function rulerColor(id) {
+  const colors = ['#8FB3FF', '#6FBF73', '#C792EA', '#E07A5F', '#4FD1C5'];
+  let h = 0; for (const ch of id) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return colors[h % colors.length];
+}
+/** Desenha a regua: pontos, distancia de cada trecho e o total no fim. */
+function drawRuler(points, color, who) {
+  if (!points || points.length < 1) return;
+  const z = S.view.z;
+  ctx.save(); ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 3 / z;
+  ctx.beginPath(); points.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.stroke();
+  let total = 0;
+  ctx.font = 600 + ' ' + 13 / z + 'px Segoe UI'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (let i = 0; i < points.length; i++) {
+    const [x, y] = points[i];
+    ctx.beginPath(); ctx.arc(x, y, 5 / z, 0, Math.PI * 2); ctx.fill();
+    if (i > 0) {
+      const [px, py] = points[i - 1], d = distanceFeet(px, py, x, y); total += d;
+      if (points.length > 2) label((px + x) / 2, (py + y) / 2, d + ' pés', color, 11);
+    }
+  }
+  const [lx, ly] = points[points.length - 1];
+  if (points.length > 1) label(lx + 14 / z, ly - 16 / z, total + ' pés' + (who ? ' · ' + who : ''), color, 14);
+  ctx.restore();
+}
+function label(x, y, text, color, size) {
+  const z = S.view.z;
+  ctx.font = 700 + ' ' + size / z + 'px Segoe UI';
+  const w = ctx.measureText(text).width + 10 / z, h = (size + 8) / z;
+  ctx.fillStyle = 'rgba(20,16,13,.85)'; ctx.fillRect(x - w / 2, y - h / 2, w, h);
+  ctx.fillStyle = color; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, x, y + 1 / z);
+}
+/** Auras do token (a partir da borda dele, como no livro). */
+function drawAuras(t, g) {
+  if (!t.auras || !t.auras.length) return;
+  const cx = t.x + g * TW(t) / 2, cy = t.y + g * TH(t) / 2, half = g * Math.max(TW(t), TH(t)) / 2, z = S.view.z;
+  for (const a of t.auras) {
+    const color = a.color || '#FFCF7F', rad = feetPx(a.radiusFt) + half;
+    ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, rad, 0, Math.PI * 2);
+    ctx.globalAlpha = 0.08; ctx.fillStyle = color; ctx.fill();
+    ctx.globalAlpha = 0.7; ctx.strokeStyle = color; ctx.lineWidth = 2 / z; ctx.setLineDash([6 / z, 5 / z]); ctx.stroke();
+    if (a.label) { ctx.globalAlpha = 0.9; ctx.fillStyle = color; ctx.font = 600 + ' ' + 11 / z + 'px Segoe UI'; ctx.textAlign = 'center'; ctx.fillText(a.label, cx, cy - rad - 4 / z); }
+    ctx.restore();
+  }
+}
+/** Alcance do ataque escolhido: "reach 10 ft." (corpo a corpo) ou "range 80/320 ft." (normal / longo). */
+function attackRange(a) {
+  const text = (a && (a.text || '')) + ' ' + ((a && a.name) || '');
+  const ranged = /range (\d+)\s*\/\s*(\d+)\s*ft/i.exec(text);
+  if (ranged) return { normal: Number(ranged[1]), long: Number(ranged[2]) };
+  const reach = /reach (\d+)\s*ft/i.exec(text);
+  if (reach) return { normal: Number(reach[1]) };
+  return null;
+}
+/** Enquanto escolhe o alvo: anel do alcance em volta de quem ataca e a distancia ate o ponteiro. */
+function drawRangeRing(g) {
+  const t = S.selected, a = S.targeting;
+  if (!t || !a) return;
+  const cx = t.x + g * TW(t) / 2, cy = t.y + g * TH(t) / 2, half = g * Math.max(TW(t), TH(t)) / 2, z = S.view.z;
+  const range = attackRange(a);
+  if (range) {
+    ctx.save(); ctx.strokeStyle = '#FFCF7F'; ctx.lineWidth = 2.5 / z;
+    ctx.beginPath(); ctx.arc(cx, cy, feetPx(range.normal) + half, 0, Math.PI * 2); ctx.stroke();
+    if (range.long) {
+      ctx.setLineDash([8 / z, 6 / z]); ctx.globalAlpha = 0.7;
+      ctx.beginPath(); ctx.arc(cx, cy, feetPx(range.long) + half, 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.restore();
+  }
+  if (S.hoverWorld) {
+    const [hx, hy] = S.hoverWorld, target = tokenAt(hx, hy);
+    const tx = target ? target.x + g * TW(target) / 2 : hx, ty = target ? target.y + g * TH(target) / 2 : hy;
+    const flat = distanceFeet(cx, cy, tx, ty), up = Math.abs((target && target.elevationFt || 0) - (t.elevationFt || 0));
+    const dist = up ? Math.round(Math.hypot(flat, up) / 5) * 5 : flat;
+    const far = range && dist > (range.long || range.normal);
+    const color = !range ? '#F6E9D3' : dist <= range.normal ? '#6FBF73' : far ? '#E07A5F' : '#E8C23D';
+    ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = 2 / z; ctx.setLineDash([4 / z, 4 / z]);
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(tx, ty); ctx.stroke(); ctx.restore();
+    label(tx, ty - 26 / z, dist + ' pés' + (up ? ' (altura ' + up + ')' : '') + (far ? ' · fora de alcance' : range && dist > range.normal ? ' · desvantagem' : ''), color, 13);
+  }
+}
+function renderAuras(t) {
+  const box = $('cbAuras'); box.innerHTML = '';
+  for (const [i, a] of (t.auras || []).entries()) {
+    const b = document.createElement('button'); b.className = 'chip on'; b.title = 'Clique para tirar';
+    b.style.borderColor = a.color || '#FFCF7F'; b.textContent = '◯ ' + (a.label ? a.label + ' ' : '') + a.radiusFt + ' pés';
+    b.onclick = () => saveAuras(t, t.auras.filter((_, j) => j !== i));
+    box.append(b);
+  }
+}
+function saveAuras(t, auras) {
+  api('/live/tokens/' + t.id + '/auras', { method: 'PUT', body: { auras: auras.map(a => ({ radiusFt: a.radiusFt, color: a.color, label: a.label })) } })
+    .catch(err => toast(err.message));
+}
+$('cbAuraAdd').onclick = () => {
+  const t = S.selected, ft = Number($('cbAuraFt').value); if (!t) return;
+  if (!(ft >= 5)) return toast('Diga o raio da aura em pés.');
+  saveAuras(t, [...(t.auras || []), { radiusFt: ft, color: $('cbAuraColor').value, label: $('cbAuraLabel').value || null }]);
+  $('cbAuraFt').value = ''; $('cbAuraLabel').value = '';
+};
 
 // ------------------------------------------------------------------ inicio
 S.token = load('customizr_token');

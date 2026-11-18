@@ -56,7 +56,10 @@ public record CampaignExport(
                             String imageUrl, boolean hidden, int rotation, String characterName, String npcName, Ref monster,
                             Integer hpCurrent, Integer hpMax, Set<Condition> conditions, Integer visionFt,
                             top.customizr.system.model.TokenLayer layer, Integer elevationFt, List<MarkerData> markers,
-                            List<String> memberNames, Integer lightBrightFt, Integer lightDimFt, Integer darkvisionFt) {}
+                            List<String> memberNames, Integer lightBrightFt, Integer lightDimFt, Integer darkvisionFt,
+                            List<AuraData> auras) {}
+
+    public record AuraData(int radiusFt, String color, String label) {}
 
     /** Monstro customizado da campanha (a ficha inteira, inclusive a entrada no formato do 5etools). */
     public record MonsterData(String name, String size, String creatureType, String alignment, Integer armorClass,
