@@ -1018,6 +1018,48 @@ public class Main extends Application {
         }
     }
 
+    /**
+     * Imagem no efeito de area: cobre a area desenhada (circulo, cone, linha, cubo) com uma imagem, girada na direcao
+     * do cone/linha. Vira um objeto do mapa (sincroniza, anima GIF, apaga/move pelo modo Editar objetos).
+     */
+    private void onEffectImage() {
+        Optional<double[]> box = mapView.effectPlacement();
+        if (box.isEmpty()) {
+            showError("Desenhe a área primeiro: ligue \"Área\", escolha a forma e arraste no mapa.");
+            return;
+        }
+        if (!networkService.isGm()) {
+            showError("Só o mestre põe imagem nos efeitos (ela vira um objeto do mapa).");
+            return;
+        }
+        String shape = mapView.lastTemplateShape();
+        ChoiceDialog<String> from = new ChoiceDialog<>("Arquivo do computador", "Arquivo do computador", "Galeria da mesa");
+        from.setTitle("Imagem no efeito (" + shape + ")");
+        from.setHeaderText("JPG, JPEG, PNG ou GIF (animado continua animado).");
+        from.setContentText("De onde vem a imagem?");
+        Optional<String> choice = from.showAndWait();
+        if (choice.isEmpty()) return;
+        java.util.function.Consumer<String> place = assetId -> {
+            double[] b = box.get();
+            com.vttcaseiro.model.MapObject o = new com.vttcaseiro.model.MapObject(assetId, b[0], b[1], b[2], b[3]);
+            o.setRotation(b[4]);
+            o.setName("Efeito: " + shape);
+            if (table.addObject(o)) {
+                pushUndo(new UndoAction("Efeito", () -> table.removeObject(o)));
+                mapView.clearTemplate();
+            }
+        };
+        if (choice.get().startsWith("Galeria")) {
+            new com.vttcaseiro.view.ImageGalleryView(imageAssetService, place::accept).show();
+            return;
+        }
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Imagem do efeito");
+        chooser.getExtensionFilters().add(com.vttcaseiro.view.ImageFiles.filter());
+        File file = chooser.showOpenDialog(stage);
+        if (file != null) importIntoAssetStoreOrWarn(file).ifPresent(place);
+    }
+
     /** Poe um objeto com essa imagem no centro da tela (lado maior = 2 casas) e liga o modo de edicao. */
     private void addObjectFromAsset(String assetId) {
         double cell = Math.max(10, sceneService.getScene().getGrid().getCellSize());
@@ -1508,6 +1550,9 @@ public class Main extends Application {
         });
         templateShapeCombo.setOnAction(e -> mapView.setTemplateShapeType(templateShapeCombo.getValue()));
         clearTemplateBtn.setOnAction(e -> mapView.clearTemplate());
+        Button effectImageBtn = new Button("Imagem");
+        effectImageBtn.getStyleClass().add("tool-button");
+        effectImageBtn.setOnAction(e -> onEffectImage());
 
         // --- Neblina de guerra (mestre) ---
         Label fogLabel = new Label("NEBLINA");
@@ -1720,6 +1765,8 @@ public class Main extends Application {
         tip(measureBtn, "Arraste no mapa para medir distância");
         tip(templateBtn, "Arraste no mapa para marcar uma área de efeito");
         tip(clearTemplateBtn, "Apaga a área marcada");
+        tip(effectImageBtn, "Põe uma imagem (JPG, PNG ou GIF animado) cobrindo a área marcada -- vira um objeto do mapa "
+                + "que todos veem. Cone e linha: use imagem apontando pra direita.");
         tip(fogRevealBtn, "Arraste no mapa para revelar uma área aos jogadores");
         tip(fogCoverBtn, "Arraste no mapa para esconder uma área");
         tip(fogAllBtn, "Revela o mapa inteiro");
@@ -1749,7 +1796,7 @@ public class Main extends Application {
         // Linha de cima: categorias. So a categoria aberta mostra os botoes dela (embaixo),
         // assim o mapa fica livre e cada coisa tem um lugar facil de achar.
         HBox tokenBox = toolGroup(addTokenBtn, addTokenFromGalleryBtn, npcBtn);
-        HBox measureBox = toolGroup(measureBtn, templateShapeCombo, templateBtn, clearTemplateBtn);
+        HBox measureBox = toolGroup(measureBtn, templateShapeCombo, templateBtn, clearTemplateBtn, effectImageBtn);
         HBox drawBox = toolGroup(penBtn, textBtn, eraserBtn, colorPicker, clearDrawBtn);
         drawLabel.setVisible(false);
         drawLabel.setManaged(false);

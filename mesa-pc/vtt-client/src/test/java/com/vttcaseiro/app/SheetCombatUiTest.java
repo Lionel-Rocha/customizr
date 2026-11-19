@@ -322,6 +322,50 @@ class SheetCombatUiTest {
     }
 
     @Test
+    void areaDrawnOnTheMapGivesThePlaceForTheEffectImage() throws Exception {
+        Assumptions.assumeTrue(fxReady, "sem tela disponivel");
+        Path dir = Files.createTempDirectory("sheet-ui");
+        Opened o = open(dir);
+        try {
+            onFx(() -> {
+                com.vttcaseiro.view.MapView map = (com.vttcaseiro.view.MapView) field(o.main(), "mapView");
+                assertTrue(map.effectPlacement().isEmpty(), "sem area desenhada");
+                map.setTemplating(true, "Cone");
+                Method draw = com.vttcaseiro.view.MapView.class.getDeclaredMethod("drawTemplate",
+                        double.class, double.class, double.class, double.class);
+                draw.setAccessible(true);
+                draw.invoke(map, 100.0, 100.0, 240.0, 100.0);
+                double[] box = map.effectPlacement().orElseThrow();
+                assertEquals("Cone", map.lastTemplateShape());
+                assertEquals(140, box[2], 1e-6);
+
+                // o que o botao "Imagem" faz depois de escolher a imagem: objeto cobrindo a area
+                com.vttcaseiro.service.ImageAssetService images =
+                        (com.vttcaseiro.service.ImageAssetService) field(o.main(), "imageAssetService");
+                java.awt.image.BufferedImage img = new java.awt.image.BufferedImage(8, 8, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+                java.io.ByteArrayOutputStream gif = new java.io.ByteArrayOutputStream();
+                javax.imageio.ImageIO.write(img, "gif", gif);
+                Path file = dir.resolve("fogo.gif");
+                Files.write(file, gif.toByteArray());
+                String assetId = images.importFile(file);
+                assertTrue(assetId.endsWith(".gif"), "GIF guardado como GIF: " + assetId);
+                com.vttcaseiro.model.MapObject obj = new com.vttcaseiro.model.MapObject(assetId, box[0], box[1], box[2], box[3]);
+                obj.setRotation(box[4]);
+                com.vttcaseiro.service.TableService table = (com.vttcaseiro.service.TableService) field(o.main(), "table");
+                assertTrue(table.addObject(obj), "mestre pode por o efeito");
+                com.vttcaseiro.service.SceneService scenes = (com.vttcaseiro.service.SceneService) field(o.main(), "sceneService");
+                assertEquals(1, scenes.getScene().getObjects().size());
+                map.clearTemplate();
+                assertTrue(map.effectPlacement().isEmpty());
+                assertFalse(find(((Stage) field(o.main(), "stage")).getScene().getRoot(),
+                        n -> n instanceof Button b && "Imagem".equals(b.getText())).isEmpty(), "botao na barra de Area");
+            });
+        } finally {
+            close(o);
+        }
+    }
+
+    @Test
     void addingAResourceShowsAndKeepsIt() throws Exception {
         Assumptions.assumeTrue(fxReady, "sem tela disponivel");
         Path dir = Files.createTempDirectory("sheet-ui");

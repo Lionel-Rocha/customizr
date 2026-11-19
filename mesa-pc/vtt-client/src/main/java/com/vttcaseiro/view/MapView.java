@@ -1185,6 +1185,54 @@ public class MapView extends Pane {
     /** Apaga o template desenhado agora (se tiver algum). */
     public void clearTemplate() {
         templateGroup.getChildren().clear();
+        lastTemplate = null;
+    }
+
+    /** Ultima area desenhada: forma + origem e ponta do arrasto (null = nenhuma). */
+    private String lastTemplateShape;
+    private double[] lastTemplate;
+
+    /**
+     * Onde por uma imagem que cobre a area desenhada: {x, y, largura, altura, giro em graus} no formato do objeto do
+     * mapa (canto de cima a esquerda antes de girar; giro em volta do centro). Vazio sem area desenhada.
+     */
+    public java.util.Optional<double[]> effectPlacement() {
+        if (lastTemplate == null) return java.util.Optional.empty();
+        return java.util.Optional.of(effectBox(lastTemplateShape, lastTemplate[0], lastTemplate[1], lastTemplate[2],
+                lastTemplate[3], scene.getGrid().getCellSize()));
+    }
+
+    public String lastTemplateShape() {
+        return lastTemplate == null ? null : lastTemplateShape;
+    }
+
+    /**
+     * Caixa da imagem do efeito pra cada forma (mesma geometria do drawTemplate):
+     * <ul>
+     * <li>Circulo: quadrado em volta do circulo (centro na origem).</li>
+     * <li>Cubo: o proprio quadrado.</li>
+     * <li>Cone: quadrado do comprimento, centrado no meio do cone e girado pra direcao dele -- a imagem deve
+     *     apontar pra DIREITA (a base do cone na borda esquerda).</li>
+     * <li>Linha: comprimento x 1 casa, girada pra direcao (imagem deitada, da esquerda pra direita).</li>
+     * </ul>
+     */
+    public static double[] effectBox(String shape, double x1, double y1, double x2, double y2, double cellSize) {
+        double dx = x2 - x1, dy = y2 - y1;
+        double length = Math.max(1, Math.hypot(dx, dy));
+        double angle = Math.toDegrees(Math.atan2(dy, dx));
+        double cx = x1 + dx / 2, cy = y1 + dy / 2;
+        return switch (shape == null ? "" : shape) {
+            case "Cubo" -> {
+                double side = Math.max(1, Math.max(Math.abs(dx), Math.abs(dy)));
+                yield new double[]{dx >= 0 ? x1 : x1 - side, dy >= 0 ? y1 : y1 - side, side, side, 0};
+            }
+            case "Cone" -> new double[]{cx - length / 2, cy - length / 2, length, length, angle};
+            case "Linha" -> {
+                double w = Math.max(4, cellSize);
+                yield new double[]{cx - length / 2, cy - w / 2, length, w, angle};
+            }
+            default -> new double[]{x1 - length, y1 - length, 2 * length, 2 * length, 0};
+        };
     }
 
     private void onDragOver(DragEvent event) {
@@ -2113,6 +2161,8 @@ public class MapView extends Pane {
      */
     private void drawTemplate(double x1, double y1, double x2, double y2) {
         templateGroup.getChildren().clear();
+        lastTemplateShape = templateShapeType;
+        lastTemplate = new double[]{x1, y1, x2, y2};
         double dx = x2 - x1;
         double dy = y2 - y1;
         double dragDistance = Math.hypot(dx, dy);
