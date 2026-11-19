@@ -12,6 +12,29 @@ public class GridSettings {
     private double offsetX = 0;
     private double offsetY = 0;
     private boolean visible = true;
+    /** Tamanho do mapa em casas, escolhido pelo mestre (0 = automatico: o tamanho da imagem). A imagem estica pra caber. */
+    private int mapWidthCells;
+    private int mapHeightCells;
+
+    public static final int MAX_MAP_CELLS = 500;
+
+    public int getMapWidthCells() { return Math.max(0, mapWidthCells); }
+    public int getMapHeightCells() { return Math.max(0, mapHeightCells); }
+
+    /** Define o tamanho em casas; 0 (ou menos) em qualquer um volta pro automatico. */
+    public void setMapSizeCells(int width, int height) {
+        if (width <= 0 || height <= 0) {
+            mapWidthCells = 0;
+            mapHeightCells = 0;
+            return;
+        }
+        mapWidthCells = Math.min(MAX_MAP_CELLS, width);
+        mapHeightCells = Math.min(MAX_MAP_CELLS, height);
+    }
+
+    public boolean hasCustomMapSize() {
+        return getMapWidthCells() > 0 && getMapHeightCells() > 0;
+    }
 
     public static final String SQUARE = "square";
     public static final String HEX = "hex";

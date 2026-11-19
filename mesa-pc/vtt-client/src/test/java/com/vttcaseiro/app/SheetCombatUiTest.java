@@ -415,6 +415,44 @@ class SheetCombatUiTest {
     }
 
     @Test
+    void mapSizeCanBeChosenInCellsAndStretchesTheImage() throws Exception {
+        Assumptions.assumeTrue(fxReady, "sem tela disponivel");
+        Path dir = Files.createTempDirectory("sheet-ui");
+        Opened o = open(dir);
+        try {
+            onFx(() -> {
+                com.vttcaseiro.service.SceneService scenes = (com.vttcaseiro.service.SceneService) field(o.main(), "sceneService");
+                com.vttcaseiro.service.ImageAssetService images =
+                        (com.vttcaseiro.service.ImageAssetService) field(o.main(), "imageAssetService");
+                com.vttcaseiro.view.MapView map = (com.vttcaseiro.view.MapView) field(o.main(), "mapView");
+                java.awt.image.BufferedImage img = new java.awt.image.BufferedImage(200, 100, java.awt.image.BufferedImage.TYPE_INT_RGB);
+                Path file = dir.resolve("mapa.png");
+                javax.imageio.ImageIO.write(img, "png", file.toFile());
+                scenes.getScene().setBackgroundImageAssetId(images.importFile(file));
+                scenes.getScene().getGrid().setCellSize(50);
+                map.loadBackgroundImage();
+                assertEquals(200, map.mapWidth(), 0.01, "automatico: tamanho da imagem");
+                assertEquals(100, map.mapHeight(), 0.01);
+
+                scenes.setMapSizeCells(30, 20);
+                assertEquals(30 * 50, map.mapWidth(), 0.01, "30 casas de 50 px");
+                assertEquals(20 * 50, map.mapHeight(), 0.01);
+                assertTrue(scenes.getScene().getGrid().hasCustomMapSize(), "fica guardado na grade da cena (vai pela rede junto)");
+
+                scenes.setGridCellSize(70);
+                assertEquals(30 * 70, map.mapWidth(), 0.01, "acompanha o tamanho da casa");
+
+                scenes.setMapSizeCells(0, 0);
+                assertEquals(200, map.mapWidth(), 0.01, "volta pro automatico");
+                assertFalse(find(((Stage) field(o.main(), "stage")).getScene().getRoot(),
+                        n -> n instanceof Label l && "Tamanho do mapa (em casas)".equals(l.getText())).isEmpty(), "controles na aba Mapa");
+            });
+        } finally {
+            close(o);
+        }
+    }
+
+    @Test
     void addingAResourceShowsAndKeepsIt() throws Exception {
         Assumptions.assumeTrue(fxReady, "sem tela disponivel");
         Path dir = Files.createTempDirectory("sheet-ui");

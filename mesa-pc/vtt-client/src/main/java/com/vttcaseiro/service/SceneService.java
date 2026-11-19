@@ -204,6 +204,14 @@ public class SceneService {
         }
     }
 
+    /** Tamanho do mapa em casas (0 = automatico pela imagem). Avisa como mudanca de grade (o mapa redesenha). */
+    public void setMapSizeCells(int width, int height) {
+        scene.getGrid().setMapSizeCells(width, height);
+        for (SceneChangeListener l : listeners) {
+            l.onGridChanged();
+        }
+    }
+
     public void setGridCellSize(double size) {
         if (size <= 1) {
             throw new IllegalArgumentException("O tamanho da celula precisa ser maior que 1.");

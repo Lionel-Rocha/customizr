@@ -802,12 +802,11 @@ public class MapView extends Pane {
 
     /** Mostra o mapa inteiro na tela (bom pra mapa-mundo grande). */
     public void fitToView() {
-        javafx.scene.image.Image img = backgroundView.getImage();
-        if (img == null || getWidth() <= 0 || getHeight() <= 0) {
+        if (backgroundView.getImage() == null || getWidth() <= 0 || getHeight() <= 0) {
             resetView();
             return;
         }
-        double z = Math.max(MIN_ZOOM, Math.min(1.0, Math.min(getWidth() / img.getWidth(), getHeight() / img.getHeight())));
+        double z = Math.max(MIN_ZOOM, Math.min(1.0, Math.min(getWidth() / mapWidth(), getHeight() / mapHeight())));
         zoom = z;
         content.setScaleX(z);
         content.setScaleY(z);
@@ -1311,18 +1310,9 @@ public class MapView extends Pane {
                 }
             }
         }
-        if (img != null) {
-            backgroundView.setImage(img);
-            gridCanvas.setWidth(img.getWidth());
-            gridCanvas.setHeight(img.getHeight());
-        } else {
-            // Sem imagem: um "tabuleiro em branco" com grade, pra ja dar pra
-            // jogar (teatro da mente com posicao) sem precisar de mapa.
-            backgroundView.setImage(null);
-            double cell = Math.max(10, scene.getGrid().getCellSize());
-            gridCanvas.setWidth(cell * BLANK_COLS);
-            gridCanvas.setHeight(cell * BLANK_ROWS);
-        }
+        // Sem imagem: um "tabuleiro em branco" com grade, pra ja dar pra jogar sem mapa.
+        backgroundView.setImage(img);
+        applyMapSize();
         redrawGrid();
         updateEmptyStateVisibility();
     }
@@ -1351,13 +1341,47 @@ public class MapView extends Pane {
         }
     }
 
+    /**
+     * Tamanho do mapa: o que o mestre escolheu em casas (a imagem estica pra caber), ou o tamanho da imagem, ou o
+     * tabuleiro em branco de 30 x 20 casas.
+     */
+    private void applyMapSize() {
+        com.vttcaseiro.model.GridSettings g = scene.getGrid();
+        double cell = Math.max(10, g.getCellSize());
+        Image img = backgroundView.getImage();
+        double w;
+        double h;
+        if (g.hasCustomMapSize()) {
+            w = g.getMapWidthCells() * cell;
+            h = g.getMapHeightCells() * cell;
+        } else if (img != null) {
+            w = img.getWidth();
+            h = img.getHeight();
+        } else {
+            w = cell * BLANK_COLS;
+            h = cell * BLANK_ROWS;
+        }
+        backgroundView.setPreserveRatio(false);
+        backgroundView.setFitWidth(img != null && g.hasCustomMapSize() ? w : 0);
+        backgroundView.setFitHeight(img != null && g.hasCustomMapSize() ? h : 0);
+        gridCanvas.setWidth(w);
+        gridCanvas.setHeight(h);
+    }
+
+    /** Largura/altura do mapa em pixels (o tamanho escolhido ou o da imagem). */
+    public double mapWidth() {
+        return gridCanvas.getWidth();
+    }
+
+    public double mapHeight() {
+        return gridCanvas.getHeight();
+    }
+
     public void redrawGrid() {
+        applyMapSize();
         GraphicsContext gc = gridCanvas.getGraphicsContext2D();
         gc.clearRect(0, 0, gridCanvas.getWidth(), gridCanvas.getHeight());
         if (backgroundView.getImage() == null) {
-            double cell = Math.max(10, scene.getGrid().getCellSize());
-            gridCanvas.setWidth(cell * BLANK_COLS);
-            gridCanvas.setHeight(cell * BLANK_ROWS);
             gc.setFill(Color.web("#261D18"));
             gc.fillRect(0, 0, gridCanvas.getWidth(), gridCanvas.getHeight());
         }

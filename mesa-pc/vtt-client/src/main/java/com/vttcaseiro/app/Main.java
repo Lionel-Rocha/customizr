@@ -128,6 +128,8 @@ public class Main extends Application {
     private TextField gridSizeField;
     private ComboBox<String> gridTypeCombo;
     private TextField feetPerCellField;
+    /** Atualiza os campos de tamanho do mapa (cena trocada, grade mudou). */
+    private Runnable mapSizeRefresh = () -> { };
     private ListView<String> characterListView;
     private ListView<String> mobListView;
     private ListView<String> partyMemberListView;
@@ -396,6 +398,7 @@ public class Main extends Application {
                 mapView.redrawGrid();
                 mapView.rebuildTokens();
                 scheduleSceneAutosave();
+                mapSizeRefresh.run();
             }
 
             @Override
@@ -1500,7 +1503,7 @@ public class Main extends Application {
         fitLater.setOnFinished(ev -> {
             // mapa maior que a tela (mapa-mundo): comeca mostrando ele inteiro
             javafx.scene.image.Image bg = mapView.backgroundImage();
-            if (bg != null && (bg.getWidth() > mapView.getWidth() * 1.3 || bg.getHeight() > mapView.getHeight() * 1.3)) {
+            if (bg != null && (mapView.mapWidth() > mapView.getWidth() * 1.3 || mapView.mapHeight() > mapView.getHeight() * 1.3)) {
                 mapView.fitToView();
             }
         });
@@ -2054,7 +2057,75 @@ public class Main extends Application {
         applyFeetButton.setOnAction(e -> onApplyFeetPerCell(feetPerCellField.getText()));
         box.getChildren().add(new HBox(6, feetPerCellField, applyFeetButton));
 
+        box.getChildren().add(sectionLabel("Tamanho do mapa (em casas)"));
+        box.getChildren().add(buildMapSizeControls());
+
         return new Tab("Mapa", wrapInScroll(box));
+    }
+
+    /**
+     * Tamanho do mapa escolhido pelo mestre: largura x altura em casas (a imagem estica pra caber), ou automatico
+     * (o tamanho da imagem). Mostra o tamanho em pes e metros.
+     */
+    private javafx.scene.Node buildMapSizeControls() {
+        com.vttcaseiro.model.GridSettings g = sceneService.getScene().getGrid();
+        javafx.scene.control.Spinner<Integer> width = new javafx.scene.control.Spinner<>(1, com.vttcaseiro.model.GridSettings.MAX_MAP_CELLS, 30);
+        javafx.scene.control.Spinner<Integer> height = new javafx.scene.control.Spinner<>(1, com.vttcaseiro.model.GridSettings.MAX_MAP_CELLS, 20);
+        width.setEditable(true);
+        height.setEditable(true);
+        width.setPrefWidth(80);
+        height.setPrefWidth(80);
+        CheckBox auto = new CheckBox("Automático (tamanho da imagem)");
+        Label info = new Label();
+        info.getStyleClass().add("label-muted");
+        info.setWrapText(true);
+        Runnable fromScene = () -> {
+            com.vttcaseiro.model.GridSettings now = sceneService.getScene().getGrid();
+            double cell = Math.max(10, now.getCellSize());
+            int w = now.hasCustomMapSize() ? now.getMapWidthCells() : (int) Math.round(mapView.mapWidth() / cell);
+            int h = now.hasCustomMapSize() ? now.getMapHeightCells() : (int) Math.round(mapView.mapHeight() / cell);
+            width.getValueFactory().setValue(Math.max(1, w));
+            height.getValueFactory().setValue(Math.max(1, h));
+            auto.setSelected(!now.hasCustomMapSize());
+            width.setDisable(auto.isSelected());
+            height.setDisable(auto.isSelected());
+            double fpc = now.getFeetPerCell() <= 0 ? 5 : now.getFeetPerCell();
+            info.setText(w + " × " + h + " casas = " + com.vttcaseiro.view.Distances.feetAndMeters(w * fpc) + " × "
+                    + com.vttcaseiro.view.Distances.feetAndMeters(h * fpc));
+        };
+        auto.setOnAction(e -> {
+            width.setDisable(auto.isSelected());
+            height.setDisable(auto.isSelected());
+        });
+        Button keepRatio = new Button("Altura pela proporção da imagem");
+        keepRatio.setOnAction(e -> {
+            javafx.scene.image.Image bg = mapView.backgroundImage();
+            if (bg == null || bg.getWidth() <= 0) {
+                showError("Esta cena não tem imagem de mapa.");
+                return;
+            }
+            width.increment(0);
+            height.getValueFactory().setValue(Math.max(1, (int) Math.round(width.getValue() * bg.getHeight() / bg.getWidth())));
+        });
+        Button apply = new Button("Aplicar");
+        apply.getStyleClass().add("button-primary");
+        apply.setOnAction(e -> {
+            if (!networkService.isGm()) {
+                showError("Só o mestre muda o tamanho do mapa.");
+                return;
+            }
+            width.increment(0);
+            height.increment(0);
+            if (auto.isSelected()) sceneService.setMapSizeCells(0, 0);
+            else sceneService.setMapSizeCells(width.getValue(), height.getValue());
+            if (networkService.isConnected()) networkService.sendSceneSwitch(sceneService.getScene()); // jogadores recebem
+            fromScene.run();
+            logEntries.add(LogEntry.system(auto.isSelected() ? "Mapa no tamanho da imagem."
+                    : "Mapa ajustado para " + width.getValue() + " × " + height.getValue() + " casas."));
+        });
+        mapSizeRefresh = fromScene;
+        javafx.application.Platform.runLater(fromScene);
+        return new VBox(6, auto, new HBox(6, new Label("Largura"), width, new Label("Altura"), height), keepRatio, apply, info);
     }
 
     private Tab buildCharacterTab() {
