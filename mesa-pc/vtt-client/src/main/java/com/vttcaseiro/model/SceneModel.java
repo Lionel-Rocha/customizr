@@ -126,6 +126,31 @@ public class SceneModel {
     /** A visao dos tokens dos jogadores revela a neblina do mestre sozinha (e fica revelado). */
     private boolean fogByVision;
 
+    /** Luzes fixas no mapa (tocha na parede, fogueira...). */
+    private List<MapLight> lights = new ArrayList<>();
+    public static final int MAX_LIGHTS = 300;
+
+    public List<MapLight> getLights() {
+        if (lights == null) lights = new ArrayList<>();
+        return lights;
+    }
+
+    public void setLights(List<MapLight> list) {
+        List<MapLight> out = new ArrayList<>();
+        if (list != null) {
+            for (MapLight l : list) {
+                if (l == null || out.size() >= MAX_LIGHTS) continue;
+                l.sanitize();
+                out.add(l);
+            }
+        }
+        lights = out;
+    }
+
+    public java.util.Optional<MapLight> findLight(String id) {
+        return getLights().stream().filter(l -> l.getId().equals(id)).findFirst();
+    }
+
     public boolean isDim() { return dim && !dark; }
     public void setDim(boolean dim) { this.dim = dim; }
     public boolean isFogByVision() { return fogByVision; }

@@ -1070,6 +1070,51 @@ public class Main extends Application {
         if (file != null) importIntoAssetStoreOrWarn(file).ifPresent(place);
     }
 
+    /**
+     * Dialogo da luz fixa: nome e fonte (presets do Livro do Jogador 2024) ou luz plena + penumbra na mao.
+     * Devolve false se cancelou.
+     */
+    private boolean lightDialog(com.vttcaseiro.model.MapLight light, boolean isNew) {
+        javafx.scene.control.Dialog<javafx.scene.control.ButtonType> dialog = new javafx.scene.control.Dialog<>();
+        dialog.setTitle(isNew ? "Nova luz no mapa" : "Luz: " + light.getName());
+        dialog.setHeaderText("Luz plena e penumbra em pés (regras do 5.5e).");
+        TextField name = new TextField(light.getName());
+        javafx.scene.control.Spinner<Integer> bright = new javafx.scene.control.Spinner<>(0, 1000, light.getBrightFeet(), 5);
+        javafx.scene.control.Spinner<Integer> dim = new javafx.scene.control.Spinner<>(0, 1000, light.getDimFeet(), 5);
+        bright.setEditable(true);
+        dim.setEditable(true);
+        ComboBox<String> preset = new ComboBox<>();
+        Object[][] presets = {{"Vela", 5, 5}, {"Tocha", 20, 20}, {"Lâmpada", 15, 30}, {"Lanterna coberta", 30, 30},
+                {"Fogueira", 20, 20}, {"Braseiro", 10, 10}, {"Lustre / candelabro", 20, 20}, {"Chama Contínua", 20, 20},
+                {"Luz do Dia (magia)", 60, 60}, {"Vitral / claraboia", 30, 30}};
+        preset.getItems().add("(escolher)");
+        for (Object[] o : presets) preset.getItems().add(o[0] + " (" + o[1] + "/" + o[2] + ")");
+        preset.setValue("(escolher)");
+        preset.setOnAction(e -> {
+            int i = preset.getSelectionModel().getSelectedIndex() - 1;
+            if (i < 0) return;
+            name.setText((String) presets[i][0]);
+            bright.getValueFactory().setValue((Integer) presets[i][1]);
+            dim.getValueFactory().setValue((Integer) presets[i][2]);
+        });
+        javafx.scene.layout.GridPane grid = new javafx.scene.layout.GridPane();
+        grid.setHgap(10);
+        grid.setVgap(8);
+        grid.addRow(0, new Label("Fonte"), preset);
+        grid.addRow(1, new Label("Nome"), name);
+        grid.addRow(2, new Label("Luz plena (pés)"), bright);
+        grid.addRow(3, new Label("Penumbra além dela (pés)"), dim);
+        dialog.getDialogPane().setContent(grid);
+        dialog.getDialogPane().getButtonTypes().addAll(javafx.scene.control.ButtonType.OK, javafx.scene.control.ButtonType.CANCEL);
+        if (dialog.showAndWait().filter(b -> b == javafx.scene.control.ButtonType.OK).isEmpty()) return false;
+        bright.increment(0);
+        dim.increment(0);
+        light.setName(name.getText());
+        light.setBrightFeet(bright.getValue());
+        light.setDimFeet(dim.getValue());
+        return true;
+    }
+
     /** Poe um objeto com essa imagem no centro da tela (lado maior = 2 casas) e liga o modo de edicao. */
     private void addObjectFromAsset(String assetId) {
         double cell = Math.max(10, sceneService.getScene().getGrid().getCellSize());
@@ -1439,6 +1484,43 @@ public class Main extends Application {
                 }
                 table.toggleDoor(w);
             }
+
+            @Override
+            public void editWall(com.vttcaseiro.model.Wall w, String label,
+                                 java.util.function.Consumer<com.vttcaseiro.model.Wall> change) {
+                table.editWall(w, change);
+            }
+
+            @Override
+            public void placeLight(double x, double y) {
+                com.vttcaseiro.model.MapLight light = new com.vttcaseiro.model.MapLight("Tocha", x, y, 20, 20);
+                if (!lightDialog(light, true)) return;
+                if (table.addLight(light)) pushUndo(new UndoAction("Luz", () -> table.removeLight(light)));
+            }
+
+            @Override
+            public void editLight(com.vttcaseiro.model.MapLight light, String label,
+                                  java.util.function.Consumer<com.vttcaseiro.model.MapLight> change) {
+                table.editLight(light, change);
+            }
+
+            @Override
+            public void editLightDialog(com.vttcaseiro.model.MapLight light) {
+                com.vttcaseiro.model.MapLight copy = new com.vttcaseiro.model.MapLight(light.getName(), light.getX(), light.getY(),
+                        light.getBrightFeet(), light.getDimFeet());
+                if (!lightDialog(copy, false)) return;
+                table.editLight(light, l -> {
+                    l.setName(copy.getName());
+                    l.setBrightFeet(copy.getBrightFeet());
+                    l.setDimFeet(copy.getDimFeet());
+                });
+            }
+
+            @Override
+            public void removeLight(com.vttcaseiro.model.MapLight light) {
+                table.removeLight(light);
+                pushUndo(new UndoAction("Tirar luz", () -> table.addLight(light)));
+            }
         });
         StackPane stack = new StackPane(mapView);
         VBox toolbar = buildFloatingToolbar();
@@ -1708,6 +1790,10 @@ public class Main extends Application {
         doorBtn.getStyleClass().add("tool-button");
         ToggleButton wallEraseBtn = new ToggleButton("Apagar");
         wallEraseBtn.getStyleClass().add("tool-button");
+        ToggleButton windowBtn = new ToggleButton("Janela");
+        windowBtn.getStyleClass().add("tool-button");
+        ToggleButton lightBtn = new ToggleButton("Luz");
+        lightBtn.getStyleClass().add("tool-button");
         CheckBox visionOn = new CheckBox("Visão");
         CheckBox darkOn = new CheckBox("Escuro");
         CheckBox dimOn = new CheckBox("Penumbra");
@@ -1716,6 +1802,9 @@ public class Main extends Application {
         tip(wallBtn, "Arraste para desenhar uma parede (gruda nas pontas e na grade). Bloqueia visão e movimento.");
         tip(doorBtn, "Arraste para desenhar uma porta. Qualquer um clica nela para abrir/fechar.");
         tip(wallEraseBtn, "Clique perto de uma parede/porta para apagar");
+        tip(windowBtn, "Arraste para desenhar uma janela: deixa ver, não deixa passar.");
+        tip(lightBtn, "Clique no mapa pra pôr uma luz fixa (tocha na parede, fogueira, lustre). Botão direito nela: "
+                + "acender/apagar, editar, tirar. Botão direito numa porta: trancar ou tornar secreta.");
         tip(visionOn, "Visão dinâmica: cada jogador vê só o que os tokens dele enxergam");
         tip(darkOn, "Cena escura: só enxerga até a visão no escuro / luz do token (botão direito > Visão e luz)");
         tip(previewOn, "Mostra pra você a escuridão que os jogadores veem");
@@ -1749,12 +1838,13 @@ public class Main extends Application {
         tip(pinBtn, "Clique no mapa pra criar um pin (cidade, loja, perigo...). Pin pode abrir outra cena.");
         Runnable applyWall = () -> {
             mapView.setWallTool(wallBtn.isSelected() ? MapView.TOOL_WALL
-                    : doorBtn.isSelected() ? MapView.TOOL_DOOR : wallEraseBtn.isSelected() ? MapView.TOOL_WALL_ERASE : null);
+                    : doorBtn.isSelected() ? MapView.TOOL_DOOR : windowBtn.isSelected() ? MapView.TOOL_WINDOW
+                    : lightBtn.isSelected() ? MapView.TOOL_LIGHT : wallEraseBtn.isSelected() ? MapView.TOOL_WALL_ERASE : null);
             mapView.setPinTool(pinBtn.isSelected());
         };
         // Todas as ferramentas de arrastar no mapa vazio sao exclusivas entre si.
         List<ToggleButton> allTools = List.of(measureBtn, templateBtn, fogRevealBtn, fogCoverBtn,
-                penBtn, textBtn, eraserBtn, wallBtn, doorBtn, wallEraseBtn, pinBtn);
+                penBtn, textBtn, eraserBtn, wallBtn, doorBtn, windowBtn, lightBtn, wallEraseBtn, pinBtn);
         for (ToggleButton t : allTools) {
             t.addEventHandler(javafx.event.ActionEvent.ACTION, e -> {
                 if (t.isSelected()) for (ToggleButton o : allTools) if (o != t) o.setSelected(false);
@@ -1763,7 +1853,7 @@ public class Main extends Application {
                 applyWall.run();
             });
         }
-        HBox wallBox = toolGroup(wallLabel, wallBtn, doorBtn, wallEraseBtn, visionOn, darkOn, dimOn, previewOn, fogVisionOn);
+        HBox wallBox = toolGroup(wallLabel, wallBtn, doorBtn, windowBtn, lightBtn, wallEraseBtn, visionOn, darkOn, dimOn, previewOn, fogVisionOn);
         toolHotkeys = List.of(measureBtn, templateBtn, penBtn, textBtn, eraserBtn, fogRevealBtn, fogCoverBtn, wallBtn, doorBtn);
         toolsOff = () -> {
             allTools.forEach(t -> t.setSelected(false));
@@ -1774,7 +1864,7 @@ public class Main extends Application {
         Runnable wallGmOnly = () -> {
             boolean gm = networkService.isGm(); // (a categoria "Paredes" some pra jogador)
             if (!gm) {
-                for (ToggleButton t : List.of(wallBtn, doorBtn, wallEraseBtn)) t.setSelected(false);
+                for (ToggleButton t : List.of(wallBtn, doorBtn, windowBtn, lightBtn, wallEraseBtn)) t.setSelected(false);
                 applyWall.run();
             }
         };
@@ -1897,7 +1987,7 @@ public class Main extends Application {
         for (ToggleButton t : List.of(penBtn, textBtn, eraserBtn)) catOf.put(t, 2);
         catOf.put(pinBtn, 3);
         for (ToggleButton t : List.of(fogRevealBtn, fogCoverBtn)) catOf.put(t, 5);
-        for (ToggleButton t : List.of(wallBtn, doorBtn, wallEraseBtn)) catOf.put(t, 6);
+        for (ToggleButton t : List.of(wallBtn, doorBtn, windowBtn, lightBtn, wallEraseBtn)) catOf.put(t, 6);
         catOf.forEach((t, c) -> t.selectedProperty().addListener((o, was, now) -> {
             if (now && !catButtons[c].isSelected()) {
                 catButtons[c].setSelected(true);
@@ -4707,6 +4797,11 @@ public class Main extends Application {
         @Override
         public void onAudio(com.vttcaseiro.model.AudioCommand command) {
             Platform.runLater(() -> playAudio(command));
+        }
+
+        @Override
+        public void onMapLights(List<com.vttcaseiro.model.MapLight> lights) {
+            Platform.runLater(() -> table.applyRemoteLights(lights));
         }
 
         @Override

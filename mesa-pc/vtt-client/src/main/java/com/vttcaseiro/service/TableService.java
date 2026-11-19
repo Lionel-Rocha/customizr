@@ -999,9 +999,13 @@ public class TableService {
         publishWalls();
     }
 
-    /** Qualquer um abre/fecha porta; pela rede quem alterna e o servidor. */
+    /** Qualquer um abre/fecha porta (trancada e secreta: so o mestre); pela rede quem alterna e o servidor. */
     public void toggleDoor(com.vttcaseiro.model.Wall wall) {
         if (wall == null || !wall.isDoor()) return;
+        if (wall.gmOnly() && !port.isGm()) {
+            port.error(wall.isLocked() ? "A porta está trancada." : "Não há porta aí.");
+            return;
+        }
         if (port.isConnected() && !port.isGm()) {
             port.sendDoorToggle(wall.getId());
             return;
@@ -1010,6 +1014,47 @@ public class TableService {
             w.setOpen(!w.isOpen());
             publishWalls();
         });
+    }
+
+    /** Muda o tipo/estado de uma parede (porta, janela, trancada, secreta). So o mestre. */
+    public void editWall(com.vttcaseiro.model.Wall wall, java.util.function.Consumer<com.vttcaseiro.model.Wall> change) {
+        if (wall == null || !requireGm("mexe nas paredes e portas")) return;
+        scene().findWall(wall.getId()).ifPresent(w -> {
+            change.accept(w);
+            publishWalls();
+        });
+    }
+
+    // ------------------------------------------------------------------
+    // Luzes fixas no mapa (so o mestre mexe; viajam junto com as paredes)
+    // ------------------------------------------------------------------
+
+    public boolean addLight(com.vttcaseiro.model.MapLight light) {
+        if (light == null || !requireGm("põe luzes no mapa")) return false;
+        if (scene().getLights().size() >= SceneModel.MAX_LIGHTS) {
+            port.error("Luzes demais nesta cena.");
+            return false;
+        }
+        light.sanitize();
+        scene().getLights().add(light);
+        publishWalls();
+        revealFogByVision();
+        return true;
+    }
+
+    public void editLight(com.vttcaseiro.model.MapLight light, java.util.function.Consumer<com.vttcaseiro.model.MapLight> change) {
+        if (light == null || !requireGm("mexe nas luzes")) return;
+        scene().findLight(light.getId()).ifPresent(l -> {
+            change.accept(l);
+            l.sanitize();
+            publishWalls();
+            revealFogByVision();
+        });
+    }
+
+    public void removeLight(com.vttcaseiro.model.MapLight light) {
+        if (light == null || !requireGm("tira luzes")) return;
+        if (scene().getLights().removeIf(l -> l.getId().equals(light.getId()))) publishWalls();
     }
 
     public void setVisionSettings(boolean enabled, boolean dark) {
@@ -1056,6 +1101,7 @@ public class TableService {
             // luz de outros tokens tambem conta no escuro: alarga ate o cap pra nao perder a tocha do aliado
             if (ambient == com.vttcaseiro.vision.Perception.Light.DARK) {
                 for (TokenModel l : s.getTokens()) if (l.lightReachFeet() > 0) reachFeet = FOG_REVEAL_CAP_FEET;
+                for (com.vttcaseiro.model.MapLight l : s.getLights()) if (l.isOn() && l.reachFeet() > 0) reachFeet = FOG_REVEAL_CAP_FEET;
             }
             double reach = reachFeet / feetPerCell * cell + cell;
             if (g.isHex()) {
@@ -1175,6 +1221,11 @@ public class TableService {
     public void applyRemotePins(List<com.vttcaseiro.model.MapPin> pins) {
         scene().setPins(pins);
         scenes.pinsChanged();
+    }
+
+    /** Luzes fixas que chegaram pela rede (vem logo antes das paredes). */
+    public void applyRemoteLights(List<com.vttcaseiro.model.MapLight> lights) {
+        if (lights != null) scene().setLights(lights);
     }
 
     public void applyRemoteWalls(List<com.vttcaseiro.model.Wall> walls, Boolean enabled, Boolean dark) {

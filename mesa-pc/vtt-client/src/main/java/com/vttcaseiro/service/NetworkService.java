@@ -93,6 +93,9 @@ public class NetworkService {
         default void onSceneLight(Boolean dim, Boolean fogByVision) {
         }
 
+        default void onMapLights(java.util.List<com.vttcaseiro.model.MapLight> lights) {
+        }
+
         default void onWallsSync(java.util.List<com.vttcaseiro.model.Wall> walls, Boolean visionOn, Boolean dark) {
         }
 
@@ -444,6 +447,11 @@ public class NetworkService {
             @Override
             public void onSceneLight(Boolean dim, Boolean fogByVision) {
                 listener.onSceneLight(dim, fogByVision);
+            }
+
+            @Override
+            public void onMapLights(java.util.List<com.vttcaseiro.model.MapLight> lights) {
+                listener.onMapLights(lights);
             }
 
             @Override

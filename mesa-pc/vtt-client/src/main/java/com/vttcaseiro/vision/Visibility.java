@@ -25,7 +25,7 @@ public final class Visibility {
     public static double[] polygon(double ox, double oy, List<Wall> walls, double width, double height) {
         List<double[]> segs = new ArrayList<>();
         for (Wall w : walls) {
-            if (w.blocks() && w.length() > 0.5) segs.add(new double[]{w.getX1(), w.getY1(), w.getX2(), w.getY2()});
+            if (w.blocksSight() && w.length() > 0.5) segs.add(new double[]{w.getX1(), w.getY1(), w.getX2(), w.getY2()});
         }
         // Bordas do mapa (um pouco pra fora, pra o token na beirada nao "vazar").
         double m = 1;

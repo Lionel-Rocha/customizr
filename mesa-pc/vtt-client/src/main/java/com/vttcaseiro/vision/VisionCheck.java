@@ -18,9 +18,13 @@ public final class VisionCheck {
     private record Eye(TokenModel token, double cx, double cy, double[] poly) {
     }
 
+    /** Fonte de luz (token que carrega luz ou luz fixa do mapa). */
+    private record Lamp(double cx, double cy, double[] poly, int brightFeet, int dimFeet) {
+    }
+
     private final Perception.Light ambient;
     private final List<Eye> viewers = new ArrayList<>();
-    private final List<Eye> lights = new ArrayList<>();
+    private final List<Lamp> lights = new ArrayList<>();
     private final double cell;
     private final double feetPerCell;
 
@@ -57,7 +61,14 @@ public final class VisionCheck {
             for (TokenModel t : scene.getTokens()) {
                 if (t.lightReachFeet() <= 0) continue;
                 double[] c = vc.center(t);
-                vc.lights.add(new Eye(t, c[0], c[1], Visibility.polygon(c[0], c[1], scene.getWalls(), b[0], b[1])));
+                vc.lights.add(new Lamp(c[0], c[1], Visibility.polygon(c[0], c[1], scene.getWalls(), b[0], b[1]),
+                        t.getLightFeet(), t.getDimLightFeet()));
+            }
+            // luzes fixas do mapa (tocha na parede, fogueira) acesas
+            for (var l : scene.getLights()) {
+                if (!l.isOn() || l.reachFeet() <= 0) continue;
+                vc.lights.add(new Lamp(l.getX(), l.getY(), Visibility.polygon(l.getX(), l.getY(), scene.getWalls(), b[0], b[1]),
+                        l.getBrightFeet(), l.getDimFeet()));
             }
         }
         return vc;
@@ -75,9 +86,9 @@ public final class VisionCheck {
     public Perception.Light lightAt(double x, double y) {
         Perception.Light light = ambient;
         if (light == Perception.Light.BRIGHT) return light;
-        for (Eye l : lights) {
+        for (Lamp l : lights) {
             if (!Visibility.inside(l.poly(), x, y)) continue;
-            light = Perception.max(light, Perception.fromSource(l.token(), feet(Math.hypot(x - l.cx(), y - l.cy()))));
+            light = Perception.max(light, Perception.fromSource(l.brightFeet(), l.dimFeet(), feet(Math.hypot(x - l.cx(), y - l.cy()))));
             if (light == Perception.Light.BRIGHT) break;
         }
         return light;

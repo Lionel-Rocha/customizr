@@ -29,8 +29,13 @@ public final class Perception {
 
     /** Luz de uma fonte num ponto a {@code distanceFeet} dela (linha de visao ja conferida). */
     public static Light fromSource(TokenModel source, double distanceFeet) {
-        if (source.getLightFeet() > 0 && distanceFeet <= source.getLightFeet()) return Light.BRIGHT;
-        if (source.lightReachFeet() > 0 && distanceFeet <= source.lightReachFeet()) return Light.DIM;
+        return fromSource(source.getLightFeet(), source.getDimLightFeet(), distanceFeet);
+    }
+
+    /** Fonte com luz plena ate {@code brightFeet} e penumbra por mais {@code dimFeet}. */
+    public static Light fromSource(int brightFeet, int dimFeet, double distanceFeet) {
+        if (brightFeet > 0 && distanceFeet <= brightFeet) return Light.BRIGHT;
+        if (brightFeet + dimFeet > 0 && distanceFeet <= brightFeet + dimFeet) return Light.DIM;
         return Light.DARK;
     }
 

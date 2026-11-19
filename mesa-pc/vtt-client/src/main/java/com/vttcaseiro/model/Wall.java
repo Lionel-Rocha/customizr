@@ -3,8 +3,9 @@ package com.vttcaseiro.model;
 import java.util.UUID;
 
 /**
- * Uma parede (segmento) no mapa. Parede bloqueia visao e movimento;
- * porta bloqueia so quando fechada (qualquer um abre a porta que ve).
+ * Uma parede (segmento) no mapa. Parede bloqueia visao e movimento; porta bloqueia so quando fechada (qualquer um
+ * abre a porta que ve); porta trancada so o mestre abre; porta secreta o jogador nem ve (e uma parede pra ele) ate o
+ * mestre revelar; janela deixa ver, mas nao deixa passar.
  */
 public class Wall {
     private String id = UUID.randomUUID().toString();
@@ -14,6 +15,12 @@ public class Wall {
     private double y2;
     private boolean door;
     private boolean open;
+    /** Deixa ver atraves, mas nao passar (vidro, grade, seteira). */
+    private boolean window;
+    /** Porta trancada: so o mestre abre. */
+    private boolean locked;
+    /** Porta secreta: pro jogador e parede ate o mestre revelar (ou abrir). */
+    private boolean secret;
 
     public Wall() {
     }
@@ -34,10 +41,36 @@ public class Wall {
     public boolean isDoor() { return door; }
     public boolean isOpen() { return open; }
     public void setOpen(boolean open) { this.open = open; }
+    public boolean isWindow() { return window && !door; }
+    public boolean isLocked() { return locked && door; }
+    public void setLocked(boolean locked) { this.locked = locked; }
+    public boolean isSecret() { return secret && door; }
+    public void setSecret(boolean secret) { this.secret = secret; }
 
-    /** Bloqueia visao e passagem agora? */
+    /** Tipo: parede, porta ou janela (trancada/secreta so valem pra porta). */
+    public void setKind(boolean door, boolean window) {
+        this.door = door;
+        this.window = window && !door;
+        if (!door) {
+            open = false;
+            locked = false;
+            secret = false;
+        }
+    }
+
+    /** Porta que so o mestre abre agora (trancada ou secreta fechada). */
+    public boolean gmOnly() {
+        return door && (locked || (secret && !open));
+    }
+
+    /** Bloqueia a passagem agora? (parede, janela, porta fechada) */
     public boolean blocks() {
         return !door || !open;
+    }
+
+    /** Bloqueia a visao agora? (janela deixa ver) */
+    public boolean blocksSight() {
+        return !isWindow() && blocks();
     }
 
     public double length() {

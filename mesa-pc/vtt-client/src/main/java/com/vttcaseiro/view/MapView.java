@@ -133,7 +133,7 @@ public class MapView extends Pane {
         visionLayer.setMouseTransparent(true);
         // Desenhos ficam embaixo dos tokens e da neblina (nao revelam area escondida).
         // A mascara de visao fica por cima dos tokens (esconde o que o jogador nao ve).
-        content.getChildren().addAll(backgroundView, gridCanvas, objectLayer, drawingLayer, wallLayer, tokenLayer, visionLayer,
+        content.getChildren().addAll(backgroundView, gridCanvas, objectLayer, drawingLayer, wallLayer, lightLayer, tokenLayer, visionLayer,
                 fogCanvas, pinLayer, fogPreview, measureLine, measureLabel, templateGroup);
         getChildren().add(content);
         setStyle("-fx-background-color: #1B1411;");
@@ -312,11 +312,35 @@ public class MapView extends Pane {
         void remove(com.vttcaseiro.model.Wall wall);
 
         void toggleDoor(com.vttcaseiro.model.Wall wall);
+
+        /** Mestre muda tipo/estado (trancar, tornar secreta, virar janela...). */
+        default void editWall(com.vttcaseiro.model.Wall wall, String label, java.util.function.Consumer<com.vttcaseiro.model.Wall> change) {
+        }
+
+        /** Clique com a ferramenta Luz: por uma luz fixa ali. */
+        default void placeLight(double x, double y) {
+        }
+
+        default void editLight(com.vttcaseiro.model.MapLight light, String label,
+                               java.util.function.Consumer<com.vttcaseiro.model.MapLight> change) {
+        }
+
+        /** Abre o dialogo da luz (nome, luz plena, penumbra). */
+        default void editLightDialog(com.vttcaseiro.model.MapLight light) {
+        }
+
+        default void removeLight(com.vttcaseiro.model.MapLight light) {
+        }
     }
 
     public static final String TOOL_WALL = "wall";
     public static final String TOOL_DOOR = "door";
+    public static final String TOOL_WINDOW = "window";
+    public static final String TOOL_LIGHT = "light";
     public static final String TOOL_WALL_ERASE = "wall-erase";
+
+    /** Icones das luzes fixas (so o mestre ve; o jogador ve a luz). */
+    private final javafx.scene.Group lightLayer = new javafx.scene.Group();
 
     private final javafx.scene.Group wallLayer = new javafx.scene.Group();
     private final javafx.scene.Group visionLayer = new javafx.scene.Group();
@@ -403,30 +427,123 @@ public class MapView extends Pane {
         wallLayer.getChildren().clear();
         boolean gm = tokenActions == null || tokenActions.isGm();
         for (com.vttcaseiro.model.Wall w : scene.getWalls()) {
-            if (!w.isDoor() && !gm) continue; // jogador nao ve as paredes, so a escuridao atras delas
+            // jogador nao ve paredes nem janelas (so a escuridao atras), e a porta secreta so quando aberta
+            if (!gm && (!w.isDoor() || (w.isSecret() && !w.isOpen()))) continue;
             javafx.scene.shape.Line line = new javafx.scene.shape.Line(w.getX1(), w.getY1(), w.getX2(), w.getY2());
             line.setStrokeLineCap(javafx.scene.shape.StrokeLineCap.ROUND);
             if (w.isDoor()) {
-                line.setStroke(Color.web(w.isOpen() ? "#3FBE6E" : "#E0A040"));
+                String color = w.isOpen() ? "#3FBE6E" : w.isLocked() ? "#D9544C" : w.isSecret() ? "#A070E0" : "#E0A040";
+                line.setStroke(Color.web(color));
                 line.setStrokeWidth(6);
                 if (w.isOpen()) line.getStrokeDashArray().addAll(8.0, 8.0);
+                else if (w.isSecret() && gm) line.getStrokeDashArray().addAll(3.0, 6.0);
                 line.setCursor(Cursor.HAND);
-                javafx.scene.control.Tooltip.install(line, new javafx.scene.control.Tooltip(
-                        (w.isOpen() ? "Porta aberta" : "Porta fechada") + " -- clique para " + (w.isOpen() ? "fechar" : "abrir")));
+                String state = (w.isSecret() ? "Porta secreta" : "Porta") + (w.isOpen() ? " aberta" : w.isLocked() ? " trancada" : " fechada");
+                javafx.scene.control.Tooltip.install(line, new javafx.scene.control.Tooltip(state
+                        + (w.gmOnly() && !gm ? "" : " -- clique para " + (w.isOpen() ? "fechar" : "abrir"))
+                        + (gm ? " · botão direito: trancar, secreta, tipo" : "")));
                 line.setOnMouseClicked(e -> {
                     if (e.getButton() == MouseButton.PRIMARY && wallTool == null && drawTool == null && wallHandler != null) {
                         wallHandler.toggleDoor(w);
                         e.consume();
                     }
                 });
+            } else if (w.isWindow()) {
+                line.setStroke(Color.web("#7FC8F0"));
+                line.setStrokeWidth(4);
+                line.getStrokeDashArray().addAll(2.0, 6.0);
+                javafx.scene.control.Tooltip.install(line, new javafx.scene.control.Tooltip(
+                        "Janela: deixa ver, não deixa passar · botão direito: tipo"));
             } else {
                 line.setStroke(Color.web("#E2D3BC"));
                 line.setStrokeWidth(3);
+            }
+            if (gm && wallHandler != null) {
+                line.setOnContextMenuRequested(e -> {
+                    wallMenu(w).show(line, e.getScreenX(), e.getScreenY());
+                    e.consume();
+                });
+            } else if (!w.isDoor()) {
                 line.setMouseTransparent(true);
             }
             wallLayer.getChildren().add(line);
         }
+        redrawLights(gm);
         updateVision();
+    }
+
+    /** Menu do mestre numa parede/porta/janela. */
+    private javafx.scene.control.ContextMenu wallMenu(com.vttcaseiro.model.Wall w) {
+        javafx.scene.control.ContextMenu menu = new javafx.scene.control.ContextMenu();
+        if (w.isDoor()) {
+            menu.getItems().add(menuItem(w.isOpen() ? "Fechar" : "Abrir", () -> wallHandler.toggleDoor(w)));
+            menu.getItems().add(menuItem(w.isLocked() ? "Destrancar" : "Trancar (só o mestre abre)",
+                    () -> wallHandler.editWall(w, "Tranca", x -> x.setLocked(!x.isLocked()))));
+            menu.getItems().add(menuItem(w.isSecret() ? "Revelar (vira porta comum)" : "Tornar secreta (jogador vê parede)",
+                    () -> wallHandler.editWall(w, "Porta secreta", x -> x.setSecret(!x.isSecret()))));
+            menu.getItems().add(new javafx.scene.control.SeparatorMenuItem());
+        }
+        javafx.scene.control.Menu kind = new javafx.scene.control.Menu("Tipo");
+        kind.getItems().addAll(
+                menuItem("Parede", () -> wallHandler.editWall(w, "Tipo", x -> x.setKind(false, false))),
+                menuItem("Porta", () -> wallHandler.editWall(w, "Tipo", x -> x.setKind(true, false))),
+                menuItem("Janela (deixa ver, não passa)", () -> wallHandler.editWall(w, "Tipo", x -> x.setKind(false, true))));
+        menu.getItems().addAll(kind, menuItem("Apagar", () -> wallHandler.remove(w)));
+        return menu;
+    }
+
+    /** Luzes fixas: so o mestre ve o icone (arrasta pra mover; botao direito: acender, editar, tirar). */
+    private void redrawLights(boolean gm) {
+        lightLayer.getChildren().clear();
+        if (!gm) return;
+        for (com.vttcaseiro.model.MapLight l : scene.getLights()) {
+            javafx.scene.shape.Circle glow = new javafx.scene.shape.Circle(l.getX(), l.getY(), 13,
+                    Color.web(l.isOn() ? "#FFCF7F" : "#8C7B6B", 0.35));
+            javafx.scene.shape.Circle dot = new javafx.scene.shape.Circle(l.getX(), l.getY(), 7,
+                    Color.web(l.isOn() ? "#FFCF7F" : "#5A4A3E"));
+            dot.setStroke(Color.web("#1B1411"));
+            dot.setStrokeWidth(1.5);
+            javafx.scene.Group icon = new javafx.scene.Group(glow, dot);
+            icon.setCursor(Cursor.HAND);
+            javafx.scene.control.Tooltip.install(icon, new javafx.scene.control.Tooltip(l.getName() + " · "
+                    + (l.isOn() ? "acesa" : "apagada") + " · plena " + Distances.feetAndMeters(l.getBrightFeet())
+                    + ", penumbra +" + Distances.feetAndMeters(l.getDimFeet()) + " · arraste pra mover, botão direito pra mais"));
+            double[] drag = new double[4];
+            icon.setOnMousePressed(e -> {
+                if (e.getButton() != MouseButton.PRIMARY) return;
+                Point2D p = content.sceneToLocal(e.getSceneX(), e.getSceneY());
+                drag[0] = p.getX();
+                drag[1] = p.getY();
+                drag[2] = 0;
+                e.consume();
+            });
+            icon.setOnMouseDragged(e -> {
+                if (e.getButton() != MouseButton.PRIMARY) return;
+                Point2D p = content.sceneToLocal(e.getSceneX(), e.getSceneY());
+                icon.setTranslateX(p.getX() - drag[0]);
+                icon.setTranslateY(p.getY() - drag[1]);
+                drag[2] = 1;
+                e.consume();
+            });
+            icon.setOnMouseReleased(e -> {
+                if (e.getButton() != MouseButton.PRIMARY) return;
+                if (drag[2] == 1 && wallHandler != null) {
+                    double nx = l.getX() + icon.getTranslateX(), ny = l.getY() + icon.getTranslateY();
+                    wallHandler.editLight(l, "Mover luz", x -> x.setPosition(nx, ny));
+                }
+                e.consume();
+            });
+            icon.setOnContextMenuRequested(e -> {
+                javafx.scene.control.ContextMenu menu = new javafx.scene.control.ContextMenu();
+                menu.getItems().addAll(
+                        menuItem(l.isOn() ? "Apagar" : "Acender", () -> wallHandler.editLight(l, "Luz", x -> x.setOn(!x.isOn()))),
+                        menuItem("Editar...", () -> wallHandler.editLightDialog(l)),
+                        menuItem("Tirar do mapa", () -> wallHandler.removeLight(l)));
+                menu.show(icon, e.getScreenX(), e.getScreenY());
+                e.consume();
+            });
+            lightLayer.getChildren().add(icon);
+        }
     }
 
     /** Ponta de parede existente ou cruzamento da grade perto (10 px): junta as paredes certinho. */
@@ -455,6 +572,10 @@ public class MapView extends Pane {
     }
 
     private void startWall(Point2D p) {
+        if (TOOL_LIGHT.equals(wallTool)) {
+            if (wallHandler != null) wallHandler.placeLight(p.getX(), p.getY());
+            return;
+        }
         if (TOOL_WALL_ERASE.equals(wallTool)) {
             com.vttcaseiro.model.Wall nearest = null;
             double best = 10;
@@ -470,7 +591,7 @@ public class MapView extends Pane {
         }
         wallStart = snapWallPoint(p.getX(), p.getY());
         wallPreview = new javafx.scene.shape.Line(wallStart[0], wallStart[1], wallStart[0], wallStart[1]);
-        wallPreview.setStroke(Color.web(TOOL_DOOR.equals(wallTool) ? "#E0A040" : "#E2D3BC"));
+        wallPreview.setStroke(Color.web(TOOL_DOOR.equals(wallTool) ? "#E0A040" : TOOL_WINDOW.equals(wallTool) ? "#7FC8F0" : "#E2D3BC"));
         wallPreview.setStrokeWidth(TOOL_DOOR.equals(wallTool) ? 6 : 3);
         wallPreview.getStrokeDashArray().addAll(6.0, 4.0);
         wallPreview.setMouseTransparent(true);
@@ -485,7 +606,9 @@ public class MapView extends Pane {
         double[] start = wallStart;
         wallStart = null;
         if (Math.hypot(end[0] - start[0], end[1] - start[1]) < 5 || wallHandler == null) return;
-        wallHandler.add(new com.vttcaseiro.model.Wall(start[0], start[1], end[0], end[1], TOOL_DOOR.equals(wallTool)));
+        com.vttcaseiro.model.Wall wall = new com.vttcaseiro.model.Wall(start[0], start[1], end[0], end[1], TOOL_DOOR.equals(wallTool));
+        if (TOOL_WINDOW.equals(wallTool)) wall.setKind(false, true);
+        wallHandler.add(wall);
     }
 
     private double[] centerOf(TokenModel t) {
@@ -546,6 +669,15 @@ public class MapView extends Pane {
                         new javafx.scene.shape.Circle(c[0], c[1], feetToPx(l.getLightFeet()))));
                 dimLit = union(dimLit, javafx.scene.shape.Shape.intersect(poly,
                         new javafx.scene.shape.Circle(c[0], c[1], feetToPx(l.lightReachFeet()))));
+            }
+            // luzes fixas do mapa acesas
+            for (com.vttcaseiro.model.MapLight l : scene.getLights()) {
+                if (!l.isOn() || l.reachFeet() <= 0) continue;
+                javafx.scene.shape.Shape poly = visionPolygon(l.getX(), l.getY());
+                if (l.getBrightFeet() > 0) brightLit = union(brightLit, javafx.scene.shape.Shape.intersect(poly,
+                        new javafx.scene.shape.Circle(l.getX(), l.getY(), feetToPx(l.getBrightFeet()))));
+                dimLit = union(dimLit, javafx.scene.shape.Shape.intersect(poly,
+                        new javafx.scene.shape.Circle(l.getX(), l.getY(), feetToPx(l.reachFeet()))));
             }
         }
         javafx.scene.shape.Shape visible = null;

@@ -64,10 +64,25 @@ class WallsNetTest {
             waitFor(() -> gm.walls.size() == 1 && ana.walls.size() == 2, "porta alternada pra todos");
             assertTrue(gm.walls.get(0).stream().filter(Wall::isDoor).findFirst().orElseThrow().isOpen());
 
+            // porta trancada e luz fixa: o jogador nao abre; a luz chega junto com as paredes
+            Wall locked = new Wall(200, 0, 200, 100, true);
+            locked.setLocked(true);
+            s.getWalls().add(locked);
+            s.getLights().add(new com.vttcaseiro.model.MapLight("Tocha", 50, 50, 20, 20));
+            int before = ana.walls.size();
+            gmC.sendWalls(s);
+            waitFor(() -> ana.walls.size() == before + 1, "paredes com a trancada chegaram");
+            anaC.sendDoorToggle(locked.getId());
+            waitFor(() -> ana.chats.stream().anyMatch(c -> c.contains("trancada")), "servidor recusa a trancada");
+            assertTrue(late.scene == null, "(atrasado ainda nao entrou)");
+
             lateC.connect("localhost", server.getPort(), "Atrasado", false);
             waitFor(() -> late.scene != null, "atrasado entrou");
-            assertEquals(2, late.scene.getWalls().size(), "quem entra depois recebe as paredes");
+            assertEquals(3, late.scene.getWalls().size(), "quem entra depois recebe as paredes");
             assertTrue(late.scene.isVisionEnabled());
+            Wall lateLocked = late.scene.findWall(locked.getId()).orElseThrow();
+            assertTrue(lateLocked.isLocked() && !lateLocked.isOpen(), "continua trancada e fechada");
+            assertEquals(1, late.scene.getLights().size(), "a luz fixa vai junto");
         } finally {
             gmC.disconnect();
             anaC.disconnect();

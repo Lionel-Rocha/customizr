@@ -76,6 +76,8 @@ public class NetMessage {
     /** Cena em penumbra e neblina revelada pela visao (vao junto com as paredes). */
     public Boolean sceneDim;
     public Boolean fogByVision;
+    /** Luzes fixas do mapa (vao junto com as paredes). */
+    public java.util.List<com.vttcaseiro.model.MapLight> lights;
     /** "audio": musica/ambiente/efeito do mestre. */
     public com.vttcaseiro.model.AudioCommand audio;
     /** "drawing_add". */
@@ -278,6 +280,7 @@ public class NetMessage {
         m.sceneDark = s.isDark();
         m.sceneDim = s.isDim();
         m.fogByVision = s.isFogByVision();
+        m.lights = new java.util.ArrayList<>(s.getLights());
         return m;
     }
 

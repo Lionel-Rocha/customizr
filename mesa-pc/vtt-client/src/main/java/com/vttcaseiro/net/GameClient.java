@@ -99,6 +99,10 @@ public class GameClient {
         default void onSceneLight(Boolean dim, Boolean fogByVision) {
         }
 
+        /** Luzes fixas do mapa (chegam logo antes do onWallsSync). */
+        default void onMapLights(java.util.List<com.vttcaseiro.model.MapLight> lights) {
+        }
+
         default void onWallsSync(java.util.List<com.vttcaseiro.model.Wall> walls, Boolean visionOn, Boolean dark) {
         }
 
@@ -406,6 +410,7 @@ public class GameClient {
             }
             case "walls_sync" -> {
                 listener.onSceneLight(msg.sceneDim, msg.fogByVision);
+                listener.onMapLights(msg.lights);
                 listener.onWallsSync(msg.walls, msg.visionOn, msg.sceneDark);
             }
             case "pins_sync" -> listener.onPinsSync(msg.pins);

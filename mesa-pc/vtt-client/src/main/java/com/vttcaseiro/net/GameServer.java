@@ -362,12 +362,18 @@ public class GameServer {
                     if (msg.sceneDark != null) scene.setDark(msg.sceneDark);
                     if (msg.sceneDim != null) scene.setDim(msg.sceneDim);
                     if (msg.fogByVision != null) scene.setFogByVision(msg.fogByVision);
+                    if (msg.lights != null) scene.setLights(msg.lights);
                     broadcastExcept(msg, from);
                     resyncAll();
                 }
                 case "door_toggle" -> {
                     // Qualquer um abre porta; o servidor alterna e manda o estado pra todos.
+                    // Trancada e secreta: so o mestre (o jogador nem sabe que a secreta e porta).
                     scene.findWall(msg.text).filter(com.vttcaseiro.model.Wall::isDoor).ifPresent(w -> {
+                        if (w.gmOnly() && !from.isGm()) {
+                            from.send(NetMessage.chat("servidor", w.isLocked() ? "A porta está trancada." : "Não há porta aí."));
+                            return;
+                        }
                         w.setOpen(!w.isOpen());
                         broadcast(NetMessage.wallsSync(scene));
                         resyncAll();
