@@ -218,7 +218,7 @@ public class CharacterSheetView {
         stage = new Stage();
         Icons.applyTo(stage);
         stage.setTitle(sheet.getName());
-        Scene scene = new Scene(buildRoot(), 900, 780);
+        Scene scene = new Scene(buildRoot(), 1240, 840);
         var css = getClass().getResource("/style.css");
         if (css != null) scene.getStylesheets().add(css.toExternalForm());
         stage.setScene(scene);
@@ -249,11 +249,10 @@ public class CharacterSheetView {
             }, new HBox(8, saveNow, saveStatus));
         }
         int selectedTab = tabs == null ? 0 : tabs.getSelectionModel().getSelectedIndex();
+        // tres paginas, como uma ficha de papel: a primeira com tudo que se usa na mesa
         tabs = new TabPane(
-                tab("Atributos", buildAbilitiesTab()),
-                tab("Combate", buildCombatTab()),
-                tab("Tracos", buildTraitsTab()),
-                tab("Magias", buildSpellsTab()),
+                tab("Principal", buildMainPage()),
+                tab("Traços e magias", new VBox(14, buildTraitsTab(), new javafx.scene.control.Separator(), buildSpellsTab())),
                 tab("Personagem", buildCharacterTab()));
         tabs.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
         tabs.getSelectionModel().select(Math.max(0, selectedTab));
@@ -540,9 +539,8 @@ public class CharacterSheetView {
         for (int i = 0; i < abilities.length; i++) {
             grid.add(abilityCard(abilities[i]), i % 3, i / 3);
         }
-        Label hint = new Label("Clique no modificador, na salvaguarda ou na perícia (número ou nome) para rolar com o valor mostrado. "
-                + "A marca muda a cada clique: 1× proficiente (●), 2× especialista (◉), 3× pau pra toda obra (◐, metade "
-                + "da proficiência), 4× tira (○).");
+        Label hint = new Label("Clique no número ou no nome para rolar. Marca: ● proficiente · ◉ especialista · "
+                + "◐ pau pra toda obra · ○ nada (cada clique muda).");
         hint.setWrapText(true);
         hint.getStyleClass().add("label-muted");
         // extras gerais: somam em todas as pericias / todas as salvaguardas
@@ -560,10 +558,10 @@ public class CharacterSheetView {
         Button b = new Button();
         b.getStyleClass().add("button-flat");
         b.setMinWidth(28);
-        b.setStyle("-fx-font-size: 15px; -fx-padding: 0 6 0 6;");
         Runnable refresh = () -> {
             int l = Math.max(0, Math.min(marks.length - 1, level.get()));
             b.setText(marks[l]);
+            b.setStyle("-fx-font-size: 18px; -fx-padding: 0 4 0 4; -fx-text-fill: " + (l == 0 ? "#8C7B6B" : "#FFCF7F") + ";");
             b.setTooltip(new Tooltip(tips[l] + " -- clique para trocar"));
         };
         refresh.run();
@@ -580,7 +578,7 @@ public class CharacterSheetView {
     private Button rollLabel(String text, Runnable roll, boolean bold) {
         Button b = new Button(text);
         b.getStyleClass().add("button-flat");
-        b.setStyle("-fx-padding: 0 4 0 4;" + (bold ? " -fx-font-weight: bold;" : ""));
+        b.setStyle("-fx-padding: 1 4 1 4;" + (bold ? " -fx-font-weight: bold;" : ""));
         b.setTooltip(new Tooltip("Rolar " + text));
         b.setOnAction(e -> roll.run());
         return b;
@@ -610,6 +608,7 @@ public class CharacterSheetView {
                 () -> sheet.setSavingThrowProficient(ability, !sheet.isSavingThrowProficient(ability)),
                 new String[]{"○", "●"}, new String[]{"Sem proficiência na salvaguarda", "Proficiente na salvaguarda"});
         Button saveRoll = derivedButton(() -> signed(sheet.savingThrowBonus(ability)), rollSave);
+        saveRoll.setStyle("-fx-padding: 1 4 1 4;");
         card.getChildren().add(row(saveMark, saveRoll, rollLabel("Salvaguarda", rollSave, true)));
 
         boolean hasSkills = false;
@@ -620,6 +619,7 @@ public class CharacterSheetView {
                     skill.getAbility());
             Button mark = markButton(() -> sheet.skillLevel(skill), () -> sheet.cycleSkillLevel(skill), SKILL_MARKS, SKILL_MARK_TIPS);
             Button roll = derivedButton(() -> signed(sheet.skillBonus(skill)), rollSkill);
+            roll.setStyle("-fx-padding: 1 4 1 4;");
             card.getChildren().add(row(mark, roll, rollLabel(skill.getDisplayNamePt(), rollSkill, false)));
         }
         if (hasSkills) {
@@ -651,7 +651,7 @@ public class CharacterSheetView {
         if (sheet.migrateShieldIntoArmorClass()) changedLater();
         VBox ac = card(sectionLabel("CLASSE DE ARMADURA"),
                 row(new Label("CA"), nullableIntField(sheet::getArmorClass, sheet::setArmorClass, 3)),
-                mutedLabel("Some armadura, escudo e itens (ex.: Anel de Proteção)."),
+                wrapped(mutedLabel("Some armadura, escudo e itens (ex.: Anel de Proteção).")),
                 bigStat("CA total", derived(() -> String.valueOf(sheet.totalArmorClass()))));
 
         // --- PV ---
@@ -745,8 +745,8 @@ public class CharacterSheetView {
                 row(new Label("DES"), derived(() -> signed(CharacterSheet.abilityModifier(sheet.getDexterity()))),
                         new Label("bônus extra"), intField(sheet::getInitiativeBonus, sheet::setInitiativeBonus, 2),
                         new Label("dados"), initDice),
-                row(new Label("Deslocamento"), textField(sheet::getSpeed, sheet::setSpeed),
-                        new Label("Tamanho"), textField(sheet::getSize, sheet::setSize)),
+                row(new Label("Deslocamento"), textField(sheet::getSpeed, sheet::setSpeed)),
+                row(new Label("Tamanho"), textField(sheet::getSize, sheet::setSize)),
                 bigStat("Percepção passiva", derived(() -> String.valueOf(sheet.passivePerception()))));
 
         // --- Resistencias (o dano com tipo ja chega cortado / zerado / dobrado) ---
@@ -756,10 +756,29 @@ public class CharacterSheetView {
                 row(new Label("Vulneravel"), listField(sheet::getDamageVulnerabilities, sheet::setDamageVulnerabilities)),
                 mutedLabel("ex.: fogo, veneno"));
 
-        FlowPane top = new FlowPane(10, 10, ac, hp, hitDice, death, misc, defenses);
+        // coluna da direita da pagina principal: o que mais se olha em combate primeiro
+        VBox column = new VBox(10, hp, ac, misc, hitDice, death, defenses);
+        for (Node n : column.getChildren()) if (n instanceof Region r) r.setMaxWidth(Double.MAX_VALUE);
+        return column;
+    }
 
-        return new VBox(10, top, buildEffectsCard(), buildResourcesCard(), sectionLabel("ARMAS E TRUQUES DE DANO"),
-                buildAttacksTable());
+    /**
+     * Pagina principal (como a frente de uma ficha de papel): atributos com salvaguardas e pericias a esquerda;
+     * PV, CA, iniciativa, dados de vida, testes contra a morte a direita; ataques, recursos e efeitos embaixo.
+     */
+    private Node buildMainPage() {
+        Node abilities = buildAbilitiesTab();
+        Node combat = buildCombatTab();
+        if (combat instanceof Region r) {
+            r.setMinWidth(330);
+            r.setPrefWidth(360);
+            r.setMaxWidth(380);
+        }
+        // esquerda: atributos, ataques e recursos; direita: combate; embaixo, de ponta a ponta: condicoes e efeitos
+        VBox left = new VBox(12, abilities, sectionLabel("ARMAS E TRUQUES DE DANO"), buildAttacksTable(), buildResourcesCard());
+        HBox top = new HBox(12, left, combat);
+        HBox.setHgrow(left, Priority.ALWAYS);
+        return new VBox(12, top, buildEffectsCard());
     }
 
     /**
@@ -1024,7 +1043,7 @@ public class CharacterSheetView {
 
     private Node buildAttacksTable() {
         TableView<Attack> table = new TableView<>();
-        table.setPrefHeight(200);
+        table.setPrefHeight(150);
         table.getColumns().add(column("Nome", Attack::getName, 180));
         table.getColumns().add(column("Bonus / CD", Attack::getAttackBonusOrDc, 90));
         table.getColumns().add(column("Dano e tipo", Attack::getDamageAndType, 160));
@@ -1842,6 +1861,12 @@ public class CharacterSheetView {
         VBox box = new VBox(6, children);
         box.setStyle(CARD_STYLE);
         return box;
+    }
+
+    private static Label wrapped(Label label) {
+        label.setWrapText(true);
+        label.setMaxWidth(320);
+        return label;
     }
 
     private static HBox row(Node... children) {

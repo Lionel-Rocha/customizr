@@ -1789,8 +1789,8 @@ public class MapView extends Pane {
         boolean dash = speed > 0 && feet > speed && feet <= speed * 2L;
         String color = !over ? "#3FBE6E" : dash ? "#E8A23E" : "#D9544C";
         moveRulerLine.setStroke(Color.web(color));
-        moveRulerLabel.setText(feet + " pés (" + cells + " casa" + (cells == 1 ? "" : "s") + ")"
-                + (speed > 0 ? "  /  " + speed + " pés" + (over ? (dash ? "  - precisa de Disparada" : "  - longe demais") : "") : ""));
+        moveRulerLabel.setText(Distances.feetAndMeters(feet) + " · " + cells + " casa" + (cells == 1 ? "" : "s")
+                + (speed > 0 ? "  /  " + Distances.feetAndMeters(speed) + (over ? (dash ? "  - precisa de Disparada" : "  - longe demais") : "") : ""));
         moveRulerLabel.setStyle("-fx-background-color: #1B1411E6; -fx-background-radius: 6; -fx-padding: 2 8 2 8;"
                 + " -fx-font-weight: bold; -fx-font-size: 13px; -fx-text-fill: " + color + ";");
         moveRulerLabel.setScaleX(1 / zoom);
@@ -2340,7 +2340,7 @@ public class MapView extends Pane {
             case "Cubo" -> "cubo";
             default -> "raio";
         };
-        return feet + " pes (" + noun + ")";
+        return Distances.feetAndMeters(feet) + " (" + noun + ")";
     }
 
     /** Distancia em casas pela regra de movimento do D&D 5e (PHB/XPHB):
@@ -2353,7 +2353,7 @@ public class MapView extends Pane {
         double feetPerCell = scene.getGrid().getFeetPerCell();
         long cells = scene.getGrid().cellsBetween(x1, y1, x2, y2);
         long feet = Math.round(cells * feetPerCell);
-        measureLabel.setText(feet + " pés (" + cells + " casa" + (cells == 1 ? "" : "s") + ")");
+        measureLabel.setText(Distances.feetAndMeters(feet) + " · " + cells + " casa" + (cells == 1 ? "" : "s"));
         measureLabel.setLayoutX((x1 + x2) / 2);
         measureLabel.setLayoutY((y1 + y2) / 2 - 10);
     }

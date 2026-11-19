@@ -391,7 +391,7 @@ class SheetCombatUiTest {
                     x.setDimLightFeet(20);
                 });
                 map.rebuildTokens();
-                assertFalse(find(map, n -> n instanceof Label l && "▲ 30 ft".equals(l.getText())).isEmpty(), "selo de altura");
+                assertFalse(find(map, n -> n instanceof Label l && "▲ 30 ft (9 m)".equals(l.getText())).isEmpty(), "selo de altura");
                 assertFalse(find(map, n -> n instanceof javafx.scene.shape.Polygon p && p.getPoints().size() == 6
                         && "#FFCF7F".equalsIgnoreCase(colorHex(p.getFill()))).isEmpty(), "seta da direcao");
 

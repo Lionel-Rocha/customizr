@@ -275,7 +275,7 @@ public class TokenNode extends StackPane {
         // altura: selo no canto de cima ("▲ 30 ft" voando, "▼ 10 ft" abaixo do chao)
         if (model.getElevationFeet() != 0) {
             int e = model.getElevationFeet();
-            Label elevation = new Label((e > 0 ? "▲ " : "▼ ") + Math.abs(e) + " ft");
+            Label elevation = new Label((e > 0 ? "▲ " : "▼ ") + Distances.feetAndMeters(Math.abs(e)));
             elevation.setStyle("-fx-background-color: " + (e > 0 ? "#1F4E79E6" : "#5A3A1AE6") + "; -fx-text-fill: white;"
                     + " -fx-font-size: 9px; -fx-font-weight: bold; -fx-padding: 0 3 0 3; -fx-background-radius: 3;");
             StackPane.setAlignment(elevation, Pos.TOP_LEFT);

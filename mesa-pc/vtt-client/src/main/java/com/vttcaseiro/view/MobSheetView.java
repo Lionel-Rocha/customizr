@@ -223,11 +223,11 @@ public class MobSheetView {
         String hp = actions == null ? null : actions.hpText();
         pane.getChildren().add(statLabel("PV", hp != null ? hp
                 : mob.getHitPointsAverage() + " (" + mob.getHitPointsFormula() + ")"));
-        StringBuilder speed = new StringBuilder(mob.getSpeedWalk() + " pés");
-        if (mob.getSpeedFly() > 0) speed.append(" · voar ").append(mob.getSpeedFly());
-        if (mob.getSpeedSwim() > 0) speed.append(" · nadar ").append(mob.getSpeedSwim());
-        if (mob.getSpeedClimb() > 0) speed.append(" · escalar ").append(mob.getSpeedClimb());
-        if (mob.getSpeedBurrow() > 0) speed.append(" · escavar ").append(mob.getSpeedBurrow());
+        StringBuilder speed = new StringBuilder(Distances.feetAndMeters(mob.getSpeedWalk()));
+        if (mob.getSpeedFly() > 0) speed.append(" · voar ").append(Distances.feetAndMeters(mob.getSpeedFly()));
+        if (mob.getSpeedSwim() > 0) speed.append(" · nadar ").append(Distances.feetAndMeters(mob.getSpeedSwim()));
+        if (mob.getSpeedClimb() > 0) speed.append(" · escalar ").append(Distances.feetAndMeters(mob.getSpeedClimb()));
+        if (mob.getSpeedBurrow() > 0) speed.append(" · escavar ").append(Distances.feetAndMeters(mob.getSpeedBurrow()));
         pane.getChildren().add(statLabel("Deslocamento", speed.toString()));
         Node init = statLabel("Iniciativa", signed(MobSheet.abilityModifier(mob.getDexterity())));
         if (actions != null) {
@@ -510,11 +510,11 @@ public class MobSheetView {
 
     private HBox buildSpeedRow() {
         HBox row = new HBox(8);
-        row.getChildren().add(statLabel("Andar", mob.getSpeedWalk() + " pes"));
-        if (mob.getSpeedFly() > 0) row.getChildren().add(statLabel("Voar", mob.getSpeedFly() + " pes"));
-        if (mob.getSpeedSwim() > 0) row.getChildren().add(statLabel("Nadar", mob.getSpeedSwim() + " pes"));
-        if (mob.getSpeedClimb() > 0) row.getChildren().add(statLabel("Escalar", mob.getSpeedClimb() + " pes"));
-        if (mob.getSpeedBurrow() > 0) row.getChildren().add(statLabel("Escavar", mob.getSpeedBurrow() + " pes"));
+        row.getChildren().add(statLabel("Andar", Distances.feetAndMeters(mob.getSpeedWalk())));
+        if (mob.getSpeedFly() > 0) row.getChildren().add(statLabel("Voar", Distances.feetAndMeters(mob.getSpeedFly())));
+        if (mob.getSpeedSwim() > 0) row.getChildren().add(statLabel("Nadar", Distances.feetAndMeters(mob.getSpeedSwim())));
+        if (mob.getSpeedClimb() > 0) row.getChildren().add(statLabel("Escalar", Distances.feetAndMeters(mob.getSpeedClimb())));
+        if (mob.getSpeedBurrow() > 0) row.getChildren().add(statLabel("Escavar", Distances.feetAndMeters(mob.getSpeedBurrow())));
         return row;
     }
 
