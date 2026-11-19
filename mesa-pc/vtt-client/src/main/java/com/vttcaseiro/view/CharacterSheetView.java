@@ -540,9 +540,50 @@ public class CharacterSheetView {
         for (int i = 0; i < abilities.length; i++) {
             grid.add(abilityCard(abilities[i]), i % 3, i / 3);
         }
-        Label hint = new Label("Clique no modificador/bonus para rolar. P = proficiente, E = especialista (expertise).");
+        Label hint = new Label("Clique no modificador, na salvaguarda ou na perícia (número ou nome) para rolar com o valor mostrado. "
+                + "A marca muda a cada clique: 1× proficiente (●), 2× especialista (◉), 3× pau pra toda obra (◐, metade "
+                + "da proficiência), 4× tira (○).");
+        hint.setWrapText(true);
         hint.getStyleClass().add("label-muted");
-        return new VBox(8, hint, grid);
+        // extras gerais: somam em todas as pericias / todas as salvaguardas
+        HBox extras = row(new Label("Extra em todas as perícias"), intField(sheet::getSkillBonusAll, sheet::setSkillBonusAll, 3),
+                new Label("Extra em todas as salvaguardas"), intField(sheet::getSaveBonusAll, sheet::setSaveBonusAll, 3));
+        return new VBox(8, hint, extras, grid);
+    }
+
+    private static final String[] SKILL_MARKS = {"○", "●", "◉", "◐"};
+    private static final String[] SKILL_MARK_TIPS = {"Sem proficiência", "Proficiente", "Especialista (proficiência em dobro)",
+            "Pau pra toda obra (metade da proficiência)"};
+
+    /** Botao pequeno com a marca de treino; cada clique avanca (ver CharacterSheet.cycleSkillLevel). */
+    private Button markButton(Supplier<Integer> level, Runnable cycle, String[] marks, String[] tips) {
+        Button b = new Button();
+        b.getStyleClass().add("button-flat");
+        b.setMinWidth(28);
+        b.setStyle("-fx-font-size: 15px; -fx-padding: 0 6 0 6;");
+        Runnable refresh = () -> {
+            int l = Math.max(0, Math.min(marks.length - 1, level.get()));
+            b.setText(marks[l]);
+            b.setTooltip(new Tooltip(tips[l] + " -- clique para trocar"));
+        };
+        refresh.run();
+        derivedUpdaters.add(refresh);
+        b.setOnAction(e -> {
+            cycle.run();
+            refresh.run();
+            changed();
+        });
+        return b;
+    }
+
+    /** Nome clicavel que rola o mesmo que o numero ao lado. */
+    private Button rollLabel(String text, Runnable roll, boolean bold) {
+        Button b = new Button(text);
+        b.getStyleClass().add("button-flat");
+        b.setStyle("-fx-padding: 0 4 0 4;" + (bold ? " -fx-font-weight: bold;" : ""));
+        b.setTooltip(new Tooltip("Rolar " + text));
+        b.setOnAction(e -> roll.run());
+        return b;
     }
 
     private Node abilityCard(Ability ability) {
@@ -550,11 +591,11 @@ public class CharacterSheetView {
         VBox card = new VBox(4);
         card.setStyle(CARD_STYLE);
 
-        Label title = sectionLabel(name.toUpperCase());
+        Runnable rollCheck = () -> rollD20("Teste de " + name, CharacterSheet.abilityModifier(sheet.abilityScore(ability)),
+                RollKind.ABILITY_CHECK, ability);
+        Button title = rollLabel(name.toUpperCase(), rollCheck, true);
         TextField score = intField(() -> sheet.abilityScore(ability), v -> setAbilityScore(ability, v), 3);
-        Button mod = derivedButton(() -> signed(CharacterSheet.abilityModifier(sheet.abilityScore(ability))),
-                () -> rollD20("Teste de " + name, CharacterSheet.abilityModifier(sheet.abilityScore(ability)),
-                        RollKind.ABILITY_CHECK, ability));
+        Button mod = derivedButton(() -> signed(CharacterSheet.abilityModifier(sheet.abilityScore(ability))), rollCheck);
         mod.setStyle(BIG_NUMBER_STYLE);
         mod.setTooltip(new Tooltip("Rolar teste de " + name));
         HBox top = new HBox(8, mutedLabel("Valor"), score, spacer(), mutedLabel("mod."), mod);
@@ -563,34 +604,28 @@ public class CharacterSheetView {
         mod.setMinWidth(Region.USE_PREF_SIZE);
         card.getChildren().addAll(title, top);
 
-        CheckBox saveProf = checkBox("", () -> sheet.isSavingThrowProficient(ability),
-                v -> sheet.setSavingThrowProficient(ability, v));
-        saveProf.setTooltip(new Tooltip("Proficiente na salvaguarda"));
-        Button saveRoll = derivedButton(() -> signed(sheet.savingThrowBonus(ability)),
-                () -> rollD20("Salvaguarda de " + name, sheet.savingThrowBonus(ability), RollKind.SAVING_THROW, ability));
-        card.getChildren().add(row(saveProf, saveRoll, boldLabel("Salvaguarda")));
+        // salvaguarda: marca de um clique (proficiente ou nao), numero e nome rolam
+        Runnable rollSave = () -> rollD20("Salvaguarda de " + name, sheet.savingThrowBonus(ability), RollKind.SAVING_THROW, ability);
+        Button saveMark = markButton(() -> sheet.isSavingThrowProficient(ability) ? 1 : 0,
+                () -> sheet.setSavingThrowProficient(ability, !sheet.isSavingThrowProficient(ability)),
+                new String[]{"○", "●"}, new String[]{"Sem proficiência na salvaguarda", "Proficiente na salvaguarda"});
+        Button saveRoll = derivedButton(() -> signed(sheet.savingThrowBonus(ability)), rollSave);
+        card.getChildren().add(row(saveMark, saveRoll, rollLabel("Salvaguarda", rollSave, true)));
 
+        boolean hasSkills = false;
         for (Skill skill : Skill.values()) {
             if (skill.getAbility() != ability) continue;
-            CheckBox prof = new CheckBox();
-            CheckBox expert = new CheckBox();
-            prof.setTooltip(new Tooltip("Proficiente"));
-            expert.setTooltip(new Tooltip("Especialista (bonus de proficiencia em dobro)"));
-            prof.setSelected(sheet.isSkillProficient(skill));
-            expert.setSelected(sheet.hasSkillExpertise(skill));
-            prof.selectedProperty().addListener((obs, old, v) -> {
-                sheet.setSkillProficient(skill, v);
-                expert.setSelected(sheet.hasSkillExpertise(skill));
-                changed();
-            });
-            expert.selectedProperty().addListener((obs, old, v) -> {
-                sheet.setSkillExpertise(skill, v);
-                prof.setSelected(sheet.isSkillProficient(skill));
-                changed();
-            });
-            Button roll = derivedButton(() -> signed(sheet.skillBonus(skill)),
-                    () -> rollD20(skill.getDisplayNamePt(), sheet.skillBonus(skill), RollKind.ABILITY_CHECK, skill.getAbility()));
-            card.getChildren().add(row(prof, expert, roll, new Label(skill.getDisplayNamePt())));
+            hasSkills = true;
+            Runnable rollSkill = () -> rollD20(skill.getDisplayNamePt(), sheet.skillBonus(skill), RollKind.ABILITY_CHECK,
+                    skill.getAbility());
+            Button mark = markButton(() -> sheet.skillLevel(skill), () -> sheet.cycleSkillLevel(skill), SKILL_MARKS, SKILL_MARK_TIPS);
+            Button roll = derivedButton(() -> signed(sheet.skillBonus(skill)), rollSkill);
+            card.getChildren().add(row(mark, roll, rollLabel(skill.getDisplayNamePt(), rollSkill, false)));
+        }
+        if (hasSkills) {
+            // extra so nas pericias deste atributo
+            card.getChildren().add(row(mutedLabel("Extra nas perícias de " + ability.abbreviationPt()),
+                    intField(() -> sheet.getSkillBonusFor(ability), v -> sheet.setSkillBonusFor(ability, v), 3)));
         }
         return card;
     }
@@ -1757,7 +1792,7 @@ public class CharacterSheetView {
     private void onPortraitClicked() {
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Escolher retrato de " + sheet.getName());
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Imagens", "*.png", "*.jpg", "*.jpeg", "*.webp"));
+        chooser.getExtensionFilters().add(com.vttcaseiro.view.ImageFiles.filter());
         File file = chooser.showOpenDialog(stage);
         if (file == null) return;
         sheet.setPortraitImagePath(file.getAbsolutePath());

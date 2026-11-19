@@ -31,9 +31,11 @@ public final class MapImageFit {
     public static Fitted fit(byte[] original, String fileName) throws IOException {
         BufferedImage img = ImageIO.read(new ByteArrayInputStream(original));
         if (img == null) {
-            throw new IOException("Não consegui abrir essa imagem. Use PNG ou JPG (SVG não: no gerador, exporte como PNG).");
+            throw new IOException("Não consegui abrir essa imagem. Use JPG, JPEG, PNG ou GIF (SVG não: no gerador, exporte como PNG).");
         }
-        String ext = fileName.toLowerCase().endsWith(".png") ? ".png" : ".jpg";
+        // mantem o tipo do arquivo (GIF continua GIF, animado); so vira JPG se precisar reduzir
+        String lower = fileName == null ? "" : fileName.toLowerCase();
+        String ext = lower.endsWith(".png") ? ".png" : lower.endsWith(".gif") ? ".gif" : lower.endsWith(".jpeg") ? ".jpeg" : ".jpg";
         if (original.length <= MAX_BYTES && Math.max(img.getWidth(), img.getHeight()) <= MAX_SIDE) {
             return new Fitted(original, ext, img.getWidth(), img.getHeight(), false);
         }

@@ -84,6 +84,45 @@ class SheetCombatRulesTest {
     }
 
     @Test
+    void oneMarkCyclesProficiencyExpertiseAndJackOfAllTrades() {
+        CharacterSheet s = new CharacterSheet("Bardo");
+        s.setLevel(5);           // proficiencia +3
+        s.setDexterity(14);      // +2
+        assertEquals(2, s.skillBonus(Skill.STEALTH));
+        assertEquals(1, s.cycleSkillLevel(Skill.STEALTH));
+        assertEquals(5, s.skillBonus(Skill.STEALTH), "proficiente");
+        assertEquals(2, s.cycleSkillLevel(Skill.STEALTH));
+        assertEquals(8, s.skillBonus(Skill.STEALTH), "especialista");
+        assertEquals(3, s.cycleSkillLevel(Skill.STEALTH));
+        assertEquals(3, s.skillBonus(Skill.STEALTH), "pau pra toda obra: metade de 3 = 1");
+        assertFalse(s.isSkillProficient(Skill.STEALTH));
+        assertEquals(0, s.cycleSkillLevel(Skill.STEALTH));
+        assertEquals(2, s.skillBonus(Skill.STEALTH));
+
+        // marcar proficiente por fora tira o pau pra toda obra
+        s.setSkillLevel(Skill.ARCANA, 3);
+        s.setSkillProficient(Skill.ARCANA, true);
+        assertEquals(1, s.skillLevel(Skill.ARCANA));
+    }
+
+    @Test
+    void extraBonusesPerAbilityAndForAllSkillsAndSaves() {
+        CharacterSheet s = new CharacterSheet("Extra");
+        s.setLevel(1);          // +2
+        s.setDexterity(12);     // +1
+        s.setWisdom(10);
+        s.setSkillBonusFor(Ability.DEXTERITY, 1);
+        s.setSkillBonusAll(2);
+        s.setSaveBonusAll(1);
+        assertEquals(1 + 1 + 2, s.skillBonus(Skill.ACROBATICS), "mod + extra de DES + extra geral");
+        assertEquals(0 + 2, s.skillBonus(Skill.PERCEPTION), "extra de DES nao vale pra SAB");
+        assertEquals(10 + 2, s.passivePerception(), "a passiva acompanha");
+        assertEquals(1 + 1, s.savingThrowBonus(Ability.DEXTERITY), "salvaguarda: mod + extra geral (sem o das pericias)");
+        s.setSavingThrowProficient(Ability.DEXTERITY, true);
+        assertEquals(1 + 1 + 2, s.savingThrowBonus(Ability.DEXTERITY));
+    }
+
+    @Test
     void initiativeDiceAreKept() {
         CharacterSheet s = new CharacterSheet("Rapida");
         s.setInitiativeDice(" 1d4 ");

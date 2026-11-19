@@ -280,6 +280,48 @@ class SheetCombatUiTest {
     }
 
     @Test
+    void skillMarkCyclesAndNamesRollWithTheShownValue() throws Exception {
+        Assumptions.assumeTrue(fxReady, "sem tela disponivel");
+        Path dir = Files.createTempDirectory("sheet-ui");
+        Opened o = open(dir);
+        try {
+            onFx(() -> {
+                CharacterSheet s = o.sheet();
+                s.setLevel(5);
+                s.setDexterity(14);
+                o.view().reload(s);
+                Node root = ((Stage) field(o.view(), "stage")).getScene().getRoot();
+                Parent stealthRow = (Parent) find(root, n -> n instanceof javafx.scene.layout.HBox h && h.getChildrenUnmodifiable()
+                        .stream().anyMatch(c -> c instanceof Button b && "Furtividade".equals(b.getText()))).get(0);
+                Button mark = (Button) stealthRow.getChildrenUnmodifiable().get(0);
+                assertEquals("○", mark.getText());
+                mark.fire();
+                assertEquals("●", mark.getText());
+                mark.fire();
+                assertEquals("◉", mark.getText());
+                mark.fire();
+                assertEquals("◐", mark.getText());
+                assertEquals(3, s.skillBonus(com.vttcaseiro.character.Skill.STEALTH), "pau pra toda obra");
+                // extra geral nas pericias pela linha de cima
+                s.setSkillBonusAll(2);
+                o.view().reload(s);
+                root = ((Stage) field(o.view(), "stage")).getScene().getRoot();
+                button(root, "Furtividade").fire();
+                button(root, "Salvaguarda").fire();
+                button(root, "DESTREZA").fire();
+            });
+            onFx(() -> {
+                List<String> log = chat(o.main());
+                assertTrue(log.stream().anyMatch(t -> t.contains("Furtividade") && t.contains("+ 5")), "rola com 3 + 2 de extra: " + log);
+                assertTrue(log.stream().anyMatch(t -> t.contains("Salvaguarda de")), log.toString());
+                assertTrue(log.stream().anyMatch(t -> t.contains("Teste de")), log.toString());
+            });
+        } finally {
+            close(o);
+        }
+    }
+
+    @Test
     void addingAResourceShowsAndKeepsIt() throws Exception {
         Assumptions.assumeTrue(fxReady, "sem tela disponivel");
         Path dir = Files.createTempDirectory("sheet-ui");

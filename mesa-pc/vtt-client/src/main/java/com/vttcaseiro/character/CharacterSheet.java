@@ -342,12 +342,75 @@ public class CharacterSheet {
         }
     }
 
-    /** Bonus total de um teste de salvaguarda: so o modificador da
-     * habilidade, +bonus de proficiencia se for proficiente nela. */
+    /** Bonus total de um teste de salvaguarda: modificador da habilidade, +bonus de proficiencia se for
+     * proficiente nela, + o extra geral das salvaguardas (Manto da Protecao, Aura do Paladino...). */
     public int savingThrowBonus(Ability ability) {
-        int bonus = abilityModifier(abilityScore(ability));
+        int bonus = abilityModifier(abilityScore(ability)) + saveBonusAll;
         return isSavingThrowProficient(ability) ? bonus + proficiencyBonus() : bonus;
     }
+
+    // ---------------- extras das pericias e salvaguardas, e o "pau pra toda obra"
+
+    /** Pericias com metade da proficiencia (Pau pra Toda Obra do Bardo), arredondada pra baixo. */
+    private Set<Skill> skillJackOfAllTrades;
+    /** Extra nas pericias de um atributo (ex.: +1 em todas as de DES). */
+    private java.util.Map<Ability, Integer> skillBonusByAbility;
+    /** Extra em todas as pericias. */
+    private int skillBonusAll;
+    /** Extra em todas as salvaguardas. */
+    private int saveBonusAll;
+
+    private Set<Skill> jack() {
+        if (skillJackOfAllTrades == null) skillJackOfAllTrades = new LinkedHashSet<>();
+        return skillJackOfAllTrades;
+    }
+
+    public boolean hasSkillJackOfAllTrades(Skill skill) { return jack().contains(skill); }
+
+    /** Marca da pericia: 0 nada, 1 proficiente, 2 especialista, 3 pau pra toda obra. */
+    public int skillLevel(Skill skill) {
+        if (hasSkillExpertise(skill)) return 2;
+        if (isSkillProficient(skill)) return 1;
+        return hasSkillJackOfAllTrades(skill) ? 3 : 0;
+    }
+
+    public void setSkillLevel(Skill skill, int level) {
+        skillProficiencies.remove(skill);
+        skillExpertise.remove(skill);
+        jack().remove(skill);
+        switch (level) {
+            case 1 -> skillProficiencies.add(skill);
+            case 2 -> {
+                skillProficiencies.add(skill);
+                skillExpertise.add(skill);
+            }
+            case 3 -> jack().add(skill);
+            default -> { }
+        }
+    }
+
+    /** Um clique a mais na marca: nada -> proficiente -> especialista -> pau pra toda obra -> nada. */
+    public int cycleSkillLevel(Skill skill) {
+        int next = (skillLevel(skill) + 1) % 4;
+        setSkillLevel(skill, next);
+        return next;
+    }
+
+    public int getSkillBonusFor(Ability ability) {
+        return skillBonusByAbility == null ? 0 : skillBonusByAbility.getOrDefault(ability, 0);
+    }
+
+    public void setSkillBonusFor(Ability ability, int bonus) {
+        if (skillBonusByAbility == null) skillBonusByAbility = new java.util.EnumMap<>(Ability.class);
+        if (bonus == 0) skillBonusByAbility.remove(ability);
+        else skillBonusByAbility.put(ability, Math.max(-20, Math.min(20, bonus)));
+    }
+
+    public int getSkillBonusAll() { return skillBonusAll; }
+    public void setSkillBonusAll(int bonus) { this.skillBonusAll = Math.max(-20, Math.min(20, bonus)); }
+
+    public int getSaveBonusAll() { return saveBonusAll; }
+    public void setSaveBonusAll(int bonus) { this.saveBonusAll = Math.max(-20, Math.min(20, bonus)); }
 
     public Set<Skill> getSkillProficiencies() { return skillProficiencies; }
     public Set<Skill> getSkillExpertise() { return skillExpertise; }
@@ -360,6 +423,7 @@ public class CharacterSheet {
     public void setSkillProficient(Skill skill, boolean proficient) {
         if (proficient) {
             skillProficiencies.add(skill);
+            jack().remove(skill);
         } else {
             skillProficiencies.remove(skill);
             skillExpertise.remove(skill);
@@ -372,6 +436,7 @@ public class CharacterSheet {
         if (expertise) {
             skillExpertise.add(skill);
             skillProficiencies.add(skill);
+            jack().remove(skill);
         } else {
             skillExpertise.remove(skill);
         }
@@ -382,12 +447,16 @@ public class CharacterSheet {
      * simples se so for proficiente, ou so o modificador se nao for
      * proficiente nem tiver expertise. */
     public int skillBonus(Skill skill) {
-        int bonus = abilityModifier(abilityScore(skill.getAbility()));
+        // + extra das pericias desse atributo + extra de todas as pericias
+        int bonus = abilityModifier(abilityScore(skill.getAbility())) + getSkillBonusFor(skill.getAbility()) + skillBonusAll;
         if (hasSkillExpertise(skill)) {
             return bonus + 2 * proficiencyBonus();
         }
         if (isSkillProficient(skill)) {
             return bonus + proficiencyBonus();
+        }
+        if (hasSkillJackOfAllTrades(skill)) {
+            return bonus + proficiencyBonus() / 2;   // metade, arredondada pra baixo
         }
         return bonus;
     }

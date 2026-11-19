@@ -771,7 +771,7 @@ public class Main extends Application {
             }
             FileChooser chooser = new FileChooser();
             chooser.setTitle("Escolher imagem de " + token.getName());
-            chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Imagens", "*.png", "*.jpg", "*.jpeg", "*.webp"));
+            chooser.getExtensionFilters().add(com.vttcaseiro.view.ImageFiles.filter());
             File file = chooser.showOpenDialog(stage);
             if (file == null) return;
             importIntoAssetStoreOrWarn(file).ifPresent(assetId -> recorded("Imagem de " + token.getName(), token,
@@ -1009,7 +1009,7 @@ public class Main extends Application {
     private void onAddObjectFromFile() {
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Imagem do objeto");
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Imagens", "*.png", "*.jpg", "*.jpeg", "*.webp"));
+        chooser.getExtensionFilters().add(com.vttcaseiro.view.ImageFiles.filter());
         List<File> files = chooser.showOpenMultipleDialog(stage);
         if (files == null) return;
         for (File f : files) {
@@ -1187,7 +1187,7 @@ public class Main extends Application {
     private String createSceneFromImage(String suggestedName) {
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Imagem do mapa deste lugar");
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Imagens", "*.png", "*.jpg", "*.jpeg"));
+        chooser.getExtensionFilters().add(com.vttcaseiro.view.ImageFiles.filter());
         File file = chooser.showOpenDialog(stage);
         if (file == null) return null;
         Optional<String> name = askSceneName(suggestedName);
@@ -2613,8 +2613,7 @@ public class Main extends Application {
         Button chooseImage = new Button("Escolher imagem...");
         chooseImage.setOnAction(e -> {
             javafx.stage.FileChooser chooser = new javafx.stage.FileChooser();
-            chooser.getExtensionFilters().add(new javafx.stage.FileChooser.ExtensionFilter(
-                    "Imagens", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.bmp", "*.webp"));
+            chooser.getExtensionFilters().add(com.vttcaseiro.view.ImageFiles.filter());
             java.io.File f = chooser.showOpenDialog(stage);
             if (f == null) return;
             try {
@@ -2938,8 +2937,7 @@ public class Main extends Application {
     private void onNewScene() {
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Escolher imagem da nova cena");
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter(
-                "Imagens", "*.png", "*.jpg", "*.jpeg", "*.webp"));
+        chooser.getExtensionFilters().add(com.vttcaseiro.view.ImageFiles.filter());
         File file = chooser.showOpenDialog(null);
         if (file == null) {
             return;
@@ -3024,7 +3022,7 @@ public class Main extends Application {
     private void importGeneratorImage(boolean azgaar) throws IOException {
         FileChooser chooser = new FileChooser();
         chooser.setTitle(azgaar ? "Imagem do mundo (Azgaar)" : "Imagem do mapa (Watabou)");
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Imagens", "*.png", "*.jpg", "*.jpeg"));
+        chooser.getExtensionFilters().add(com.vttcaseiro.view.ImageFiles.filter());
         File file = chooser.showOpenDialog(stage);
         if (file == null) return;
         com.vttcaseiro.importer.MapImageFit.Fitted img = com.vttcaseiro.importer.MapImageFit.fit(
@@ -3339,8 +3337,7 @@ public class Main extends Application {
         Button choose = new Button("Retrato...");
         choose.setOnAction(e -> {
             javafx.stage.FileChooser chooser = new javafx.stage.FileChooser();
-            chooser.getExtensionFilters().add(new javafx.stage.FileChooser.ExtensionFilter(
-                    "Imagens", "*.png", "*.jpg", "*.jpeg", "*.webp", "*.gif"));
+            chooser.getExtensionFilters().add(com.vttcaseiro.view.ImageFiles.filter());
             java.io.File f = chooser.showOpenDialog(stage);
             if (f == null) return;
             try {
@@ -3503,8 +3500,7 @@ public class Main extends Application {
 
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Escolher imagem do token (cancelar usa uma silhueta padrão)");
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter(
-                "Imagens", "*.png", "*.jpg", "*.jpeg", "*.webp"));
+        chooser.getExtensionFilters().add(com.vttcaseiro.view.ImageFiles.filter());
         File file = chooser.showOpenDialog(null);
         String imagePath = file != null ? file.getAbsolutePath() : null;
 
