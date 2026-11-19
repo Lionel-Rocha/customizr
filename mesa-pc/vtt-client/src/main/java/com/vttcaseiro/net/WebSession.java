@@ -109,6 +109,8 @@ final class WebSession implements TableService.Port {
                 scene().setWalls(m.walls);
                 if (m.visionOn != null) scene().setVisionEnabled(m.visionOn);
                 if (m.sceneDark != null) scene().setDark(m.sceneDark);
+                if (m.sceneDim != null) scene().setDim(m.sceneDim);
+                if (m.fogByVision != null) scene().setFogByVision(m.fogByVision);
             }
             case "character_sync" -> {
                 if (m.character != null && m.character.getId() != null) {

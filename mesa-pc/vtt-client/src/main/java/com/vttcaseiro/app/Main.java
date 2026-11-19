@@ -381,6 +381,7 @@ public class Main extends Application {
             public void onTokenMoved(TokenModel token) {
                 mapView.rebuildTokens();
                 scheduleSceneAutosave();
+                if (table != null) table.revealFogByVision();   // so faz algo no mestre, com a opcao ligada
             }
 
             @Override
@@ -427,6 +428,7 @@ public class Main extends Application {
             public void onWallsChanged() {
                 mapView.redrawWalls();
                 scheduleSceneAutosave();
+                if (table != null) table.revealFogByVision();   // porta aberta mostra o outro lado
             }
 
             @Override
@@ -754,6 +756,11 @@ public class Main extends Application {
                 if (reset) table.resetRotation(token);
                 else table.rotateToken(token, degrees);
             });
+        }
+
+        @Override
+        public void editToken(TokenModel token, String label, java.util.function.Consumer<TokenModel> change) {
+            recorded(label, token, () -> table.editToken(token, change));
         }
 
         @Override
@@ -1700,6 +1707,8 @@ public class Main extends Application {
         wallEraseBtn.getStyleClass().add("tool-button");
         CheckBox visionOn = new CheckBox("Visão");
         CheckBox darkOn = new CheckBox("Escuro");
+        CheckBox dimOn = new CheckBox("Penumbra");
+        CheckBox fogVisionOn = new CheckBox("Neblina pela visão");
         CheckBox previewOn = new CheckBox("Prévia");
         tip(wallBtn, "Arraste para desenhar uma parede (gruda nas pontas e na grade). Bloqueia visão e movimento.");
         tip(doorBtn, "Arraste para desenhar uma porta. Qualquer um clica nela para abrir/fechar.");
@@ -1707,13 +1716,27 @@ public class Main extends Application {
         tip(visionOn, "Visão dinâmica: cada jogador vê só o que os tokens dele enxergam");
         tip(darkOn, "Cena escura: só enxerga até a visão no escuro / luz do token (botão direito > Visão e luz)");
         tip(previewOn, "Mostra pra você a escuridão que os jogadores veem");
+        tip(dimOn, "Cena em penumbra (crepúsculo, luar): todos veem, mais escuro; visão no escuro enxerga como luz plena");
+        tip(fogVisionOn, "A neblina se abre sozinha onde os tokens dos jogadores enxergam (e fica aberta)");
         Runnable syncVisionBoxes = () -> {
             visionOn.setSelected(sceneService.getScene().isVisionEnabled());
             darkOn.setSelected(sceneService.getScene().isDark());
+            dimOn.setSelected(sceneService.getScene().isDim());
+            fogVisionOn.setSelected(sceneService.getScene().isFogByVision());
         };
         syncVisionBoxes.run();
-        visionOn.setOnAction(e -> table.setVisionSettings(visionOn.isSelected(), darkOn.isSelected()));
-        darkOn.setOnAction(e -> table.setVisionSettings(visionOn.isSelected(), darkOn.isSelected()));
+        Runnable applyVision = () -> table.setVisionSettings(visionOn.isSelected(), darkOn.isSelected(),
+                dimOn.isSelected(), fogVisionOn.isSelected());
+        visionOn.setOnAction(e -> applyVision.run());
+        darkOn.setOnAction(e -> {
+            if (darkOn.isSelected()) dimOn.setSelected(false);
+            applyVision.run();
+        });
+        dimOn.setOnAction(e -> {
+            if (dimOn.isSelected()) darkOn.setSelected(false);
+            applyVision.run();
+        });
+        fogVisionOn.setOnAction(e -> applyVision.run());
         previewOn.setOnAction(e -> mapView.setGmPreview(previewOn.isSelected()));
         sceneService.addListener(new SceneService.SceneChangeListener() {
             @Override public void onWallsChanged() { syncVisionBoxes.run(); }
@@ -1737,7 +1760,7 @@ public class Main extends Application {
                 applyWall.run();
             });
         }
-        HBox wallBox = toolGroup(wallLabel, wallBtn, doorBtn, wallEraseBtn, visionOn, darkOn, previewOn);
+        HBox wallBox = toolGroup(wallLabel, wallBtn, doorBtn, wallEraseBtn, visionOn, darkOn, dimOn, previewOn, fogVisionOn);
         toolHotkeys = List.of(measureBtn, templateBtn, penBtn, textBtn, eraserBtn, fogRevealBtn, fogCoverBtn, wallBtn, doorBtn);
         toolsOff = () -> {
             allTools.forEach(t -> t.setSelected(false));
@@ -4613,6 +4636,14 @@ public class Main extends Application {
         @Override
         public void onAudio(com.vttcaseiro.model.AudioCommand command) {
             Platform.runLater(() -> playAudio(command));
+        }
+
+        @Override
+        public void onSceneLight(Boolean dim, Boolean fogByVision) {
+            Platform.runLater(() -> {
+                if (dim != null) sceneService.getScene().setDim(dim);
+                if (fogByVision != null) sceneService.getScene().setFogByVision(fogByVision);
+            });
         }
 
         @Override

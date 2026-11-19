@@ -7,26 +7,27 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * "O que estes tokens enxergam?" -- a mesma regra da tela, sem JavaFX, pra
- * o SERVIDOR decidir quais tokens mandar pra cada jogador (e o cliente web
- * fazer igual). Paredes bloqueiam; cena escura limita ao raio de visao no
- * escuro / luz; luz de qualquer token ilumina o que o jogador ve; e um token
- * que carrega luz e visto de longe no escuro se estiver na linha de visao
- * (a tocha aparece na escuridao).
+ * "O que estes tokens enxergam?" -- a mesma regra da tela, sem JavaFX, pra o SERVIDOR decidir quais tokens mandar
+ * pra cada jogador (e o cliente web fazer igual), e pra neblina que a visao revela. Paredes bloqueiam; a luz segue
+ * as regras do 5.5e ({@link Perception}): luz de fundo da cena, luz plena e penumbra de cada fonte, visao no escuro,
+ * as cegas e verdadeira; sentido sismico sente quem esta no chao; e um token que carrega luz e visto de longe no
+ * escuro se estiver na linha de visao (a tocha aparece na escuridao).
  */
 public final class VisionCheck {
 
-    private record Eye(double cx, double cy, double[] poly, double radius) {
+    private record Eye(TokenModel token, double cx, double cy, double[] poly) {
     }
 
-    private final boolean dark;
+    private final Perception.Light ambient;
     private final List<Eye> viewers = new ArrayList<>();
     private final List<Eye> lights = new ArrayList<>();
     private final double cell;
+    private final double feetPerCell;
 
-    private VisionCheck(boolean dark, double cell) {
-        this.dark = dark;
+    private VisionCheck(Perception.Light ambient, double cell, double feetPerCell) {
+        this.ambient = ambient;
         this.cell = cell;
+        this.feetPerCell = feetPerCell <= 0 ? 5 : feetPerCell;
     }
 
     /** Tamanho do "mundo" pros raios: bem maior que qualquer mapa normal. */
@@ -46,21 +47,17 @@ public final class VisionCheck {
 
     public static VisionCheck of(SceneModel scene, List<TokenModel> viewerTokens) {
         double cellSize = Math.max(10, scene.getGrid().getCellSize());
-        VisionCheck vc = new VisionCheck(scene.isDark(), cellSize);
+        VisionCheck vc = new VisionCheck(Perception.ambient(scene), cellSize, scene.getGrid().getFeetPerCell());
         double[] b = bounds(scene);
         for (TokenModel t : viewerTokens) {
             double[] c = vc.center(t);
-            double r = scene.isDark()
-                    ? Visibility.feetToPx(Math.max(t.getVisionFeet(), t.getLightFeet()), cellSize, scene.getGrid().getFeetPerCell())
-                    : Double.MAX_VALUE;
-            vc.viewers.add(new Eye(c[0], c[1], Visibility.polygon(c[0], c[1], scene.getWalls(), b[0], b[1]), r));
+            vc.viewers.add(new Eye(t, c[0], c[1], Visibility.polygon(c[0], c[1], scene.getWalls(), b[0], b[1])));
         }
-        if (scene.isDark()) {
+        if (vc.ambient != Perception.Light.BRIGHT) {
             for (TokenModel t : scene.getTokens()) {
-                if (t.getLightFeet() <= 0) continue;
+                if (t.lightReachFeet() <= 0) continue;
                 double[] c = vc.center(t);
-                vc.lights.add(new Eye(c[0], c[1], Visibility.polygon(c[0], c[1], scene.getWalls(), b[0], b[1]),
-                        Visibility.feetToPx(t.getLightFeet(), cellSize, scene.getGrid().getFeetPerCell())));
+                vc.lights.add(new Eye(t, c[0], c[1], Visibility.polygon(c[0], c[1], scene.getWalls(), b[0], b[1])));
             }
         }
         return vc;
@@ -70,24 +67,58 @@ public final class VisionCheck {
         return new double[]{t.getX() + cell * t.getWidthCells() / 2.0, t.getY() + cell * t.getHeightCells() / 2.0};
     }
 
-    /** O ponto e enxergado por algum dos tokens? */
-    public boolean canSee(double x, double y) {
-        for (Eye v : viewers) {
-            if (!Visibility.inside(v.poly(), x, y)) continue;
-            if (!dark || Math.hypot(x - v.cx(), y - v.cy()) <= v.radius()) return true;
-            for (Eye l : lights) {
-                if (Visibility.inside(l.poly(), x, y) && Math.hypot(x - l.cx(), y - l.cy()) <= l.radius()) return true;
-            }
-        }
-        return false;
+    private double feet(double px) {
+        return px / cell * feetPerCell;
     }
 
-    /** O token aparece pra quem tem estes olhos? (luz propria e vista de longe no escuro). */
+    /** Luz que chega no ponto (fundo da cena + fontes com linha de visao ate ele). */
+    public Perception.Light lightAt(double x, double y) {
+        Perception.Light light = ambient;
+        if (light == Perception.Light.BRIGHT) return light;
+        for (Eye l : lights) {
+            if (!Visibility.inside(l.poly(), x, y)) continue;
+            light = Perception.max(light, Perception.fromSource(l.token(), feet(Math.hypot(x - l.cx(), y - l.cy()))));
+            if (light == Perception.Light.BRIGHT) break;
+        }
+        return light;
+    }
+
+    /** Como o ponto do chao e visto por estes tokens (o melhor entre eles). */
+    public Perception.Light seenAt(double x, double y) {
+        Perception.Light best = Perception.Light.DARK;
+        Perception.Light light = null;
+        for (Eye v : viewers) {
+            if (!Visibility.inside(v.poly(), x, y)) continue;
+            if (light == null) light = lightAt(x, y);
+            double d = feet(Math.hypot(x - v.cx(), y - v.cy()));
+            best = Perception.max(best, Perception.seen(light, d, v.token()));
+            if (best == Perception.Light.BRIGHT) break;
+        }
+        return best;
+    }
+
+    /** O ponto e enxergado por algum dos tokens (luz plena ou penumbra)? */
+    public boolean canSee(double x, double y) {
+        return seenAt(x, y) != Perception.Light.DARK;
+    }
+
+    /**
+     * O token aparece pra quem tem estes olhos? Conta a altura nas distancias (voando 30 pes acima), o sentido
+     * sismico (no chao, atraves de parede) e a luz propria vista de longe no escuro.
+     */
     public boolean canSee(TokenModel t) {
         double[] c = center(t);
-        if (canSee(c[0], c[1])) return true;
-        if (dark && t.getLightFeet() > 0) {
-            for (Eye v : viewers) if (Visibility.inside(v.poly(), c[0], c[1])) return true;
+        Perception.Light light = null;
+        for (Eye v : viewers) {
+            if (v.token() == t) return true;
+            double horizontal = feet(Math.hypot(c[0] - v.cx(), c[1] - v.cy()));
+            if (Perception.tremorsenses(v.token(), t, horizontal)) return true;
+            if (!Visibility.inside(v.poly(), c[0], c[1])) continue;
+            if (ambient != Perception.Light.BRIGHT && t.lightReachFeet() > 0) return true;   // a tocha na escuridao
+            if (light == null) light = lightAt(c[0], c[1]);
+            if (Perception.seen(light, Perception.distanceFeet(horizontal, v.token(), t), v.token()) != Perception.Light.DARK) {
+                return true;
+            }
         }
         return false;
     }

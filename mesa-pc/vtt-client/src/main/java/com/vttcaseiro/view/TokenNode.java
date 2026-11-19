@@ -255,6 +255,43 @@ public class TokenNode extends StackPane {
         if (badges != null) {
             getChildren().add(badges);
         }
+
+        // para onde olha: setinha na borda, na direcao marcada
+        if (model.getFacingDegrees() != null) {
+            double rr = Math.min(w, h) / 2;
+            javafx.scene.shape.Polygon arrow = new javafx.scene.shape.Polygon(rr + 9, 0, rr - 1, -7, rr - 1, 7);
+            arrow.setFill(Color.web("#FFCF7F"));
+            arrow.setStroke(Color.web("#1B1411"));
+            arrow.setStrokeWidth(1.2);
+            javafx.scene.Group facing = new javafx.scene.Group(arrow);
+            facing.setManaged(false);
+            facing.setMouseTransparent(true);
+            facing.setLayoutX(w / 2);
+            facing.setLayoutY(h / 2);
+            facing.getTransforms().add(new javafx.scene.transform.Rotate(model.getFacingDegrees(), 0, 0));
+            getChildren().add(facing);
+        }
+
+        // altura: selo no canto de cima ("▲ 30 ft" voando, "▼ 10 ft" abaixo do chao)
+        if (model.getElevationFeet() != 0) {
+            int e = model.getElevationFeet();
+            Label elevation = new Label((e > 0 ? "▲ " : "▼ ") + Math.abs(e) + " ft");
+            elevation.setStyle("-fx-background-color: " + (e > 0 ? "#1F4E79E6" : "#5A3A1AE6") + "; -fx-text-fill: white;"
+                    + " -fx-font-size: 9px; -fx-font-weight: bold; -fx-padding: 0 3 0 3; -fx-background-radius: 3;");
+            StackPane.setAlignment(elevation, Pos.TOP_LEFT);
+            elevation.setTranslateY(-10);
+            elevation.setMouseTransparent(true);
+            getChildren().add(elevation);
+        }
+        baseOpacity = getOpacity();
+    }
+
+    /** Opacidade de quando o token foi montado (caido, oculto). */
+    private double baseOpacity = 1;
+
+    /** Sentido sem enxergar (sentido sismico, tocha ao longe): aparece meio apagado. */
+    public void setSensedOnly(boolean sensedOnly) {
+        setOpacity(baseOpacity * (sensedOnly ? 0.6 : 1));
     }
 
     /** Selinhos coloridos (um circulo + 2 letras cada) pras condicoes

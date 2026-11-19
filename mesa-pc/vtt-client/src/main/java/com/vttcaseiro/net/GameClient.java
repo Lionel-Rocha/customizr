@@ -95,6 +95,10 @@ public class GameClient {
         default void onImageStored(String assetId) {
         }
 
+        /** Penumbra e neblina pela visao (chega logo antes do onWallsSync). */
+        default void onSceneLight(Boolean dim, Boolean fogByVision) {
+        }
+
         default void onWallsSync(java.util.List<com.vttcaseiro.model.Wall> walls, Boolean visionOn, Boolean dark) {
         }
 
@@ -400,7 +404,10 @@ public class GameClient {
             case "audio" -> {
                 if (msg.audio != null) listener.onAudio(msg.audio);
             }
-            case "walls_sync" -> listener.onWallsSync(msg.walls, msg.visionOn, msg.sceneDark);
+            case "walls_sync" -> {
+                listener.onSceneLight(msg.sceneDim, msg.fogByVision);
+                listener.onWallsSync(msg.walls, msg.visionOn, msg.sceneDark);
+            }
             case "pins_sync" -> listener.onPinsSync(msg.pins);
             case "objects_sync" -> {
                 listener.onObjectsSync(msg.objects);

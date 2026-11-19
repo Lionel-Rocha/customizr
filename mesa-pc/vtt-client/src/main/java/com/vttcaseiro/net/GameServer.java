@@ -360,6 +360,8 @@ public class GameServer {
                     scene.setWalls(msg.walls);
                     if (msg.visionOn != null) scene.setVisionEnabled(msg.visionOn);
                     if (msg.sceneDark != null) scene.setDark(msg.sceneDark);
+                    if (msg.sceneDim != null) scene.setDim(msg.sceneDim);
+                    if (msg.fogByVision != null) scene.setFogByVision(msg.fogByVision);
                     broadcastExcept(msg, from);
                     resyncAll();
                 }

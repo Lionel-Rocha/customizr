@@ -1013,10 +1013,75 @@ public class TableService {
     }
 
     public void setVisionSettings(boolean enabled, boolean dark) {
+        setVisionSettings(enabled, dark, scene().isDim(), scene().isFogByVision());
+    }
+
+    /** Visao dinamica, cena escura / em penumbra, e a neblina que a visao dos jogadores revela sozinha. */
+    public void setVisionSettings(boolean enabled, boolean dark, boolean dim, boolean fogByVision) {
         if (!requireGm("liga a visão dinâmica")) return;
         scene().setVisionEnabled(enabled);
         scene().setDark(dark);
+        scene().setDim(dim);
+        scene().setFogByVision(fogByVision);
         publishWalls();
+        revealFogByVision();
+    }
+
+    /** Alcance maximo (pes) da busca de casas quando a cena nao e escura (enxerga longe). */
+    static final int FOG_REVEAL_CAP_FEET = 300;
+
+    /**
+     * Neblina pela visao: com a opcao ligada (e visao dinamica + neblina ativas), revela as casas que os tokens dos
+     * jogadores enxergam agora (regra do 5.5e, ver VisionCheck). O que foi revelado fica revelado. So no computador
+     * do mestre (quem manda na neblina). Devolve quantas casas novas abriram.
+     */
+    public int revealFogByVision() {
+        SceneModel s = scene();
+        if (!port.isGm() || !s.isFogByVision() || !s.isVisionEnabled() || !s.getFog().isEnabled()) return 0;
+        List<TokenModel> eyes = new ArrayList<>();
+        for (TokenModel t : s.getTokens()) {
+            if (!t.isHiddenFromPlayers() && (t.getCharacterSheetId() != null || t.getOwnerId() != null)) eyes.add(t);
+        }
+        if (eyes.isEmpty()) return 0;
+        com.vttcaseiro.vision.VisionCheck check = com.vttcaseiro.vision.VisionCheck.of(s, eyes);
+        com.vttcaseiro.model.GridSettings g = s.getGrid();
+        double cell = Math.max(10, g.getCellSize());
+        double feetPerCell = g.getFeetPerCell() <= 0 ? 5 : g.getFeetPerCell();
+        com.vttcaseiro.vision.Perception.Light ambient = com.vttcaseiro.vision.Perception.ambient(s);
+        List<int[]> open = new ArrayList<>();
+        java.util.Set<String> seenKeys = new java.util.HashSet<>();
+        for (TokenModel t : eyes) {
+            double[] c = check.center(t);
+            double reachFeet = Math.min(FOG_REVEAL_CAP_FEET, com.vttcaseiro.vision.Perception.maxSightFeet(t, ambient));
+            // luz de outros tokens tambem conta no escuro: alarga ate o cap pra nao perder a tocha do aliado
+            if (ambient == com.vttcaseiro.vision.Perception.Light.DARK) {
+                for (TokenModel l : s.getTokens()) if (l.lightReachFeet() > 0) reachFeet = FOG_REVEAL_CAP_FEET;
+            }
+            double reach = reachFeet / feetPerCell * cell + cell;
+            if (g.isHex()) {
+                for (int[] h : g.hexesCovering(c[0] + reach, c[1] + reach)) {
+                    double[] hc = g.hexCenter(h[0], h[1]);
+                    if (Math.abs(hc[0] - c[0]) > reach || Math.abs(hc[1] - c[1]) > reach) continue;
+                    if (s.getFog().isRevealed(h[0], h[1]) || !seenKeys.add(h[0] + "," + h[1])) continue;
+                    if (check.canSee(hc[0], hc[1])) open.add(h);
+                }
+            } else {
+                int c0 = Math.max(0, (int) Math.floor((c[0] - reach) / cell));
+                int c1 = (int) Math.floor((c[0] + reach) / cell);
+                int r0 = Math.max(0, (int) Math.floor((c[1] - reach) / cell));
+                int r1 = (int) Math.floor((c[1] + reach) / cell);
+                for (int col = c0; col <= c1; col++) {
+                    for (int row = r0; row <= r1; row++) {
+                        if (s.getFog().isRevealed(col, row) || !seenKeys.add(col + "," + row)) continue;
+                        if (check.canSee((col + 0.5) * cell, (row + 0.5) * cell)) open.add(new int[]{col, row});
+                    }
+                }
+            }
+        }
+        if (open.isEmpty()) return 0;
+        s.getFog().setCells(open, true);
+        publishFog();
+        return open.size();
     }
 
     // ------------------------------------------------------------------
@@ -1135,6 +1200,17 @@ public class TableService {
             if (imagePath != null) sheet.get().setPortraitImagePath(imagePath);
             afterSheetEditedOutside(sheet.get());
         }
+    }
+
+    /** Muda campos do token (altura, direcao, sentidos, luz) e manda pra mesa. Dono ou mestre. */
+    public void editToken(TokenModel token, java.util.function.Consumer<TokenModel> change) {
+        if (!canControl(token)) {
+            port.error("Você não controla " + token.getName() + ".");
+            return;
+        }
+        change.accept(token);
+        publishTokenUpdate(token);
+        revealFogByVision();
     }
 
     public void setTokenVision(TokenModel token, int visionFeet, int lightFeet) {

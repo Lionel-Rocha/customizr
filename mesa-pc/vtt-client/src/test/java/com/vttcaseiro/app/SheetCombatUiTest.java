@@ -5,6 +5,7 @@ import com.vttcaseiro.library.LibraryStorage;
 import com.vttcaseiro.repository.MesaRepository;
 import com.vttcaseiro.service.CharacterService;
 import com.vttcaseiro.view.CharacterSheetView;
+import com.vttcaseiro.view.MapView;
 import javafx.application.Platform;
 import javafx.scene.Node;
 import javafx.scene.Parent;
@@ -363,6 +364,54 @@ class SheetCombatUiTest {
         } finally {
             close(o);
         }
+    }
+
+    @Test
+    void tokenElevationFacingMenuAndVisionLayers() throws Exception {
+        Assumptions.assumeTrue(fxReady, "sem tela disponivel");
+        Path dir = Files.createTempDirectory("sheet-ui");
+        Opened o = open(dir);
+        try {
+            onFx(() -> {
+                com.vttcaseiro.model.TokenModel t = com.vttcaseiro.service.TokenLink.tokenFromSheet(o.sheet());
+                call(o.main(), "addTokenToScene", new Class<?>[]{com.vttcaseiro.model.TokenModel.class}, t);
+                com.vttcaseiro.view.MapView map = (com.vttcaseiro.view.MapView) field(o.main(), "mapView");
+                MapView.TokenActions actions = (MapView.TokenActions) field(o.main(), "tokenActions");
+                Method menu = MapView.class.getDeclaredMethod("buildTokenMenu", com.vttcaseiro.model.TokenModel.class, boolean.class);
+                menu.setAccessible(true);
+                List<String> items = ((javafx.scene.control.ContextMenu) menu.invoke(map, t, true)).getItems().stream()
+                        .map(javafx.scene.control.MenuItem::getText).filter(java.util.Objects::nonNull).toList();
+                assertTrue(items.containsAll(List.of("Altura...", "Olhando para", "Visão e luz...")), items.toString());
+
+                actions.editToken(t, "teste", x -> {
+                    x.setElevationFeet(30);
+                    x.setFacingDegrees(90.0);
+                    x.setVisionFeet(60);
+                    x.setLightFeet(20);
+                    x.setDimLightFeet(20);
+                });
+                map.rebuildTokens();
+                assertFalse(find(map, n -> n instanceof Label l && "▲ 30 ft".equals(l.getText())).isEmpty(), "selo de altura");
+                assertFalse(find(map, n -> n instanceof javafx.scene.shape.Polygon p && p.getPoints().size() == 6
+                        && "#FFCF7F".equalsIgnoreCase(colorHex(p.getFill()))).isEmpty(), "seta da direcao");
+
+                // camadas de visao em cena escura e em penumbra (previa do mestre)
+                com.vttcaseiro.service.TableService table = (com.vttcaseiro.service.TableService) field(o.main(), "table");
+                table.setVisionSettings(true, true, false, false);
+                map.setGmPreview(true);
+                map.updateVision();
+                table.setVisionSettings(true, false, true, false);
+                map.updateVision();
+                map.setGmPreview(false);
+            });
+        } finally {
+            close(o);
+        }
+    }
+
+    private static String colorHex(javafx.scene.paint.Paint p) {
+        if (!(p instanceof javafx.scene.paint.Color c)) return "";
+        return String.format("#%02X%02X%02X", Math.round(c.getRed() * 255), Math.round(c.getGreen() * 255), Math.round(c.getBlue() * 255));
     }
 
     @Test

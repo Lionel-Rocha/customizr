@@ -121,6 +121,16 @@ public class SceneModel {
     public boolean isDark() { return dark; }
     public void setDark(boolean dark) { this.dark = dark; }
 
+    /** Cena em penumbra (crepusculo, luar forte): tudo e penumbra, a visao no escuro vira luz plena. Escura manda. */
+    private boolean dim;
+    /** A visao dos tokens dos jogadores revela a neblina do mestre sozinha (e fica revelado). */
+    private boolean fogByVision;
+
+    public boolean isDim() { return dim && !dark; }
+    public void setDim(boolean dim) { this.dim = dim; }
+    public boolean isFogByVision() { return fogByVision; }
+    public void setFogByVision(boolean fogByVision) { this.fogByVision = fogByVision; }
+
     /** Desenhos a mao livre e textos no mapa. */
     private List<Drawing> drawings = new ArrayList<>();
     public static final int MAX_DRAWINGS = 2000;

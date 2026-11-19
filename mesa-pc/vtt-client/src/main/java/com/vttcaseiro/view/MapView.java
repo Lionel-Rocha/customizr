@@ -529,36 +529,42 @@ public class MapView extends Pane {
             boolean mine = gm ? (t.getCharacterSheetId() != null || t.getOwnerId() != null) : tokenActions.canControl(t);
             if (mine) viewers.add(t);
         }
-        boolean dark = scene.isDark();
+        // Luz e visao do 5.5e (ver vision.Perception): o que tem luz plena, o que tem penumbra, e o que cada token
+        // enxerga com visao no escuro / as cegas / verdadeira. Penumbra aparece mais escura; escuridao some.
+        com.vttcaseiro.vision.Perception.Light ambient = com.vttcaseiro.vision.Perception.ambient(scene);
+        boolean dark = ambient == com.vttcaseiro.vision.Perception.Light.DARK;
+        javafx.scene.shape.Rectangle all = new javafx.scene.shape.Rectangle(0, 0, gridCanvas.getWidth(), gridCanvas.getHeight());
+        javafx.scene.shape.Shape brightLit = ambient == com.vttcaseiro.vision.Perception.Light.BRIGHT ? all : null;
+        javafx.scene.shape.Shape dimLit = dark ? null : all;   // penumbra ou melhor
+        if (ambient != com.vttcaseiro.vision.Perception.Light.BRIGHT) {
+            // luz de qualquer token (a tocha do aliado) ilumina pra quem estiver vendo aquele lugar
+            for (TokenModel l : scene.getTokens()) {
+                if (l.lightReachFeet() <= 0) continue;
+                double[] c = centerOf(l);
+                javafx.scene.shape.Shape poly = visionPolygon(c[0], c[1]);
+                if (l.getLightFeet() > 0) brightLit = union(brightLit, javafx.scene.shape.Shape.intersect(poly,
+                        new javafx.scene.shape.Circle(c[0], c[1], feetToPx(l.getLightFeet()))));
+                dimLit = union(dimLit, javafx.scene.shape.Shape.intersect(poly,
+                        new javafx.scene.shape.Circle(c[0], c[1], feetToPx(l.lightReachFeet()))));
+            }
+        }
         javafx.scene.shape.Shape visible = null;
-        javafx.scene.shape.Shape sight = null;
-        java.util.List<double[]> sightPolys = new java.util.ArrayList<>();
+        javafx.scene.shape.Shape bright = null;
         for (TokenModel t : viewers) {
             double[] c = centerOf(t);
-            double[] raw = com.vttcaseiro.vision.Visibility.polygon(c[0], c[1], scene.getWalls(),
-                    gridCanvas.getWidth(), gridCanvas.getHeight());
-            sightPolys.add(raw);
-            javafx.scene.shape.Shape poly = new javafx.scene.shape.Polygon(raw);
-            sight = union(sight, poly);
-            if (!dark) {
-                visible = union(visible, poly);
-            } else {
-                double r = feetToPx(Math.max(t.getVisionFeet(), t.getLightFeet()));
-                if (r > 0) visible = union(visible, javafx.scene.shape.Shape.intersect(poly,
-                        new javafx.scene.shape.Circle(c[0], c[1], r)));
-            }
+            javafx.scene.shape.Shape sightPoly = new javafx.scene.shape.Polygon(com.vttcaseiro.vision.Visibility.polygon(
+                    c[0], c[1], scene.getWalls(), gridCanvas.getWidth(), gridCanvas.getHeight()));
+            javafx.scene.shape.Shape darkvision = t.getVisionFeet() > 0
+                    ? new javafx.scene.shape.Circle(c[0], c[1], feetToPx(t.getVisionFeet())) : null;
+            int senseFeet = Math.max(t.getTruesightFeet(), t.getBlindsightFeet());
+            javafx.scene.shape.Shape sense = senseFeet > 0 ? new javafx.scene.shape.Circle(c[0], c[1], feetToPx(senseFeet)) : null;
+            // luz plena: lugar com luz plena, penumbra dentro da visao no escuro, ou o alcance das cegas/verdadeira
+            javafx.scene.shape.Shape b = union(brightLit, union(intersectOrNull(dimLit, darkvision), sense));
+            // visivel: penumbra ou melhor, ou dentro da visao no escuro (escuridao vira penumbra)
+            javafx.scene.shape.Shape a = union(dimLit, union(darkvision, sense));
+            if (b != null) bright = union(bright, javafx.scene.shape.Shape.intersect(sightPoly, b));
+            if (a != null) visible = union(visible, javafx.scene.shape.Shape.intersect(sightPoly, a));
         }
-        if (dark && sight != null) {
-            // Luz de qualquer token (tocha do aliado) ilumina pra quem estiver vendo aquele lugar.
-            for (TokenModel l : scene.getTokens()) {
-                if (l.getLightFeet() <= 0) continue;
-                double[] c = centerOf(l);
-                javafx.scene.shape.Shape lit = javafx.scene.shape.Shape.intersect(visionPolygon(c[0], c[1]),
-                        new javafx.scene.shape.Circle(c[0], c[1], feetToPx(l.getLightFeet())));
-                visible = union(visible, javafx.scene.shape.Shape.intersect(lit, sight));
-            }
-        }
-        javafx.scene.shape.Rectangle all = new javafx.scene.shape.Rectangle(0, 0, gridCanvas.getWidth(), gridCanvas.getHeight());
         visibleArea = visible == null ? new javafx.scene.shape.Rectangle(0, 0, 0, 0) : visible;
         // Memoria do explorado (so jogador): casa cujo centro ja foi visto fica em penumbra.
         double cellSize = Math.max(10, scene.getGrid().getCellSize());
@@ -584,6 +590,14 @@ public class MapView extends Pane {
         mask.setStroke(null);
         mask.setMouseTransparent(true);
         visionLayer.getChildren().add(mask);
+        // penumbra: o que se ve, mas sem luz plena, fica mais escuro (Percepcao com desvantagem)
+        if (visible != null && ambient != com.vttcaseiro.vision.Perception.Light.BRIGHT) {
+            javafx.scene.shape.Shape dimOnly = bright == null ? visible : javafx.scene.shape.Shape.subtract(visible, bright);
+            dimOnly.setFill(Color.rgb(0, 0, 0, 0.4));
+            dimOnly.setStroke(null);
+            dimOnly.setMouseTransparent(true);
+            visionLayer.getChildren().add(dimOnly);
+        }
         if (!gm && !exploredCells.isEmpty()) {
             javafx.scene.shape.Shape dim = visible == null ? exploredPath(cellSize, cols, rows)
                     : javafx.scene.shape.Shape.subtract(exploredPath(cellSize, cols, rows), visible);
@@ -592,17 +606,21 @@ public class MapView extends Pane {
             dim.setMouseTransparent(true);
             visionLayer.getChildren().add(dim);
         }
+        // tokens: a mesma regra do servidor (altura nas distancias, sentido sismico, tocha vista de longe no escuro)
+        com.vttcaseiro.vision.VisionCheck eyes = com.vttcaseiro.vision.VisionCheck.of(scene, viewers);
         for (javafx.scene.Node n : tokenLayer.getChildren()) {
             if (!(n instanceof TokenNode tn)) continue;
             TokenModel t = tn.getModel();
             double[] c = centerOf(t);
-            boolean seenNow = visibleArea.contains(c[0], c[1]);
-            // Tocha no escuro: quem carrega luz aparece se estiver na linha de visao (igual o servidor).
-            if (!seenNow && dark && t.getLightFeet() > 0) {
-                for (double[] p : sightPolys) if (com.vttcaseiro.vision.Visibility.inside(p, c[0], c[1])) seenNow = true;
-            }
+            boolean seenNow = eyes.canSee(t);
             tn.setVisible(gm || viewers.contains(t) || seenNow);
+            // sentido (sismico, tocha ao longe) sem enxergar o lugar: aparece meio apagado
+            tn.setSensedOnly(!(gm || viewers.contains(t) || visibleArea.contains(c[0], c[1])));
         }
+    }
+
+    private static javafx.scene.shape.Shape intersectOrNull(javafx.scene.shape.Shape a, javafx.scene.shape.Shape b) {
+        return a == null || b == null ? null : javafx.scene.shape.Shape.intersect(a, b);
     }
 
     /** Jogador soltando o token: o caminho reto nao pode atravessar parede/porta fechada. */
@@ -1441,6 +1459,11 @@ public class MapView extends Pane {
         }
 
         /** Visao no escuro e luz do token, em pes. */
+        /** Muda campos do token (altura, direcao, sentidos...) com desfazer e envio pela rede. */
+        default void editToken(TokenModel token, String label, java.util.function.Consumer<TokenModel> change) {
+            change.accept(token);
+        }
+
         default void setVision(TokenModel token, int visionFeet, int lightFeet) {
         }
 
@@ -1581,6 +1604,8 @@ public class MapView extends Pane {
                     sizeMenu(token),
                     rotateMenu(token),
                     menuItem("Visão e luz...", () -> askVision(token)),
+                    menuItem("Altura...", () -> askElevation(token)),
+                    facingMenu(token),
                     menuItem("Trocar imagem...", () -> tokenActions.changeImage(token)),
                     new javafx.scene.control.SeparatorMenuItem(),
                     menuItem("Remover do mapa", () -> tokenActions.remove(token)));
@@ -1599,33 +1624,104 @@ public class MapView extends Pane {
     }
 
     /** Visao no escuro + luz que o token carrega (com atalhos de tocha/lanterna). */
+    /** Fontes de luz do Livro do Jogador 2024: {nome, luz plena, penumbra alem dela}. */
+    static final Object[][] LIGHT_PRESETS = {
+            {"Sem luz", 0, 0}, {"Vela", 5, 5}, {"Tocha", 20, 20}, {"Lâmpada", 15, 30}, {"Lanterna coberta", 30, 30},
+            {"Lanterna de foco (cone)", 60, 60}, {"Luz (truque)", 20, 20}, {"Chama Contínua", 20, 20},
+            {"Luz do Dia (magia)", 60, 60}};
+
+    /**
+     * Visao e luz no modelo do 5.5e: visao no escuro, as cegas, sentido sismico, verdadeira; luz plena e penumbra.
+     */
     private void askVision(TokenModel token) {
         javafx.scene.control.Dialog<javafx.scene.control.ButtonType> dialog = new javafx.scene.control.Dialog<>();
         dialog.setTitle("Visão e luz: " + token.getName());
-        dialog.setHeaderText("Vale com a visão dinâmica ligada em cena escura");
-        javafx.scene.control.Spinner<Integer> vision = new javafx.scene.control.Spinner<>(0, 1000, token.getVisionFeet(), 5);
-        vision.setEditable(true);
-        javafx.scene.control.Spinner<Integer> light = new javafx.scene.control.Spinner<>(0, 1000, token.getLightFeet(), 5);
-        light.setEditable(true);
+        dialog.setHeaderText("Regras do 5.5e. Valem com a visão dinâmica ligada (cena clara, em penumbra ou escura).");
+        java.util.function.IntFunction<javafx.scene.control.Spinner<Integer>> spin = v -> {
+            javafx.scene.control.Spinner<Integer> s = new javafx.scene.control.Spinner<>(0, 1000, v, 5);
+            s.setEditable(true);
+            s.setPrefWidth(90);
+            return s;
+        };
+        var darkvision = spin.apply(token.getVisionFeet());
+        var blindsight = spin.apply(token.getBlindsightFeet());
+        var tremorsense = spin.apply(token.getTremorsenseFeet());
+        var truesight = spin.apply(token.getTruesightFeet());
+        var bright = spin.apply(token.getLightFeet());
+        var dim = spin.apply(token.getDimLightFeet());
         javafx.scene.control.ComboBox<String> preset = new javafx.scene.control.ComboBox<>();
-        preset.getItems().addAll("(escolher)", "Sem luz", "Vela (5 pés)", "Tocha (40 pés)", "Luz - magia (40 pés)",
-                "Lanterna (60 pés)", "Luz do Dia - magia (120 pés)");
-        preset.setValue("(escolher)");
+        preset.getItems().add("(fonte de luz)");
+        for (Object[] p : LIGHT_PRESETS) preset.getItems().add(p[0] + ((int) p[1] > 0 ? " (" + p[1] + "/" + p[2] + ")" : ""));
+        preset.setValue("(fonte de luz)");
         preset.setOnAction(e -> {
-            java.util.regex.Matcher m = java.util.regex.Pattern.compile("(\\d+) pes").matcher(preset.getValue());
-            if (m.find()) light.getValueFactory().setValue(Integer.parseInt(m.group(1)));
-            else if (preset.getValue().startsWith("Sem")) light.getValueFactory().setValue(0);
+            int i = preset.getSelectionModel().getSelectedIndex() - 1;
+            if (i < 0) return;
+            bright.getValueFactory().setValue((Integer) LIGHT_PRESETS[i][1]);
+            dim.getValueFactory().setValue((Integer) LIGHT_PRESETS[i][2]);
         });
+        javafx.scene.control.Button dv60 = new javafx.scene.control.Button("60");
+        dv60.setOnAction(e -> darkvision.getValueFactory().setValue(60));
+        javafx.scene.control.Button dv120 = new javafx.scene.control.Button("120");
+        dv120.setOnAction(e -> darkvision.getValueFactory().setValue(120));
         javafx.scene.layout.GridPane grid = new javafx.scene.layout.GridPane();
         grid.setHgap(10);
         grid.setVgap(8);
-        grid.addRow(0, new Label("Visão no escuro (pés)"), vision);
-        grid.addRow(1, new Label("Luz que carrega (pés)"), light, preset);
+        int row = 0;
+        grid.addRow(row++, new Label("Visão no escuro (pés)"), darkvision, new javafx.scene.layout.HBox(4, dv60, dv120));
+        grid.addRow(row++, new Label("Visão às cegas (pés)"), blindsight);
+        grid.addRow(row++, new Label("Sentido sísmico (pés)"), tremorsense);
+        grid.addRow(row++, new Label("Visão verdadeira (pés)"), truesight);
+        grid.addRow(row++, new Label("Luz plena que carrega (pés)"), bright, preset);
+        grid.addRow(row++, new Label("Penumbra além dela (pés)"), dim);
+        Label help = new Label("Visão no escuro: na penumbra vê como luz plena; na escuridão, como penumbra. "
+                + "Às cegas e verdadeira: vê no alcance mesmo no escuro (parede bloqueia). "
+                + "Sísmico: sente quem está no chão (altura 0), até atrás de parede.");
+        help.setWrapText(true);
+        help.setMaxWidth(430);
+        help.setStyle("-fx-font-size: 11px; -fx-opacity: 0.8;");
+        grid.add(help, 0, row, 3, 1);
         dialog.getDialogPane().setContent(grid);
         dialog.getDialogPane().getButtonTypes().addAll(javafx.scene.control.ButtonType.OK,
                 javafx.scene.control.ButtonType.CANCEL);
         dialog.showAndWait().filter(b -> b == javafx.scene.control.ButtonType.OK)
-                .ifPresent(b -> tokenActions.setVision(token, vision.getValue(), light.getValue()));
+                .ifPresent(b -> tokenActions.editToken(token, "Visão de " + token.getName(), t -> {
+                    t.setVisionFeet(darkvision.getValue());
+                    t.setBlindsightFeet(blindsight.getValue());
+                    t.setTremorsenseFeet(tremorsense.getValue());
+                    t.setTruesightFeet(truesight.getValue());
+                    t.setLightFeet(bright.getValue());
+                    t.setDimLightFeet(dim.getValue());
+                }));
+    }
+
+    /** Altura em pes (voando, escalando; negativo = abaixo do chao). Passos de 5. */
+    private void askElevation(TokenModel token) {
+        javafx.scene.control.Dialog<javafx.scene.control.ButtonType> dialog = new javafx.scene.control.Dialog<>();
+        dialog.setTitle("Altura: " + token.getName());
+        dialog.setHeaderText("Em pés. 0 = no chão; negativo = abaixo (cavando).");
+        javafx.scene.control.Spinner<Integer> feet = new javafx.scene.control.Spinner<>(-1000, 10000, token.getElevationFeet(), 5);
+        feet.setEditable(true);
+        dialog.getDialogPane().setContent(new javafx.scene.layout.HBox(8, new Label("Altura (pés)"), feet));
+        dialog.getDialogPane().getButtonTypes().addAll(javafx.scene.control.ButtonType.OK,
+                javafx.scene.control.ButtonType.CANCEL);
+        dialog.showAndWait().filter(b -> b == javafx.scene.control.ButtonType.OK)
+                .ifPresent(b -> tokenActions.editToken(token, "Altura de " + token.getName(),
+                        t -> t.setElevationFeet(feet.getValue())));
+    }
+
+    /** Submenu "Olhando para": 8 direcoes ou nenhuma (a setinha na borda do token). */
+    private javafx.scene.control.Menu facingMenu(TokenModel token) {
+        javafx.scene.control.Menu menu = new javafx.scene.control.Menu("Olhando para");
+        String[][] dirs = {{"Norte \u2191", "270"}, {"Nordeste \u2197", "315"}, {"Leste \u2192", "0"}, {"Sudeste \u2198", "45"},
+                {"Sul \u2193", "90"}, {"Sudoeste \u2199", "135"}, {"Oeste \u2190", "180"}, {"Noroeste \u2196", "225"}};
+        for (String[] d : dirs) {
+            menu.getItems().add(menuItem(d[0], () -> tokenActions.editToken(token, "Direção de " + token.getName(),
+                    t -> t.setFacingDegrees(Double.parseDouble(d[1])))));
+        }
+        menu.getItems().add(new javafx.scene.control.SeparatorMenuItem());
+        menu.getItems().add(menuItem("Sem direção", () -> tokenActions.editToken(token, "Direção de " + token.getName(),
+                t -> t.setFacingDegrees(null))));
+        return menu;
     }
 
     /** Submenu "Girar" (tambem: tecla R / Shift+R com o token selecionado). */

@@ -90,6 +90,9 @@ public class NetworkService {
         default void onImageStored(String assetId) {
         }
 
+        default void onSceneLight(Boolean dim, Boolean fogByVision) {
+        }
+
         default void onWallsSync(java.util.List<com.vttcaseiro.model.Wall> walls, Boolean visionOn, Boolean dark) {
         }
 
@@ -436,6 +439,11 @@ public class NetworkService {
             @Override
             public void onAudio(com.vttcaseiro.model.AudioCommand command) {
                 listener.onAudio(command);
+            }
+
+            @Override
+            public void onSceneLight(Boolean dim, Boolean fogByVision) {
+                listener.onSceneLight(dim, fogByVision);
             }
 
             @Override

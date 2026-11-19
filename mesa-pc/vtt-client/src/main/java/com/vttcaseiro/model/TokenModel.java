@@ -183,6 +183,44 @@ public class TokenModel {
     public int getLightFeet() { return lightFeet; }
     public void setLightFeet(int feet) { this.lightFeet = Math.max(0, Math.min(1000, feet)); }
 
+    // ---------------- 5.5e: luz plena + penumbra, sentidos, altura e direcao
+
+    /** Penumbra alem da luz plena ({@code lightFeet} = luz plena). Tocha: 20 plena + 20 penumbra. */
+    private int dimLightFeet;
+    /** Visao as cegas: percebe sem enxergar (escuridao, invisivel), ate o alcance; parede bloqueia. */
+    private int blindsightFeet;
+    /** Sentido sismico: sente quem esta no chao (altura 0) ate o alcance, atraves de paredes. */
+    private int tremorsenseFeet;
+    /** Visao verdadeira: enxerga na escuridao normal e magica ate o alcance. */
+    private int truesightFeet;
+    /** Altura em pes (voando, escalando; negativo = cavando/abaixo). */
+    private int elevationFeet;
+    /** Para onde o token olha, em graus (0 = direita, 90 = baixo); null = sem direcao marcada. */
+    private Double facingDegrees;
+
+    public int getDimLightFeet() { return dimLightFeet; }
+    public void setDimLightFeet(int feet) { this.dimLightFeet = Math.max(0, Math.min(1000, feet)); }
+    public int getBlindsightFeet() { return blindsightFeet; }
+    public void setBlindsightFeet(int feet) { this.blindsightFeet = Math.max(0, Math.min(1000, feet)); }
+    public int getTremorsenseFeet() { return tremorsenseFeet; }
+    public void setTremorsenseFeet(int feet) { this.tremorsenseFeet = Math.max(0, Math.min(1000, feet)); }
+    public int getTruesightFeet() { return truesightFeet; }
+    public void setTruesightFeet(int feet) { this.truesightFeet = Math.max(0, Math.min(1000, feet)); }
+    public int getElevationFeet() { return elevationFeet; }
+    public void setElevationFeet(int feet) { this.elevationFeet = Math.max(-1000, Math.min(10000, feet)); }
+    public Double getFacingDegrees() { return facingDegrees; }
+    public void setFacingDegrees(Double degrees) {
+        if (degrees == null || !Double.isFinite(degrees)) {
+            this.facingDegrees = null;
+            return;
+        }
+        double d = degrees % 360;
+        this.facingDegrees = d < 0 ? d + 360 : d;
+    }
+
+    /** Alcance total da luz (plena + penumbra). */
+    public int lightReachFeet() { return lightFeet + dimLightFeet; }
+
     public boolean isHpVisibleToAll() { return hpVisibleToAll; }
     public void setHpVisibleToAll(boolean v) { this.hpVisibleToAll = v; }
 
@@ -204,6 +242,17 @@ public class TokenModel {
         this.hiddenFromPlayers = other.hiddenFromPlayers;
         this.visionFeet = other.visionFeet;
         this.lightFeet = other.lightFeet;
+        setDimLightFeet(other.dimLightFeet);
+        setBlindsightFeet(other.blindsightFeet);
+        setTremorsenseFeet(other.tremorsenseFeet);
+        setTruesightFeet(other.truesightFeet);
+        setElevationFeet(other.elevationFeet);
+        setFacingDegrees(other.facingDegrees);
+        setRotation(other.rotation);
+        // imagem nova (Trocar imagem / retrato da ficha) tambem viaja; id de asset so no formato seguro
+        if (other.imageAssetId != null && other.imageAssetId.matches("[0-9a-f]{64}\\.(png|jpg|jpeg|gif|webp|bmp)")) {
+            this.imageAssetId = other.imageAssetId;
+        }
         setConditions(other.conditions == null ? null : new ArrayList<>(other.conditions));
         setEffects(other.effects);
     }
