@@ -237,6 +237,15 @@ public class Main extends Application {
     /** A cena que tem mudanca pendente (guardada aqui pra, ao trocar de cena,
      * gravar a ANTIGA antes -- nao a nova). */
     private SceneModel pendingSceneSave;
+    /** Backup automatico da mesa (zip em backups/) a cada tanto tempo, numa thread so dele. */
+    private javafx.animation.Timeline autoBackupTimer;
+    private final java.util.concurrent.ExecutorService backupExecutor = java.util.concurrent.Executors.newSingleThreadExecutor(r -> {
+        Thread t = new Thread(r, "backup-automatico");
+        t.setDaemon(true);
+        return t;
+    });
+    private Label backupStatus;
+    static final int[] BACKUP_MINUTES = {0, 5, 10, 15, 30, 60};
     private Label sceneSaveStatus;
     /** "Escondida" ao lado dos botoes rapidos de dado do chat. */
     private CheckBox hiddenQuickRolls;
@@ -281,6 +290,8 @@ public class Main extends Application {
         this.sceneQueueStore = new com.vttcaseiro.library.JsonListStore<>(mesa.getRoot(), "fila-cenas.json",
                 new com.google.gson.reflect.TypeToken<List<String>>() { }.getType());
         buildMainScene();
+        runBackup("abertura", false); // copia de como a mesa estava antes desta sessao
+        restartAutoBackupTimer();
     }
 
     private void buildMainScene() {
@@ -310,6 +321,7 @@ public class Main extends Application {
             // Fechar o programa grava tudo que estava pendente: a cena e as
             // fichas abertas (fechar a janela da ficha dispara o save dela).
             flushSceneAutosave();
+            if (autoBackupTimer != null) autoBackupTimer.stop();
             for (CharacterSheetView view : new ArrayList<>(openSheetViews.values())) {
                 view.close();
             }
@@ -2461,6 +2473,30 @@ public class Main extends Application {
         Label backupHint = new Label("Pra guardar a campanha ou levar pra outro computador.");
         backupHint.getStyleClass().add("label-muted");
         box.getChildren().addAll(divider(), sectionLabel("Backup da mesa"), exportButton, backupHint);
+
+        ComboBox<String> backupEvery = new ComboBox<>();
+        for (int m : BACKUP_MINUTES) backupEvery.getItems().add(m == 0 ? "Desligado" : "A cada " + m + " min");
+        int current = autoBackupMinutes();
+        for (int i = 0; i < BACKUP_MINUTES.length; i++) if (BACKUP_MINUTES[i] == current) backupEvery.getSelectionModel().select(i);
+        backupEvery.setTooltip(new Tooltip("Cópia automática da mesa (só quando algo mudou). Ficam as "
+                + com.vttcaseiro.library.AutoBackup.KEEP + " mais novas, na pasta backups da mesa."));
+        backupEvery.setOnAction(e -> {
+            int i = backupEvery.getSelectionModel().getSelectedIndex();
+            if (i < 0) return;
+            AppSettings.setDouble("autoBackupMinutes", BACKUP_MINUTES[i]);
+            restartAutoBackupTimer();
+        });
+        Button backupNow = new Button("Fazer backup agora");
+        backupNow.setOnAction(e -> runBackup("manual", true));
+        Button restoreButton = new Button("Restaurar backup...");
+        restoreButton.setTooltip(new Tooltip("Volta a mesa como estava num backup. Cria uma mesa NOVA com a cópia;"
+                + " a atual não é apagada."));
+        restoreButton.setOnAction(e -> onRestoreBackup());
+        backupStatus = new Label(lastBackupText());
+        backupStatus.getStyleClass().add("label-muted");
+        backupStatus.setWrapText(true);
+        box.getChildren().addAll(sectionLabel("Backups automáticos"), backupEvery,
+                new javafx.scene.layout.FlowPane(6, 6, backupNow, restoreButton), backupStatus);
 
         hostButton.setOnAction(e -> onHost(nameField.getText(), hostPortField.getText(),
                 hostTablePasswordField.getText(), hostMasterPasswordField.getText(), hostTls.isSelected()));
@@ -4907,6 +4943,116 @@ public class Main extends Application {
             info.setManaged(true);
         } catch (IOException | IllegalStateException ex) {
             showError("Não foi possível abrir na ponte: " + ex.getMessage());
+        }
+    }
+
+    private static int autoBackupMinutes() {
+        return (int) Math.round(AppSettings.getDouble("autoBackupMinutes", 10));
+    }
+
+    private void restartAutoBackupTimer() {
+        if (autoBackupTimer != null) autoBackupTimer.stop();
+        int minutes = autoBackupMinutes();
+        if (minutes <= 0) {
+            autoBackupTimer = null;
+            if (backupStatus != null) backupStatus.setText("Backup automático desligado. " + lastBackupText());
+            return;
+        }
+        autoBackupTimer = new javafx.animation.Timeline(new javafx.animation.KeyFrame(
+                javafx.util.Duration.minutes(minutes), e -> runBackup("auto", false)));
+        autoBackupTimer.setCycleCount(javafx.animation.Animation.INDEFINITE);
+        autoBackupTimer.play();
+    }
+
+    private String lastBackupText() {
+        List<com.vttcaseiro.library.AutoBackup.Entry> all = com.vttcaseiro.library.AutoBackup.list(mesaRepository.getRoot());
+        if (all.isEmpty()) return "Nenhum backup ainda.";
+        return "Último backup: " + describeBackup(all.get(0)) + " (" + all.size() + " guardados).";
+    }
+
+    private static String describeBackup(com.vttcaseiro.library.AutoBackup.Entry e) {
+        String kind = switch (e.kind()) {
+            case "abertura" -> "ao abrir a mesa";
+            case "manual" -> "feito na mão";
+            case "antes" -> "antes de restaurar";
+            default -> "automático";
+        };
+        return e.when().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM HH:mm")) + ", " + kind
+                + ", " + Math.max(1, e.sizeBytes() / 1024) + " KB";
+    }
+
+    /** Grava o que esta pendente e faz o zip numa thread separada (o jogo nao trava). */
+    private void runBackup(String kind, boolean force) {
+        flushSceneAutosave();
+        Path root = mesaRepository.getRoot();
+        backupExecutor.submit(() -> {
+            try {
+                Optional<com.vttcaseiro.library.AutoBackup.Entry> made = com.vttcaseiro.library.AutoBackup.create(root, kind, force);
+                Platform.runLater(() -> {
+                    if (backupStatus != null) backupStatus.setText(lastBackupText());
+                    if (force) logEntries.add(LogEntry.system(made.map(m -> "Backup feito: " + describeBackup(m))
+                            .orElse("Nada pra copiar ainda.")));
+                });
+            } catch (IOException | RuntimeException ex) {
+                Platform.runLater(() -> logEntries.add(LogEntry.error("Backup automático falhou: " + ex.getMessage())));
+            }
+        });
+    }
+
+    /** Lista os backups; o escolhido vira uma mesa nova (a atual fica como esta). */
+    private void onRestoreBackup() {
+        Path root = mesaRepository.getRoot();
+        List<com.vttcaseiro.library.AutoBackup.Entry> all = com.vttcaseiro.library.AutoBackup.list(root);
+        if (all.isEmpty()) {
+            showError("Esta mesa ainda não tem backups. Use \"Fazer backup agora\" ou espere o automático.");
+            return;
+        }
+        ListView<com.vttcaseiro.library.AutoBackup.Entry> list = new ListView<>(FXCollections.observableArrayList(all));
+        list.setCellFactory(lv -> new ListCell<>() {
+            @Override
+            protected void updateItem(com.vttcaseiro.library.AutoBackup.Entry e, boolean empty) {
+                super.updateItem(e, empty);
+                setText(empty || e == null ? null : describeBackup(e));
+            }
+        });
+        list.getSelectionModel().selectFirst();
+        list.setPrefSize(380, 300);
+        String stamp = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("dd-MM HH'h'mm"));
+        TextField name = new TextField(mesaService.getName() + " (restaurada " + stamp + ")");
+        Label hint = new Label("A cópia vira uma mesa nova com esse nome (a atual não muda). Imagens e sons vêm da mesa atual.");
+        hint.setWrapText(true);
+        hint.getStyleClass().add("label-muted");
+        javafx.scene.control.Dialog<javafx.scene.control.ButtonType> dialog = new javafx.scene.control.Dialog<>();
+        dialog.initOwner(stage);
+        dialog.setTitle("Restaurar backup");
+        dialog.setHeaderText("Escolha de quando");
+        dialog.getDialogPane().setContent(new VBox(8, list, new Label("Nome da mesa restaurada"), name, hint));
+        javafx.scene.control.ButtonType restore = new javafx.scene.control.ButtonType("Restaurar",
+                javafx.scene.control.ButtonBar.ButtonData.OK_DONE);
+        javafx.scene.control.ButtonType folder = new javafx.scene.control.ButtonType("Abrir pasta",
+                javafx.scene.control.ButtonBar.ButtonData.LEFT);
+        dialog.getDialogPane().getButtonTypes().addAll(restore, folder, javafx.scene.control.ButtonType.CANCEL);
+        Optional<javafx.scene.control.ButtonType> answer = dialog.showAndWait();
+        if (answer.isEmpty()) return;
+        if (answer.get() == folder) {
+            try {
+                java.awt.Desktop.getDesktop().open(com.vttcaseiro.library.AutoBackup.dir(root).toFile());
+            } catch (IOException | RuntimeException ex) {
+                showError("Não deu pra abrir a pasta: " + com.vttcaseiro.library.AutoBackup.dir(root));
+            }
+            return;
+        }
+        if (answer.get() != restore || list.getSelectionModel().getSelectedItem() == null) return;
+        try {
+            Path made = com.vttcaseiro.library.AutoBackup.restoreAsNewMesa(list.getSelectionModel().getSelectedItem().file(),
+                    root, root.getParent(), name.getText());
+            Alert done = new Alert(Alert.AlertType.INFORMATION, "Pronto: a mesa \"" + made.getFileName()
+                    + "\" foi criada com a cópia.\n\nPra usar, feche e abra o Customizr e escolha ela na lista de mesas.");
+            done.setHeaderText("Backup restaurado");
+            done.initOwner(stage);
+            done.showAndWait();
+        } catch (IOException ex) {
+            showError("Não deu pra restaurar: " + ex.getMessage());
         }
     }
 

@@ -28,6 +28,12 @@ public final class MesaBackup {
 
     /** Compacta a pasta da mesa em {@code zip}. Devolve quantos arquivos foram. */
     public static int export(Path mesaRoot, Path zip) throws IOException {
+        // o backup manual leva tudo menos os backups automaticos (senao cada zip carregaria os anteriores)
+        return export(mesaRoot, zip, rel -> !rel.startsWith(AutoBackup.DIR + "/"));
+    }
+
+    /** Igual, so com os arquivos (caminho relativo com "/") que {@code include} aceitar. */
+    public static int export(Path mesaRoot, Path zip, java.util.function.Predicate<String> include) throws IOException {
         Path root = mesaRoot.toAbsolutePath().normalize();
         Path target = zip.toAbsolutePath().normalize();
         int count = 0;
@@ -42,6 +48,7 @@ public final class MesaBackup {
                 Path abs = p.toAbsolutePath().normalize();
                 if (abs.equals(target) || abs.equals(tmp) || abs.getFileName().toString().endsWith(".part")) continue;
                 String name = root.relativize(abs).toString().replace('\\', '/');
+                if (!include.test(name)) continue;
                 out.putNextEntry(new ZipEntry(name));
                 Files.copy(abs, out);
                 out.closeEntry();
