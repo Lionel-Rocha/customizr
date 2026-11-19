@@ -8,9 +8,14 @@ package com.vttcaseiro.app;
  * "escondida -- so mestre"): o chat mostra destacada, pra ninguem achar
  * que a mesa toda viu.
  */
-public record LogEntry(Type type, String author, String text, Integer total, Integer naturalD20, String privacy) {
+public record LogEntry(Type type, String author, String text, Integer total, Integer naturalD20, String privacy,
+                       String imageAssetId) {
 
     public enum Type { SYSTEM, CHAT, ROLL, DAMAGE, HEAL, ERROR }
+
+    public LogEntry(Type type, String author, String text, Integer total, Integer naturalD20, String privacy) {
+        this(type, author, text, total, naturalD20, privacy, null);
+    }
 
     public LogEntry(Type type, String author, String text) {
         this(type, author, text, null, null, null);
@@ -31,6 +36,14 @@ public record LogEntry(Type type, String author, String text, Integer total, Int
     public static LogEntry whisper(String author, String to, String text) {
         return new LogEntry(Type.CHAT, author, text, null, null, "sussurro para " + to);
     }
+
+    /** Imagem mandada no chat (legenda opcional; whisperTo != null = so pra essa pessoa). */
+    public static LogEntry image(String author, String caption, String assetId, String whisperTo) {
+        return new LogEntry(Type.CHAT, author, caption == null ? "" : caption, null, null,
+                whisperTo == null || whisperTo.isBlank() ? null : "sussurro para " + whisperTo, assetId);
+    }
+
+    public boolean hasImage() { return imageAssetId != null; }
 
     public static LogEntry roll(String author, String text) {
         return new LogEntry(Type.ROLL, author, text);

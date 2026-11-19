@@ -135,6 +135,10 @@ public class GameClient {
 
         void onChat(String player, String text);
 
+        /** Imagem no chat (whisperTo != null = sussurro). Os bytes chegam por image_data (onImageStored). */
+        default void onChatImage(String player, String assetId, String caption, String whisperTo) {
+        }
+
         /** Ficha de personagem (de qualquer jogador) chegou/mudou --
          * inclui o inventario individual dela, porque Inventory vive
          * dentro de CharacterSheet. */
@@ -376,7 +380,10 @@ public class GameClient {
                     msg.total == null ? 0 : msg.total, msg.naturalD20, Boolean.TRUE.equals(msg.hidden));
             case "update_token" -> listener.onTokenUpdated(msg.token);
             case "chat" -> {
-                if (msg.whisperTo != null && !msg.whisperTo.isBlank()) {
+                if (msg.assetId != null) {
+                    requestImageIfMissing(msg.assetId);
+                    listener.onChatImage(msg.player, msg.assetId, msg.text, msg.whisperTo);
+                } else if (msg.whisperTo != null && !msg.whisperTo.isBlank()) {
                     listener.onWhisper(msg.player, msg.whisperTo, msg.text);
                 } else {
                     listener.onChat(msg.player, msg.text);
@@ -596,6 +603,12 @@ public class GameClient {
 
     public void sendChat(String player, String text) {
         send(NetMessage.chat(player, text));
+    }
+
+    /** Manda os bytes (se ainda nao foram nesta conexao) e depois a mensagem com o id. */
+    public void sendChatImage(String player, String assetId, String caption, String whisperTo) {
+        pushImageAssetIfNew(assetId);
+        send(NetMessage.chatImage(player, caption, assetId, whisperTo));
     }
 
     public void sendCharacterSync(CharacterSheet character) {

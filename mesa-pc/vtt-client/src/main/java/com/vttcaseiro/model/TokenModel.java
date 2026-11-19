@@ -160,6 +160,22 @@ public class TokenModel {
     public boolean isHiddenFromPlayers() { return hiddenFromPlayers; }
     public void setHiddenFromPlayers(boolean hidden) { this.hiddenFromPlayers = hidden; }
 
+    /** Modificador so deste combatente no rastreador (Alerta, item, efeito da cena): soma na rolagem. */
+    private int initiativeModifier;
+
+    /** Cor da linha no rastreador: "green", "yellow", "red" ou null (cinza, o padrao). */
+    private String trackerColor;
+
+    public static final java.util.List<String> TRACKER_COLORS = java.util.List.of("green", "yellow", "red");
+
+    public int getInitiativeModifier() { return initiativeModifier; }
+    public void setInitiativeModifier(int m) { this.initiativeModifier = Math.max(-50, Math.min(50, m)); }
+
+    public String getTrackerColor() { return trackerColor; }
+    public void setTrackerColor(String color) {
+        this.trackerColor = color != null && TRACKER_COLORS.contains(color) ? color : null;
+    }
+
     public int getInitiativeBonus() { return initiativeBonus; }
     public void setInitiativeBonus(int initiativeBonus) { this.initiativeBonus = initiativeBonus; }
 
@@ -234,6 +250,8 @@ public class TokenModel {
         this.tempHp = other.tempHp;
         this.initiative = other.initiative;
         this.initiativeBonus = other.initiativeBonus;
+        setInitiativeModifier(other.initiativeModifier);
+        setTrackerColor(other.trackerColor);
         this.widthCells = Math.max(1, other.widthCells);
         this.heightCells = Math.max(1, other.heightCells);
         this.hpVisibleToAll = other.hpVisibleToAll;

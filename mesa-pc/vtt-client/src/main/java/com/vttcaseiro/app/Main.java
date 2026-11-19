@@ -124,6 +124,9 @@ public class Main extends Application {
     private MapView mapView;
     private BorderPane root;
     private final ObservableList<LogEntry> logEntries = FXCollections.observableArrayList();
+    private ListView<LogEntry> chatListView;
+    /** Imagens do chat ja abertas (id do asset -> imagem). */
+    private final java.util.Map<String, javafx.scene.image.Image> chatImages = new java.util.HashMap<>();
     private Label netStatusLabel;
     private TextField gridSizeField;
     private ComboBox<String> gridTypeCombo;
@@ -2582,16 +2585,19 @@ public class Main extends Application {
             protected void updateItem(TokenModel token, boolean empty) {
                 super.updateItem(token, empty);
                 getStyleClass().remove("initiative-current");
+                setStyle("");
+                setContextMenu(null);
                 if (empty || token == null) {
                     setText(null);
+                    setGraphic(null);
                     return;
                 }
-                String init = token.getInitiative() == null ? "--" : String.valueOf(token.getInitiative());
-                StringBuilder text = new StringBuilder(init + "   " + token.getName());
-                for (var fx : EncounterService.effectsOf(sceneService.getScene(), token.getId())) {
-                    text.append("   [").append(fx.getName()).append(": ").append(fx.getRemainingRounds()).append(" rd]");
-                }
-                setText(text.toString());
+                setText(null);
+                setGraphic(initiativeRow(token));
+                String color = trackerColorHex(token.getTrackerColor());
+                setStyle("-fx-border-color: transparent transparent transparent " + color + "; -fx-border-width: 0 0 0 4;"
+                        + (token.getTrackerColor() == null ? "" : " -fx-background-color: " + color + "33;"));
+                setContextMenu(initiativeMenu(token));
                 boolean current = table.currentTurnToken().map(t -> t == token).orElse(false);
                 if (current) getStyleClass().add("initiative-current");
             }
@@ -2608,9 +2614,16 @@ public class Main extends Application {
         rollAllButton.setOnAction(e -> table.rollInitiativeForAllAndStart());
         Button startButton = new Button("Comecar com as iniciativas atuais");
         startButton.setOnAction(e -> table.startEncounter());
-        Button editButton = new Button("Editar iniciativa...");
+        Button editButton = new Button("Editar...");
+        editButton.setTooltip(new Tooltip("Iniciativa, modificador só deste combatente e cor da linha (ou duplo clique na linha)."));
         editButton.setOnAction(e -> onEditInitiative());
-        box.getChildren().add(new javafx.scene.layout.FlowPane(6, 6, rollAllButton, startButton, editButton));
+        Button pullButton = new Button("Puxar das fichas");
+        pullButton.setTooltip(new Tooltip("Usa a iniciativa que cada jogador rolou na própria ficha (+ o modificador do rastreador)."));
+        pullButton.setOnAction(e -> {
+            int n = table.pullInitiativesFromSheets();
+            if (n > 0) refreshInitiativeList();
+        });
+        box.getChildren().add(new javafx.scene.layout.FlowPane(6, 6, rollAllButton, startButton, pullButton, editButton));
 
         Button nextTurnButton = new Button("Próximo turno");
         nextTurnButton.getStyleClass().add("button-primary");
@@ -2652,7 +2665,8 @@ public class Main extends Application {
                 groupSaveButton, shortRestButton, longRestButton, calcButton);
         refreshInitiativeList();
 
-        Label hint = new Label("A ordem segue a iniciativa dos tokens (editar reordena na hora). Rodada e turno "
+        Label hint = new Label("Bolinha da linha: clique troca a cor (cinza, verde, amarelo, vermelho). Botão direito: "
+                + "modificador, puxar da ficha, rolar. A ordem segue a iniciativa dos tokens (editar reordena na hora). Rodada e turno "
                 + "sincronizam pra todos; só o mestre avança. Efeitos com duração (botão direito no token > "
                 + "\"Efeito com duração...\") somem sozinhos quando a rodada vira.");
         hint.getStyleClass().add("label-muted");
@@ -3032,7 +3046,23 @@ public class Main extends Application {
         Label label = sectionLabel("Chat");
 
         ListView<LogEntry> chatList = new ListView<>(logEntries);
+        chatListView = chatList;
         chatList.setCellFactory(lv -> new ChatListCell(new ChatListCell.ChatActions() {
+            @Override
+            public javafx.scene.image.Image chatImage(String assetId) {
+                return chatImageOf(assetId);
+            }
+
+            @Override
+            public void openImage(String assetId) {
+                openChatImage(assetId);
+            }
+
+            @Override
+            public void saveImage(String assetId) {
+                saveChatImage(assetId);
+            }
+
             @Override
             public void applyToSelectedToken(int total, double multiplier, boolean heal) {
                 TokenModel target = mapView.getSelectedToken();
@@ -3096,7 +3126,36 @@ public class Main extends Application {
         };
         chatInput.setOnAction(e -> send.run());
         sendButton.setOnAction(e -> send.run());
-        HBox inputRow = new HBox(6, chatInput, sendButton);
+        Button imageButton = new Button("Imagem");
+        imageButton.setMinWidth(Region.USE_PREF_SIZE);
+        imageButton.setTooltip(new Tooltip("Mandar uma imagem no chat (JPG, JPEG, PNG ou GIF, até 4 MB). O texto da caixa"
+                + " vai junto como legenda. Também dá pra arrastar o arquivo pro chat."));
+        imageButton.setOnAction(e -> {
+            FileChooser chooser = new FileChooser();
+            chooser.setTitle("Imagem para o chat");
+            chooser.getExtensionFilters().add(com.vttcaseiro.view.ImageFiles.filter());
+            File file = chooser.showOpenDialog(stage);
+            if (file == null) return;
+            if (sendChatImage(file.toPath(), chatInput.getText())) chatInput.clear();
+        });
+        chatList.setOnDragOver(e -> {
+            if (e.getDragboard().hasFiles() && e.getDragboard().getFiles().stream()
+                    .anyMatch(f -> com.vttcaseiro.view.ImageFiles.accepts(f.getName()))) {
+                e.acceptTransferModes(javafx.scene.input.TransferMode.COPY);
+            }
+            e.consume();
+        });
+        chatList.setOnDragDropped(e -> {
+            boolean ok = false;
+            if (e.getDragboard().hasFiles()) {
+                for (File f : e.getDragboard().getFiles()) {
+                    if (com.vttcaseiro.view.ImageFiles.accepts(f.getName())) ok |= sendChatImage(f.toPath(), "");
+                }
+            }
+            e.setDropCompleted(ok);
+            e.consume();
+        });
+        HBox inputRow = new HBox(6, chatInput, imageButton, sendButton);
         HBox.setHgrow(chatInput, Priority.ALWAYS);
 
         // Todos os dados de D&D: clique rola 1, botao direito escolhe quantos.
@@ -3130,6 +3189,82 @@ public class Main extends Application {
 
         box.getChildren().addAll(label, chatList, diceRow, quickRow, macroRow, inputRow);
         return box;
+    }
+
+    /** Guarda a imagem na mesa e manda no chat (offline: so aparece aqui). */
+    private boolean sendChatImage(Path file, String caption) {
+        if (!com.vttcaseiro.view.ImageFiles.accepts(file.getFileName().toString())) {
+            showError("Formato não aceito. Use JPG, JPEG, PNG ou GIF.");
+            return false;
+        }
+        String assetId;
+        try {
+            assetId = imageAssetService.importFile(file);
+        } catch (IOException ex) {
+            showError("Não deu pra mandar a imagem: " + ex.getMessage());
+            return false;
+        }
+        String text = caption == null ? "" : caption.trim();
+        if (networkService.isConnected()) {
+            networkService.sendChatImage(assetId, text, null);
+        } else {
+            logEntries.add(LogEntry.image(networkService.getPlayerName(), text, assetId, null));
+        }
+        return true;
+    }
+
+    private javafx.scene.image.Image chatImageOf(String assetId) {
+        javafx.scene.image.Image cached = chatImages.get(assetId);
+        if (cached != null) return cached;
+        if (assetId == null || !imageAssetService.exists(assetId)) return null;
+        try {
+            javafx.scene.image.Image img = new javafx.scene.image.Image(
+                    new java.io.ByteArrayInputStream(imageAssetService.readBytes(assetId)));
+            chatImages.put(assetId, img);
+            return img;
+        } catch (IOException ex) {
+            return null;
+        }
+    }
+
+    /** Janela com a imagem do chat em tamanho cheio (cabe na tela; maior que ela, rola). */
+    private void openChatImage(String assetId) {
+        javafx.scene.image.Image img = chatImageOf(assetId);
+        if (img == null) return;
+        javafx.scene.image.ImageView view = new javafx.scene.image.ImageView(img);
+        view.setPreserveRatio(true);
+        javafx.geometry.Rectangle2D screen = javafx.stage.Screen.getPrimary().getVisualBounds();
+        double maxW = screen.getWidth() * 0.85;
+        double maxH = screen.getHeight() * 0.85;
+        double scale = Math.min(1, Math.min(maxW / Math.max(1, img.getWidth()), maxH / Math.max(1, img.getHeight())));
+        view.setFitWidth(img.getWidth() * scale);
+        view.setFitHeight(img.getHeight() * scale);
+        javafx.scene.control.ScrollPane pane = new javafx.scene.control.ScrollPane(new StackPane(view));
+        pane.setFitToWidth(true);
+        pane.setFitToHeight(true);
+        Stage win = new Stage();
+        win.initOwner(stage);
+        win.setTitle("Imagem do chat");
+        win.setScene(new Scene(pane, img.getWidth() * scale + 4, img.getHeight() * scale + 4));
+        win.getScene().setOnKeyPressed(k -> {
+            if (k.getCode() == javafx.scene.input.KeyCode.ESCAPE) win.close();
+        });
+        win.show();
+    }
+
+    private void saveChatImage(String assetId) {
+        if (assetId == null || !imageAssetService.exists(assetId)) return;
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Salvar imagem");
+        String ext = assetId.substring(assetId.lastIndexOf('.'));
+        chooser.setInitialFileName("imagem-chat" + ext);
+        File file = chooser.showSaveDialog(stage);
+        if (file == null) return;
+        try {
+            java.nio.file.Files.write(file.toPath(), imageAssetService.readBytes(assetId));
+        } catch (IOException ex) {
+            showError("Não deu pra salvar: " + ex.getMessage());
+        }
     }
 
     private Button quickRollButton(String label, String expression) {
@@ -4113,26 +4248,163 @@ public class Main extends Application {
             showError("Selecione um token da lista primeiro.");
             return;
         }
-        TextInputDialog dialog = new TextInputDialog(
-                selected.getInitiative() == null ? "" : String.valueOf(selected.getInitiative()));
-        dialog.setTitle("Editar iniciativa");
-        dialog.setHeaderText(null);
-        dialog.setContentText("Iniciativa de " + selected.getName() + " (vazio = volta pra '--'):");
-        Optional<String> text = dialog.showAndWait();
-        if (text.isEmpty()) {
+        editTrackerEntry(selected);
+    }
+
+    static final String[] TRACKER_COLOR_NAMES = {"Cinza", "Verde", "Amarelo", "Vermelho"};
+    static final String[] TRACKER_COLOR_KEYS = {null, "green", "yellow", "red"};
+
+    static String trackerColorHex(String key) {
+        if (key == null) return "#8A8A8A";
+        return switch (key) {
+            case "green" -> "#3FBE6E";
+            case "yellow" -> "#E8C33E";
+            case "red" -> "#D9544C";
+            default -> "#8A8A8A";
+        };
+    }
+
+    private static int colorIndex(String key) {
+        for (int i = 0; i < TRACKER_COLOR_KEYS.length; i++) {
+            if (java.util.Objects.equals(TRACKER_COLOR_KEYS[i], key)) return i;
+        }
+        return 0;
+    }
+
+    /** Linha do rastreador: bolinha da cor (clique troca), iniciativa, nome, modificador e efeitos. */
+    private HBox initiativeRow(TokenModel token) {
+        javafx.scene.shape.Circle dot = new javafx.scene.shape.Circle(7, javafx.scene.paint.Color.web(trackerColorHex(token.getTrackerColor())));
+        dot.setStroke(javafx.scene.paint.Color.web("#00000066"));
+        dot.setCursor(javafx.scene.Cursor.HAND);
+        Tooltip.install(dot, new Tooltip("Cor: " + TRACKER_COLOR_NAMES[colorIndex(token.getTrackerColor())]
+                + " (clique troca: cinza, verde, amarelo, vermelho)"));
+        dot.setOnMouseClicked(e -> {
+            if (e.getButton() != javafx.scene.input.MouseButton.PRIMARY) return;
+            String next = TRACKER_COLOR_KEYS[(colorIndex(token.getTrackerColor()) + 1) % TRACKER_COLOR_KEYS.length];
+            table.setTrackerColor(token, next);
+            refreshInitiativeList();
+            e.consume();
+        });
+        Label init = new Label(token.getInitiative() == null ? "--" : String.valueOf(token.getInitiative()));
+        init.setMinWidth(30);
+        init.setStyle("-fx-font-weight: bold;");
+        Label name = new Label(token.getName());
+        name.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(name, Priority.ALWAYS);
+        HBox row = new HBox(8, dot, init, name);
+        row.setAlignment(Pos.CENTER_LEFT);
+        int mod = token.getInitiativeModifier();
+        if (mod != 0) {
+            Label m = new Label((mod > 0 ? "+" : "") + mod);
+            m.getStyleClass().add("label-muted");
+            Tooltip.install(m, new Tooltip("Modificador do rastreador (já somado na iniciativa)"));
+            row.getChildren().add(m);
+        }
+        StringBuilder fx = new StringBuilder();
+        for (var effect : EncounterService.effectsOf(sceneService.getScene(), token.getId())) {
+            if (fx.length() > 0) fx.append("  ");
+            fx.append("[").append(effect.getName()).append(": ").append(effect.getRemainingRounds()).append(" rd]");
+        }
+        if (fx.length() > 0) {
+            Label effects = new Label(fx.toString());
+            effects.getStyleClass().add("label-muted");
+            row.getChildren().add(effects);
+        }
+        return row;
+    }
+
+    private javafx.scene.control.ContextMenu initiativeMenu(TokenModel token) {
+        javafx.scene.control.ContextMenu menu = new javafx.scene.control.ContextMenu();
+        javafx.scene.control.MenuItem edit = new javafx.scene.control.MenuItem("Editar...");
+        edit.setOnAction(e -> editTrackerEntry(token));
+        javafx.scene.control.MenuItem mod = new javafx.scene.control.MenuItem("Modificador...");
+        mod.setOnAction(e -> {
+            TextInputDialog d = new TextInputDialog(String.valueOf(token.getInitiativeModifier()));
+            d.initOwner(stage);
+            d.setTitle("Modificador de iniciativa");
+            d.setHeaderText(null);
+            d.setContentText("Modificador só de " + token.getName() + " (ex.: 5 ou -2):");
+            d.showAndWait().ifPresent(t -> {
+                try {
+                    table.setInitiativeModifier(token, Integer.parseInt(t.trim().replace("+", "")));
+                    refreshInitiativeList();
+                } catch (NumberFormatException ex) {
+                    showError("Precisa ser um número inteiro: " + t);
+                }
+            });
+        });
+        Integer fromSheet = table.linkedSheet(token).map(CharacterSheet::getLastInitiative).orElse(null);
+        javafx.scene.control.MenuItem pull = new javafx.scene.control.MenuItem(fromSheet == null
+                ? "Puxar da ficha (ainda não rolou)" : "Puxar da ficha (" + fromSheet + ")");
+        pull.setDisable(fromSheet == null);
+        pull.setOnAction(e -> {
+            table.pullInitiativeFromSheet(token);
+            refreshInitiativeList();
+        });
+        javafx.scene.control.MenuItem roll = new javafx.scene.control.MenuItem("Rolar iniciativa");
+        roll.setOnAction(e -> {
+            tokenActions.rollInitiative(token);
+            refreshInitiativeList();
+        });
+        javafx.scene.control.Menu colors = new javafx.scene.control.Menu("Cor");
+        for (int i = 0; i < TRACKER_COLOR_KEYS.length; i++) {
+            String key = TRACKER_COLOR_KEYS[i];
+            javafx.scene.control.MenuItem c = new javafx.scene.control.MenuItem(TRACKER_COLOR_NAMES[i],
+                    new javafx.scene.shape.Circle(6, javafx.scene.paint.Color.web(trackerColorHex(key))));
+            c.setOnAction(e -> {
+                table.setTrackerColor(token, key);
+                refreshInitiativeList();
+            });
+            colors.getItems().add(c);
+        }
+        menu.getItems().addAll(edit, mod, pull, roll, colors);
+        return menu;
+    }
+
+    /** Iniciativa, modificador do rastreador e cor de um combatente. */
+    private void editTrackerEntry(TokenModel token) {
+        if (!table.canControl(token)) {
+            showError("Você não controla " + token.getName() + ".");
             return;
         }
-        if (text.get().isBlank()) {
-            selected.setInitiative(null);
-        } else {
-            try {
-                selected.setInitiative(Integer.parseInt(text.get().trim()));
-            } catch (NumberFormatException ex) {
-                showError("Iniciativa inválida (precisa ser um número inteiro): " + text.get());
-                return;
-            }
+        javafx.scene.control.Dialog<javafx.scene.control.ButtonType> dialog = new javafx.scene.control.Dialog<>();
+        dialog.initOwner(stage);
+        dialog.setTitle("Rastreador: " + token.getName());
+        dialog.setHeaderText(null);
+        TextField init = new TextField(token.getInitiative() == null ? "" : String.valueOf(token.getInitiative()));
+        init.setPromptText("vazio = sem iniciativa");
+        javafx.scene.control.Spinner<Integer> mod = new javafx.scene.control.Spinner<>(-50, 50, token.getInitiativeModifier());
+        mod.setEditable(true);
+        ComboBox<String> color = new ComboBox<>();
+        color.getItems().addAll(TRACKER_COLOR_NAMES);
+        color.getSelectionModel().select(colorIndex(token.getTrackerColor()));
+        Label modHint = new Label("O modificador soma na rolagem e muda a iniciativa já rolada junto.");
+        modHint.getStyleClass().add("label-muted");
+        modHint.setWrapText(true);
+        javafx.scene.layout.GridPane grid = new javafx.scene.layout.GridPane();
+        grid.setHgap(10);
+        grid.setVgap(8);
+        grid.addRow(0, new Label("Iniciativa"), init);
+        grid.addRow(1, new Label("Modificador"), mod);
+        grid.addRow(2, new Label("Cor"), color);
+        grid.add(modHint, 0, 3, 2, 1);
+        grid.setPrefWidth(330);
+        dialog.getDialogPane().setContent(grid);
+        dialog.getDialogPane().getButtonTypes().addAll(javafx.scene.control.ButtonType.OK, javafx.scene.control.ButtonType.CANCEL);
+        if (dialog.showAndWait().filter(b -> b == javafx.scene.control.ButtonType.OK).isEmpty()) return;
+        mod.increment(0);
+        Integer newInit;
+        try {
+            newInit = init.getText().isBlank() ? null : Integer.valueOf(init.getText().trim().replace("+", ""));
+        } catch (NumberFormatException ex) {
+            showError("Iniciativa inválida (precisa ser um número inteiro): " + init.getText());
+            return;
         }
-        table.publishTokenUpdate(selected);
+        // a iniciativa digitada ja e a final: aplica o modificador antes pra ele nao deslocar o numero
+        table.setInitiativeModifier(token, mod.getValue());
+        token.setInitiative(newInit);
+        token.setTrackerColor(TRACKER_COLOR_KEYS[Math.max(0, color.getSelectionModel().getSelectedIndex())]);
+        table.publishTokenUpdate(token);
         refreshInitiativeList();
     }
 
@@ -4462,16 +4734,16 @@ public class Main extends Application {
             List<TokenModel> mine = sceneService.getScene().getTokens().stream()
                     .filter(t -> sheet.getId().equals(t.getCharacterSheetId())).toList();
             if (!mine.isEmpty()) {
-                // com o token no mapa a iniciativa entra na ordem de combate (com os dados extras da ficha)
-                for (TokenModel t : mine) tokenActions.rollInitiative(t);
+                // com o token no mapa a iniciativa entra na ordem de combate (com os dados extras da ficha
+                // e a vantagem/desvantagem escolhida)
+                for (TokenModel t : mine) {
+                    recorded("Iniciativa de " + t.getName(), t, () -> table.rollInitiative(t, true, chosen));
+                }
                 return;
             }
-            rollD20WithAdjustment(sheet.getName() + " - Iniciativa", sheet.initiative(),
-                    sheet.rollAdjustment(com.vttcaseiro.character.RollKind.INITIATIVE,
-                            com.vttcaseiro.character.Ability.DEXTERITY, chosen), hidden, null);
-            if (!sheet.getInitiativeDice().isBlank()) {
-                this.roll(sheet, "Iniciativa (dados extras)", sheet.getInitiativeDice(), hidden);
-            }
+            // sem token: rola aqui e guarda na ficha; o rastreador puxa quando o token entrar
+            table.rollSheetInitiative(sheet, chosen, hidden);
+            refreshInitiativeList();
         }
 
         @Override
@@ -4828,8 +5100,17 @@ public class Main extends Application {
         }
 
         @Override
+        public void onChatImage(String player, String assetId, String caption, String whisperTo) {
+            Platform.runLater(() -> logEntries.add(LogEntry.image(player, caption, assetId, whisperTo)));
+        }
+
+        @Override
         public void onImageStored(String assetId) {
             Platform.runLater(() -> {
+                if (chatListView != null && logEntries.stream().anyMatch(e -> assetId.equals(e.imageAssetId()))) {
+                    chatImages.remove(assetId);
+                    chatListView.refresh();
+                }
                 SceneModel sc = sceneService.getScene();
                 if (sc.getObjects().stream().anyMatch(o -> assetId.equals(o.getAssetId()))) mapView.redrawObjects();
             });

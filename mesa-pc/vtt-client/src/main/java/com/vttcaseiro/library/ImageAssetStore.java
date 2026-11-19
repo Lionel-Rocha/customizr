@@ -139,6 +139,11 @@ public class ImageAssetStore {
      * vindo da rede ou de um arquivo de save nunca poder "escapar" da
      * pasta assets/images (ataque de path traversal tipo
      * "../../../etc/passwd"). */
+    /** O id tem a forma de um asset (hash + extensao de imagem)? Pra conferir id vindo da rede sem excecao. */
+    public static boolean isValidAssetId(String assetId) {
+        return assetId != null && assetId.matches("[0-9a-f]{64}\\.(png|jpg|jpeg|gif|webp|bmp)");
+    }
+
     private static String safeAssetId(String assetId) {
         if (!assetId.matches("[0-9a-f]{64}\\.(png|jpg|jpeg|gif|webp|bmp)")) {
             throw new IllegalArgumentException("Id de asset de imagem invalido: " + assetId);

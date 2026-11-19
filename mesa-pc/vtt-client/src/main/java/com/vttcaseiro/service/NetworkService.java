@@ -113,6 +113,9 @@ public class NetworkService {
 
         void onChat(String player, String text);
 
+        default void onChatImage(String player, String assetId, String caption, String whisperTo) {
+        }
+
         /** Metodo com corpo padrao (nao-obrigatorio) de proposito: quem
          * ja implementava GameListener antes desta ficha/monstro/party
          * sincronizarem pela rede continua compilando sem mudar nada --
@@ -509,6 +512,11 @@ public class NetworkService {
             }
 
             @Override
+            public void onChatImage(String player, String assetId, String caption, String whisperTo) {
+                listener.onChatImage(player, assetId, caption, whisperTo);
+            }
+
+            @Override
             public void onCharacterSync(CharacterSheet character) {
                 listener.onCharacterSync(character);
             }
@@ -716,6 +724,10 @@ public class NetworkService {
 
     public void sendChat(String text) {
         if (client != null) client.sendChat(playerName, text);
+    }
+
+    public void sendChatImage(String assetId, String caption, String whisperTo) {
+        if (client != null) client.sendChatImage(playerName, assetId, caption, whisperTo);
     }
 
     public void sendCharacterSync(CharacterSheet character) {

@@ -706,6 +706,12 @@ public class CharacterSheet {
     /** Dados somados a iniciativa ("1d4", "1d8"), de habilidades como Inspiracao de Bardo ou Gloom Stalker. */
     private String initiativeDice;
 
+    /** Ultima iniciativa rolada pela ficha (o rastreador de combate puxa daqui). */
+    private Integer lastInitiative;
+
+    public Integer getLastInitiative() { return lastInitiative; }
+    public void setLastInitiative(Integer lastInitiative) { this.lastInitiative = lastInitiative; }
+
     public String getInitiativeDice() { return initiativeDice == null ? "" : initiativeDice; }
     public void setInitiativeDice(String dice) {
         this.initiativeDice = dice == null || dice.isBlank() ? null : dice.replaceAll("\\s+", "");

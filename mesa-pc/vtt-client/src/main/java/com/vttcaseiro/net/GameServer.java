@@ -451,6 +451,12 @@ public class GameServer {
                     }
                 }
                 case "chat" -> {
+                    // imagem no chat: so um id de asset valido (nada de caminho de arquivo)
+                    if (msg.assetId != null && !com.vttcaseiro.library.ImageAssetStore.isValidAssetId(msg.assetId)) {
+                        msg.assetId = null;
+                    }
+                    msg.assetBase64 = null;
+                    if (msg.text == null) msg.text = "";
                     // [[1d20+5]] no texto: quem rola e o servidor (e ninguem forja o resultado).
                     msg.text = com.vttcaseiro.dice.InlineRolls.expand(msg.text);
                     if (msg.whisperTo == null || msg.whisperTo.isBlank()) {

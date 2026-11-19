@@ -37,6 +37,19 @@ public class ChatListCell extends ListCell<LogEntry> {
         /** Rola o dano do ataque desta rolagem (dobrado se foi critico). */
         default void followUp(LogEntry entry) {
         }
+
+        /** Imagem de um asset (null = ainda nao chegou pela rede). */
+        default javafx.scene.image.Image chatImage(String assetId) {
+            return null;
+        }
+
+        /** Abre a imagem grande. */
+        default void openImage(String assetId) {
+        }
+
+        /** Salva a imagem num arquivo. */
+        default void saveImage(String assetId) {
+        }
     }
 
     private final ChatActions actions;
@@ -107,6 +120,13 @@ public class ChatListCell extends ListCell<LogEntry> {
         }
 
         VBox textBox = new VBox(1, meta, text);
+        if (entry.hasImage()) {
+            if (entry.text() == null || entry.text().isBlank()) {
+                text.setVisible(false);
+                text.setManaged(false);
+            }
+            textBox.getChildren().add(imageNode(entry.imageAssetId()));
+        }
         if (emote != null) {
             // "/me saca a espada" -> "Ana saca a espada", sem cabecalho
             meta.setVisible(false);
@@ -161,6 +181,40 @@ public class ChatListCell extends ListCell<LogEntry> {
         }
 
         setGraphic(row);
+    }
+
+    /** Largura maxima da miniatura no chat. */
+    static final double THUMB_WIDTH = 240;
+    static final double THUMB_HEIGHT = 200;
+
+    private javafx.scene.Node imageNode(String assetId) {
+        javafx.scene.image.Image img = actions == null ? null : actions.chatImage(assetId);
+        if (img == null || img.isError()) {
+            Label wait = new Label(img != null && img.isError() ? "(imagem não pôde ser aberta)" : "(recebendo imagem...)");
+            wait.getStyleClass().add("label-muted");
+            return wait;
+        }
+        javafx.scene.image.ImageView view = new javafx.scene.image.ImageView(img);
+        view.setPreserveRatio(true);
+        view.setSmooth(true);
+        double w = img.getWidth() > 0 ? img.getWidth() : THUMB_WIDTH;
+        double h = img.getHeight() > 0 ? img.getHeight() : THUMB_HEIGHT;
+        double scale = Math.min(1, Math.min(THUMB_WIDTH / w, THUMB_HEIGHT / h));
+        view.setFitWidth(w * scale);
+        view.setFitHeight(h * scale);
+        view.setCursor(javafx.scene.Cursor.HAND);
+        view.getStyleClass().add("chat-image");
+        javafx.scene.control.Tooltip.install(view, new javafx.scene.control.Tooltip("Clique para ver grande; botão direito para salvar"));
+        view.setOnMouseClicked(e -> {
+            if (e.getButton() == javafx.scene.input.MouseButton.PRIMARY) actions.openImage(assetId);
+        });
+        ContextMenu menu = new ContextMenu(item("Ver grande", () -> actions.openImage(assetId)),
+                item("Salvar imagem...", () -> actions.saveImage(assetId)));
+        view.setOnContextMenuRequested(e -> {
+            menu.show(view, e.getScreenX(), e.getScreenY());
+            e.consume();
+        });
+        return view;
     }
 
     /** Texto do chat com as rolagens [[...]] em destaque (total grande, conta no tooltip). */

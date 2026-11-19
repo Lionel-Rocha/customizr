@@ -302,18 +302,23 @@ public class TableService {
 
     /** Rola 1d20 + bonus (ficha ligada com condicoes, ou o do token) e grava. */
     public RollResult rollInitiative(TokenModel token, boolean announceIt) {
-        int bonus = token.getInitiativeBonus();
-        RollMode mode = RollMode.NORMAL;
+        return rollInitiative(token, announceIt, RollMode.NORMAL);
+    }
+
+    /** Igual, com a vantagem/desvantagem escolhida na ficha. Soma o modificador do rastreador. */
+    public RollResult rollInitiative(TokenModel token, boolean announceIt, RollMode chosen) {
+        int bonus = token.getInitiativeBonus() + token.getInitiativeModifier();
+        RollMode mode = chosen == null ? RollMode.NORMAL : chosen;
         String notes = "";
         Optional<CharacterSheet> sheet = linkedSheet(token);
         if (sheet.isPresent()) {
-            RollAdjustment adj = sheet.get().rollAdjustment(RollKind.INITIATIVE, Ability.DEXTERITY, RollMode.NORMAL);
-            bonus = sheet.get().initiative() + adj.modifierDelta();
+            RollAdjustment adj = sheet.get().rollAdjustment(RollKind.INITIATIVE, Ability.DEXTERITY, mode);
+            bonus = sheet.get().initiative() + adj.modifierDelta() + token.getInitiativeModifier();
             mode = adj.mode();
             notes = adj.notesText();
         } else {
             RollAdjustment adj = com.vttcaseiro.character.CombatRules.rollAdjustment(token.getConditions(), 0,
-                    RollKind.INITIATIVE, Ability.DEXTERITY, RollMode.NORMAL, token.getEffects(),
+                    RollKind.INITIATIVE, Ability.DEXTERITY, mode, token.getEffects(),
                     com.vttcaseiro.character.CombatRules::rollDice);
             mode = adj.mode();
             notes = adj.notesText();
@@ -322,7 +327,7 @@ public class TableService {
             // Tormenta20 / Ordem Paranormal: a pericia Iniciativa (na Ordem, varios d20 e fica o maior)
             String expr = com.vttcaseiro.character.GameSystem.of(sheet.get()).initiativeTest(sheet.get());
             mode = RollMode.NORMAL;
-            RollResult custom = rollOrZero(expr);
+            RollResult custom = withTrackerModifier(rollOrZero(expr), token.getInitiativeModifier());
             return finishInitiative(token, custom, notes, announceIt);
         }
         RollResult result = switch (mode) {
@@ -339,11 +344,99 @@ public class TableService {
         return finishInitiative(token, result, notes, announceIt);
     }
 
+    private static RollResult withTrackerModifier(RollResult r, int mod) {
+        if (mod == 0) return r;
+        return new RollResult(r.total() + mod, r.detail() + (mod > 0 ? " + " : " - ") + Math.abs(mod) + " (rastreador)",
+                r.naturalD20());
+    }
+
     private RollResult finishInitiative(TokenModel token, RollResult result, String notes, boolean announceIt) {
         token.setInitiative(result.total());
         publishTokenUpdate(token);
+        // a ficha guarda o resultado sem o modificador do rastreador (ele soma de novo ao puxar)
+        linkedSheet(token).ifPresent(s -> {
+            if (canEditSheet(s)) {
+                s.setLastInitiative(result.total() - token.getInitiativeModifier());
+                saveAndSync(s);
+            }
+        });
         if (announceIt) announceAbout(token, "Iniciativa de " + token.getName() + ": " + result.detail() + notes);
         return result;
+    }
+
+    /**
+     * Iniciativa rolada na ficha sem token no mapa: rola aqui (o resultado fica conhecido), anuncia e
+     * guarda na ficha pro rastreador puxar quando o token entrar.
+     */
+    public RollResult rollSheetInitiative(CharacterSheet sheet, RollMode chosen, boolean hidden) {
+        RollAdjustment adj = sheet.rollAdjustment(RollKind.INITIATIVE, Ability.DEXTERITY, chosen == null ? RollMode.NORMAL : chosen);
+        int bonus = sheet.initiative() + adj.modifierDelta();
+        RollResult result;
+        if (com.vttcaseiro.character.GameSystem.of(sheet).isCustom()) {
+            result = rollOrZero(com.vttcaseiro.character.GameSystem.of(sheet).initiativeTest(sheet));
+        } else {
+            result = switch (adj.mode()) {
+                case ADVANTAGE -> DiceRoller.rollWithAdvantage(bonus);
+                case DISADVANTAGE -> DiceRoller.rollWithDisadvantage(bonus);
+                case NORMAL -> rollOrZero(d20(bonus));
+            };
+            if (!sheet.getInitiativeDice().isBlank()) {
+                RollResult more = rollOrZero(sheet.getInitiativeDice());
+                result = new RollResult(result.total() + more.total(), result.detail() + " + " + more.detail(), result.naturalD20());
+            }
+        }
+        sheet.setLastInitiative(result.total());
+        saveAndSync(sheet);
+        String text = "Iniciativa de " + sheet.getName() + ": " + result.detail() + adj.notesText();
+        if (hidden) port.announceGm(text + " (escondida)");
+        else port.announce(text);
+        return result;
+    }
+
+    /** Muda o modificador do rastreador; a iniciativa ja rolada anda junto (17 com +2 -> 19). */
+    public void setInitiativeModifier(TokenModel token, int modifier) {
+        if (!canControl(token)) {
+            port.error("Você não controla " + token.getName() + ".");
+            return;
+        }
+        int before = token.getInitiativeModifier();
+        token.setInitiativeModifier(modifier);
+        int delta = token.getInitiativeModifier() - before;
+        if (token.getInitiative() != null) token.setInitiative(token.getInitiative() + delta);
+        publishTokenUpdate(token);
+    }
+
+    /** Cor da linha no rastreador ("green", "yellow", "red"; null = cinza). */
+    public void setTrackerColor(TokenModel token, String color) {
+        if (!canControl(token)) {
+            port.error("Você não controla " + token.getName() + ".");
+            return;
+        }
+        token.setTrackerColor(color);
+        publishTokenUpdate(token);
+    }
+
+    /** Puxa a iniciativa rolada na ficha ligada (+ modificador do rastreador). False = ficha sem rolagem. */
+    public boolean pullInitiativeFromSheet(TokenModel token) {
+        Optional<CharacterSheet> sheet = linkedSheet(token);
+        if (sheet.isEmpty() || sheet.get().getLastInitiative() == null) return false;
+        if (!canControl(token)) {
+            port.error("Você não controla " + token.getName() + ".");
+            return false;
+        }
+        token.setInitiative(sheet.get().getLastInitiative() + token.getInitiativeModifier());
+        publishTokenUpdate(token);
+        return true;
+    }
+
+    /** Todos os tokens de ficha que tem iniciativa rolada; devolve quantos puxou. */
+    public int pullInitiativesFromSheets() {
+        int n = 0;
+        for (TokenModel t : new ArrayList<>(scene().getTokens())) {
+            if (linkedSheet(t).map(CharacterSheet::getLastInitiative).isPresent() && pullInitiativeFromSheet(t)) n++;
+        }
+        if (n == 0) port.error("Nenhuma ficha no mapa tem iniciativa rolada ainda.");
+        return n;
     }
 
     /** Rola pra todos, comeca o combate e anuncia a ordem. */

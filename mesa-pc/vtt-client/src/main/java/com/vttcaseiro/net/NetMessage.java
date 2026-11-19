@@ -407,6 +407,14 @@ public class NetMessage {
         return m;
     }
 
+    /** Imagem no chat: os bytes vao antes por image_data; aqui so o id e a legenda. */
+    public static NetMessage chatImage(String player, String caption, String assetId, String whisperTo) {
+        NetMessage m = chat(player, caption == null ? "" : caption);
+        m.assetId = assetId;
+        m.whisperTo = whisperTo;
+        return m;
+    }
+
     public static NetMessage characterSync(CharacterSheet character) {
         NetMessage m = new NetMessage();
         m.type = "character_sync";
