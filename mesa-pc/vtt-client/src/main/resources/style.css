@@ -964,3 +964,93 @@
     -fx-text-fill: #FFE7BD;
     -fx-font-weight: bold;
 }
+
+/* ---------- Layout novo: barra de navegacao, painel lateral, ajuda recolhida ---------- */
+.nav-rail {
+    -fx-background-color: #17110E;
+    -fx-border-color: transparent #45342A transparent transparent;
+    -fx-border-width: 0 1 0 0;
+    -fx-padding: 8 4 8 4;
+    -fx-pref-width: 74px;
+    -fx-min-width: 74px;
+}
+.nav-rail-button {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-text-fill: #B09A82;
+    -fx-font-size: 11px;
+    -fx-padding: 9 2 9 2;
+    -fx-graphic-text-gap: 4;
+    -fx-background-radius: 8;
+    -fx-cursor: hand;
+}
+.nav-rail-button:hover {
+    -fx-background-color: #2A201A;
+    -fx-text-fill: #F6E9D3;
+}
+.nav-rail-button:selected {
+    -fx-background-color: #3A2A1C;
+    -fx-text-fill: #FFCF7F;
+    -fx-border-color: transparent transparent transparent #E8A23E;
+    -fx-border-width: 0 0 0 3;
+}
+.side-panel {
+    -fx-background-color: #201814;
+}
+.side-panel-header {
+    -fx-padding: 12 10 10 16;
+    -fx-border-color: transparent transparent #45342A transparent;
+    -fx-border-width: 0 0 1 0;
+}
+.side-panel-title {
+    -fx-text-fill: #F6E9D3;
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+}
+.side-panel-close {
+    -fx-font-size: 12px;
+    -fx-padding: 2 8 2 8;
+    -fx-text-fill: #B09A82;
+}
+.side-panel .label-section {
+    -fx-font-size: 11px;
+    -fx-padding: 8 0 0 0;
+}
+.hint-toggle {
+    -fx-text-fill: #8C7A66;
+    -fx-font-size: 11px;
+    -fx-padding: 0 0 2 0;
+}
+.hint-toggle:hover {
+    -fx-text-fill: #E8A23E;
+    -fx-underline: true;
+}
+.main-split > .split-pane-divider {
+    -fx-padding: 0 0.5 0 0.5;
+}
+
+.chat-panel .chip {
+    -fx-padding: 3 9 3 9;
+    -fx-font-size: 11px;
+}
+.chat-panel {
+    -fx-border-color: transparent transparent transparent #45342A;
+    -fx-border-width: 0 0 0 1;
+}
+
+.panel-card {
+    -fx-background-color: #281E18;
+    -fx-background-radius: 10;
+    -fx-border-color: #3A2C23;
+    -fx-border-radius: 10;
+    -fx-padding: 12;
+}
+.panel-card .label-section {
+    -fx-padding: 0;
+    -fx-font-size: 12px;
+}
+
+.chat-panel .chip.chip-dice {
+    -fx-padding: 3 6 3 6;
+    -fx-font-size: 11px;
+}

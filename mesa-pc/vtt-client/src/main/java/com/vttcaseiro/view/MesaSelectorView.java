@@ -37,10 +37,25 @@ import java.util.stream.Stream;
 public class MesaSelectorView {
     private final Stage stage;
     private final Consumer<MesaRepository> onMesaChosen;
+    private final java.util.function.BiConsumer<MesaRepository, JoinRequest> onJoinOnline;
+
+    /** Dados pra entrar na mesa de outra pessoa (endereco ou codigo da ponte, senhas). */
+    public record JoinRequest(String playerName, String host, String port, String relayCode, String tablePassword,
+                              boolean tls, boolean asGm, String masterPassword) {
+    }
+
+    /** Pasta (escondida da lista) onde fica o que vem de uma mesa online: fichas, imagens e cenas recebidas. */
+    public static final String ONLINE_DIR = ".online";
 
     public MesaSelectorView(Stage stage, Consumer<MesaRepository> onMesaChosen) {
+        this(stage, onMesaChosen, null);
+    }
+
+    public MesaSelectorView(Stage stage, Consumer<MesaRepository> onMesaChosen,
+                            java.util.function.BiConsumer<MesaRepository, JoinRequest> onJoinOnline) {
         this.stage = stage;
         this.onMesaChosen = onMesaChosen;
+        this.onJoinOnline = onJoinOnline;
     }
 
     public void show() {
@@ -230,18 +245,21 @@ public class MesaSelectorView {
         javafx.scene.layout.ColumnConstraints half = new javafx.scene.layout.ColumnConstraints();
         half.setPercentWidth(50);
         actions.getColumnConstraints().addAll(half, half);
-        actions.add(openButton, 0, 0, 2, 1);
+        Button joinButton = actionCard("network", "Entrar numa mesa online",
+                "Jogar na mesa de outra pessoa: endereço (ou código da ponte) e senha.", true);
+        joinButton.setOnAction(e -> onJoin(baseFolder));
+        joinButton.setVisible(onJoinOnline != null);
+        joinButton.setManaged(onJoinOnline != null);
+        if (onJoinOnline != null) {
+            actions.add(openButton, 0, 0);
+            actions.add(joinButton, 1, 0);
+        } else {
+            actions.add(openButton, 0, 0, 2, 1);
+        }
         actions.add(newMesaButton, 0, 1);
         actions.add(importButton, 1, 1);
 
-        Label join = new Label("Vai jogar na mesa de outra pessoa? Abra (ou crie) qualquer mesa e use a aba Rede > "
-                + "Conectar. Pelo navegador, nem precisa instalar: o mestre te passa um link.");
-        join.getStyleClass().add("tip-box");
-        join.setWrapText(true);
-        join.setMaxWidth(Double.MAX_VALUE);
-        join.setMinHeight(javafx.scene.layout.Region.USE_PREF_SIZE);
-
-        right.getChildren().addAll(title, subtitle, list, actions, join);
+        right.getChildren().addAll(title, subtitle, list, actions);
         HBox root = new HBox(hero(baseFolder), right);
         applyScene(root, 900, 600, "Customizr - Escolher mesa");
     }
@@ -271,10 +289,79 @@ public class MesaSelectorView {
         try (Stream<Path> paths = Files.list(baseFolder)) {
             return paths.filter(Files::isDirectory)
                     .map(p -> p.getFileName().toString())
+                    .filter(n -> !n.startsWith(".")) // .online e outras pastas internas
                     .sorted()
                     .collect(Collectors.toList());
         } catch (IOException ex) {
             return List.of();
+        }
+    }
+
+    /** Pasta local de uma mesa online (uma por endereco/codigo), dentro de .online. */
+    public static Path onlineFolder(Path baseFolder, JoinRequest req) {
+        String where = req.relayCode() != null && !req.relayCode().isBlank()
+                ? "ponte " + req.relayCode().trim() : req.host().trim() + " " + req.port().trim();
+        return baseFolder.resolve(ONLINE_DIR).resolve(com.vttcaseiro.library.MesaBackup.safeName("Online - " + where));
+    }
+
+    private void onJoin(Path baseFolder) {
+        javafx.scene.control.Dialog<javafx.scene.control.ButtonType> dialog = new javafx.scene.control.Dialog<>();
+        dialog.initOwner(stage);
+        dialog.setTitle("Entrar numa mesa online");
+        dialog.setHeaderText("O mestre te passa o endereço (ou o código da ponte) e a senha, se tiver.");
+        javafx.scene.control.TextField name = new javafx.scene.control.TextField(AppSettings.getString("online.nome", ""));
+        name.setPromptText("Como você aparece pra mesa");
+        javafx.scene.control.TextField host = new javafx.scene.control.TextField(AppSettings.getString("online.host", ""));
+        host.setPromptText("ex.: 100.64.0.5 ou meuservidor.com");
+        javafx.scene.control.TextField port = new javafx.scene.control.TextField(AppSettings.getString("online.porta", "55055"));
+        port.setPrefColumnCount(6);
+        javafx.scene.control.TextField code = new javafx.scene.control.TextField(AppSettings.getString("online.codigo", ""));
+        code.setPromptText("só se for pela ponte (ex.: K7P-Q2X)");
+        code.textProperty().addListener((o, a, b) -> {
+            if (b != null && !b.isBlank() && "55055".equals(port.getText())) port.setText("55070");
+        });
+        javafx.scene.control.PasswordField password = new javafx.scene.control.PasswordField();
+        password.setPromptText("se a mesa tiver");
+        javafx.scene.control.CheckBox tls = new javafx.scene.control.CheckBox("Mesa criptografada (TLS)");
+        tls.setSelected(AppSettings.getBool("online.tls", false));
+        javafx.scene.control.CheckBox gm = new javafx.scene.control.CheckBox("Entrar como mestre");
+        javafx.scene.control.PasswordField gmPassword = new javafx.scene.control.PasswordField();
+        gmPassword.setPromptText("senha de mestre");
+        gmPassword.disableProperty().bind(gm.selectedProperty().not());
+        javafx.scene.layout.GridPane grid = new javafx.scene.layout.GridPane();
+        grid.setHgap(10);
+        grid.setVgap(8);
+        grid.addRow(0, new Label("Seu nome"), name);
+        grid.addRow(1, new Label("Endereço"), new HBox(6, host, new Label(":"), port));
+        grid.addRow(2, new Label("Código da ponte"), code);
+        grid.addRow(3, new Label("Senha da mesa"), password);
+        grid.add(tls, 1, 4);
+        grid.add(gm, 1, 5);
+        grid.add(gmPassword, 1, 6);
+        HBox.setHgrow(host, Priority.ALWAYS);
+        grid.setPrefWidth(460);
+        dialog.getDialogPane().setContent(grid);
+        javafx.scene.control.ButtonType enter = new javafx.scene.control.ButtonType("Entrar",
+                javafx.scene.control.ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(enter, javafx.scene.control.ButtonType.CANCEL);
+        javafx.scene.Node enterNode = dialog.getDialogPane().lookupButton(enter);
+        enterNode.disableProperty().bind(javafx.beans.binding.Bindings.createBooleanBinding(
+                () -> name.getText().isBlank() || host.getText().isBlank(), name.textProperty(), host.textProperty()));
+        if (dialog.showAndWait().filter(b -> b == enter).isEmpty()) return;
+        JoinRequest req = new JoinRequest(name.getText().trim(), host.getText().trim(), port.getText().trim(),
+                code.getText().trim(), password.getText(), tls.isSelected(), gm.isSelected(), gmPassword.getText());
+        // lembra o caminho (nunca as senhas)
+        AppSettings.setString("online.nome", req.playerName());
+        AppSettings.setString("online.host", req.host());
+        AppSettings.setString("online.porta", req.port());
+        AppSettings.setString("online.codigo", req.relayCode());
+        AppSettings.setBool("online.tls", req.tls());
+        try {
+            onJoinOnline.accept(new LibraryStorage(onlineFolder(baseFolder, req)), req);
+        } catch (IOException ex) {
+            Alert alert = new Alert(Alert.AlertType.ERROR, "Não foi possível preparar a pasta da mesa online: " + ex.getMessage());
+            alert.setHeaderText(null);
+            alert.showAndWait();
         }
     }
 

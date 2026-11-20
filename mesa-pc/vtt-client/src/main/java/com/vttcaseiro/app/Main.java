@@ -247,6 +247,17 @@ public class Main extends Application {
     private Label backupStatus;
     static final int[] BACKUP_MINUTES = {0, 5, 10, 15, 30, 60};
     private Label sceneSaveStatus;
+    /** Layout: barra lateral de navegacao | painel aberto | mapa | chat. */
+    private final StackPane mapHolder = new StackPane();
+    private SplitPane mainSplit;
+    private VBox sidePanel;
+    private Label sidePanelTitle;
+    private final StackPane sidePanelBody = new StackPane();
+    private final java.util.Map<String, javafx.scene.Node> panelContents = new java.util.LinkedHashMap<>();
+    private final java.util.Map<String, ToggleButton> railButtons = new java.util.LinkedHashMap<>();
+    private String openPanelName;
+    private double sidePanelDivider = 0.25;
+    private VBox chatColumn;
     /** "Escondida" ao lado dos botoes rapidos de dado do chat. */
     private CheckBox hiddenQuickRolls;
     /** Janelas de ficha abertas agora, por id da ficha -- abrir de novo so
@@ -257,7 +268,14 @@ public class Main extends Application {
     @Override
     public void start(Stage stage) {
         this.stage = stage;
-        new MesaSelectorView(stage, this::onMesaChosen).show();
+        new MesaSelectorView(stage, this::onMesaChosen, this::onJoinOnline).show();
+    }
+
+    /** Entrar na mesa de outra pessoa direto da tela inicial: abre a pasta local dessa mesa e conecta. */
+    private void onJoinOnline(MesaRepository mesa, MesaSelectorView.JoinRequest req) {
+        onMesaChosen(mesa);
+        networkService.connectThroughRelay(req.relayCode());
+        onConnect(req.playerName(), req.host(), req.port(), req.tablePassword(), req.asGm(), req.masterPassword(), req.tls());
     }
 
     private void onMesaChosen(MesaRepository mesa) {
@@ -304,6 +322,7 @@ public class Main extends Application {
         root = new BorderPane();
         root.setTop(buildTopBar());
         root.setCenter(buildMainSplit());
+        root.setLeft(buildNavRail());
 
         Scene scene = new Scene(root, 1366, 860);
         scene.getStylesheets().add(getClass().getResource("/style.css").toExternalForm());
@@ -344,11 +363,8 @@ public class Main extends Application {
         logEntries.add(LogEntry.system("Mesa \"" + mesaService.getName()
                 + "\" aberta. Crie uma cena ou uma ficha para comecar."));
         if (compendiumService.getCompendium().getEntries().isEmpty()) {
-            logEntries.add(LogEntry.system("Dica: o compêndio desta mesa está vazio. Aba Fichas > \"Carregar "
-                    + "conteúdo 2024 pronto\" traz magias, talentos, espécies, antecedentes, itens e monstros."));
+            logEntries.add(LogEntry.system("Dica: compêndio vazio. Fichas > \"Carregar conteúdo 2024 pronto\"."));
         }
-        logEntries.add(LogEntry.system("Atalhos: clique direito no token = dano/cura/condições; clique duplo no "
-                + "token de personagem = abre a ficha; clique direito numa rolagem do chat = aplicar no token selecionado."));
     }
 
     /** Ponte entre SceneService (o "backend" da cena) e a tela: toda vez
@@ -365,12 +381,7 @@ public class Main extends Application {
                 mapView = new MapView(newScene, imageAssetService);
                 wireTokenMoveListener();
                 wireCharacterDropHandler();
-                StackPane mapArea = buildMapArea();
-                SplitPane mainSplit = (SplitPane) root.getCenter();
-                double dividerPos = mainSplit.getDividerPositions().length > 0
-                        ? mainSplit.getDividerPositions()[0] : 0.72;
-                mainSplit.getItems().set(0, mapArea);
-                mainSplit.setDividerPositions(dividerPos);
+                mapHolder.getChildren().setAll(buildMapArea());
                 if (gridSizeField != null) {
                     gridSizeField.setText(String.valueOf((int) newScene.getGrid().getCellSize()));
                 }
@@ -1019,6 +1030,11 @@ public class Main extends Application {
         networkService.statusProperty().addListener((o, a, b) -> Platform.runLater(paintStatus));
         paintStatus.run();
 
+        netStatusLabel.setCursor(javafx.scene.Cursor.HAND);
+        netStatusLabel.setTooltip(new Tooltip("Hospedar, conectar e backup"));
+        netStatusLabel.setOnMouseClicked(e -> openPanel("Rede"));
+        hint.setText("?");
+        hint.setTooltip(new Tooltip("Atalhos (F1)"));
         bar.getChildren().addAll(brand, sep, title, spacer, hint, netStatusLabel);
         return bar;
     }
@@ -1467,10 +1483,188 @@ public class Main extends Application {
     }
 
     private SplitPane buildMainSplit() {
-        SplitPane split = new SplitPane();
-        split.getItems().addAll(buildMapArea(), buildRightPanel());
-        split.setDividerPositions(0.72);
-        return split;
+        mapHolder.getChildren().setAll(buildMapArea());
+        buildSidePanel();
+        chatColumn = buildChatPanel();
+        chatColumn.setMinWidth(260);
+        chatColumn.setPrefWidth(330);
+        mainSplit = new SplitPane();
+        mainSplit.getStyleClass().add("main-split");
+        mainSplit.getItems().addAll(sidePanel, mapHolder, chatColumn);
+        SplitPane.setResizableWithParent(sidePanel, false);
+        SplitPane.setResizableWithParent(chatColumn, false);
+        mainSplit.setDividerPositions(sidePanelDivider, 0.76);
+        openPanel("Mapa");
+        return mainSplit;
+    }
+
+    /** Painel da esquerda: titulo + conteudo de uma secao por vez (as outras ficam escondidas, nao destruidas). */
+    private void buildSidePanel() {
+        String[] icons = {"map", "sheet", "party", "combat", "journal", "sound", "network"};
+        Tab[] tabs = {buildMapTab(), buildCharacterTab(), buildPartyTab(), buildInitiativeTab(), buildJournalTab(),
+                buildSoundTab(), buildNetworkTab()};
+        for (Tab t : tabs) {
+            javafx.scene.Node content = t.getContent();
+            t.setContent(null);
+            compactHints(content);
+            groupIntoCards(content, t.getText());
+            content.setVisible(false);
+            panelContents.put(t.getText(), content);
+            sidePanelBody.getChildren().add(content);
+        }
+        sidePanelTitle = new Label();
+        sidePanelTitle.getStyleClass().add("side-panel-title");
+        Button close = new Button("✕");
+        close.getStyleClass().addAll("button-flat", "side-panel-close");
+        close.setTooltip(new Tooltip("Fechar o painel (o mapa fica maior)"));
+        close.setOnAction(e -> closePanel());
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        HBox header = new HBox(8, sidePanelTitle, spacer, close);
+        header.setAlignment(Pos.CENTER_LEFT);
+        header.getStyleClass().add("side-panel-header");
+        VBox.setVgrow(sidePanelBody, Priority.ALWAYS);
+        sidePanel = new VBox(header, sidePanelBody);
+        sidePanel.getStyleClass().add("side-panel");
+        sidePanel.setMinWidth(300);
+        sidePanel.setPrefWidth(360);
+        railIcons = icons;
+    }
+
+    private String[] railIcons;
+
+    /** Barra de navegacao da esquerda: um botao grande (icone + nome) por secao; clicar de novo fecha o painel. */
+    private VBox buildNavRail() {
+        VBox rail = new VBox(2);
+        rail.getStyleClass().add("nav-rail");
+        String[] tips = {"Cenas, mapas importados e grade", "Fichas de personagem, compêndio e monstros",
+                "O grupo: PV, CA/Defesa e percepção de cada um", "Iniciativa, testes em grupo e descanso",
+                "Textos e imagens pros jogadores, tabelas aleatórias", "Música e sons ambiente",
+                "Hospedar ou entrar numa mesa, backup"};
+        int i = 0;
+        for (String name : panelContents.keySet()) {
+            String label = "Party".equals(name) ? "Grupo" : name;
+            ToggleButton b = new ToggleButton(label, com.vttcaseiro.view.Icons.icon(railIcons[i], 20));
+            b.setContentDisplay(javafx.scene.control.ContentDisplay.TOP);
+            b.getStyleClass().add("nav-rail-button");
+            b.setTooltip(new Tooltip(tips[i]));
+            b.setMaxWidth(Double.MAX_VALUE);
+            b.setOnAction(e -> togglePanel(name));
+            railButtons.put(name, b);
+            if ("Rede".equals(name)) {
+                Region spacer = new Region();
+                VBox.setVgrow(spacer, Priority.ALWAYS);
+                rail.getChildren().add(spacer);
+            }
+            rail.getChildren().add(b);
+            i++;
+        }
+        refreshRail();
+        return rail;
+    }
+
+    private void togglePanel(String name) {
+        if (name.equals(openPanelName) && mainSplit.getItems().contains(sidePanel)) closePanel();
+        else openPanel(name);
+    }
+
+    /** Mostra a secao no painel da esquerda (abre o painel se estava fechado). */
+    void openPanel(String name) {
+        if (!panelContents.containsKey(name)) return;
+        openPanelName = name;
+        panelContents.forEach((k, v) -> v.setVisible(k.equals(name)));
+        sidePanelTitle.setText("Party".equals(name) ? "Grupo" : name);
+        if (!mainSplit.getItems().contains(sidePanel)) {
+            double[] pos = mainSplit.getDividerPositions();
+            double chatPos = pos.length > 0 ? pos[pos.length - 1] : 0.76;
+            mainSplit.getItems().add(0, sidePanel);
+            mainSplit.setDividerPositions(sidePanelDivider, chatPos);
+        }
+        refreshRail();
+    }
+
+    private void closePanel() {
+        if (mainSplit.getItems().contains(sidePanel)) {
+            double[] pos = mainSplit.getDividerPositions();
+            if (pos.length > 1) sidePanelDivider = pos[0];
+            double chatPos = pos.length > 1 ? pos[1] : 0.76;
+            mainSplit.getItems().remove(sidePanel);
+            mainSplit.setDividerPositions(chatPos);
+        }
+        openPanelName = null;
+        refreshRail();
+    }
+
+    private void refreshRail() {
+        railButtons.forEach((k, b) -> b.setSelected(k.equals(openPanelName)));
+    }
+
+    /**
+     * Cada secao do painel (um titulo laranja e o que vem ate o proximo) vira um cartao com fundo proprio, no lugar
+     * das linhas divisorias. O titulo igual ao do painel (ex.: "Combate" dentro de Combate) some.
+     */
+    static void groupIntoCards(javafx.scene.Node content, String panelName) {
+        VBox box = content instanceof ScrollPane sp && sp.getContent() instanceof VBox v ? v
+                : content instanceof VBox v2 ? v2 : null;
+        if (box == null) return;
+        List<javafx.scene.Node> kids = new ArrayList<>(box.getChildren());
+        List<VBox> cards = new ArrayList<>();
+        VBox current = null;
+        for (javafx.scene.Node n : kids) {
+            if (n.getStyleClass().contains("section-divider")) continue;
+            boolean title = n instanceof Label l && l.getStyleClass().contains("label-section");
+            if (title || current == null) {
+                current = new VBox(8);
+                current.getStyleClass().add("panel-card");
+                cards.add(current);
+            }
+            if (title && ((Label) n).getText().equalsIgnoreCase(panelName) && current.getChildren().isEmpty()) {
+                continue; // repete o nome do painel
+            }
+            current.getChildren().add(n);
+        }
+        cards.removeIf(c -> c.getChildren().isEmpty());
+        box.getChildren().setAll(cards);
+        box.setSpacing(10);
+    }
+
+    /**
+     * Explicacoes longas viram um "ⓘ Como funciona" discreto que abre/fecha o texto: o painel fica limpo e a ajuda
+     * continua a um clique. Rotulos de estado (que mudam sozinhos) ficam como estao.
+     */
+    static void compactHints(javafx.scene.Node node) {
+        if (node instanceof ScrollPane sp && sp.getContent() != null) {
+            compactHints(sp.getContent());
+            return;
+        }
+        if (!(node instanceof javafx.scene.layout.Pane pane)) return;
+        List<javafx.scene.Node> kids = new ArrayList<>(pane.getChildren());
+        for (javafx.scene.Node kid : kids) {
+            if (kid instanceof Label l && l.getStyleClass().contains("label-muted") && !l.getStyleClass().contains("live-status")
+                    && l.isWrapText() && l.getText() != null && l.getText().length() > 70 && pane instanceof VBox) {
+                Label toggle = new Label("ⓘ  Como funciona");
+                toggle.getStyleClass().add("hint-toggle");
+                toggle.setCursor(javafx.scene.Cursor.HAND);
+                l.setVisible(false);
+                l.setManaged(false);
+                toggle.setOnMouseClicked(e -> {
+                    boolean show = !l.isVisible();
+                    l.setVisible(show);
+                    l.setManaged(show);
+                    toggle.setText(show ? "ⓘ  Esconder ajuda" : "ⓘ  Como funciona");
+                });
+                pane.getChildren().add(pane.getChildren().indexOf(l), toggle);
+            } else if (kid instanceof Label l && l.getStyleClass().contains("label-muted")) {
+                l.setWrapText(true); // curto: quebra a linha em vez de cortar com "..."
+            } else if (kid instanceof Button btn && btn.getMaxWidth() == Double.MAX_VALUE) {
+                btn.setWrapText(true); // botao da largura do painel: texto longo quebra em vez de "..."
+            } else if (kid instanceof CheckBox cb) {
+                cb.setWrapText(true);
+                cb.setMaxWidth(Double.MAX_VALUE);
+            } else {
+                compactHints(kid);
+            }
+        }
     }
 
     private StackPane buildMapArea() {
@@ -2032,7 +2226,28 @@ public class Main extends Application {
         targetsLabel.setGraphic(com.vttcaseiro.view.Icons.icon("target", 13));
         HBox catRow = new HBox(4, catButtons);
         catRow.getStyleClass().add("tool-group");
-        box.getChildren().addAll(toolGroup(targetsLabel, clearTargetsBtn), catRow, toolGroup(undoBtn, centerBtn));
+        HBox targetsGroup = toolGroup(targetsLabel, clearTargetsBtn);
+        // alvos so aparecem quando tem alvo marcado (menos coisa na tela)
+        Runnable showTargets = () -> {
+            boolean any = targetsLabel.getText() != null && !targetsLabel.getText().endsWith("nenhum");
+            targetsGroup.setVisible(any);
+            targetsGroup.setManaged(any);
+        };
+        targetsLabel.textProperty().addListener((o, a, b) -> showTargets.run());
+        showTargets.run();
+        box.getChildren().addAll(catRow, toolGroup(undoBtn, centerBtn), targetsGroup);
+        // mapa estreito (painel e chat abertos): so os icones, o nome fica na dica
+        java.util.List<javafx.scene.control.Labeled> squeezable = new java.util.ArrayList<>(List.of(catButtons));
+        squeezable.add(undoBtn);
+        squeezable.add(centerBtn);
+        mapHolder.widthProperty().addListener((o, a, w) -> {
+            boolean narrow = w.doubleValue() < 1000;
+            for (javafx.scene.control.Labeled l : squeezable) {
+                l.setContentDisplay(narrow ? javafx.scene.control.ContentDisplay.GRAPHIC_ONLY
+                        : javafx.scene.control.ContentDisplay.LEFT);
+                if (l.getTooltip() == null) l.setTooltip(new Tooltip(l.getText()));
+            }
+        });
         VBox toolbar = new VBox(6, box, panelHolder);
         toolbar.getStyleClass().add("map-toolbar");
         toolbar.setFillWidth(false);
@@ -2053,35 +2268,6 @@ public class Main extends Application {
         c.setTooltip(new Tooltip(text));
     }
 
-    private SplitPane buildRightPanel() {
-        SplitPane split = new SplitPane();
-        split.setOrientation(Orientation.VERTICAL);
-        split.getItems().addAll(buildTabs(), buildChatPanel());
-        split.setDividerPositions(0.5);
-        return split;
-    }
-
-    private TabPane buildTabs() {
-        TabPane tabs = new TabPane();
-        tabs.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
-        tabs.getTabs().addAll(buildMapTab(), buildCharacterTab(), buildPartyTab(),
-                buildInitiativeTab(), buildJournalTab(), buildSoundTab(), buildNetworkTab());
-        String[] icons = {"map", "sheet", "party", "combat", "journal", "sound", "network"};
-        String[] tips = {"Cenas, mapas importados e grade", "Fichas de personagem, compêndio e monstros",
-                "O grupo: PV, CA/Defesa e percepção (ou PM, PE, SAN) de cada um", "Iniciativa, testes em grupo e descanso",
-                "Diário: textos e imagens pros jogadores, tabelas aleatórias", "Música e sons ambiente",
-                "Hospedar ou entrar numa mesa, jogadores pelo navegador, backup"};
-        // Abas compactas: so o icone (com dica ao passar o mouse); a aba aberta mostra tambem o nome.
-        for (int i = 0; i < tabs.getTabs().size() && i < icons.length; i++) {
-            Tab tab = tabs.getTabs().get(i);
-            String name = tab.getText();
-            tab.setGraphic(com.vttcaseiro.view.Icons.icon(icons[i], 15));
-            tab.setTooltip(new Tooltip(name + ": " + tips[i]));
-            tab.setText(tab.isSelected() ? name : "");
-            tab.selectedProperty().addListener((o, was, now) -> tab.setText(now ? name : ""));
-        }
-        return tabs;
-    }
 
     private ScrollPane wrapInScroll(VBox content) {
         ScrollPane scroll = new ScrollPane(content);
@@ -2120,6 +2306,7 @@ public class Main extends Application {
         Button saveSceneButton = new Button("Salvar cena atual na mesa");
         saveSceneButton.setOnAction(e -> onSaveCurrentScene());
         sceneSaveStatus = new Label("A cena é salva sozinha 2 s depois de cada mudança (mestre/offline).");
+        sceneSaveStatus.getStyleClass().add("live-status");
         sceneSaveStatus.getStyleClass().add("label-muted");
         sceneSaveStatus.setWrapText(true);
         Button importMapButton = new Button("Importar mapa (Azgaar / Watabou)...", com.vttcaseiro.view.Icons.icon("upload", 14));
@@ -2288,6 +2475,7 @@ public class Main extends Application {
         HBox compendiumImportRow3 = new HBox(6,
                 compendiumImportButton("Itens...", compendiumImportService::importItems));
         compendiumCountLabel = new Label(compendiumCountText());
+        compendiumCountLabel.getStyleClass().add("live-status");
         compendiumCountLabel.getStyleClass().add("label-muted");
         Label importOrderHint = new Label("Ordem recomendada pra antecedente/espécie linkarem com o feat/magia "
                 + "que concedem: Magias e Feats primeiro, Antecedentes/Espécies depois. Fora dessa ordem não "
@@ -2301,6 +2489,7 @@ public class Main extends Application {
         Button importMonstersButton = new Button("Importar monstros (bestiary-*.json)...");
         importMonstersButton.setOnAction(e -> onImportMonsters());
         mobCountLabel = new Label(mobService.list().size() + " monstro(s) nesta mesa.");
+        mobCountLabel.getStyleClass().add("live-status");
         mobCountLabel.getStyleClass().add("label-muted");
         box.getChildren().addAll(importMonstersButton, mobCountLabel);
 
@@ -2493,6 +2682,7 @@ public class Main extends Application {
                 + " a atual não é apagada."));
         restoreButton.setOnAction(e -> onRestoreBackup());
         backupStatus = new Label(lastBackupText());
+        backupStatus.getStyleClass().add("live-status");
         backupStatus.getStyleClass().add("label-muted");
         backupStatus.setWrapText(true);
         box.getChildren().addAll(sectionLabel("Backups automáticos"), backupEvery,
@@ -2612,6 +2802,7 @@ public class Main extends Application {
         box.setPadding(new Insets(12));
 
         roundLabel = new Label("Sem combate em andamento");
+        roundLabel.getStyleClass().add("live-status");
         roundLabel.getStyleClass().add("label-title");
         box.getChildren().addAll(sectionLabel("Combate"), roundLabel);
         initiativeListView = new ListView<>();
@@ -3162,7 +3353,7 @@ public class Main extends Application {
         };
         chatInput.setOnAction(e -> send.run());
         sendButton.setOnAction(e -> send.run());
-        Button imageButton = new Button("Imagem");
+        Button imageButton = new Button("", com.vttcaseiro.view.Icons.icon("image", 16));
         imageButton.setMinWidth(Region.USE_PREF_SIZE);
         imageButton.setTooltip(new Tooltip("Mandar uma imagem no chat (JPG, JPEG, PNG ou GIF, até 4 MB). O texto da caixa"
                 + " vai junto como legenda. Também dá pra arrastar o arquivo pro chat."));
@@ -3195,7 +3386,7 @@ public class Main extends Application {
         HBox.setHgrow(chatInput, Priority.ALWAYS);
 
         // Todos os dados de D&D: clique rola 1, botao direito escolhe quantos.
-        javafx.scene.layout.FlowPane diceRow = new javafx.scene.layout.FlowPane(5, 4);
+        javafx.scene.layout.FlowPane diceRow = new javafx.scene.layout.FlowPane(3, 4);
         diceRow.setAlignment(Pos.CENTER_LEFT);
         for (int sides : new int[]{4, 6, 8, 10, 12, 20, 100}) {
             Button b = quickRollButton("d" + sides, "1d" + sides);
@@ -3223,7 +3414,9 @@ public class Main extends Application {
         macroRow.setAlignment(Pos.CENTER_LEFT);
         refreshMacroRow();
 
-        box.getChildren().addAll(label, chatList, diceRow, quickRow, macroRow, inputRow);
+        // macros na mesma linha de Vantagem/Desvantagem: uma linha a menos embaixo do chat
+        quickRow.getChildren().add(macroRow);
+        box.getChildren().addAll(label, chatList, diceRow, quickRow, inputRow);
         return box;
     }
 
