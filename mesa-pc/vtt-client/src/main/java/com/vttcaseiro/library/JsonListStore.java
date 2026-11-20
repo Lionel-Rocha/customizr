@@ -40,7 +40,7 @@ public class JsonListStore<T> {
             list.removeIf(java.util.Objects::isNull);
             return new ArrayList<>(list);
         } catch (IOException | RuntimeException ex) {
-            log.warn("Nao foi possivel ler " + file.getFileName() + ": " + ex.getMessage());
+            log.warn("Não foi possível ler " + file.getFileName() + ": " + ex.getMessage());
             return new ArrayList<>();
         }
     }
@@ -49,7 +49,7 @@ public class JsonListStore<T> {
         try {
             AtomicFiles.writeString(file, GSON.toJson(items));
         } catch (IOException ex) {
-            log.warn("Nao foi possivel salvar " + file.getFileName() + ": " + ex.getMessage());
+            log.warn("Não foi possível salvar " + file.getFileName() + ": " + ex.getMessage());
         }
     }
 }

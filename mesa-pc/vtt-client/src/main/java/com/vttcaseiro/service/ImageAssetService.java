@@ -59,7 +59,7 @@ public class ImageAssetService {
         try {
             bytes = java.util.Base64.getDecoder().decode(base64);
         } catch (IllegalArgumentException ex) {
-            throw new IOException("Imagem embutida invalida: " + ex.getMessage());
+            throw new IOException("Imagem embutida inválida: " + ex.getMessage());
         }
         return repository.getImageAssetStore().store(bytes, "imagem" + extensionFromMagic(bytes));
     }

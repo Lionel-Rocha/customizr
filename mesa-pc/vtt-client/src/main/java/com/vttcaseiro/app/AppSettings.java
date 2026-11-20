@@ -49,7 +49,7 @@ public final class AppSettings {
         try {
             Files.createDirectories(PREFS.getParent());
             try (var out = Files.newOutputStream(PREFS)) {
-                prefs().store(out, "Customizr - preferencias desta maquina");
+                prefs().store(out, "Customizr - preferências desta máquina");
             }
         } catch (IOException ignored) {
             // preferencia nao gravada: so volta ao padrao na proxima vez
@@ -110,7 +110,7 @@ public final class AppSettings {
             com.vttcaseiro.library.AtomicFiles.writeString(FILE, folder.toString());
         } catch (IOException ex) {
             // nao e critico -- so significa que vai perguntar nalguma pergunta de novo da proxima vez
-            System.err.println("Nao foi possivel salvar a configuracao: " + ex.getMessage());
+            System.err.println("Não foi possível salvar a configuração: " + ex.getMessage());
         }
     }
 
@@ -137,7 +137,7 @@ public final class AppSettings {
             Files.createDirectories(PLAYER_ID_FILE.getParent());
             com.vttcaseiro.library.AtomicFiles.writeString(PLAYER_ID_FILE, generated);
         } catch (IOException ex) {
-            System.err.println("Nao foi possivel salvar o id de jogador: " + ex.getMessage());
+            System.err.println("Não foi possível salvar o id de jogador: " + ex.getMessage());
         }
         return generated;
     }

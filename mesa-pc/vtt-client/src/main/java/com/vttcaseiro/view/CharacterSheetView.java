@@ -459,7 +459,7 @@ public class CharacterSheetView {
         identity.add(nameField, 0, 0, 4, 1);
         addLabeled(identity, 0, 1, "Classe", textField(sheet::getClassName, sheet::setClassName));
         addLabeled(identity, 1, 1, "Subclasse", textField(sheet::getSubclass, sheet::setSubclass));
-        addLabeled(identity, 2, 1, "Especie", textField(sheet::getSpecies, sheet::setSpecies));
+        addLabeled(identity, 2, 1, "Espécie", textField(sheet::getSpecies, sheet::setSpecies));
         addLabeled(identity, 3, 1, "Antecedente", textField(sheet::getBackground, sheet::setBackground));
 
         Spinner<Integer> levelSpinner = new Spinner<>(1, 20, sheet.getLevel());
@@ -469,7 +469,7 @@ public class CharacterSheetView {
             sheet.setHitDiceSpent(sheet.getHitDiceSpent()); // recorta se o nivel caiu
             changed();
         });
-        addLabeled(identity, 0, 3, "Nivel", levelSpinner);
+        addLabeled(identity, 0, 3, "Nível", levelSpinner);
         addLabeled(identity, 1, 3, "XP", intField(sheet::getExperiencePoints, sheet::setExperiencePoints, 6));
         addLabeled(identity, 2, 3, "Jogador", textField(sheet::getPlayerName, sheet::setPlayerName));
 
@@ -494,8 +494,8 @@ public class CharacterSheetView {
         });
 
         VBox right = new VBox(6, sectionLabel("Rolagens de d20"), modeBox, hiddenBox,
-                bigStat("Bonus de proficiencia", derived(() -> signed(sheet.proficiencyBonus()))),
-                checkBox("Inspiracao heroica", sheet::hasHeroicInspiration, sheet::setHeroicInspiration),
+                bigStat("Bônus de proficiência", derived(() -> signed(sheet.proficiencyBonus()))),
+                checkBox("Inspiração heroica", sheet::hasHeroicInspiration, sheet::setHeroicInspiration),
                 classButton(),
                 new HBox(8, saveNow, saveStatus));
         right.setMinWidth(Region.USE_PREF_SIZE);
@@ -754,7 +754,7 @@ public class CharacterSheetView {
         VBox defenses = card(sectionLabel("RESISTÊNCIAS A DANO"),
                 row(new Label("Resistente"), listField(sheet::getDamageResistances, sheet::setDamageResistances)),
                 row(new Label("Imune       "), listField(sheet::getDamageImmunities, sheet::setDamageImmunities)),
-                row(new Label("Vulneravel"), listField(sheet::getDamageVulnerabilities, sheet::setDamageVulnerabilities)),
+                row(new Label("Vulnerável"), listField(sheet::getDamageVulnerabilities, sheet::setDamageVulnerabilities)),
                 mutedLabel("ex.: fogo, veneno"));
 
         // coluna da direita da pagina principal: o que mais se olha em combate primeiro
@@ -821,7 +821,7 @@ public class CharacterSheetView {
             changed();
         });
         TextField effects = new TextField(String.join(", ", sheet.getEffects()));
-        effects.setPromptText("Bencao, Escudo, Furia, Anel [ca+1, salv+1]...");
+        effects.setPromptText("Bênção, Escudo, Fúria, Anel [ca+1, salv+1]...");
         effects.textProperty().addListener((obs, old, v) -> {
             sheet.setEffects(com.vttcaseiro.character.EffectModifiers.splitList(v));
             changed();
@@ -834,7 +834,7 @@ public class CharacterSheetView {
         active.setStyle("-fx-text-fill: #FFCF7F; -fx-font-weight: bold;");
         active.setWrapText(true);
         Label hint = mutedLabel("Condições, exaustão e efeitos já mudam as rolagens e a CA desta ficha. Conhecidos: "
-                + "Bencao, Perdicao, Escudo (+5 CA), Escudo da Fe, Orientacao, Furia, Velocidade, Esquiva. "
+                + "Bênção, Perdição, Escudo (+5 CA), Escudo da Fé, Orientação, Fúria, Velocidade, Esquiva. "
                 + "Outros com números entre colchetes: ca+1, ataque+1d4, salv+1, teste+1d4, dano+2, "
                 + "resist:fogo, vant:salv-des.");
         hint.setWrapText(true);
@@ -865,8 +865,8 @@ public class CharacterSheetView {
             shown[0] = resourcesSignature(sheet);
             rows.getChildren().clear();
             if (sheet.getResources().isEmpty()) {
-                rows.getChildren().add(mutedLabel("Nenhum recurso ainda. Ex.: Furia 3 (longo), Segundo Folego 1 (curto),"
-                        + " Pocao de cura 2 (consumivel)."));
+                rows.getChildren().add(mutedLabel("Nenhum recurso ainda. Ex.: Fúria 3 (longo), Segundo Fôlego 1 (curto),"
+                        + " Poção de cura 2 (consumível)."));
             }
             for (com.vttcaseiro.character.Resource r : new ArrayList<>(sheet.getResources())) {
                 Label name = new Label(r.getName());
@@ -1097,7 +1097,7 @@ public class CharacterSheetView {
             }
             actions.attack(sheet, a, rollMode, hiddenRolls);
         });
-        Label hint = new Label("Clique duplo para editar (ou para atacar com o botão). Bonus como \"+5\" rola o d20; "
+        Label hint = new Label("Clique duplo para editar (ou para atacar com o botão). Bônus como \"+5\" rola o d20; "
                 + "\"1d8+3 cortante\" rola o dano. Com alvos marcados no mapa, o dano cai sozinho em quem foi acertado.");
         hint.setWrapText(true);
         hint.getStyleClass().add("label-muted");
@@ -1189,7 +1189,7 @@ public class CharacterSheetView {
         grid.add(traitBox("TALENTOS (FEATS)", "feat"), 0, 1);
         grid.add(traitBox("OUTROS", "other"), 1, 1);
 
-        VBox proficiencies = card(sectionLabel("TREINAMENTO E PROFICIENCIAS"),
+        VBox proficiencies = card(sectionLabel("TREINAMENTO E PROFICIÊNCIAS"),
                 row(new Label("Armaduras:"),
                         checkBox("Leve", sheet::isArmorTrainingLight, sheet::setArmorTrainingLight),
                         checkBox("Media", sheet::isArmorTrainingMedium, sheet::setArmorTrainingMedium),
@@ -1326,12 +1326,12 @@ public class CharacterSheetView {
                 });
         spellAttack.setStyle(BIG_NUMBER_STYLE);
         HBox casting = new HBox(16,
-                card(sectionLabel("HABILIDADE DE CONJURACAO"), abilityBox),
+                card(sectionLabel("HABILIDADE DE CONJURAÇÃO"), abilityBox),
                 card(sectionLabel("MODIFICADOR"), bigNumber(derived(() -> sheet.isSpellcaster() ? signed(sheet.spellcastingModifier()) : "--"))),
                 card(sectionLabel("CD DE MAGIA"), bigNumber(derived(() -> sheet.isSpellcaster() ? String.valueOf(sheet.spellSaveDc()) : "--"))),
                 card(sectionLabel("ATAQUE DE MAGIA"), spellAttack));
 
-        return new VBox(10, casting, sectionLabel("ESPACOS DE MAGIA (slots)"), buildSlotsGrid(),
+        return new VBox(10, casting, sectionLabel("ESPAÇOS DE MAGIA (slots)"), buildSlotsGrid(),
                 sectionLabel("TRUQUES E MAGIAS PREPARADAS"), buildSpellsTable());
     }
 
@@ -1367,7 +1367,7 @@ public class CharacterSheetView {
     private Node buildSpellsTable() {
         TableView<PreparedSpell> table = new TableView<>();
         table.setPrefHeight(240);
-        table.getColumns().add(column("Nivel", PreparedSpell::levelText, 60));
+        table.getColumns().add(column("Nível", PreparedSpell::levelText, 60));
         table.getColumns().add(column("Nome", PreparedSpell::getName, 180));
         table.getColumns().add(column("Tempo", PreparedSpell::getCastingTime, 90));
         table.getColumns().add(column("Alcance", PreparedSpell::getRange, 80));
@@ -1419,7 +1419,7 @@ public class CharacterSheetView {
         });
         Button cast = new Button("Conjurar");
         cast.getStyleClass().add("button-primary");
-        cast.setTooltip(new Tooltip("Gasta o espaco de magia (pergunta o nível se der pra conjurar mais alto),"
+        cast.setTooltip(new Tooltip("Gasta o espaço de magia (pergunta o nível se der pra conjurar mais alto),"
                 + " marca concentração e rola os dados da magia."));
         cast.setOnAction(e -> {
             PreparedSpell selected = table.getSelectionModel().getSelectedItem();
@@ -1444,7 +1444,7 @@ public class CharacterSheetView {
                 if (slots.getCurrent(lvl) > 0) available.add(lvl);
             }
             if (available.isEmpty()) {
-                actions.chat(sheet, sheet.getName() + " não tem espaco de magia de nível " + spell.getLevel()
+                actions.chat(sheet, sheet.getName() + " não tem espaço de magia de nível " + spell.getLevel()
                         + " ou maior sobrando pra " + spell.getName() + ".");
                 return;
             }
@@ -1452,11 +1452,11 @@ public class CharacterSheetView {
                 slotLevel = available.get(0);
             } else {
                 List<String> labels = new ArrayList<>();
-                for (int lvl : available) labels.add("Nivel " + lvl + " (" + slots.getCurrent(lvl) + " sobrando)");
+                for (int lvl : available) labels.add("Nível " + lvl + " (" + slots.getCurrent(lvl) + " sobrando)");
                 javafx.scene.control.ChoiceDialog<String> choose = new javafx.scene.control.ChoiceDialog<>(labels.get(0), labels);
                 choose.setTitle("Conjurar " + spell.getName());
-                choose.setHeaderText("Em qual espaco de magia?");
-                choose.setContentText("Espaco:");
+                choose.setHeaderText("Em qual espaço de magia?");
+                choose.setContentText("Espaço:");
                 if (stage != null) choose.initOwner(stage);
                 java.util.Optional<String> picked = choose.showAndWait();
                 if (picked.isEmpty()) return;
@@ -1527,7 +1527,7 @@ public class CharacterSheetView {
         attackRoll.setSelected(spell.isSpellAttack());
         boolean ok = formDialog("Magia", List.of(
                 labeled("Nivel (0 = truque)", level), labeled("Nome", name),
-                labeled("Tempo de conjuracao", time), labeled("Alcance", range),
+                labeled("Tempo de conjuração", time), labeled("Alcance", range),
                 new HBox(10, conc, ritual, material),
                 labeled("Dados ao conjurar", dice), labeled("A mais por nível acima", perLevel),
                 labeled("Tipo de dano", dmgType), new HBox(10, new Label("Salvaguarda"), saveBox, half),
@@ -1573,7 +1573,7 @@ public class CharacterSheetView {
         addLabeled(looks, 2, 2, "Cabelo", textField(sheet::getHair, sheet::setHair));
 
         TextField languages = new TextField(String.join(", ", sheet.getLanguages()));
-        languages.setPromptText("Comum, Elfico, ...");
+        languages.setPromptText("Comum, Élfico, ...");
         languages.textProperty().addListener((obs, old, v) -> {
             sheet.getLanguages().clear();
             Arrays.stream(v.split(",")).forEach(sheet::addLanguage);
@@ -1761,7 +1761,7 @@ public class CharacterSheetView {
             case SPECIES -> "Escolher espécie";
             case BACKGROUND -> "Escolher antecedente";
             case ITEM -> "Adicionar itens";
-            default -> "Compendio";
+            default -> "Compêndio";
         };
         List<CompendiumEntry> picked = CompendiumPickerDialog.pick(stage, actions.compendium(), type, title + " - " + sheet.getName());
         if (picked.isEmpty()) return;
@@ -2049,10 +2049,10 @@ public class CharacterSheetView {
 
     private static String abilityNamePt(Ability a) {
         return switch (a) {
-            case STRENGTH -> "Forca";
+            case STRENGTH -> "Força";
             case DEXTERITY -> "Destreza";
-            case CONSTITUTION -> "Constituicao";
-            case INTELLIGENCE -> "Inteligencia";
+            case CONSTITUTION -> "Constituição";
+            case INTELLIGENCE -> "Inteligência";
             case WISDOM -> "Sabedoria";
             case CHARISMA -> "Carisma";
         };

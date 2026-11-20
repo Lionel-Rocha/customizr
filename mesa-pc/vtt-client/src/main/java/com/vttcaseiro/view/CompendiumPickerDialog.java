@@ -68,7 +68,7 @@ public final class CompendiumPickerDialog {
                 }
                 String extra = "";
                 if (e.getType() == CompendiumEntryType.SPELL && e.getSpellLevel() != null) {
-                    extra = e.getSpellLevel() == 0 ? "  - truque" : "  - nivel " + e.getSpellLevel();
+                    extra = e.getSpellLevel() == 0 ? "  - truque" : "  - nível " + e.getSpellLevel();
                 } else if (e.getType() == CompendiumEntryType.ITEM && e.getItemRarity() != null && !e.getItemRarity().isBlank()) {
                     extra = "  - " + e.getItemRarity();
                 }

@@ -24,7 +24,7 @@ public class PartyService {
         try {
             loaded = repository.loadParty().orElseGet(Party::new);
         } catch (IOException ex) {
-            log.warn("Nao foi possivel carregar a party salva, comecando uma nova: " + ex.getMessage());
+            log.warn("Não foi possível carregar a party salva, começando uma nova: " + ex.getMessage());
             loaded = new Party();
         }
         this.party = loaded;

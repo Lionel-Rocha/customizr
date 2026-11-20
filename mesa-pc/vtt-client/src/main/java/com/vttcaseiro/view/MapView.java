@@ -1754,7 +1754,7 @@ public class MapView extends Pane {
                     new javafx.scene.control.SeparatorMenuItem(),
                     menuItem("Condições...", () -> new ConditionsPickerView(token,
                             selected -> tokenActions.setConditions(token, selected)).show()),
-                    menuItem("Efeitos (Abencoado, Furia...)...", () -> askEffects(token)),
+                    menuItem("Efeitos (Abençoado, Fúria...)...", () -> askEffects(token)),
                     menuItem("Efeito com duração (rodadas)...", () -> askTimedEffect(token)),
                     menuItem("Rolar iniciativa", () -> tokenActions.rollInitiative(token)),
                     sizeMenu(token),
@@ -2020,7 +2020,7 @@ public class MapView extends Pane {
         grid.setVgap(6);
         grid.addRow(0, new Label("Atual"), current);
         grid.addRow(1, new Label("Máximo"), max);
-        grid.addRow(2, new Label("Temporario"), temp);
+        grid.addRow(2, new Label("Temporário"), temp);
         dialog.getDialogPane().setContent(grid);
         dialog.getDialogPane().getButtonTypes().addAll(javafx.scene.control.ButtonType.OK,
                 javafx.scene.control.ButtonType.CANCEL);
@@ -2041,7 +2041,7 @@ public class MapView extends Pane {
         javafx.scene.control.Dialog<javafx.scene.control.ButtonType> dialog = new javafx.scene.control.Dialog<>();
         dialog.setTitle("Efeito com duração em " + token.getName());
         javafx.scene.control.TextField name = new javafx.scene.control.TextField();
-        name.setPromptText("Bencao, Furia, Escudo da Fe...");
+        name.setPromptText("Bênção, Fúria, Escudo da Fé...");
         javafx.scene.control.Spinner<Integer> rounds = new javafx.scene.control.Spinner<>(1, 600, 10);
         rounds.setEditable(true);
         javafx.scene.layout.GridPane grid = new javafx.scene.layout.GridPane();
@@ -2060,7 +2060,7 @@ public class MapView extends Pane {
     private void askEffects(TokenModel token) {
         TextInputDialog dialog = new TextInputDialog(String.join(", ", token.getEffects()));
         dialog.setTitle("Efeitos de " + token.getName());
-        dialog.setHeaderText("Efeitos livres separados por virgula (ex.: Abencoado, Furia, Escudo da Fe).");
+        dialog.setHeaderText("Efeitos livres separados por vírgula (ex.: Abençoado, Fúria, Escudo da Fé).");
         dialog.setContentText("Efeitos:");
         dialog.showAndWait().ifPresent(text -> {
             // Virgula dentro de [ ] e termo do efeito ("Anel [ca+1, salv+1]").
@@ -2182,7 +2182,7 @@ public class MapView extends Pane {
 
     /** Submenu "Selecao (N)": a mesma acao em todos de uma vez. */
     private javafx.scene.control.Menu groupMenu(java.util.List<TokenModel> group) {
-        javafx.scene.control.Menu m = new javafx.scene.control.Menu("Selecao (" + group.size() + " tokens)");
+        javafx.scene.control.Menu m = new javafx.scene.control.Menu("Seleção (" + group.size() + " tokens)");
         m.getItems().add(menuItem("Dano em todos...", () -> askAmountGroup(group, true)));
         m.getItems().add(menuItem("Cura em todos...", () -> askAmountGroup(group, false)));
         m.getItems().add(menuItem("Mirar todos", () -> {

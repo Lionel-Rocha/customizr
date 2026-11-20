@@ -211,11 +211,11 @@ public class MesaSelectorView {
         });
         if (!list.getItems().isEmpty()) list.getSelectionModel().select(0);
 
-        Button newMesaButton = actionCard("add", "Nova mesa", "Comeca uma campanha do zero.", false);
+        Button newMesaButton = actionCard("add", "Nova mesa", "Começa uma campanha do zero.", false);
         newMesaButton.setOnAction(e -> onNewMesa(baseFolder));
 
         Button importButton = actionCard("upload", "Importar backup", "Mesa de outro computador (.zip).", false);
-        importButton.setTooltip(new javafx.scene.control.Tooltip("Abre um .zip exportado (aba Rede > Backup da mesa) como uma mesa nova."));
+        importButton.setTooltip(new javafx.scene.control.Tooltip("Abre um .zip exportado (engrenagem ⚙ da mesa > Exportar mesa inteira) como uma mesa nova."));
         importButton.setOnAction(e -> {
             javafx.stage.FileChooser chooser = new javafx.stage.FileChooser();
             chooser.setTitle("Escolher backup da mesa (.zip)");
@@ -305,8 +305,22 @@ public class MesaSelectorView {
     }
 
     private void onJoin(Path baseFolder) {
+        Optional<JoinRequest> asked = askJoin(stage);
+        if (asked.isEmpty()) return;
+        JoinRequest req = asked.get();
+        try {
+            onJoinOnline.accept(new LibraryStorage(onlineFolder(baseFolder, req)), req);
+        } catch (IOException ex) {
+            Alert alert = new Alert(Alert.AlertType.ERROR, "Não foi possível preparar a pasta da mesa online: " + ex.getMessage());
+            alert.setHeaderText(null);
+            alert.showAndWait();
+        }
+    }
+
+    /** Pergunta endereco/codigo/senhas pra entrar numa mesa online (lembra o caminho, nunca as senhas). */
+    public static Optional<JoinRequest> askJoin(javafx.stage.Window owner) {
         javafx.scene.control.Dialog<javafx.scene.control.ButtonType> dialog = new javafx.scene.control.Dialog<>();
-        dialog.initOwner(stage);
+        if (owner != null) dialog.initOwner(owner);
         dialog.setTitle("Entrar numa mesa online");
         dialog.setHeaderText("O mestre te passa o endereço (ou o código da ponte) e a senha, se tiver.");
         javafx.scene.control.TextField name = new javafx.scene.control.TextField(AppSettings.getString("online.nome", ""));
@@ -347,22 +361,15 @@ public class MesaSelectorView {
         javafx.scene.Node enterNode = dialog.getDialogPane().lookupButton(enter);
         enterNode.disableProperty().bind(javafx.beans.binding.Bindings.createBooleanBinding(
                 () -> name.getText().isBlank() || host.getText().isBlank(), name.textProperty(), host.textProperty()));
-        if (dialog.showAndWait().filter(b -> b == enter).isEmpty()) return;
+        if (dialog.showAndWait().filter(b -> b == enter).isEmpty()) return Optional.empty();
         JoinRequest req = new JoinRequest(name.getText().trim(), host.getText().trim(), port.getText().trim(),
                 code.getText().trim(), password.getText(), tls.isSelected(), gm.isSelected(), gmPassword.getText());
-        // lembra o caminho (nunca as senhas)
         AppSettings.setString("online.nome", req.playerName());
         AppSettings.setString("online.host", req.host());
         AppSettings.setString("online.porta", req.port());
         AppSettings.setString("online.codigo", req.relayCode());
         AppSettings.setBool("online.tls", req.tls());
-        try {
-            onJoinOnline.accept(new LibraryStorage(onlineFolder(baseFolder, req)), req);
-        } catch (IOException ex) {
-            Alert alert = new Alert(Alert.AlertType.ERROR, "Não foi possível preparar a pasta da mesa online: " + ex.getMessage());
-            alert.setHeaderText(null);
-            alert.showAndWait();
-        }
+        return Optional.of(req);
     }
 
     private void onNewMesa(Path baseFolder) {

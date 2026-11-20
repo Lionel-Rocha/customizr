@@ -65,7 +65,7 @@ public class MacroStore {
             list.removeIf(m -> m == null || m.getName().isBlank());
             return new ArrayList<>(list);
         } catch (IOException | RuntimeException ex) {
-            log.warn("Nao foi possivel ler as macros: " + ex.getMessage());
+            log.warn("Não foi possível ler as macros: " + ex.getMessage());
             return new ArrayList<>();
         }
     }
@@ -74,7 +74,7 @@ public class MacroStore {
         try {
             AtomicFiles.writeString(file, GSON.toJson(macros));
         } catch (IOException ex) {
-            log.warn("Nao foi possivel salvar as macros: " + ex.getMessage());
+            log.warn("Não foi possível salvar as macros: " + ex.getMessage());
         }
     }
 }

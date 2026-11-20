@@ -114,7 +114,7 @@ public class ImageAssetStore {
             // SHA-256 e garantido pela JVM (java.security.Security padrao) --
             // isso so pode acontecer numa JVM quebrada, e nao ha nada de
             // razoavel a fazer alem de parar.
-            throw new UncheckedIOException(new IOException("SHA-256 nao disponivel nesta JVM", ex));
+            throw new UncheckedIOException(new IOException("SHA-256 não disponível nesta JVM", ex));
         }
     }
 
@@ -146,7 +146,7 @@ public class ImageAssetStore {
 
     private static String safeAssetId(String assetId) {
         if (!assetId.matches("[0-9a-f]{64}\\.(png|jpg|jpeg|gif|webp|bmp)")) {
-            throw new IllegalArgumentException("Id de asset de imagem invalido: " + assetId);
+            throw new IllegalArgumentException("Id de asset de imagem inválido: " + assetId);
         }
         return assetId;
     }

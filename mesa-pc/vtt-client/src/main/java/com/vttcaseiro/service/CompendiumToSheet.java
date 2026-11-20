@@ -32,7 +32,7 @@ public final class CompendiumToSheet {
     /** Resumo do que mudou, pra mostrar no chat/log. */
     public record ApplyResult(List<String> changes, int traitsAdded) {
         public String summary() {
-            return String.join("; ", changes) + (traitsAdded > 0 ? "; " + traitsAdded + " caracteristica(s) adicionada(s)" : "");
+            return String.join("; ", changes) + (traitsAdded > 0 ? "; " + traitsAdded + " característica(s) adicionada(s)" : "");
         }
     }
 
@@ -52,7 +52,7 @@ public final class CompendiumToSheet {
         Ability casting = abilityFromCode(dndClass.getSpellcastingAbility());
         if (casting != null) {
             sheet.setSpellcastingAbility(casting);
-            changes.add("conjuracao por " + casting.abbreviationPt());
+            changes.add("conjuração por " + casting.abbreviationPt());
         }
         for (String code : dndClass.getSavingThrows()) {
             Ability a = abilityFromCode(code);
@@ -76,7 +76,7 @@ public final class CompendiumToSheet {
         }
         if (chosenSkills != null) {
             for (Skill skill : chosenSkills) sheet.setSkillProficient(skill, true);
-            if (!chosenSkills.isEmpty()) changes.add(chosenSkills.size() + " pericia(s)");
+            if (!chosenSkills.isEmpty()) changes.add(chosenSkills.size() + " perícia(s)");
         }
 
         int added = 0;
@@ -85,7 +85,7 @@ public final class CompendiumToSheet {
             String name = grant.getFeature().getName();
             boolean present = sheet.getTraits().stream().anyMatch(t -> name.equalsIgnoreCase(t.getName()));
             if (present) continue;
-            String desc = "Nivel " + grant.getLevel() + ". " + (grant.getFeature().getDescription() == null ? "" : grant.getFeature().getDescription());
+            String desc = "Nível " + grant.getLevel() + ". " + (grant.getFeature().getDescription() == null ? "" : grant.getFeature().getDescription());
             sheet.addTrait(new CharacterTrait(name, desc.trim(), "class"));
             added++;
         }
@@ -99,7 +99,7 @@ public final class CompendiumToSheet {
         List<Skill> result = new ArrayList<>();
         List<String> names = dndClass.getSkillChoices();
         if (names.isEmpty() && dndClass.getSkillChoiceCount() > 0) {
-            return List.of(Skill.values()); // "qualquer pericia"
+            return List.of(Skill.values()); // "qualquer perícia"
         }
         for (String n : names) {
             Skill s = skillFromToolsName(n);
@@ -201,7 +201,7 @@ public final class CompendiumToSheet {
             case SPELL -> {
                 boolean present = sheet.getSpells().stream().anyMatch(s -> entry.getName().equalsIgnoreCase(s.getName()));
                 if (!present) sheet.getSpells().add(spellFromEntry(entry));
-                return present ? entry.getName() + " ja estava na lista de magias." : "Magia adicionada: " + entry.getName();
+                return present ? entry.getName() + " já estava na lista de magias." : "Magia adicionada: " + entry.getName();
             }
             case ITEM -> {
                 long copper = entry.getItemValueGp() == null ? 0 : Math.round(entry.getItemValueGp() * 100);
@@ -244,7 +244,7 @@ public final class CompendiumToSheet {
                 }
             }
         }
-        return added.isEmpty() ? entry.getName() + " ja estava na ficha." : "Adicionado: " + String.join(", ", added);
+        return added.isEmpty() ? entry.getName() + " já estava na ficha." : "Adicionado: " + String.join(", ", added);
     }
 
     private static boolean addTraitIfMissing(CharacterSheet sheet, CompendiumEntry entry, String category) {

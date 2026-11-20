@@ -121,7 +121,7 @@ public class TokenNode extends StackPane {
                     labels.add(c);
                 }
             }
-            sb.append(NL).append("Condicoes: ").append(String.join(", ", labels));
+            sb.append(NL).append("Condições: ").append(String.join(", ", labels));
         }
         if (!model.getEffects().isEmpty()) sb.append(NL).append("Efeitos: ").append(String.join(", ", model.getEffects()));
         if (model.getInitiative() != null) sb.append(NL).append("Iniciativa: ").append(model.getInitiative());
@@ -341,7 +341,7 @@ public class TokenNode extends StackPane {
         Integer current = model.getCurrentHp();
         Integer max = model.getMaxHp();
         if (current == null || max == null || max <= 0 || current * 2 > max) return null;
-        Label label = new Label(current == 0 ? "Caido" : "Sangrando");
+        Label label = new Label(current == 0 ? "Caído" : "Sangrando");
         label.setStyle("-fx-background-color: #D9544CDD; -fx-text-fill: white; -fx-font-size: 9px;"
                 + " -fx-padding: 0 4 0 4; -fx-background-radius: 3;");
         StackPane.setAlignment(label, Pos.TOP_CENTER);

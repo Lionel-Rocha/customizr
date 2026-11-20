@@ -80,8 +80,8 @@ public class CompendiumImportService {
     private Compendium.MergeResult addAndLog(java.util.List<com.vttcaseiro.compendium.CompendiumEntry> entries,
             String label) throws IOException {
         Compendium.MergeResult result = compendiumService.addEntries(entries);
-        log.info("Importacao de " + label + ": " + result.added().size() + " novas, "
-                + result.skipped().size() + " puladas (ja existiam).");
+        log.info("Importação de " + label + ": " + result.added().size() + " novas, "
+                + result.skipped().size() + " puladas (já existiam).");
         return result;
     }
 

@@ -33,7 +33,7 @@ public class HandoutStore {
             list.removeIf(h -> h == null || h.getId() == null);
             return new ArrayList<>(list);
         } catch (IOException | RuntimeException ex) {
-            log.warn("Nao foi possivel ler o diario: " + ex.getMessage());
+            log.warn("Não foi possível ler o diário: " + ex.getMessage());
             return new ArrayList<>();
         }
     }
@@ -42,7 +42,7 @@ public class HandoutStore {
         try {
             AtomicFiles.writeString(file, GSON.toJson(handouts));
         } catch (IOException ex) {
-            log.warn("Nao foi possivel salvar o diario: " + ex.getMessage());
+            log.warn("Não foi possível salvar o diário: " + ex.getMessage());
         }
     }
 }

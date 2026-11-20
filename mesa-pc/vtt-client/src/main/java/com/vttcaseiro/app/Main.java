@@ -370,9 +370,9 @@ public class Main extends Application {
             }
         });
         logEntries.add(LogEntry.system("Mesa \"" + mesaService.getName()
-                + "\" aberta. Crie uma cena ou uma ficha para comecar."));
+                + "\" aberta. Crie uma cena ou uma ficha para começar."));
         if (compendiumService.getCompendium().getEntries().isEmpty()) {
-            logEntries.add(LogEntry.system("Dica: compêndio vazio. Fichas > \"Carregar conteúdo 2024 pronto\"."));
+            logEntries.add(LogEntry.system("Dica: compêndio vazio. Fichas > Abrir compêndio > \"Carregar conteúdo 2024 pronto\"."));
         }
     }
 
@@ -982,7 +982,7 @@ public class Main extends Application {
         try {
             return DiceRoller.roll(expression);
         } catch (DiceException ex) {
-            return new RollResult(0, expression + " invalido");
+            return new RollResult(0, expression + " inválido");
         }
     }
 
@@ -1054,7 +1054,12 @@ public class Main extends Application {
             if (back != null) onOpenMapFromMesa(back);
         });
         refreshReturnButton();
-        bar.getChildren().addAll(brand, sep, title, spacer, returnSceneButton, hint, netStatusLabel);
+        Button gear = new Button("⚙");
+        gear.getStyleClass().add("button-flat");
+        gear.setStyle("-fx-font-size: 15px;");
+        gear.setTooltip(new Tooltip("Configurações da mesa: backup e cópias automáticas"));
+        gear.setOnAction(e -> showMesaSettings());
+        bar.getChildren().addAll(brand, sep, title, spacer, returnSceneButton, hint, gear, netStatusLabel);
         return bar;
     }
 
@@ -1213,7 +1218,7 @@ public class Main extends Application {
             case "masmorra" -> "Masmorra / covil";
             case "perigo" -> "Perigo";
             case "tesouro" -> "Tesouro";
-            default -> "Informacao";
+            default -> "Informação";
         };
     }
 
@@ -1229,7 +1234,7 @@ public class Main extends Application {
         dialog.getDialogPane().getStylesheets().add(getClass().getResource("/style.css").toExternalForm());
 
         TextField title = new TextField(pin.getTitle());
-        title.setPromptText("Ex.: Alta Torre, Forja do Anao, Covil do Dragao");
+        title.setPromptText("Ex.: Alta Torre, Forja do Anão, Covil do Dragão");
         ComboBox<String> kind = new ComboBox<>(FXCollections.observableArrayList(com.vttcaseiro.model.MapPin.KINDS));
         kind.setValue(pin.getKind());
         kind.setCellFactory(lv -> new ListCell<>() {
@@ -1618,6 +1623,38 @@ public class Main extends Application {
         railButtons.forEach((k, b) -> b.setSelected(k.equals(openPanelName)));
     }
 
+    /** Altura de uma linha das listas dos paineis (pra calcular quanto a lista ocupa). */
+    static final double LIST_ROW = 30;
+
+    /**
+     * Lista vazia ou curta encolhe (vazia: so a frase); com mais itens cresce ate a altura que tinha (depois rola).
+     */
+    static void fitListHeight(ListView<?> lv) {
+        double max = lv.getPrefHeight() > 0 ? lv.getPrefHeight() : 200;
+        if (lv.getPlaceholder() instanceof Label ph) {
+            ph.setWrapText(true);
+            ph.setPadding(new Insets(0, 8, 0, 8));
+        }
+        lv.prefHeightProperty().bind(javafx.beans.binding.Bindings.createDoubleBinding(() -> {
+            int n = lv.getItems().size();
+            return n == 0 ? 60.0 : Math.min(max, n * LIST_ROW + 8);
+        }, lv.getItems()));
+        lv.setMinHeight(javafx.scene.layout.Region.USE_PREF_SIZE);
+    }
+
+    /** Mesmo pra arvore de cenas: conta as linhas abertas. */
+    static void fitTreeHeight(javafx.scene.control.TreeView<?> tv) {
+        double max = tv.getPrefHeight() > 0 ? tv.getPrefHeight() : 220;
+        javafx.beans.value.ChangeListener<Object> resize = (o, a, b) -> {
+            int n = Math.max(0, tv.getExpandedItemCount() - (tv.isShowRoot() ? 0 : 1));
+            tv.setPrefHeight(n == 0 ? 40 : Math.min(max, n * LIST_ROW + 8));
+        };
+        tv.expandedItemCountProperty().addListener(resize);
+        tv.rootProperty().addListener(resize);
+        resize.changed(null, null, null);
+        tv.setMinHeight(javafx.scene.layout.Region.USE_PREF_SIZE);
+    }
+
     /**
      * Cada secao do painel (um titulo laranja e o que vem ate o proximo) vira um cartao com fundo proprio, no lugar
      * das linhas divisorias. O titulo igual ao do painel (ex.: "Combate" dentro de Combate) some.
@@ -1654,6 +1691,14 @@ public class Main extends Application {
     static void compactHints(javafx.scene.Node node) {
         if (node instanceof ScrollPane sp && sp.getContent() != null) {
             compactHints(sp.getContent());
+            return;
+        }
+        if (node instanceof ListView<?> lv) {
+            fitListHeight(lv);
+            return;
+        }
+        if (node instanceof javafx.scene.control.TreeView<?> tv) {
+            fitTreeHeight(tv);
             return;
         }
         if (!(node instanceof javafx.scene.layout.Pane pane)) return;
@@ -2462,7 +2507,7 @@ public class Main extends Application {
         box.getChildren().add(sectionLabel("Fichas desta mesa"));
         characterListView = new ListView<>();
         characterListView.setPlaceholder(new Label("Nenhuma ficha ainda. Crie uma nova ou importe um PDF/JSON."));
-        characterListView.setPrefHeight(220);
+        characterListView.setPrefHeight(170);
         refreshCharacterList();
         characterListView.setOnMouseClicked(e -> {
             if (e.getClickCount() == 2) {
@@ -2476,37 +2521,48 @@ public class Main extends Application {
         newCharButton.getStyleClass().add("button-primary");
         newCharButton.setOnAction(e -> onNewCharacter());
         Button importCharButton = new Button("Importar ficha (PDF ou JSON)...", com.vttcaseiro.view.Icons.icon("upload", 14));
-        importCharButton.setTooltip(new Tooltip("PDF preenchivel (ficha oficial de 5e, D&D Beyond \"Exportar PDF\")"
+        importCharButton.setTooltip(new Tooltip("PDF preenchível (ficha oficial de 5e, D&D Beyond \"Exportar PDF\")"
                 + " ou JSON (Customizr, Foundry VTT dnd5e, D&D Beyond)."));
         importCharButton.setOnAction(e -> onImportCharacter());
         Button exportCharButton = new Button("Exportar ficha aberta (JSON)...", com.vttcaseiro.view.Icons.icon("download", 14));
         exportCharButton.setOnAction(e -> onExportCharacter());
         Button saveCharButton = new Button("Salvar ficha aberta (ex.: após trocar retrato)");
         saveCharButton.setOnAction(e -> onSaveLastCharacter());
-        for (Button b : List.of(newCharButton, importCharButton, exportCharButton, saveCharButton)) b.setMaxWidth(Double.MAX_VALUE);
-        box.getChildren().addAll(newCharButton, importCharButton, exportCharButton, saveCharButton, divider());
+        importCharButton.setText("Importar...");
+        javafx.scene.control.MenuButton moreChar = new javafx.scene.control.MenuButton("Mais");
+        javafx.scene.control.MenuItem exportItem = new javafx.scene.control.MenuItem("Exportar ficha aberta (JSON)...");
+        exportItem.setOnAction(e -> onExportCharacter());
+        javafx.scene.control.MenuItem saveItem = new javafx.scene.control.MenuItem("Salvar ficha aberta agora");
+        saveItem.setOnAction(e -> onSaveLastCharacter());
+        moreChar.getItems().addAll(exportItem, saveItem);
+        javafx.scene.layout.FlowPane charButtons = new javafx.scene.layout.FlowPane(6, 6, newCharButton, importCharButton, moreChar);
+        for (javafx.scene.control.Control c : List.of(newCharButton, importCharButton, moreChar)) c.setMinWidth(Region.USE_PREF_SIZE);
+        box.getChildren().addAll(charButtons, divider());
 
-        box.getChildren().add(sectionLabel("Conteúdo pronto (D&D 2024)"));
+        // Tudo que e de preparar a campanha (importar, conteudo pronto, buscar no compendio) fica numa janela propria.
+        VBox compendium = new VBox(8);
+        compendium.setPadding(new Insets(12));
+        compendium.getChildren().add(sectionLabel("Conteúdo pronto (D&D 2024)"));
         Button seedButton = new Button("Carregar conteúdo 2024 pronto (magias, talentos, espécies, "
                 + "antecedentes, itens + monstros)");
         seedButton.getStyleClass().add("button-primary");
         seedButton.setWrapText(true);
         seedButton.setOnAction(e -> onLoadSeedContent());
-        box.getChildren().addAll(seedButton, divider());
+        compendium.getChildren().addAll(seedButton, divider());
 
-        box.getChildren().add(sectionLabel("Compêndio (5etools)"));
+        compendium.getChildren().add(sectionLabel("Importar do 5etools"));
         Button importClassesButton = new Button("Importar classes (class-*.json)...");
         importClassesButton.setOnAction(e -> onImportClasses());
         classCountLabel = new Label(classImportService.getClasses().size() + " classe(s) importada(s) nesta mesa.");
         classCountLabel.getStyleClass().add("label-muted");
-        box.getChildren().addAll(importClassesButton, classCountLabel);
+        compendium.getChildren().addAll(importClassesButton, classCountLabel);
 
         HBox compendiumImportRow1 = new HBox(6,
                 compendiumImportButton("Magias...", compendiumImportService::importSpells),
                 compendiumImportButton("Feats...", compendiumImportService::importFeats));
         HBox compendiumImportRow2 = new HBox(6,
                 compendiumImportButton("Antecedentes...", compendiumImportService::importBackgrounds),
-                compendiumImportButton("Especies...", compendiumImportService::importSpecies));
+                compendiumImportButton("Espécies...", compendiumImportService::importSpecies));
         HBox compendiumImportRow3 = new HBox(6,
                 compendiumImportButton("Itens...", compendiumImportService::importItems));
         compendiumCountLabel = new Label(compendiumCountText());
@@ -2517,19 +2573,20 @@ public class Main extends Application {
                 + "da erro nenhum, só fica sem o link.");
         importOrderHint.getStyleClass().add("label-muted");
         importOrderHint.setWrapText(true);
-        box.getChildren().addAll(compendiumImportRow1, compendiumImportRow2, compendiumImportRow3,
-                compendiumCountLabel, importOrderHint, divider());
-
-        box.getChildren().add(sectionLabel("Monstros (bestiário 5e.tools, ex.: Manual dos Monstros 2024)"));
-        Button importMonstersButton = new Button("Importar monstros (bestiary-*.json)...");
+        Button importMonstersButton = new Button("Monstros (bestiary-*.json)...");
         importMonstersButton.setOnAction(e -> onImportMonsters());
+        compendium.getChildren().addAll(compendiumImportRow1, compendiumImportRow2, compendiumImportRow3,
+                new HBox(6, importMonstersButton), compendiumCountLabel, importOrderHint);
+
+        box.getChildren().add(sectionLabel("Monstros"));
         mobCountLabel = new Label(mobService.list().size() + " monstro(s) nesta mesa.");
         mobCountLabel.getStyleClass().add("live-status");
         mobCountLabel.getStyleClass().add("label-muted");
-        box.getChildren().addAll(importMonstersButton, mobCountLabel);
+        box.getChildren().add(mobCountLabel);
 
         mobListView = new ListView<>();
         mobListView.setPrefHeight(160);
+        mobListView.setPlaceholder(new Label("Nenhum monstro ainda (importe no Compêndio)."));
         refreshMobList();
         mobListView.setOnMouseClicked(e -> {
             if (e.getClickCount() == 2) {
@@ -2541,12 +2598,12 @@ public class Main extends Application {
         mobToMapButton.setOnAction(e -> onPlaceSelectedMob());
         box.getChildren().add(mobToMapButton);
         Label mobHint = new Label("Clique duplo num monstro da lista pra abrir a ficha dele. O token do monstro "
-                + "nasce com PV médio e bonus de iniciativa; o PV fica escondido dos jogadores.");
+                + "nasce com PV médio e bônus de iniciativa; o PV fica escondido dos jogadores.");
         mobHint.getStyleClass().add("label-muted");
         mobHint.setWrapText(true);
         box.getChildren().addAll(mobListView, mobHint, divider());
 
-        box.getChildren().add(sectionLabel("Anexar algo do compêndio na ficha aberta"));
+        compendium.getChildren().add(sectionLabel("Buscar e anexar na ficha aberta"));
         TextField compendiumSearchField = new TextField();
         compendiumSearchField.setPromptText("Buscar por nome (ex.: \"Bola de Fogo\", \"Aasimar\")...");
         compendiumSearchListView = new ListView<>();
@@ -2564,8 +2621,18 @@ public class Main extends Application {
         Button attachButton = new Button("Anexar na ficha aberta");
         attachButton.getStyleClass().add("button-primary");
         attachButton.setOnAction(e -> onAttachSelectedCompendiumEntry());
-        box.getChildren().addAll(new HBox(6, compendiumSearchField, searchButton), compendiumSearchListView,
-                attachButton, divider());
+        HBox.setHgrow(compendiumSearchField, Priority.ALWAYS);
+        compendium.getChildren().addAll(new HBox(6, compendiumSearchField, searchButton), compendiumSearchListView,
+                attachButton);
+
+        box.getChildren().add(sectionLabel("Compêndio"));
+        Label compendiumSummary = new Label();
+        compendiumSummary.getStyleClass().addAll("label-muted", "live-status");
+        compendiumSummary.textProperty().bind(compendiumCountLabel.textProperty());
+        Button openCompendium = new Button("Abrir compêndio...", com.vttcaseiro.view.Icons.icon("journal", 14));
+        openCompendium.setTooltip(new Tooltip("Conteúdo pronto 2024, importar do 5etools e buscar algo pra anexar na ficha."));
+        openCompendium.setOnAction(e -> showCompendiumWindow(compendium));
+        box.getChildren().addAll(compendiumSummary, openCompendium, divider());
 
         Label hint = new Label("Dica: arraste o retrato (ou a silhueta) da janela "
                 + "da ficha para cima do mapa -- isso cria um token vinculado a "
@@ -2575,6 +2642,87 @@ public class Main extends Application {
         box.getChildren().add(hint);
 
         return new Tab("Fichas", wrapInScroll(box));
+    }
+
+    private Stage mesaSettingsWindow;
+
+    /** Engrenagem do topo: backup e copias automaticas da mesa (saiu da aba Rede). */
+    private void showMesaSettings() {
+        if (mesaSettingsWindow == null) {
+            VBox settings = new VBox(8);
+            settings.setPadding(new Insets(12));
+        // --- Backup da mesa inteira ---
+            Button exportButton = new Button("Exportar mesa inteira (backup)...");
+            exportButton.setTooltip(new Tooltip("Um .zip com fichas, cenas, monstros, imagens, sons, diário e tabelas."
+                    + " Importe na tela de escolher mesa (\"Importar backup...\")."));
+            exportButton.setOnAction(e -> onExportMesa());
+            Label backupHint = new Label("Pra guardar a campanha ou levar pra outro computador.");
+            backupHint.getStyleClass().add("label-muted");
+            settings.getChildren().addAll(sectionLabel("Backup da mesa"), exportButton, backupHint);
+
+            ComboBox<String> backupEvery = new ComboBox<>();
+            for (int m : BACKUP_MINUTES) backupEvery.getItems().add(m == 0 ? "Desligado" : "A cada " + m + " min");
+            int current = autoBackupMinutes();
+            for (int i = 0; i < BACKUP_MINUTES.length; i++) if (BACKUP_MINUTES[i] == current) backupEvery.getSelectionModel().select(i);
+            backupEvery.setTooltip(new Tooltip("Cópia automática da mesa (só quando algo mudou). Ficam as "
+                    + com.vttcaseiro.library.AutoBackup.KEEP + " mais novas, na pasta backups da mesa."));
+            backupEvery.setOnAction(e -> {
+                int i = backupEvery.getSelectionModel().getSelectedIndex();
+                if (i < 0) return;
+                AppSettings.setDouble("autoBackupMinutes", BACKUP_MINUTES[i]);
+                restartAutoBackupTimer();
+            });
+            Button backupNow = new Button("Fazer backup agora");
+            backupNow.setOnAction(e -> runBackup("manual", true));
+            Button restoreButton = new Button("Restaurar backup...");
+            restoreButton.setTooltip(new Tooltip("Volta a mesa como estava num backup. Cria uma mesa NOVA com a cópia;"
+                    + " a atual não é apagada."));
+            restoreButton.setOnAction(e -> onRestoreBackup());
+            backupStatus = new Label(lastBackupText());
+            backupStatus.getStyleClass().add("live-status");
+            backupStatus.getStyleClass().add("label-muted");
+            backupStatus.setWrapText(true);
+            settings.getChildren().addAll(sectionLabel("Backups automáticos"), backupEvery,
+                    new javafx.scene.layout.FlowPane(6, 6, backupNow, restoreButton), backupStatus);
+
+            compactHints(settings);
+            groupIntoCards(settings, "");
+            ScrollPane scroll = new ScrollPane(settings);
+            scroll.setFitToWidth(true);
+            scroll.getStyleClass().add("side-panel");
+            mesaSettingsWindow = new Stage();
+            mesaSettingsWindow.initOwner(stage);
+            mesaSettingsWindow.setTitle("Mesa: " + mesaService.getName());
+            Scene sc = new Scene(scroll, 420, 460);
+            sc.getStylesheets().add(getClass().getResource("/style.css").toExternalForm());
+            mesaSettingsWindow.setScene(sc);
+            com.vttcaseiro.view.Icons.applyTo(mesaSettingsWindow);
+        }
+        if (backupStatus != null) backupStatus.setText(lastBackupText());
+        mesaSettingsWindow.show();
+        mesaSettingsWindow.toFront();
+    }
+
+    private Stage compendiumWindow;
+
+    /** Janela do compendio (criada uma vez; os contadores dentro dela continuam atualizando). */
+    private void showCompendiumWindow(VBox content) {
+        if (compendiumWindow == null) {
+            compactHints(content);
+            groupIntoCards(content, "");
+            ScrollPane scroll = new ScrollPane(content);
+            scroll.setFitToWidth(true);
+            scroll.getStyleClass().add("side-panel");
+            compendiumWindow = new Stage();
+            compendiumWindow.initOwner(stage);
+            compendiumWindow.setTitle("Compêndio da mesa");
+            Scene sc = new Scene(scroll, 460, 640);
+            sc.getStylesheets().add(getClass().getResource("/style.css").toExternalForm());
+            compendiumWindow.setScene(sc);
+            com.vttcaseiro.view.Icons.applyTo(compendiumWindow);
+        }
+        compendiumWindow.show();
+        compendiumWindow.toFront();
     }
 
     private Tab buildNetworkTab() {
@@ -2662,80 +2810,38 @@ public class Main extends Application {
         Label relayHint = new Label("Ponte (opcional): pra jogar pela internet sem abrir porta no roteador nem Tailscale.");
         relayHint.getStyleClass().add("label-muted");
         relayHint.setWrapText(true);
-        box.getChildren().addAll(hostRow, hostTls, hostTablePasswordField, hostMasterPasswordField, tlsCode, webBox,
-                relayHint, relayRow, relayInfo, divider());
+        VBox hostMore = new VBox(8, hostTls, hostTablePasswordField, hostMasterPasswordField, relayHint, relayRow);
+        hostMore.setVisible(false);
+        hostMore.setManaged(false);
+        Label hostMoreToggle = new Label("▸  Senhas, criptografia e ponte");
+        hostMoreToggle.getStyleClass().add("hint-toggle");
+        hostMoreToggle.setCursor(javafx.scene.Cursor.HAND);
+        hostMoreToggle.setOnMouseClicked(e -> {
+            boolean show = !hostMore.isVisible();
+            hostMore.setVisible(show);
+            hostMore.setManaged(show);
+            hostMoreToggle.setText((show ? "▾" : "▸") + "  Senhas, criptografia e ponte");
+        });
+        box.getChildren().addAll(hostRow, hostMoreToggle, hostMore, tlsCode, webBox, relayInfo, divider());
 
         box.getChildren().add(sectionLabel("Conectar"));
-        TextField hostField = new TextField("localhost");
-        TextField portField = new TextField("55055");
-        Button connectButton = new Button("Conectar");
-        connectButton.setMinWidth(Region.USE_PREF_SIZE);
-        HBox connectRow = new HBox(6, hostField, portField, connectButton);
-        PasswordField connectTablePasswordField = new PasswordField();
-        connectTablePasswordField.setPromptText("Senha da mesa (se tiver)");
-        CheckBox connectTls = new CheckBox("Mesa criptografada (TLS)");
-        CheckBox connectAsGmCheck = new CheckBox("Entrar como mestre");
-        PasswordField connectMasterPasswordField = new PasswordField();
-        connectMasterPasswordField.setPromptText("Senha de mestre");
-        connectMasterPasswordField.setDisable(true);
-        connectAsGmCheck.setOnAction(e -> connectMasterPasswordField.setDisable(!connectAsGmCheck.isSelected()));
-        TextField relayCodeField = new TextField();
-        relayCodeField.setPromptText("Código da mesa na ponte (se for pela ponte)");
-        relayCodeField.setTooltip(new Tooltip("Entrando pela ponte: no campo de endereço acima vai o endereço da ponte "
-                + "e a porta dela (padrão 55070); aqui, o código que o mestre passou (ex.: K7P-Q2X)."));
-        relayCodeField.textProperty().addListener((o, a, b) -> {
-            if (b != null && !b.isBlank() && "55055".equals(portField.getText())) portField.setText("55070");
-        });
-        box.getChildren().addAll(connectRow, relayCodeField, connectTablePasswordField, connectTls,
-                connectAsGmCheck, connectMasterPasswordField);
-
-        // --- Backup da mesa inteira ---
-        Button exportButton = new Button("Exportar mesa inteira (backup)...");
-        exportButton.setTooltip(new Tooltip("Um .zip com fichas, cenas, monstros, imagens, sons, diário e tabelas."
-                + " Importe na tela de escolher mesa (\"Importar backup...\")."));
-        exportButton.setOnAction(e -> onExportMesa());
-        Label backupHint = new Label("Pra guardar a campanha ou levar pra outro computador.");
-        backupHint.getStyleClass().add("label-muted");
-        box.getChildren().addAll(divider(), sectionLabel("Backup da mesa"), exportButton, backupHint);
-
-        ComboBox<String> backupEvery = new ComboBox<>();
-        for (int m : BACKUP_MINUTES) backupEvery.getItems().add(m == 0 ? "Desligado" : "A cada " + m + " min");
-        int current = autoBackupMinutes();
-        for (int i = 0; i < BACKUP_MINUTES.length; i++) if (BACKUP_MINUTES[i] == current) backupEvery.getSelectionModel().select(i);
-        backupEvery.setTooltip(new Tooltip("Cópia automática da mesa (só quando algo mudou). Ficam as "
-                + com.vttcaseiro.library.AutoBackup.KEEP + " mais novas, na pasta backups da mesa."));
-        backupEvery.setOnAction(e -> {
-            int i = backupEvery.getSelectionModel().getSelectedIndex();
-            if (i < 0) return;
-            AppSettings.setDouble("autoBackupMinutes", BACKUP_MINUTES[i]);
-            restartAutoBackupTimer();
-        });
-        Button backupNow = new Button("Fazer backup agora");
-        backupNow.setOnAction(e -> runBackup("manual", true));
-        Button restoreButton = new Button("Restaurar backup...");
-        restoreButton.setTooltip(new Tooltip("Volta a mesa como estava num backup. Cria uma mesa NOVA com a cópia;"
-                + " a atual não é apagada."));
-        restoreButton.setOnAction(e -> onRestoreBackup());
-        backupStatus = new Label(lastBackupText());
-        backupStatus.getStyleClass().add("live-status");
-        backupStatus.getStyleClass().add("label-muted");
-        backupStatus.setWrapText(true);
-        box.getChildren().addAll(sectionLabel("Backups automáticos"), backupEvery,
-                new javafx.scene.layout.FlowPane(6, 6, backupNow, restoreButton), backupStatus);
+        Button joinButton = new Button("Entrar numa mesa online...", com.vttcaseiro.view.Icons.icon("network", 14));
+        joinButton.setTooltip(new Tooltip("Endereço (ou código da ponte) e senha que o mestre passou."));
+        joinButton.setOnAction(e -> MesaSelectorView.askJoin(stage).ifPresent(req -> {
+            nameField.setText(req.playerName());
+            networkService.connectThroughRelay(req.relayCode());
+            onConnect(req.playerName(), req.host(), req.port(), req.tablePassword(), req.asGm(), req.masterPassword(), req.tls());
+        }));
+        box.getChildren().add(joinButton);
 
         hostButton.setOnAction(e -> onHost(nameField.getText(), hostPortField.getText(),
                 hostTablePasswordField.getText(), hostMasterPasswordField.getText(), hostTls.isSelected()));
-        connectButton.setOnAction(e -> {
-            networkService.connectThroughRelay(relayCodeField.getText());
-            onConnect(nameField.getText(), hostField.getText(), portField.getText(),
-                    connectTablePasswordField.getText(), connectAsGmCheck.isSelected(),
-                    connectMasterPasswordField.getText(), connectTls.isSelected());
-        });
 
         box.getChildren().add(divider());
         box.getChildren().add(sectionLabel("Conectados agora"));
         ListView<String> onlineListView = new ListView<>(networkService.getOnlinePlayers());
         onlineListView.setPrefHeight(120);
+        onlineListView.setPlaceholder(new Label("Ninguém conectado."));
         box.getChildren().add(onlineListView);
 
         return new Tab("Rede", wrapInScroll(box));
@@ -2799,7 +2905,7 @@ public class Main extends Application {
         addMemberButton.setOnAction(e -> onAddLastOpenedCharacterToParty());
         box.getChildren().addAll(new HBox(6, addMemberButton, removeMemberButton), divider());
 
-        box.getChildren().add(sectionLabel("Inventario compartilhado (loot comum do grupo)"));
+        box.getChildren().add(sectionLabel("Inventário compartilhado (loot comum do grupo)"));
         partyInventoryListView = new ListView<>();
         partyInventoryListView.setPrefHeight(140);
         partyInventoryListView.setCellFactory(lv -> new ListCell<>() {
@@ -2871,10 +2977,10 @@ public class Main extends Application {
         });
         box.getChildren().add(initiativeListView);
 
-        Button rollAllButton = new Button("Rolar iniciativa e comecar combate");
+        Button rollAllButton = new Button("Rolar iniciativa e começar combate");
         rollAllButton.getStyleClass().add("button-primary");
         rollAllButton.setOnAction(e -> table.rollInitiativeForAllAndStart());
-        Button startButton = new Button("Comecar com as iniciativas atuais");
+        Button startButton = new Button("Começar com as iniciativas atuais");
         startButton.setOnAction(e -> table.startEncounter());
         Button editButton = new Button("Editar...");
         editButton.setTooltip(new Tooltip("Iniciativa, modificador só deste combatente e cor da linha (ou duplo clique na linha)."));
@@ -2904,7 +3010,7 @@ public class Main extends Application {
         shortRestButton.setTooltip(new Tooltip("Cada personagem no mapa gasta dados de vida até ficar quase cheio."));
         shortRestButton.setOnAction(e -> table.groupShortRest());
         Button longRestButton = new Button("Descanso longo");
-        longRestButton.setTooltip(new Tooltip("Personagens no mapa recuperam PV, dados de vida e espacos de magia."));
+        longRestButton.setTooltip(new Tooltip("Personagens no mapa recuperam PV, dados de vida e espaços de magia."));
         longRestButton.setOnAction(e -> {
             Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
                     "Descanso longo pra todos os personagens com token no mapa?");
@@ -3135,7 +3241,7 @@ public class Main extends Application {
             assetId[0] = null;
             imageInfo.setText("Sem imagem");
         });
-        VBox content = new VBox(8, new Label("Titulo"), title, new Label("Texto"), text,
+        VBox content = new VBox(8, new Label("Título"), title, new Label("Texto"), text,
                 new HBox(8, chooseImage, noImage, imageInfo));
         content.setPrefWidth(460);
         dialog.getDialogPane().setContent(content);
@@ -3222,7 +3328,7 @@ public class Main extends Application {
             if (who.getValue().startsWith("Alvos")) targets.addAll(mapView.getTargets());
             else for (TokenModel t : sceneService.getScene().getTokens()) {
                 boolean pc = t.getCharacterSheetId() != null;
-                if (who.getValue().startsWith("Todos") || (pc == who.getValue().startsWith("So personagens"))) {
+                if (who.getValue().startsWith("Todos") || (pc == who.getValue().startsWith("Só personagens"))) {
                     targets.add(t);
                 }
             }
@@ -3544,7 +3650,7 @@ public class Main extends Application {
             many.getItems().add(item);
         }
         b.setContextMenu(many);
-        b.setTooltip(new Tooltip("Clique: rola 1" + die + "\nBotao direito: rolar varios"));
+        b.setTooltip(new Tooltip("Clique: rola 1" + die + "\nBotão direito: rolar vários"));
         return b;
     }
 
@@ -3661,7 +3767,7 @@ public class Main extends Application {
         boolean labels = false;
         if (azgaar) {
             Alert ask = new Alert(Alert.AlertType.CONFIRMATION, "Tem o JSON do mesmo mundo (Export > JSON > Full)? "
-                    + "Com ele, os reinos e as maiores cidades vao pro Diário, e as cidades podem virar pins clicaveis no mapa "
+                    + "Com ele, os reinos e as maiores cidades vão pro Diário, e as cidades podem virar pins clicáveis no mapa "
                     + "(cada pin abre o gerador de cidade do Watabou e pode ligar o mapa da cidade).",
                     new javafx.scene.control.ButtonType("Só o Diário"), new javafx.scene.control.ButtonType("Cidades como pins"),
                     javafx.scene.control.ButtonType.NO);
@@ -3926,7 +4032,7 @@ public class Main extends Application {
         soundPlayer.setOnChange(() -> Platform.runLater(refreshPlaying));
         refreshPlaying.run();
         VBox volumes = new VBox(4);
-        for (String[] ch : new String[][]{{com.vttcaseiro.model.AudioCommand.MUSIC, "Musica"},
+        for (String[] ch : new String[][]{{com.vttcaseiro.model.AudioCommand.MUSIC, "Música"},
                 {com.vttcaseiro.model.AudioCommand.AMBIENT, "Ambiente"}, {com.vttcaseiro.model.AudioCommand.SFX, "Efeitos"}}) {
             javafx.scene.control.Slider slider = new javafx.scene.control.Slider(0, 1, soundPlayer.volume(ch[0]));
             slider.setPrefWidth(200);
@@ -4605,7 +4711,7 @@ public class Main extends Application {
 
     private void onAddPartyItem() {
         TextInputDialog nameDialog = new TextInputDialog();
-        nameDialog.setTitle("Adicionar item ao inventario da party");
+        nameDialog.setTitle("Adicionar item ao inventário da party");
         nameDialog.setHeaderText(null);
         nameDialog.setContentText("Nome do item:");
         Optional<String> name = nameDialog.showAndWait();
@@ -4919,7 +5025,7 @@ public class Main extends Application {
             logEntries.add(LogEntry.system(selected.getName() + " anexado em " + lastOpenedCharacter.getName()
                     + ". Reabra a ficha (lista de fichas, duplo clique) para ver o anexo na janela."));
         } catch (IOException ex) {
-            showError("Anexado na ficha em memoria, mas não foi possível salvar no arquivo: " + ex.getMessage());
+            showError("Anexado na ficha em memória, mas não foi possível salvar no arquivo: " + ex.getMessage());
         }
     }
 
@@ -5350,7 +5456,7 @@ public class Main extends Application {
             networkService.openRelay(host, port, code, p.getProperty("segredo"),
                     msg -> Platform.runLater(() -> logEntries.add(LogEntry.system(msg))));
             AppSettings.setString("ponte.endereco", a);
-            info.setText("Na ponte! Jogadores: aba Rede > Conectar com o endereço " + relayHost + ", porta " + relayPort
+            info.setText("Na ponte! Jogadores: \"Entrar numa mesa online\" com o endereço " + relayHost + ", porta " + relayPort
                     + " e o código " + code + (networkService.isTls() ? " (e \"Mesa criptografada\" marcado)." : ".")
                     + "\nPelo navegador: http://" + relayHost + ":" + relayPort + "/?mesa=" + code);
             info.setVisible(true);
@@ -5498,7 +5604,7 @@ public class Main extends Application {
                 : "ATENÇÃO: o código desta mesa MUDOU desde a última vez");
         ask.setContentText((previous == null
                 ? "Confira com o mestre: o código dele tem que ser\n\n    "
-                : "Se o mestre não gerou um certificado novo, pode ser alguém no meio do caminho.\n\nCodigo novo:\n\n    ")
+                : "Se o mestre não gerou um certificado novo, pode ser alguém no meio do caminho.\n\nCódigo novo:\n\n    ")
                 + com.vttcaseiro.net.TlsSupport.shortCode(fingerprint) + "\n\nConfiar e conectar?");
         return ask.showAndWait().filter(b -> b == javafx.scene.control.ButtonType.YES).isPresent();
     }
@@ -5802,7 +5908,7 @@ public class Main extends Application {
                 partyService.replaceParty(party);
                 refreshPartyMemberList();
                 refreshPartyInventoryList();
-                logEntries.add(LogEntry.system("Inventario da party sincronizado."));
+                logEntries.add(LogEntry.system("Inventário da party sincronizado."));
             });
         }
 
@@ -6117,7 +6223,7 @@ public class Main extends Application {
         help.setContentText("1 Medir   2 Área   3 Lápis   4 Texto   5 Borracha\n"
                 + "6 Revelar neblina   7 Cobrir neblina   8 Parede   9 Porta   (mestre: 6-9)\n"
                 + "Esc / 0  desliga a ferramenta e limpa a seleção\n\n"
-                + "Shift+arrastar no mapa vazio: seleciona varios tokens\n"
+                + "Shift+arrastar no mapa vazio: seleciona vários tokens\n"
                 + "Shift+clique: poe/tira um token da seleção\n"
                 + "Setas: anda a seleção uma casa   Delete: remove   T: mira   H: esconder/revelar (mestre)\n"
                 + "Ctrl+clique: mira   Alt+clique: ping   Ctrl+Z: desfaz   F1: esta ajuda");

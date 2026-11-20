@@ -50,7 +50,7 @@ public class AudioAssetStore {
         String name = file.getFileName().toString();
         if (!isAudioName(name)) throw new IOException("Use mp3, ogg, wav, m4a, aac ou webm.");
         long size = Files.size(file);
-        if (size > MAX_BYTES) throw new IOException("Arquivo grande demais (maximo " + (MAX_BYTES / 1024 / 1024) + " MB).");
+        if (size > MAX_BYTES) throw new IOException("Arquivo grande demais (máximo " + (MAX_BYTES / 1024 / 1024) + " MB).");
         byte[] bytes = Files.readAllBytes(file);
         String ext = name.substring(name.lastIndexOf('.')).toLowerCase(Locale.ROOT);
         String id = sha256(bytes) + ext;
@@ -64,7 +64,7 @@ public class AudioAssetStore {
     }
 
     public Path path(String id) throws IOException {
-        if (!isValidId(id)) throw new IOException("id de som invalido");
+        if (!isValidId(id)) throw new IOException("id de som inválido");
         return dir.resolve(id);
     }
 

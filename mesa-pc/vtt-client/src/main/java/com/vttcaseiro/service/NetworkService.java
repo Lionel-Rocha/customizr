@@ -618,7 +618,7 @@ public class NetworkService {
             https.connect();
             String fp = com.vttcaseiro.net.TlsSupport.fingerprint(https.getServerCertificates()[0]);
             String expected = com.vttcaseiro.net.TlsSupport.known(connectedHost + ":" + connectedPort);
-            if (!fp.equals(expected)) throw new IOException("certificado do som nao confere com o codigo da mesa");
+            if (!fp.equals(expected)) throw new IOException("certificado do som não confere com o código da mesa");
         }
         java.nio.file.Path tmp = target.resolveSibling(target.getFileName() + ".part");
         try (java.io.InputStream in = conn.getInputStream()) {

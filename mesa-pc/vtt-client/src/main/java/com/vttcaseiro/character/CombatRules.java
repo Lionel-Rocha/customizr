@@ -69,7 +69,7 @@ public final class CombatRules {
         }
         if (attack && has(active, Condition.PRONE)) {
             dis = true;
-            notes.add("Caido: desvantagem");
+            notes.add("Caído: desvantagem");
         }
         if (has(active, Condition.RESTRAINED) && (attack || (save && ability == Ability.DEXTERITY))) {
             dis = true;
@@ -77,7 +77,7 @@ public final class CombatRules {
         }
         if (has(active, Condition.INVISIBLE) && (attack || kind == RollKind.INITIATIVE)) {
             adv = true;
-            notes.add("Invisivel: vantagem");
+            notes.add("Invisível: vantagem");
         }
         if (kind == RollKind.INITIATIVE && has(active, Condition.INCAPACITATED)) {
             dis = true;

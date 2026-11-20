@@ -37,7 +37,7 @@ public class SoundPlayer {
         try {
             MediaPlayer player = new MediaPlayer(new Media(uri));
             player.setVolume(muted ? 0 : volumes.getOrDefault(ch, 0.7));
-            player.setOnError(() -> log.warn("Nao foi possivel tocar " + cmd.getName() + ": " + player.getError()));
+            player.setOnError(() -> log.warn("Não foi possível tocar " + cmd.getName() + ": " + player.getError()));
             if (cmd.loops()) {
                 stop(ch);
                 player.setCycleCount(MediaPlayer.INDEFINITE);
@@ -48,7 +48,7 @@ public class SoundPlayer {
             }
             player.play();
         } catch (RuntimeException ex) {
-            log.warn("Som nao tocou (" + cmd.getName() + "): " + ex.getMessage());
+            log.warn("Som não tocou (" + cmd.getName() + "): " + ex.getMessage());
         }
         onChange.run();
     }

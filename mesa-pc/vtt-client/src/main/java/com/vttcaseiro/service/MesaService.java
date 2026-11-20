@@ -33,7 +33,7 @@ public class MesaService {
         try {
             return repository.listMaps();
         } catch (IOException ex) {
-            log.warn("Nao foi possivel listar cenas: " + ex.getMessage());
+            log.warn("Não foi possível listar cenas: " + ex.getMessage());
             return List.of();
         }
     }
@@ -41,7 +41,7 @@ public class MesaService {
     /** @throws IllegalArgumentException se o nome for vazio */
     public void saveMap(SceneModel scene, String name) throws IOException {
         if (name == null || name.isBlank()) {
-            throw new IllegalArgumentException("O nome da cena nao pode ser vazio.");
+            throw new IllegalArgumentException("O nome da cena não pode ser vazio.");
         }
         scene.setName(name.trim());
         repository.saveMap(scene, scene.getName());

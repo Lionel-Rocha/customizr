@@ -72,8 +72,8 @@ public final class MesaBackup {
      */
     public static Path importTo(Path zip, Path baseFolder, String name) throws IOException {
         Path target = baseFolder.resolve(safeName(name)).toAbsolutePath().normalize();
-        if (Files.exists(target)) throw new IOException("Ja existe uma mesa chamada \"" + target.getFileName() + "\".");
-        if (!isBackup(zip)) throw new IOException("Esse arquivo nao e um backup de mesa do Customizr.");
+        if (Files.exists(target)) throw new IOException("Já existe uma mesa chamada \"" + target.getFileName() + "\".");
+        if (!isBackup(zip)) throw new IOException("Esse arquivo não é um backup de mesa do Customizr.");
         Files.createDirectories(target);
         long total = 0;
         try (InputStream fis = Files.newInputStream(zip); ZipInputStream in = new ZipInputStream(fis)) {
@@ -82,7 +82,7 @@ public final class MesaBackup {
             while ((e = in.getNextEntry()) != null) {
                 if (e.isDirectory() || MARKER.equals(e.getName())) continue;
                 Path out = target.resolve(e.getName()).normalize();
-                if (!out.startsWith(target)) throw new IOException("Backup invalido (arquivo fora da pasta): " + e.getName());
+                if (!out.startsWith(target)) throw new IOException("Backup inválido (arquivo fora da pasta): " + e.getName());
                 Files.createDirectories(out.getParent());
                 try (OutputStream os = Files.newOutputStream(out)) {
                     int n;

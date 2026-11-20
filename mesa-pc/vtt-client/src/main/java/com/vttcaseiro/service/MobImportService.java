@@ -44,8 +44,8 @@ public class MobImportService {
         for (MobSheet mob : result.imported()) {
             mobService.save(mob);
         }
-        log.info("Importacao de monstros: " + result.imported().size() + " novo(s), "
-                + result.skipped().size() + " pulado(s) (nome ja existia nesta mesa).");
+        log.info("Importação de monstros: " + result.imported().size() + " novo(s), "
+                + result.skipped().size() + " pulado(s) (nome já existia nesta mesa).");
         return result;
     }
 }

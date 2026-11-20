@@ -48,7 +48,7 @@ public class ChatLogStore {
             Files.writeString(file, prefix + GSON.toJson(new Line(System.currentTimeMillis(), entry)) + "\n",
                     StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
         } catch (IOException ex) {
-            log.warn("Nao foi possivel guardar a mensagem no historico: " + ex.getMessage());
+            log.warn("Não foi possível guardar a mensagem no histórico: " + ex.getMessage());
         }
     }
 
@@ -90,7 +90,7 @@ public class ChatLogStore {
             }
             java.util.Collections.reverse(result);
         } catch (IOException ex) {
-            log.warn("Nao foi possivel ler o historico do chat: " + ex.getMessage());
+            log.warn("Não foi possível ler o histórico do chat: " + ex.getMessage());
         }
         return result;
     }

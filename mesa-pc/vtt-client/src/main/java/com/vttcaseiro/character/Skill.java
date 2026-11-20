@@ -10,22 +10,22 @@ package com.vttcaseiro.character;
 public enum Skill {
     ATHLETICS(Ability.STRENGTH, "Atletismo"),
     ACROBATICS(Ability.DEXTERITY, "Acrobacia"),
-    SLEIGHT_OF_HAND(Ability.DEXTERITY, "Prestidigitacao"),
+    SLEIGHT_OF_HAND(Ability.DEXTERITY, "Prestidigitação"),
     STEALTH(Ability.DEXTERITY, "Furtividade"),
     ARCANA(Ability.INTELLIGENCE, "Arcanismo"),
-    HISTORY(Ability.INTELLIGENCE, "Historia"),
-    INVESTIGATION(Ability.INTELLIGENCE, "Investigacao"),
+    HISTORY(Ability.INTELLIGENCE, "História"),
+    INVESTIGATION(Ability.INTELLIGENCE, "Investigação"),
     NATURE(Ability.INTELLIGENCE, "Natureza"),
-    RELIGION(Ability.INTELLIGENCE, "Religiao"),
+    RELIGION(Ability.INTELLIGENCE, "Religião"),
     ANIMAL_HANDLING(Ability.WISDOM, "Lidar com Animais"),
-    INSIGHT(Ability.WISDOM, "Intuicao"),
+    INSIGHT(Ability.WISDOM, "Intuição"),
     MEDICINE(Ability.WISDOM, "Medicina"),
-    PERCEPTION(Ability.WISDOM, "Percepcao"),
-    SURVIVAL(Ability.WISDOM, "Sobrevivencia"),
-    DECEPTION(Ability.CHARISMA, "Enganacao"),
-    INTIMIDATION(Ability.CHARISMA, "Intimidacao"),
-    PERFORMANCE(Ability.CHARISMA, "Atuacao"),
-    PERSUASION(Ability.CHARISMA, "Persuasao");
+    PERCEPTION(Ability.WISDOM, "Percepção"),
+    SURVIVAL(Ability.WISDOM, "Sobrevivência"),
+    DECEPTION(Ability.CHARISMA, "Enganação"),
+    INTIMIDATION(Ability.CHARISMA, "Intimidação"),
+    PERFORMANCE(Ability.CHARISMA, "Atuação"),
+    PERSUASION(Ability.CHARISMA, "Persuasão");
 
     private final Ability ability;
     private final String displayNamePt;

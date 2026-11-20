@@ -32,7 +32,7 @@ public class CompendiumService {
         try {
             loaded = repository.loadCompendium();
         } catch (IOException ex) {
-            log.warn("Nao foi possivel carregar o compendio salvo, comecando do zero: " + ex.getMessage());
+            log.warn("Não foi possível carregar o compêndio salvo, começando do zero: " + ex.getMessage());
             loaded = new java.util.ArrayList<>();
         }
         this.compendium = new Compendium(loaded);
@@ -56,8 +56,8 @@ public class CompendiumService {
     public Compendium.MergeResult addEntries(List<CompendiumEntry> incoming) throws IOException {
         Compendium.MergeResult result = compendium.merge(incoming);
         repository.saveCompendium(compendium.getEntries());
-        log.info("Compendio: " + result.added().size() + " entradas novas, "
-                + result.skipped().size() + " puladas (ja existiam).");
+        log.info("Compêndio: " + result.added().size() + " entradas novas, "
+                + result.skipped().size() + " puladas (já existiam).");
         return result;
     }
 
@@ -96,7 +96,7 @@ public class CompendiumService {
     public String chatTextFor(CompendiumReference reference) {
         Optional<CompendiumEntry> entry = compendium.findById(reference.getEntryId());
         if (entry.isEmpty()) {
-            return reference.getDisplayName() + " (entrada removida do compendio)";
+            return reference.getDisplayName() + " (entrada removida do compêndio)";
         }
         return entry.get().toChatText();
     }

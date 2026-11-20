@@ -15,17 +15,17 @@ package com.vttcaseiro.model;
  */
 public enum Condition {
     BLINDED("Cego", "CG", "#5B6B7A"),
-    CHARMED("Enfeiticado", "EF", "#C77DD4"),
+    CHARMED("Enfeitiçado", "EF", "#C77DD4"),
     DEAFENED("Surdo", "SD", "#8C8C8C"),
     EXHAUSTION("Exausto", "EX", "#7A5230"),
     FRIGHTENED("Assustado", "AS", "#6E4FA8"),
     GRAPPLED("Agarrado", "AG", "#B5651D"),
     INCAPACITATED("Incapacitado", "IN", "#9A4F4F"),
-    INVISIBLE("Invisivel", "IV", "#4F8FA8"),
+    INVISIBLE("Invisível", "IV", "#4F8FA8"),
     PARALYZED("Paralisado", "PR", "#D9544C"),
     PETRIFIED("Petrificado", "PT", "#707070"),
     POISONED("Envenenado", "PO", "#4E9A4E"),
-    PRONE("Caido", "CD", "#C9802A"),
+    PRONE("Caído", "CD", "#C9802A"),
     RESTRAINED("Restringido", "RS", "#A85C32"),
     STUNNED("Atordoado", "AT", "#E0963C"),
     UNCONSCIOUS("Inconsciente", "UC", "#2E2E2E");

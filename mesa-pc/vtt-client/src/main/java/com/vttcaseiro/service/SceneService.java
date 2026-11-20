@@ -110,7 +110,7 @@ public class SceneService {
             for (SceneChangeListener l : listeners) {
                 l.onTokenMoved(token);
             }
-        }, () -> log.warn("moveToken: token nao encontrado: " + tokenId));
+        }, () -> log.warn("moveToken: token não encontrado: " + tokenId));
     }
 
     /** Aplica o estado (PV, condicoes, efeitos, iniciativa...) de um token
@@ -214,7 +214,7 @@ public class SceneService {
 
     public void setGridCellSize(double size) {
         if (size <= 1) {
-            throw new IllegalArgumentException("O tamanho da celula precisa ser maior que 1.");
+            throw new IllegalArgumentException("O tamanho da célula precisa ser maior que 1.");
         }
         scene.getGrid().setCellSize(size);
         for (SceneChangeListener l : listeners) {
@@ -230,7 +230,7 @@ public class SceneService {
      * @throws IllegalArgumentException se nao for maior que 0 */
     public void setGridFeetPerCell(double feet) {
         if (feet <= 0) {
-            throw new IllegalArgumentException("Pes por celula precisa ser maior que 0.");
+            throw new IllegalArgumentException("Pés por célula precisa ser maior que 0.");
         }
         scene.getGrid().setFeetPerCell(feet);
         for (SceneChangeListener l : listeners) {

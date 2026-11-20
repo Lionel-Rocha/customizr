@@ -30,7 +30,7 @@ public class ClassImportService {
         try {
             this.classes = repository.loadClasses();
         } catch (IOException ex) {
-            log.warn("Nao foi possivel carregar classes salvas, comecando do zero: " + ex.getMessage());
+            log.warn("Não foi possível carregar classes salvas, começando do zero: " + ex.getMessage());
             this.classes = new ArrayList<>();
         }
     }
@@ -80,7 +80,7 @@ public class ClassImportService {
         JsonObject payload = JsonParser.parseString(content).getAsJsonObject();
         ClassImporter.ImportResult result = ClassImporter.importClasses(payload, classes);
         repository.saveClasses(classes);
-        log.info("Importacao de classes: " + result.imported().size() + " importadas, "
+        log.info("Importação de classes: " + result.imported().size() + " importadas, "
                 + result.skipped().size() + " puladas.");
         return result;
     }
