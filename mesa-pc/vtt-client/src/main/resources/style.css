@@ -265,7 +265,42 @@
 .dialog-pane .header-panel {
     -fx-background-color: #2C221C;
 }
-.alert.error .dialog-pane {
+.dialog-pane > .header-panel {
+    -fx-padding: 14 16 12 16;
+    -fx-border-color: transparent transparent #45342A transparent;
+    -fx-border-width: 0 0 1 0;
+}
+.dialog-pane > .header-panel .label {
+    -fx-text-fill: #F6E9D3;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+}
+.dialog-pane > .content {
+    -fx-padding: 16;
+}
+.dialog-pane .label {
+    -fx-text-fill: #F6E9D3;
+}
+.dialog-pane .label-muted {
+    -fx-text-fill: #B09A82;
+}
+.dialog-pane > .button-bar > .container {
+    -fx-padding: 10 16 14 16;
+}
+.dialog-pane > .button-bar .button {
+    -fx-min-width: 90px;
+}
+.dialog-pane .graphic-container {
+    -fx-padding: 0 4 0 0;
+}
+.dialog-pane.alert.information, .dialog-pane.alert.confirmation, .dialog-pane.alert.warning {
+    -fx-border-color: #45342A;
+    -fx-border-width: 1;
+}
+.dialog-pane.alert.warning > .header-panel {
+    -fx-border-color: transparent transparent #E8A23E transparent;
+}
+.dialog-pane.alert.error {
     -fx-border-color: #D9544C;
     -fx-border-width: 2;
 }
@@ -1053,4 +1088,16 @@
 .chat-panel .chip.chip-dice {
     -fx-padding: 3 6 3 6;
     -fx-font-size: 11px;
+}
+
+/* icone azul padrao (?) destoa do tema: some nas perguntas e avisos simples; erro e alerta continuam com icone */
+.dialog-pane.alert.confirmation .graphic-container,
+.dialog-pane.alert.information .graphic-container,
+.text-input-dialog .graphic-container,
+.choice-dialog .graphic-container {
+    visibility: hidden;
+    -fx-min-width: 0;
+    -fx-pref-width: 0;
+    -fx-max-width: 0;
+    -fx-padding: 0;
 }

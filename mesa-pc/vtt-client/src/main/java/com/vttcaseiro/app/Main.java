@@ -277,6 +277,7 @@ public class Main extends Application {
     @Override
     public void start(Stage stage) {
         this.stage = stage;
+        Theme.install(); // caixas de dialogo e menus no tema escuro tambem
         new MesaSelectorView(stage, this::onMesaChosen, this::onJoinOnline).show();
     }
 
@@ -288,6 +289,7 @@ public class Main extends Application {
     }
 
     private void onMesaChosen(MesaRepository mesa) {
+        Theme.install();
         this.mesaRepository = mesa;
         this.mesaService = new MesaService(mesa);
         this.characterService = new CharacterService(mesa);
