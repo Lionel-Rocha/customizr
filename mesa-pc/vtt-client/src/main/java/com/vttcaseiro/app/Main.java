@@ -1555,6 +1555,9 @@ public class Main extends Application {
         sidePanel.setMinWidth(300);
         sidePanel.setPrefWidth(360);
         railIcons = icons;
+        // ja com os cartoes montados: esconde o que e so do mestre, e de novo quando mudar o papel (conectou/hospedou)
+        refreshInitiativeList();
+        networkService.statusProperty().addListener((o, a, b) -> Platform.runLater(this::refreshInitiativeList));
     }
 
     private String[] railIcons;
@@ -2128,7 +2131,17 @@ public class Main extends Application {
                 applyWall.run();
             });
         }
-        HBox wallBox = toolGroup(wallLabel, wallBtn, doorBtn, windowBtn, lightBtn, wallEraseBtn, visionOn, darkOn, dimOn, previewOn, fogVisionOn);
+        // desenhar fica a vista; as opcoes de visao/luz da cena num menu "Visão"
+        javafx.scene.control.MenuButton visionMenu = new javafx.scene.control.MenuButton("Visão",
+                com.vttcaseiro.view.Icons.icon("target", 14));
+        visionMenu.getStyleClass().add("tool-button");
+        visionMenu.setTooltip(new Tooltip("Visão dinâmica, escuro/penumbra, neblina pela visão e prévia do jogador"));
+        for (CheckBox cb : List.of(visionOn, darkOn, dimOn, fogVisionOn, previewOn)) {
+            javafx.scene.control.CustomMenuItem item = new javafx.scene.control.CustomMenuItem(cb, false);
+            cb.getStyleClass().add("menu-check");
+            visionMenu.getItems().add(item);
+        }
+        HBox wallBox = toolGroup(wallLabel, wallBtn, doorBtn, windowBtn, lightBtn, wallEraseBtn, visionMenu);
         toolHotkeys = List.of(measureBtn, templateBtn, penBtn, textBtn, eraserBtn, fogRevealBtn, fogCoverBtn, wallBtn, doorBtn);
         toolsOff = () -> {
             allTools.forEach(t -> t.setSelected(false));
@@ -2182,7 +2195,7 @@ public class Main extends Application {
         Label pinHint = new Label("Clique no mapa: novo pin  \u2022  clique num pin: ver  \u2022  arraste: mover"
                 + "  \u2022  botão direito: editar");
         pinHint.getStyleClass().add("tool-group-label");
-        HBox pinBox = toolGroup(pinBtn, pinHint);
+        HBox pinBox = toolGroup(pinBtn, infoIcon(pinHint.getText()));
 
         // Linha de cima: categorias. So a categoria aberta mostra os botoes dela (embaixo),
         // assim o mapa fica livre e cada coisa tem um lugar facil de achar.
@@ -2213,7 +2226,7 @@ public class Main extends Application {
                 + " Desligado: os objetos viram cenário (cliques passam pro mapa).");
         Label objHint = new Label("Ctrl+roda: tamanho  \u2022  Shift+roda: girar  \u2022  Alt: solta fora da grade");
         objHint.getStyleClass().add("tool-group-label");
-        HBox objectBox = toolGroup(objFromFile, objFromGallery, objEdit, objHint);
+        HBox objectBox = toolGroup(objFromFile, objFromGallery, objEdit, infoIcon(objHint.getText()));
         String[][] cats = {{"Tokens", "party"}, {"Medir", "ruler"}, {"Desenho", "brush"}, {"Pins", "pin"},
                 {"Objetos", "objects"}, {"Neblina", "cloud"}, {"Paredes", "wall"}};
         HBox[] panels = {tokenBox, measureBox, drawBox, pinBox, objectBox, fogBox, wallBox};
@@ -2319,6 +2332,16 @@ public class Main extends Application {
         toolbar.setFillWidth(false);
         // os "gmOnly" antigos escondiam fogBox/wallBox direto; agora so a categoria aparece/some
         return toolbar;
+    }
+
+    /** "ⓘ" pequeno com a dica no passar do mouse (no lugar de uma frase comprida na barra). */
+    private static Label infoIcon(String text) {
+        Label l = new Label("ⓘ");
+        l.getStyleClass().add("tool-info");
+        Tooltip t = new Tooltip(text);
+        t.setShowDelay(javafx.util.Duration.millis(150));
+        Tooltip.install(l, t);
+        return l;
     }
 
     private static HBox toolGroup(javafx.scene.Node... nodes) {
@@ -4797,7 +4820,17 @@ public class Main extends Application {
             roundLabel.setText(e.isActive() ? "Rodada " + e.getRound() : "Sem combate em andamento");
         }
         boolean gm = networkService.isGm();
-        for (Button b : gmOnlyInitiativeButtons) b.setDisable(!gm);
+        // jogador nao ve os botoes do mestre (em vez de ve-los apagados); o cartao "Mestre: grupo inteiro" some todo
+        for (Button b : gmOnlyInitiativeButtons) {
+            b.setVisible(gm);
+            b.setManaged(gm);
+            javafx.scene.Node card = b.getParent();
+            while (card != null && !card.getStyleClass().contains("panel-card")) card = card.getParent();
+            if (card != null && b == gmOnlyInitiativeButtons.get(4)) { // salvaguarda em grupo: cartao so do mestre
+                card.setVisible(gm);
+                card.setManaged(gm);
+            }
+        }
     }
 
     private void onEditInitiative() {

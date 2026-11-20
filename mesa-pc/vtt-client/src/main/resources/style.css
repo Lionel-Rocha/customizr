@@ -1101,3 +1101,43 @@
     -fx-max-width: 0;
     -fx-padding: 0;
 }
+
+.tool-info {
+    -fx-text-fill: #B09A82;
+    -fx-font-size: 14px;
+    -fx-padding: 0 8 0 6;
+    -fx-cursor: hand;
+}
+.tool-info:hover {
+    -fx-text-fill: #E8A23E;
+}
+.menu-check {
+    -fx-text-fill: #F6E9D3;
+    -fx-padding: 4 6 4 2;
+}
+
+.tree-view {
+    -fx-background-color: #1C1512;
+    -fx-background-radius: 6;
+    -fx-border-color: #3A2C23;
+    -fx-border-radius: 6;
+}
+.tree-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: #F6E9D3;
+    -fx-padding: 4 6 4 4;
+}
+.tree-cell:filled:hover {
+    -fx-background-color: #2A201A;
+}
+.tree-cell:filled:selected {
+    -fx-background-color: #6E4416;
+    -fx-text-fill: #FFCF7F;
+}
+.tree-cell.scene-folder {
+    -fx-font-weight: bold;
+    -fx-text-fill: #E8C99A;
+}
+.tree-cell > .tree-disclosure-node > .arrow {
+    -fx-background-color: #B09A82;
+}

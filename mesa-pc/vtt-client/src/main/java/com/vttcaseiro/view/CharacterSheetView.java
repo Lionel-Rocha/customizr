@@ -234,19 +234,13 @@ public class CharacterSheetView {
         derivedUpdaters.clear();
         if (com.vttcaseiro.character.GameSystem.of(sheet).isCustom()) {
             // Tormenta20 / Ordem Paranormal: ficha propria, mesma janela/salvamento/sincronizacao.
-            saveStatus = new Label("Salvo");
-            saveStatus.getStyleClass().add("label-muted");
-            Button saveNow = new Button("Salvar agora");
-            saveNow.setOnAction(e -> {
-                dirty = true;
-                flushSave();
-            });
+            saveStatus = savedLabel();
             return new SystemSheetPane(sheet, actions, this::changed, newName -> {
                 sheet.setName(newName);
                 if (stage != null) stage.setTitle(newName);
                 changed();
                 flushSave();
-            }, new HBox(8, saveNow, saveStatus));
+            }, new HBox(8, saveStatus));
         }
         int selectedTab = tabs == null ? 0 : tabs.getSelectionModel().getSelectedIndex();
         // tres paginas, como uma ficha de papel: a primeira com tudo que se usa na mesa
@@ -320,8 +314,17 @@ public class CharacterSheetView {
         recalc();
         actions.sheetChanged(sheet);
         dirty = true;
-        if (saveStatus != null) saveStatus.setText("Alterações não salvas...");
+        if (saveStatus != null) saveStatus.setText("Salvando...");
         saveDebounce.playFromStart();
+    }
+
+    /** A ficha salva sozinha (um instante depois de cada mudança): so um aviso discreto, sem botao. */
+    private static Label savedLabel() {
+        Label l = new Label("✓ Salvo");
+        l.getStyleClass().add("label-muted");
+        l.setStyle("-fx-font-size: 11px;");
+        l.setTooltip(new Tooltip("A ficha salva sozinha logo depois de cada mudança."));
+        return l;
     }
 
     private void flushSave() {
@@ -330,7 +333,7 @@ public class CharacterSheetView {
         try {
             actions.save(sheet);
             dirty = false;
-            if (saveStatus != null) saveStatus.setText("Salvo");
+            if (saveStatus != null) saveStatus.setText("✓ Salvo");
         } catch (Exception ex) {
             if (saveStatus != null) saveStatus.setText("Erro ao salvar: " + ex.getMessage());
         }
@@ -485,19 +488,13 @@ public class CharacterSheetView {
         hiddenBox.setTooltip(new Tooltip("O resultado não aparece pros outros jogadores."));
         hiddenBox.selectedProperty().addListener((o, a, v) -> hiddenRolls = v);
 
-        saveStatus = new Label("Salvo");
-        saveStatus.getStyleClass().add("label-muted");
-        Button saveNow = new Button("Salvar agora");
-        saveNow.setOnAction(e -> {
-            dirty = true;
-            flushSave();
-        });
+        saveStatus = savedLabel();
 
         VBox right = new VBox(6, sectionLabel("Rolagens de d20"), modeBox, hiddenBox,
                 bigStat("Bônus de proficiência", derived(() -> signed(sheet.proficiencyBonus()))),
                 checkBox("Inspiração heroica", sheet::hasHeroicInspiration, sheet::setHeroicInspiration),
                 classButton(),
-                new HBox(8, saveNow, saveStatus));
+                saveStatus);
         right.setMinWidth(Region.USE_PREF_SIZE);
 
         HBox header = new HBox(12, portraitBox, identity, right);
@@ -536,6 +533,7 @@ public class CharacterSheetView {
             c.setPercentWidth(33.3);
             grid.getColumnConstraints().add(c);
         }
+        extraRows.clear();
         Ability[] abilities = Ability.values();
         for (int i = 0; i < abilities.length; i++) {
             grid.add(abilityCard(abilities[i]), i % 3, i / 3);
@@ -547,8 +545,30 @@ public class CharacterSheetView {
         // extras gerais: somam em todas as pericias / todas as salvaguardas
         HBox extras = row(new Label("Extra em todas as perícias"), intField(sheet::getSkillBonusAll, sheet::setSkillBonusAll, 3),
                 new Label("Extra em todas as salvaguardas"), intField(sheet::getSaveBonusAll, sheet::setSaveBonusAll, 3));
-        return new VBox(8, hint, extras, grid);
+        extraRows.add(extras);
+        // campos de extra quase nunca sao usados: ficam escondidos (aparecem sozinhos se algum tiver valor)
+        boolean anyExtra = sheet.getSkillBonusAll() != 0 || sheet.getSaveBonusAll() != 0
+                || java.util.Arrays.stream(Ability.values()).anyMatch(a -> sheet.getSkillBonusFor(a) != 0);
+        CheckBox showExtras = new CheckBox("Bônus extras");
+        showExtras.setMinWidth(Region.USE_PREF_SIZE);
+        showExtras.setStyle("-fx-font-size: 11px;");
+        showExtras.setTooltip(new Tooltip("Bônus extra em todas as perícias, todas as salvaguardas ou nas perícias de um atributo"
+                + " (itens mágicos, bênçãos...)."));
+        showExtras.setSelected(anyExtra);
+        Runnable applyExtras = () -> extraRows.forEach(r -> {
+            r.setVisible(showExtras.isSelected());
+            r.setManaged(showExtras.isSelected());
+        });
+        showExtras.setOnAction(e -> applyExtras.run());
+        applyExtras.run();
+        HBox top = new HBox(12, hint, showExtras);
+        HBox.setHgrow(hint, Priority.ALWAYS);
+        top.setAlignment(Pos.CENTER_LEFT);
+        return new VBox(8, top, extras, grid);
     }
+
+    /** Linhas de "bônus extra" (escondidas por padrão). */
+    private final List<Node> extraRows = new ArrayList<>();
 
     private static final String[] SKILL_MARKS = {"○", "●", "◉", "◐"};
     private static final String[] SKILL_MARK_TIPS = {"Sem proficiência", "Proficiente", "Especialista (proficiência em dobro)",
@@ -625,8 +645,10 @@ public class CharacterSheetView {
         }
         if (hasSkills) {
             // extra so nas pericias deste atributo
-            card.getChildren().add(row(mutedLabel("Extra nas perícias de " + ability.abbreviationPt()),
-                    intField(() -> sheet.getSkillBonusFor(ability), v -> sheet.setSkillBonusFor(ability, v), 3)));
+            HBox extraRow = row(mutedLabel("Extra nas perícias de " + ability.abbreviationPt()),
+                    intField(() -> sheet.getSkillBonusFor(ability), v -> sheet.setSkillBonusFor(ability, v), 3));
+            extraRows.add(extraRow);
+            card.getChildren().add(extraRow);
         }
         return card;
     }
