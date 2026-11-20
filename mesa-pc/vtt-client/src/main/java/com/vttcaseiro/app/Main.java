@@ -225,7 +225,16 @@ public class Main extends Application {
     private VBox journalViewer;
     private List<javafx.scene.Node> gmOnlyJournalControls = List.of();
     private javafx.scene.layout.FlowPane macroRow;
-    private ListView<String> mapListView;
+    /** Lista de cenas em arvore (pastas do mestre). */
+    private javafx.scene.control.TreeView<SceneEntry> mapListView;
+    /** Uma linha da arvore: pasta (path = caminho dela) ou cena (path = pasta onde esta). */
+    record SceneEntry(String name, String path, boolean folder) {
+        @Override public String toString() { return name; }
+    }
+    private com.vttcaseiro.library.SceneFolders sceneFolders;
+    /** "Mostrar rapidinho": a cena pra onde o botao Voltar leva. */
+    private String sceneToReturnTo;
+    private Button returnSceneButton;
     private Label classCountLabel;
     private Label compendiumCountLabel;
     private Label mobCountLabel;
@@ -1035,7 +1044,17 @@ public class Main extends Application {
         netStatusLabel.setOnMouseClicked(e -> openPanel("Rede"));
         hint.setText("?");
         hint.setTooltip(new Tooltip("Atalhos (F1)"));
-        bar.getChildren().addAll(brand, sep, title, spacer, hint, netStatusLabel);
+        returnSceneButton = new Button();
+        returnSceneButton.getStyleClass().add("button-primary");
+        returnSceneButton.setTooltip(new Tooltip("Volta todo mundo pra cena de antes do \"Mostrar rapidinho\""));
+        returnSceneButton.setOnAction(e -> {
+            String back = sceneToReturnTo;
+            sceneToReturnTo = null;
+            refreshReturnButton();
+            if (back != null) onOpenMapFromMesa(back);
+        });
+        refreshReturnButton();
+        bar.getChildren().addAll(brand, sep, title, spacer, returnSceneButton, hint, netStatusLabel);
         return bar;
     }
 
@@ -2288,17 +2307,33 @@ public class Main extends Application {
         box.setPadding(new Insets(12));
 
         box.getChildren().add(sectionLabel("Cenas desta mesa"));
-        mapListView = new ListView<>();
-        mapListView.setPlaceholder(new Label("Nenhuma cena ainda. Crie uma abaixo ou importe um mapa pronto."));
-        mapListView.setPrefHeight(160);
+        sceneFolders = com.vttcaseiro.library.SceneFolders.load(mesaRepository.getRoot());
+        mapListView = new javafx.scene.control.TreeView<>();
+        mapListView.setShowRoot(false);
+        mapListView.setPrefHeight(200);
+        mapListView.setCellFactory(tv -> new SceneTreeCell());
         refreshMapList();
         mapListView.setOnMouseClicked(e -> {
-            if (e.getClickCount() == 2) {
-                String name = mapListView.getSelectionModel().getSelectedItem();
-                if (name != null) onOpenMapFromMesa(name);
+            if (e.getClickCount() == 2 && e.getButton() == javafx.scene.input.MouseButton.PRIMARY) {
+                SceneEntry sel = selectedSceneEntry();
+                if (sel != null && !sel.folder()) onOpenMapFromMesa(sel.name());
             }
         });
-        box.getChildren().add(mapListView);
+        mapListView.setOnContextMenuRequested(e -> {
+            javafx.scene.control.ContextMenu menu = sceneTreeMenu(selectedSceneEntry());
+            menu.show(mapListView, e.getScreenX(), e.getScreenY());
+            e.consume();
+        });
+        Button newFolderButton = new Button("Nova pasta", com.vttcaseiro.view.Icons.icon("open", 14));
+        newFolderButton.setTooltip(new Tooltip("Pasta pra organizar as cenas (ex.: Cidade > Taverna). Arraste as cenas pra dentro."));
+        newFolderButton.setOnAction(e -> {
+            SceneEntry sel = selectedSceneEntry();
+            onNewSceneFolder(sel == null ? "" : sel.folder() ? sel.path() : sel.path());
+        });
+        Label treeHint = new Label("Duplo clique abre pra todos. Botão direito: mostrar rapidinho e voltar, mover, pastas.");
+        treeHint.getStyleClass().add("label-muted");
+        treeHint.setWrapText(true);
+        box.getChildren().addAll(mapListView, new HBox(6, newFolderButton), treeHint);
 
         Button newSceneButton = new Button("Nova cena (imagem)...", com.vttcaseiro.view.Icons.icon("add", 14));
         newSceneButton.getStyleClass().add("button-primary");
@@ -3671,7 +3706,7 @@ public class Main extends Application {
 
     private void createImportedScene(SceneModel scene, String name, String journalTitle, String journalText)
             throws IOException {
-        if (mapListView != null && mapListView.getItems().contains(name)) {
+        if (mapListView != null && mesaService.listMaps().contains(name)) {
             throw new IOException("Já existe uma cena chamada \"" + name + "\".");
         }
         mesaService.saveMap(scene, name);
@@ -3703,8 +3738,9 @@ public class Main extends Application {
         reload.run();
         Button enqueue = new Button("Por na fila");
         enqueue.setOnAction(e -> {
-            String sel = mapListView.getSelectionModel().getSelectedItem();
-            if (sel == null) return;
+            SceneEntry entry = selectedSceneEntry();
+            if (entry == null || entry.folder()) return;
+            String sel = entry.name();
             List<String> q = sceneQueueStore.load();
             q.add(sel);
             sceneQueueStore.save(q);
@@ -4079,8 +4115,193 @@ public class Main extends Application {
         return feet == Math.floor(feet) ? String.valueOf((long) feet) : String.valueOf(feet);
     }
 
+    private SceneEntry selectedSceneEntry() {
+        var item = mapListView == null ? null : mapListView.getSelectionModel().getSelectedItem();
+        return item == null ? null : item.getValue();
+    }
+
+    /** Arvore: pastas primeiro (alfabetica), depois as cenas; lembra quais pastas estavam abertas. */
     private void refreshMapList() {
-        mapListView.getItems().setAll(mesaService.listMaps());
+        java.util.Set<String> open = new java.util.HashSet<>();
+        if (mapListView.getRoot() != null) collectExpanded(mapListView.getRoot(), open);
+        boolean firstTime = mapListView.getRoot() == null;
+        javafx.scene.control.TreeItem<SceneEntry> root = new javafx.scene.control.TreeItem<>(new SceneEntry("", "", true));
+        fillSceneFolder(root, "", mesaService.listMaps(), open, firstTime);
+        mapListView.setRoot(root);
+    }
+
+    private static void collectExpanded(javafx.scene.control.TreeItem<SceneEntry> item, java.util.Set<String> out) {
+        for (var c : item.getChildren()) {
+            if (c.getValue().folder() && c.isExpanded()) out.add(c.getValue().path());
+            collectExpanded(c, out);
+        }
+    }
+
+    private void fillSceneFolder(javafx.scene.control.TreeItem<SceneEntry> parent, String path, List<String> scenes,
+                                 java.util.Set<String> open, boolean expandAll) {
+        for (String sub : sceneFolders.subfolders(path)) {
+            var item = new javafx.scene.control.TreeItem<>(new SceneEntry(
+                    com.vttcaseiro.library.SceneFolders.nameOf(sub), sub, true), com.vttcaseiro.view.Icons.icon("open", 14));
+            item.setExpanded(expandAll || open.contains(sub));
+            fillSceneFolder(item, sub, scenes, open, expandAll);
+            parent.getChildren().add(item);
+        }
+        for (String scene : scenes) {
+            if (sceneFolders.folderOf(scene).equals(path)) {
+                parent.getChildren().add(new javafx.scene.control.TreeItem<>(new SceneEntry(scene, path, false),
+                        com.vttcaseiro.view.Icons.icon("map", 14)));
+            }
+        }
+    }
+
+    private void saveSceneFolders() {
+        try {
+            sceneFolders.save(mesaRepository.getRoot());
+        } catch (IOException ex) {
+            showError("Não deu pra salvar as pastas: " + ex.getMessage());
+        }
+        refreshMapList();
+    }
+
+    private void onNewSceneFolder(String parent) {
+        TextInputDialog d = new TextInputDialog("Nova pasta");
+        d.initOwner(stage);
+        d.setTitle("Nova pasta");
+        d.setHeaderText(parent.isEmpty() ? null : "Dentro de: " + parent.replace("/", " > "));
+        d.setContentText("Nome:");
+        d.showAndWait().ifPresent(name -> {
+            try {
+                sceneFolders.addFolder(parent, name);
+                saveSceneFolders();
+            } catch (IllegalArgumentException ex) {
+                showError(ex.getMessage());
+            }
+        });
+    }
+
+    /** Menu do botao direito na arvore de cenas. */
+    private javafx.scene.control.ContextMenu sceneTreeMenu(SceneEntry entry) {
+        javafx.scene.control.ContextMenu menu = new javafx.scene.control.ContextMenu();
+        java.util.function.BiConsumer<String, Runnable> add = (text, action) -> {
+            javafx.scene.control.MenuItem mi = new javafx.scene.control.MenuItem(text);
+            mi.setOnAction(e -> action.run());
+            menu.getItems().add(mi);
+        };
+        if (entry == null) {
+            add.accept("Nova pasta", () -> onNewSceneFolder(""));
+            return menu;
+        }
+        if (!entry.folder()) {
+            add.accept("Abrir pra todos", () -> onOpenMapFromMesa(entry.name()));
+            add.accept("Mostrar rapidinho e voltar", () -> onPeekScene(entry.name()));
+            javafx.scene.control.Menu move = new javafx.scene.control.Menu("Mover para");
+            List<String> targets = new ArrayList<>();
+            targets.add("");
+            targets.addAll(sceneFolders.folders());
+            targets.sort(String.CASE_INSENSITIVE_ORDER);
+            for (String t : targets) {
+                if (t.equals(entry.path())) continue;
+                javafx.scene.control.MenuItem mi = new javafx.scene.control.MenuItem(t.isEmpty() ? "(fora das pastas)" : t.replace("/", " > "));
+                mi.setOnAction(e -> {
+                    sceneFolders.moveScene(entry.name(), t);
+                    saveSceneFolders();
+                });
+                move.getItems().add(mi);
+            }
+            menu.getItems().add(move);
+            return menu;
+        }
+        add.accept("Nova pasta aqui dentro", () -> onNewSceneFolder(entry.path()));
+        add.accept("Renomear pasta...", () -> {
+            TextInputDialog d = new TextInputDialog(entry.name());
+            d.initOwner(stage);
+            d.setTitle("Renomear pasta");
+            d.setHeaderText(null);
+            d.setContentText("Nome:");
+            d.showAndWait().ifPresent(n -> {
+                try {
+                    sceneFolders.renameFolder(entry.path(), n);
+                    saveSceneFolders();
+                } catch (IllegalArgumentException ex) {
+                    showError(ex.getMessage());
+                }
+            });
+        });
+        add.accept("Apagar pasta (as cenas ficam)", () -> {
+            sceneFolders.removeFolder(entry.path());
+            saveSceneFolders();
+        });
+        return menu;
+    }
+
+    /**
+     * Mostra a cena pra todo mundo por um instante (ex.: o mapa da cidade pra dizer onde fica a taverna) e deixa um
+     * botao "Voltar" na barra de cima pra retornar a cena de antes.
+     */
+    private void onPeekScene(String name) {
+        String back = currentMapName;
+        if (name.equals(back)) return;
+        onOpenMapFromMesa(name);
+        if (name.equals(currentMapName) && back != null) {
+            sceneToReturnTo = back;
+            refreshReturnButton();
+        }
+    }
+
+    private void refreshReturnButton() {
+        if (returnSceneButton == null) return;
+        boolean show = sceneToReturnTo != null && networkService.isGm();
+        returnSceneButton.setVisible(show);
+        returnSceneButton.setManaged(show);
+        if (show) returnSceneButton.setText("↩  Voltar para " + sceneToReturnTo);
+    }
+
+    /** Linha da arvore: arrastar uma cena e soltar numa pasta (ou no vazio) muda a pasta dela. */
+    private final class SceneTreeCell extends javafx.scene.control.TreeCell<SceneEntry> {
+        SceneTreeCell() {
+            setOnDragDetected(e -> {
+                if (getItem() == null || getItem().folder()) return;
+                javafx.scene.input.Dragboard db = startDragAndDrop(javafx.scene.input.TransferMode.MOVE);
+                javafx.scene.input.ClipboardContent cc = new javafx.scene.input.ClipboardContent();
+                cc.putString("cena:" + getItem().name());
+                db.setContent(cc);
+                e.consume();
+            });
+            setOnDragOver(e -> {
+                if (e.getDragboard().hasString() && e.getDragboard().getString().startsWith("cena:")) {
+                    e.acceptTransferModes(javafx.scene.input.TransferMode.MOVE);
+                }
+                e.consume();
+            });
+            setOnDragDropped(e -> {
+                String data = e.getDragboard().getString();
+                if (data == null || !data.startsWith("cena:")) return;
+                String scene = data.substring(5);
+                String target = getItem() == null ? "" : getItem().folder() ? getItem().path() : getItem().path();
+                sceneFolders.moveScene(scene, target);
+                e.setDropCompleted(true);
+                e.consume();
+                Platform.runLater(Main.this::saveSceneFolders);
+            });
+        }
+
+        @Override
+        protected void updateItem(SceneEntry item, boolean empty) {
+            super.updateItem(item, empty);
+            if (empty || item == null) {
+                setText(null);
+                setGraphic(null);
+                getStyleClass().remove("scene-folder");
+                return;
+            }
+            setText(item.name());
+            setGraphic(getTreeItem() == null ? null : getTreeItem().getGraphic());
+            if (item.folder()) {
+                if (!getStyleClass().contains("scene-folder")) getStyleClass().add("scene-folder");
+            } else {
+                getStyleClass().remove("scene-folder");
+            }
+        }
     }
 
     private void onAddToken() {

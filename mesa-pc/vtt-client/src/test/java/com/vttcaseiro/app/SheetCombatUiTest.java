@@ -480,4 +480,44 @@ class SheetCombatUiTest {
             close(o);
         }
     }
+
+    @Test
+    void bastionTabSavesWhatThePlayerTypes() throws Exception {
+        Assumptions.assumeTrue(fxReady, "sem tela disponivel");
+        Path dir = Files.createTempDirectory("sheet-ui");
+        Opened o = open(dir);
+        try {
+            onFx(() -> {
+                javafx.scene.control.TabPane tabs = (javafx.scene.control.TabPane) field(o.view(), "tabs");
+                javafx.scene.control.Tab bastion = tabs.getTabs().stream().filter(t -> "Bastião".equals(t.getText()))
+                        .findFirst().orElseThrow();
+                tabs.getSelectionModel().select(bastion);
+                Node content = bastion.getContent();
+                List<TextField> fields = find(content, n -> n instanceof TextField).stream().map(n -> (TextField) n).toList();
+                TextField name = fields.stream().filter(f -> "Nome do bastião".equals(f.getPromptText())).findFirst().orElseThrow();
+                name.setText("Torre do Corvo");
+                assertEquals("Torre do Corvo", o.sheet().getBastion().getName());
+                List<javafx.scene.control.ComboBox<?>> combos = find(content, n -> n instanceof javafx.scene.control.ComboBox<?>)
+                        .stream().distinct().<javafx.scene.control.ComboBox<?>>map(n -> (javafx.scene.control.ComboBox<?>) n).toList();
+                assertEquals(12, combos.size(), "espaco e ordem nas 6 instalacoes especiais");
+                @SuppressWarnings("unchecked")
+                javafx.scene.control.ComboBox<String> order = (javafx.scene.control.ComboBox<String>) combos.get(1);
+                order.setValue("Pesquisar");
+                order.getOnAction().handle(new javafx.event.ActionEvent());
+                assertEquals("research", o.sheet().getBastion().getSpecialFacilities().get(0).getOrder());
+                String snap = System.getProperty("vtt.snap");
+                if (snap != null) {
+                    Stage stage = (Stage) field(o.view(), "stage");
+                    javafx.scene.image.WritableImage img = stage.getScene().getRoot().snapshot(null, null);
+                    java.awt.image.BufferedImage out = new java.awt.image.BufferedImage((int) img.getWidth(),
+                            (int) img.getHeight(), java.awt.image.BufferedImage.TYPE_INT_ARGB);
+                    for (int y = 0; y < out.getHeight(); y++)
+                        for (int x = 0; x < out.getWidth(); x++) out.setRGB(x, y, img.getPixelReader().getArgb(x, y));
+                    javax.imageio.ImageIO.write(out, "png", new java.io.File(snap));
+                }
+            });
+        } finally {
+            close(o);
+        }
+    }
 }

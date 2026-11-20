@@ -709,6 +709,15 @@ public class CharacterSheet {
     /** Ultima iniciativa rolada pela ficha (o rastreador de combate puxa daqui). */
     private Integer lastInitiative;
 
+    /** Bastiao (2024): fica numa aba propria da ficha. */
+    private Bastion bastion;
+
+    public Bastion getBastion() {
+        if (bastion == null) bastion = new Bastion();
+        bastion.normalize();
+        return bastion;
+    }
+
     public Integer getLastInitiative() { return lastInitiative; }
     public void setLastInitiative(Integer lastInitiative) { this.lastInitiative = lastInitiative; }
 

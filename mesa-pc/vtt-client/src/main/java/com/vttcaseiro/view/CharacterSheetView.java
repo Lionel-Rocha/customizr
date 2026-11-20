@@ -253,7 +253,8 @@ public class CharacterSheetView {
         tabs = new TabPane(
                 tab("Principal", buildMainPage()),
                 tab("Traços e magias", new VBox(14, buildTraitsTab(), new javafx.scene.control.Separator(), buildSpellsTab())),
-                tab("Personagem", buildCharacterTab()));
+                tab("Personagem", buildCharacterTab()),
+                tab("Bastião", buildBastionTab()));
         tabs.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
         tabs.getSelectionModel().select(Math.max(0, selectedTab));
 
@@ -1597,6 +1598,95 @@ public class CharacterSheetView {
         }
 
         return new VBox(10, appearance, personality, langs, buildEquipmentBox(), attunement);
+    }
+
+    /** Aba do Bastiao: nome, instalacoes basicas, defensores e as seis instalacoes especiais (duas colunas). */
+    private Node buildBastionTab() {
+        com.vttcaseiro.character.Bastion b = sheet.getBastion();
+        GridPane top = new GridPane();
+        top.setHgap(10);
+        top.setVgap(4);
+        TextField bastionName = textField(b::getName, b::setName);
+        bastionName.setPromptText("Nome do bastião");
+        GridPane.setHgrow(bastionName, Priority.ALWAYS);
+        Label who = new Label(orEmpty(sheet.getName()) + "  •  nível " + sheet.getLevel());
+        who.setStyle("-fx-text-fill: #FFCF7F; -fx-font-weight: bold;");
+        addLabeled(top, 0, 0, "Nome do bastião", bastionName);
+        addLabeled(top, 1, 0, "Personagem", who);
+        Label rule = mutedLabel(sheet.getLevel() < 5 ? "Bastiões começam no nível 5." : "");
+        rule.setVisible(sheet.getLevel() < 5);
+        rule.setManaged(sheet.getLevel() < 5);
+        VBox header = card(sectionLabel("BASTIÃO"), top, rule);
+
+        GridPane basics = new GridPane();
+        basics.setHgap(10);
+        basics.setVgap(4);
+        javafx.scene.layout.ColumnConstraints half = new javafx.scene.layout.ColumnConstraints();
+        half.setPercentWidth(50);
+        basics.getColumnConstraints().addAll(half, half);
+        List<String> basicLines = b.getBasicFacilities();
+        String[] examples = {"Quarto", "Cozinha", "Depósito", "Pátio", "Sala de jantar", "Sala de estar"};
+        for (int i = 0; i < com.vttcaseiro.character.Bastion.BASIC_LINES; i++) {
+            final int index = i;
+            TextField line = textField(() -> basicLines.get(index), v -> b.setBasicFacility(index, v));
+            if (i < examples.length) line.setPromptText("ex.: " + examples[i] + " (Espaçoso)");
+            // seis na esquerda, cinco na direita (a sexta da direita e a linha dos defensores)
+            basics.add(line, i < 6 ? 0 : 1, i < 6 ? i : i - 6);
+        }
+        TextField defenders = textField(b::getDefenders, b::setDefenders);
+        defenders.setPromptText("quantos e quem");
+        HBox defendersRow = new HBox(8, mutedLabel("Defensores do bastião"), defenders);
+        defendersRow.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(defenders, Priority.ALWAYS);
+        basics.add(defendersRow, 1, 5);
+        VBox basicCard = card(sectionLabel("INSTALAÇÕES BÁSICAS"), basics);
+
+        GridPane specials = new GridPane();
+        specials.setHgap(10);
+        specials.setVgap(10);
+        javafx.scene.layout.ColumnConstraints col = new javafx.scene.layout.ColumnConstraints();
+        col.setPercentWidth(50);
+        specials.getColumnConstraints().addAll(col, col);
+        List<com.vttcaseiro.character.Bastion.SpecialFacility> facilities = b.getSpecialFacilities();
+        for (int i = 0; i < facilities.size(); i++) {
+            specials.add(specialFacilityCard(facilities.get(i)), i % 2, i / 2);
+        }
+        return new VBox(10, header, basicCard, specials);
+    }
+
+    private Node specialFacilityCard(com.vttcaseiro.character.Bastion.SpecialFacility f) {
+        TextField name = textField(f::getName, f::setName);
+        name.setPromptText("ex.: Arsenal, Biblioteca, Jardim");
+        ComboBox<String> space = new ComboBox<>();
+        space.getItems().add("—");
+        for (String[] kv : com.vttcaseiro.character.Bastion.SPACES) space.getItems().add(kv[1]);
+        String spaceLabel = com.vttcaseiro.character.Bastion.label(com.vttcaseiro.character.Bastion.SPACES, f.getSpace());
+        space.setValue(spaceLabel == null ? "—" : spaceLabel);
+        space.setOnAction(e -> {
+            f.setSpace(com.vttcaseiro.character.Bastion.key(com.vttcaseiro.character.Bastion.SPACES, space.getValue()));
+            changed();
+        });
+        ComboBox<String> order = new ComboBox<>();
+        order.getItems().add("—");
+        for (String[] kv : com.vttcaseiro.character.Bastion.ORDERS) order.getItems().add(kv[1]);
+        String orderLabel = com.vttcaseiro.character.Bastion.label(com.vttcaseiro.character.Bastion.ORDERS, f.getOrder());
+        order.setValue(orderLabel == null ? "—" : orderLabel);
+        order.setOnAction(e -> {
+            f.setOrder(com.vttcaseiro.character.Bastion.key(com.vttcaseiro.character.Bastion.ORDERS, order.getValue()));
+            changed();
+        });
+        TextField hirelings = textField(f::getHirelings, f::setHirelings);
+        hirelings.setPromptText("nomes ou quantidade");
+        TextArea notes = textArea(f::getNotes, f::setNotes, 3);
+        GridPane g = new GridPane();
+        g.setHgap(8);
+        g.setVgap(4);
+        g.addRow(0, mutedLabel("Espaço"), space);
+        g.addRow(1, mutedLabel("Ordem"), order);
+        g.addRow(2, mutedLabel("Contratados"), hirelings);
+        GridPane.setHgrow(hirelings, Priority.ALWAYS);
+        name.setMaxWidth(Double.MAX_VALUE);
+        return card(sectionLabel("INSTALAÇÃO ESPECIAL"), name, g, mutedLabel("Anotações"), notes);
     }
 
     private Node buildEquipmentBox() {

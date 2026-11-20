@@ -119,6 +119,24 @@ class LayoutUiTest {
                 assertFalse(toggles.isEmpty(), "ajuda longa vira 'Como funciona'");
                 Label round = (Label) field(main, "roundLabel");
                 assertTrue(round.isManaged(), "estado do combate continua a vista");
+
+                // pastas de cenas: a cena aparece dentro da pasta na arvore
+                com.vttcaseiro.service.MesaService mesas = (com.vttcaseiro.service.MesaService) field(main, "mesaService");
+                mesas.saveMap(new com.vttcaseiro.model.SceneModel(), "Mapa da cidade");
+                mesas.saveMap(new com.vttcaseiro.model.SceneModel(), "Arena");
+                com.vttcaseiro.library.SceneFolders folders = (com.vttcaseiro.library.SceneFolders) field(main, "sceneFolders");
+                folders.addFolder("", "Cidade");
+                folders.moveScene("Mapa da cidade", "Cidade");
+                Method save = Main.class.getDeclaredMethod("saveSceneFolders");
+                save.setAccessible(true);
+                save.invoke(main);
+                @SuppressWarnings("unchecked")
+                javafx.scene.control.TreeView<Object> tree = (javafx.scene.control.TreeView<Object>) field(main, "mapListView");
+                var top = tree.getRoot().getChildren();
+                assertEquals("Cidade", top.get(0).getValue().toString(), "pasta primeiro");
+                assertEquals("Mapa da cidade", top.get(0).getChildren().get(0).getValue().toString(), "cena dentro da pasta");
+                assertTrue(top.stream().anyMatch(i -> "Arena".equals(i.getValue().toString())), "cena sem pasta fica na raiz");
+                assertTrue(Files.exists(mesa.resolve(com.vttcaseiro.library.SceneFolders.FILE)), "pastas salvas na mesa");
                 stage.close();
             } catch (ReflectiveOperationException | java.io.IOException e) {
                 throw new RuntimeException(e);
