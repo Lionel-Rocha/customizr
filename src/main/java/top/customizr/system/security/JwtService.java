@@ -67,8 +67,24 @@ public class JwtService {
                 .getPayload();
     }
 
-    private SecretKey getSignInKey() {
-        byte[] keyBytes = Decoders.BASE64.decode(secretKey);
-        return Keys.hmacShaKeyFor(keyBytes);
+    private SecretKey signInKey;
+
+    /**
+     * Chave dos tokens. Sem jwt.secret (variavel JWT_SECRET) usa uma chave aleatoria criada agora: ninguem consegue
+     * forjar login, so que os logins abertos caem quando o servidor reinicia.
+     */
+    private synchronized SecretKey getSignInKey() {
+        if (signInKey == null) {
+            if (secretKey == null || secretKey.isBlank()) {
+                byte[] random = new byte[64];
+                new java.security.SecureRandom().nextBytes(random);
+                org.slf4j.LoggerFactory.getLogger(JwtService.class).warn("JWT_SECRET nao configurado: usando uma chave "
+                        + "temporaria (os logins caem quando o servidor reiniciar). Crie a variavel JWT_SECRET.");
+                signInKey = Keys.hmacShaKeyFor(random);
+            } else {
+                signInKey = Keys.hmacShaKeyFor(Decoders.BASE64.decode(secretKey));
+            }
+        }
+        return signInKey;
     }
 }

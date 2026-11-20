@@ -9,6 +9,7 @@ Este branch (`mesclagem-mesa`) traz para o Customizr o que foi feito no programa
 ## Como olhar rápido
 
 1. `mvn test` (tudo roda com H2, sem precisar do banco).
+1. Para rodar o servidor no seu PC: copie `.env.example` para `.env` (na raiz do projeto) e coloque um `JWT_SECRET`. O mesmo `.env` serve pro Docker Compose do README (`NGROK_AUTHTOKEN` e `FRONTEND_PATH` estão no modelo, comentados). Sem banco configurado ele usa um H2 local na pasta `data/`; para usar o PostgreSQL do Railway, preencha as três linhas do banco no `.env`. O `.env` e a pasta `data/` não vão para o git.
 2. Suba o servidor e abra **`/mesa`** no navegador: é uma tela de jogo simples, que usa só a API (login, cena, grade quadrada ou hexagonal, neblina, tokens, iniciativa e chat ao vivo). Ela serve para testar e de referência para o front em Angular.
 3. As rotas novas estão na tabela de rotas do `README.md`; a seção "Mesclagem com a mesa" explica cada parte.
 
@@ -70,8 +71,11 @@ Simulação do deploy, feita num Postgres 17.12 temporário no PC:
 
 **Pontos de segurança vistos no caminho (no código que já existia):**
 
-* Sem a variável `SPRING_DATASOURCE_URL`, o `application.properties` conecta direto no banco de produção do Railway. Quem rodar o projeto no próprio PC sem configurar nada mexe nos dados reais. Sugestão: tirar o endereço de produção do arquivo e deixar só a variável.
-* `jwt.secret` está escrito no `application.properties`, num repositório público: qualquer um consegue gerar um login válido. Sugestão: ler de uma variável de ambiente e trocar a chave.
+* **Resolvido nesta branch (arquivo `.env`):** o banco e o `jwt.secret` saíram do `application.properties`.
+  * Sem `SPRING_DATASOURCE_URL` o servidor usa o mesmo endereço do Railway de antes (o que já estava no ar), então o deploy continua igual. Pra testar no PC sem mexer no banco de verdade, o `.env.example` mostra como usar um H2 local.
+  * `jwt.secret` agora vem de `JWT_SECRET` (a chave antiga estava pública no repositório). Sem a variável o servidor sobe com uma chave temporária aleatória: ninguém consegue forjar login, mas todo mundo precisa entrar de novo quando o servidor reinicia. **Pra isso parar, criar `JWT_SECRET` (uma chave em Base64) nas variáveis do serviço no Railway.**
+* `management.endpoints.web.exposure.include=env` não faz nada hoje (o projeto não tem o actuator), mas se um dia o actuator entrar, essa linha publica as variáveis de ambiente (senhas inclusas). Vale apagar.
+* Um token JWT adulterado devolve erro 500 em vez de 401 (o filtro não trata a assinatura inválida). Não deixa ninguém entrar, só a resposta que está errada.
 * Dá pra criar dois usuários com o mesmo nome (`/user/create`); o login desse nome passa a falhar. O mesmo vale pra fontes com o mesmo código (`/source/create`), que quebra a importação de monstros.
 
 ## Ajustes ao seu padrão (feitos depois de estudar o `ClassService`)
