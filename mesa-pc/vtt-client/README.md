@@ -47,25 +47,34 @@ No PowerShell, comandos da pasta atual precisam de `.\` na frente:
 `.\rodar.cmd` (ou `.\rodar.cmd test`). Tem um `rodar.cmd` tambem na pasta
 de cima (`vtt-caseiro-classes`), que so chama o de `vtt-client`.
 
+### Hospedar e entrar numa mesa
+
+- **Mestre:** painel **Rede** (barra da esquerda, embaixo) > "Hospedar aqui". Senha da mesa, senha
+  de mestre, criptografia (TLS) e ponte ficam em **"▸ Senhas, criptografia e ponte"**, logo abaixo.
+- **Jogador:** na tela inicial, **"Entrar numa mesa online"** (nao precisa criar mesa antes: o
+  programa guarda o que vier daquela mesa numa pasta escondida, `.online`, dentro da pasta das
+  mesas). Ja dentro de uma mesa: painel **Rede** > "Entrar numa mesa online...". Pede o nome, o
+  endereco (ou o codigo da ponte) e a senha, se tiver. O programa lembra o endereco, nunca a senha.
+
 ### Jogadores pelo navegador (sem instalar nada)
 
-Quando voce hospeda (aba Rede > "Hospedar aqui"), o programa abre tambem a
-porta seguinte (55055 -> **55056**) com uma pagina web. A aba Rede mostra o
+Quando voce hospeda (painel Rede > "Hospedar aqui"), o programa abre tambem a
+porta seguinte (55055 -> **55056**) com uma pagina web. O painel Rede mostra o
 link (ex.: `http://192.168.0.10:55056`) e um botao "Copiar link". Quem nao tem
 o programa abre esse link no navegador -- PC ou celular, na mesma rede ou pela
 Tailscale/ZeroTier -- e entra com o nome e a senha da mesa. Pelo navegador da
 pra mover os proprios tokens, abrir portas, pingar, conversar, rolar dados,
 rolar pela ficha (com condicoes e efeitos), mudar o proprio PV e ler o diario.
 Libere a porta 55056 no firewall do Windows se o celular nao conseguir abrir.
-A mesma porta serve os sons da mesa (aba Som): quem joga pelo programa tambem
+A mesma porta serve os sons da mesa (painel Som): quem joga pelo programa tambem
 baixa a musica dali, entao ela precisa estar liberada pra todo mundo ouvir.
 
 ### Jogar pela internet com criptografia (TLS)
 
-Na aba Rede, marque **"Criptografar (TLS)"** antes de "Hospedar aqui". O
-programa gera um certificado proprio (uma vez so, em `~/.vttcaseiro/tls`) e
+No painel Rede, abra **"▸ Senhas, criptografia e ponte"** e marque **"Criptografar (TLS)"** antes
+de "Hospedar aqui". O programa gera um certificado proprio (uma vez so, em `~/.vttcaseiro/tls`) e
 mostra o **codigo da mesa** (ex.: `CE90 CE6F 6D58 C11A`). Quem conecta marca
-**"Mesa criptografada (TLS)"**; na primeira vez aparece o codigo pra conferir
+**"Mesa criptografada (TLS)"** na janela "Entrar numa mesa online"; na primeira vez aparece o codigo pra conferir
 com o mestre, e o programa lembra dele. Se um dia o codigo mudar, a conexao e
 recusada com aviso. Pelo navegador o link vira `https://...`; o aviso de
 "certificado nao confiavel" e esperado (certificado proprio) -- e so avancar.
@@ -80,10 +89,11 @@ liga um no outro pelo **codigo da mesa**. A mesa continua rodando no PC do mestr
 1. Dois cliques em **`Criar ponte do Customizr.cmd`** (pasta de cima): gera a pasta
    **`Customizr-Ponte`** com o `customizr-ponte.jar` (16 KB, so precisa de Java 25+) e um guia
    (`LEIA-ME.md`: rodar no Linux, como servico, Docker, liberar a porta 55070).
-2. Mestre: aba Rede > "Hospedar aqui" > endereco da ponte (ex.: `meuservidor.com:55070`) >
-   **Abrir mesa na ponte**. Aparece o codigo da mesa (ex.: `K7P-Q2X`, sempre o mesmo pra essa mesa).
-3. Jogador: aba Rede > Conectar com o endereco e a porta da ponte + o **codigo**; pelo navegador,
-   `http://meuservidor.com:55070/?mesa=K7P-Q2X`.
+2. Mestre: painel **Rede** > "Hospedar aqui" > **"▸ Senhas, criptografia e ponte"** > endereco da
+   ponte (ex.: `meuservidor.com:55070`) > **Abrir mesa na ponte**. Aparece o codigo da mesa
+   (ex.: `K7P-Q2X`, sempre o mesmo pra essa mesa).
+3. Jogador: **"Entrar numa mesa online"** (tela inicial, ou painel Rede) > endereco `meuservidor.com`,
+   porta `55070` e o **codigo da ponte**; pelo navegador, `http://meuservidor.com:55070/?mesa=K7P-Q2X`.
 
 No servidor Linux, `sudo bash instalar-no-servidor.sh` (vem na pasta da ponte) instala o Java se
 faltar, copia pra `/opt/customizr-ponte`, cria o servico (liga sozinho no boot) e libera a porta.
@@ -94,13 +104,17 @@ programa confere o hash de cada arquivo baixado (ninguem troca o som no caminho)
 
 ### Backup
 
-Aba Rede > **"Exportar mesa inteira (backup)..."** gera um `.zip` com tudo da
-mesa. Pra abrir em outro computador: tela de escolher mesa > **"Importar
-backup..."** (cria uma mesa nova, nunca sobrescreve).
+Engrenagem **⚙** (barra de cima) > **"Exportar mesa inteira (backup)..."** gera um `.zip` com tudo
+da mesa. Pra abrir em outro computador: tela de escolher mesa > **"Importar backup..."** (cria uma
+mesa nova, nunca sobrescreve).
+
+Na mesma janela ficam os **backups automaticos** (ao abrir a mesa e a cada 10 min, so quando algo
+mudou; da pra mudar o intervalo ou desligar), **"Fazer backup agora"** e **"Restaurar backup..."**
+(a copia vira uma mesa nova; a atual nao muda). E o **tema** do programa.
 
 ### Importar fichas (PDF ou JSON)
 
-Aba Fichas > **"Importar ficha (PDF ou JSON)..."**. Aceita:
+Painel **Fichas** > **"Importar..."**. Aceita:
 
 - **PDF preenchivel**: a ficha oficial de 5e, a do D&D Beyond ("Exportar para PDF")
   e fichas parecidas, inclusive traduzidas. Le nome, classe/nivel, atributos, CA,
@@ -124,7 +138,7 @@ manda pronta). A ficha importada vira uma ficha nova, do jogador que importou.
 
 ### Importar mapas (Azgaar e Watabou)
 
-Aba Mapa > **"Importar mapa (Azgaar / Watabou)..."** (ou o cartao "Comece aqui"
+Painel **Mapa** > **"Importar mapa (Azgaar / Watabou)..."** (ou o cartao "Comece aqui"
 no mapa vazio):
 
 - **Watabou - One Page Dungeon** (watabou.github.io): botao direito no mapa >
@@ -144,7 +158,7 @@ limite da mesa (4 MB, que tambem vai pela rede pros jogadores).
 
 ### Grade hexagonal e objetos no mapa
 
-- **Tipo de grade** (aba Mapa > Grade da cena atual): **Quadrada**, **Hexagonal** (hexagonos "em pe")
+- **Tipo de grade** (painel Mapa > Grade da cena atual): **Quadrada**, **Hexagonal** (hexagonos "em pe")
   ou **Sem grade**. No hex os tokens encaixam no centro do hexagono, as setas do teclado andam de
   hexagono em hexagono e a regua conta passos. Sem grade, o token fica onde soltar e a regua mede em
   linha reta. Os jogadores (inclusive no navegador) recebem a grade nova na hora.
@@ -264,7 +278,7 @@ o JDK que o IntelliJ esta usando pra esse projeto -- isso costuma ser
 
 ## Importador de classes do 5etools
 
-Botao "Importar classes (class-\*.json)..." na aba Fichas. Le o formato
+Painel **Fichas** > **"Abrir compêndio..."** > "Importar classes (class-\*.json)...". Le o formato
 de verdade do 5etools e monta classe + subclasses + features por nivel --
 logica portada direto do `ClassService` do projeto `customizr` da sua
 noiva (Spring Boot), adaptada pra Gson/arquivo. Ver `HANDOFF.md` pro que
@@ -386,9 +400,9 @@ pra entender exatamente o que isso prova e o que nao prova.
   rapidos: d20, d100, Vantagem, Desvantagem (sincronizam pela rede quando
   conectado). Cada linha do chat tem uma cor pelo tipo (rolagem, chat,
   erro, sistema).
-- **Rede**: aba "Rede". "Hospedar aqui" sobe um servidor nesta maquina
+- **Rede**: painel "Rede". "Hospedar aqui" sobe um servidor nesta maquina
   (a cena atual vira o ponto de partida compartilhado) e ja conecta nele;
-  preencher host/porta + "Conectar" entra no servidor de outra pessoa.
+  "Entrar numa mesa online" (tela inicial ou painel Rede) entra no servidor de outra pessoa.
   Conectado, mover token / adicionar token / rolar dado (incluindo
   vantagem/desvantagem) passam a valer pra todo mundo. **Imagens de token
   e de mapa viajam pela rede de verdade agora** (nao so o caminho do

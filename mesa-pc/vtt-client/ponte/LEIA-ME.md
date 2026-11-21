@@ -74,12 +74,14 @@ Customizr pedindo o código da mesa.
 
 ## 4. Usar
 
-**Mestre:** aba **Rede** > "Hospedar aqui" > no campo da ponte, digite
-`ENDERECO-DO-SERVIDOR:55070` > **Abrir mesa na ponte**. Aparece o **código da mesa** (ex.:
-`K7P-Q2X`), que é sempre o mesmo para essa mesa.
+**Mestre:** painel **Rede** (barra da esquerda, embaixo) > "Hospedar aqui" > abra
+**"▸ Senhas, criptografia e ponte"** > no campo da ponte, digite `ENDERECO-DO-SERVIDOR:55070` >
+**Abrir mesa na ponte**. Aparece o **código da mesa** (ex.: `K7P-Q2X`), que é sempre o mesmo para
+essa mesa.
 
-**Jogador (programa):** aba **Rede** > Conectar com o endereço da ponte, porta `55070` e o
-código da mesa no campo "Código da mesa na ponte".
+**Jogador (programa):** na tela inicial, **"Entrar numa mesa online"** (ou, já dentro de uma mesa,
+painel **Rede** > "Entrar numa mesa online..."). Endereço: o da ponte; porta: `55070`; e o código
+da mesa no campo "Código da ponte".
 
 **Jogador (navegador):** `http://ENDERECO-DO-SERVIDOR:55070/?mesa=K7P-Q2X`.
 
