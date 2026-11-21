@@ -40,6 +40,23 @@
               </div>
             </section>
           }
+          @case ('fichas') {
+            <section class="panel-card">
+              <h3 class="label-section">Fichas desta mesa</h3>
+              <div class="list-view" data-vazio="Nenhuma ficha ainda. Crie a sua abaixo.">
+                @for (c of characters(); track c.characterId) {
+                  <div class="list-cell" [class.dim]="!canOpen(c)" (click)="canOpen(c) && openSheet.set(c.characterId)"
+                       [title]="canOpen(c) ? 'Abrir a ficha' : 'Ficha de outro jogador'">
+                    <cz-icon name="sheet" /> {{ c.name }} @if (mine(c)) { <span class="label-muted">· sua</span> }
+                  </div>
+                }
+              </div>
+              <form class="row" (ngSubmit)="createCharacter()">
+                <input type="text" name="newCharacter" [(ngModel)]="newCharacter" placeholder="Nome do personagem" class="grow-input">
+                <button class="button button-primary" type="submit"><cz-icon name="add" /> Nova ficha</button>
+              </form>
+            </section>
+          }
           @case ('combate') {
             <section class="panel-card">
               <h2 class="label-title">{{ initiative().entries.length ? 'Rodada ' + initiative().round : 'Sem combate em andamento' }}</h2>
@@ -119,5 +136,6 @@
     </section>
   </div>
 
+  @if (openSheet(); as id) { <cz-sheet [characterId]="id" (closed)="openSheet.set(null)" /> }
   @if (toast()) { <div class="toast">{{ toast() }}</div> }
 </div>

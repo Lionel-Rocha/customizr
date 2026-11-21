@@ -29,3 +29,5 @@
 .roll-total.crit { color: var(--c-success); border-color: var(--c-success); }
 .roll-total.fumble { color: var(--c-danger); border-color: var(--c-danger); }
 a.nav-rail-button { text-decoration: none; }
+.list-cell.dim { opacity: .55; cursor: default; }
+.grow-input { flex: 1; min-width: 120px; }

@@ -17,7 +17,13 @@ Feito em Angular 22 (componentes standalone, signals, sem zone.js). Conversa com
   - tudo **ao vivo** pelo canal de eventos do servidor (`/live/campaign/{id}/events`): chat, iniciativa, cenas e tokens.
 - **Seletor de tema** em todas as telas (fica salvo no navegador).
 
-Fichas, Grupo, Diário e Som ainda mostram "vai chegar no site" (existem no programa de PC e na `/mesa`).
+- **Fichas**: lista das fichas da mesa (a sua marcada; ficha de outro jogador só o mestre abre) e "Nova ficha". A ficha abre numa janela com a organização do programa de PC:
+  - **Principal**: atributos (o valor dá pra editar) com salvaguarda e perícias clicáveis, modo Normal/Vantagem/Desvantagem, Inspiração heroica, PV (dano, cura, temporário, máximo), CA, iniciativa com "Rolar", deslocamento, percepção passiva, dados de vida, teste contra a morte e os ataques com "Atacar";
+  - **Traços e magias**: recursos, espaços de magia e talentos;
+  - **Personagem**: idiomas, proficiências, sentidos e carga;
+  - toda rolagem é feita pelo servidor e vai pro chat da mesa.
+
+Grupo, Diário e Som ainda mostram "vai chegar no site" (existem no programa de PC e na `/mesa`).
 
 ## Rodar
 

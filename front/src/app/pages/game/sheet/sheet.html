@@ -1,0 +1,169 @@
+<div class="backdrop" (click)="closed.emit()"></div>
+<section class="sheet-window" role="dialog" [attr.aria-label]="'Ficha de ' + (sheet()?.name ?? '')">
+  @if (sheet(); as s) {
+    <header class="sheet-head">
+      <div class="portrait">{{ s.name.slice(0, 1) }}</div>
+      <div class="identity">
+        <h2 class="name">{{ s.name }}</h2>
+        <div class="label-muted">{{ s.classes.length ? classLine() + ' · nível ' + s.combat.totalLevel : 'Sem classe ainda' }}</div>
+        <div class="facts">
+          <span><b>Espécie</b> {{ s.details.species?.name || '—' }}</span>
+          <span><b>Antecedente</b> {{ s.details.background?.name || '—' }}</span>
+          <span><b>XP</b> {{ s.details.experiencePoints }}</span>
+        </div>
+      </div>
+      <div class="side">
+        <h3 class="label-section">Rolagens de d20</h3>
+        <div class="mode">
+          <button class="button" [class.button-primary]="mode() === 'NORMAL'" (click)="mode.set('NORMAL')">Normal</button>
+          <button class="button" [class.button-primary]="mode() === 'ADVANTAGE'" (click)="mode.set('ADVANTAGE')">Vantagem</button>
+          <button class="button" [class.button-primary]="mode() === 'DISADVANTAGE'" (click)="mode.set('DISADVANTAGE')">Desvantagem</button>
+        </div>
+        <div class="row">
+          <span class="label-muted">Bônus de proficiência</span> <b class="big">{{ signed(s.combat.proficiencyBonus) }}</b>
+        </div>
+        <label class="check-box"><input type="checkbox" [checked]="s.details.heroicInspiration" (change)="toggleInspiration()"> Inspiração heroica</label>
+      </div>
+      <button class="button button-flat close" (click)="closed.emit()" title="Fechar a ficha">✕</button>
+    </header>
+
+    <nav class="tabs">
+      <button [class.on]="tab() === 'principal'" (click)="tab.set('principal')">Principal</button>
+      <button [class.on]="tab() === 'tracos'" (click)="tab.set('tracos')">Traços e magias</button>
+      <button [class.on]="tab() === 'personagem'" (click)="tab.set('personagem')">Personagem</button>
+    </nav>
+    @if (error()) { <div class="erro pad">{{ error() }}</div> }
+
+    <div class="sheet-body">
+      @switch (tab()) {
+        @case ('principal') {
+          <div class="main">
+            <div class="left">
+              <p class="label-muted hint">Clique no número ou no nome pra rolar (vai pro chat). Marca: ● proficiente · ◉ especialista · ○ nada.</p>
+              <div class="abilities">
+                @for (a of abilities; track a.key) {
+                  <div class="panel-card ability">
+                    <div class="ability-head">
+                      <button class="ability-name" (click)="roll('ABILITY', { ability: a.key })" title="Teste de {{ a.name }}">{{ a.name.toUpperCase() }}</button>
+                      <span class="mod">{{ signed(modifier(score(a.attr))) }}</span>
+                    </div>
+                    <label class="score">Valor <input type="number" min="1" max="30" [value]="score(a.attr)" (change)="setScore(a.attr, $any($event.target).value)"></label>
+                    @if (save(a.key); as sv) {
+                      <button class="line strong" (click)="roll('SAVE', { ability: a.key })">
+                        <span class="m">{{ mark(sv.proficient) }}</span><span class="b">{{ signed(sv.bonus) }}</span>Salvaguarda
+                      </button>
+                    }
+                    @for (sk of skills(a.key); track sk.skill) {
+                      <button class="line" (click)="roll('SKILL', { skill: sk.skill })">
+                        <span class="m">{{ mark(sk.proficient, sk.expertise) }}</span><span class="b">{{ signed(sk.bonus) }}</span>{{ skillName(sk.skill, sk.label) }}
+                      </button>
+                    }
+                  </div>
+                }
+              </div>
+
+              <section class="panel-card">
+                <h3 class="label-section">ARMAS E TRUQUES DE DANO</h3>
+                @if (s.details.attacks.length) {
+                  <table class="attacks">
+                    <thead><tr><th>Nome</th><th>Acerto</th><th>Dano e tipo</th><th>Notas</th><th></th></tr></thead>
+                    <tbody>
+                      @for (at of s.details.attacks; track at.id) {
+                        <tr>
+                          <td><b>{{ at.name }}</b></td><td>{{ signed(at.attackBonus) }}</td>
+                          <td>{{ at.damage }} {{ damageType(at.damageType) }}</td><td class="label-muted">{{ at.notes }}</td>
+                          <td><button class="button button-primary" (click)="attack(at.id)">Atacar</button></td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                } @else { <p class="label-muted">Nenhum ataque na ficha.</p> }
+              </section>
+            </div>
+
+            <div class="right">
+              <section class="panel-card">
+                <h3 class="label-section">PONTOS DE VIDA</h3>
+                <div class="hp"><b>{{ s.combat.hpCurrent ?? '?' }}</b> / {{ s.combat.hpMax ?? '?' }}
+                  @if (s.combat.hpTemp) { <span class="temp">+{{ s.combat.hpTemp }} temp</span> }</div>
+                <label class="inline">Máximo <input type="number" min="0" [value]="s.combat.hpMax ?? ''" (change)="setCombat('hpMax', $any($event.target).value)">
+                  @if (s.combat.suggestedHpMax && !s.combat.hpMax) { <span class="label-muted">sugerido {{ s.combat.suggestedHpMax }}</span> }</label>
+                <div class="row">
+                  <input type="number" min="1" placeholder="qtd" [(ngModel)]="hpAmount" class="qtd">
+                  <button class="button" (click)="hp('DAMAGE')">Dano</button>
+                  <button class="button" (click)="hp('HEALING')">Cura</button>
+                  <button class="button" (click)="hp('TEMPORARY')">Temp</button>
+                </div>
+              </section>
+              <section class="panel-card">
+                <h3 class="label-section">CLASSE DE ARMADURA</h3>
+                <label class="inline">CA <input type="number" min="0" [value]="s.combat.armorClass ?? ''" (change)="setCombat('armorClass', $any($event.target).value)"></label>
+              </section>
+              <section class="panel-card">
+                <h3 class="label-section">INICIATIVA / DESLOCAMENTO</h3>
+                <div class="row"><span>Iniciativa <b class="big">{{ signed(s.combat.initiative) }}</b></span>
+                  <button class="button button-primary" (click)="roll('INITIATIVE')">Rolar iniciativa</button></div>
+                <label class="inline">Deslocamento (pés) <input type="number" min="0" step="5" [value]="s.combat.speedFt ?? ''" (change)="setCombat('speedFt', $any($event.target).value)"></label>
+                <div class="row"><span class="label-muted">Percepção passiva</span> <b class="big">{{ s.combat.passivePerception }}</b></div>
+              </section>
+              <section class="panel-card">
+                <h3 class="label-section">DADOS DE VIDA</h3>
+                <div>{{ s.details.hitDiceRemaining }} de {{ s.details.hitDiceTotal }} restando</div>
+              </section>
+              <section class="panel-card">
+                <h3 class="label-section">TESTE CONTRA A MORTE</h3>
+                <div class="death"><span>Sucessos</span>@for (on of dots(s.details.deathSaveSuccesses); track $index) { <i class="dot ok" [class.on]="on"></i> }</div>
+                <div class="death"><span>Falhas</span>@for (on of dots(s.details.deathSaveFailures); track $index) { <i class="dot bad" [class.on]="on"></i> }</div>
+                <button class="button" (click)="roll('DEATH_SAVE')">Rolar teste contra a morte</button>
+              </section>
+            </div>
+          </div>
+        }
+        @case ('tracos') {
+          <div class="cols">
+            <section class="panel-card">
+              <h3 class="label-section">RECURSOS E USOS</h3>
+              @for (r of s.details.resources; track r.id) {
+                <div class="res"><b>{{ r.name }}</b> <span>{{ r.remaining }} / {{ r.max }} {{ r.unit || '' }}</span>
+                  <span class="label-muted">{{ recharge(r.recharge) }}</span></div>
+              } @empty { <p class="label-muted">Nenhum recurso.</p> }
+            </section>
+            <section class="panel-card">
+              <h3 class="label-section">ESPAÇOS DE MAGIA</h3>
+              @for (sl of s.details.spellSlots; track sl.pool + sl.level) {
+                <div class="res"><b>Nível {{ sl.level }}</b> <span>{{ sl.total - sl.spent }} / {{ sl.total }}</span>
+                  <span class="label-muted">{{ sl.className }}</span></div>
+              } @empty { <p class="label-muted">Sem espaços de magia.</p> }
+            </section>
+            <section class="panel-card">
+              <h3 class="label-section">TALENTOS</h3>
+              @for (f of s.details.feats; track f.id) { <div class="res"><b>{{ f.name }}</b> <span class="label-muted">nível {{ f.characterLevel }}</span></div> }
+              @empty { <p class="label-muted">Nenhum talento.</p> }
+            </section>
+          </div>
+        }
+        @case ('personagem') {
+          <div class="cols">
+            <section class="panel-card">
+              <h3 class="label-section">IDIOMAS</h3>
+              <p>{{ s.details.languages.join(', ') || '—' }}</p>
+            </section>
+            <section class="panel-card">
+              <h3 class="label-section">TREINAMENTO E PROFICIÊNCIAS</h3>
+              <p><b>Armas:</b> {{ s.details.weaponProficiencies.join(', ') || '—' }}</p>
+              <p><b>Armaduras:</b> {{ s.details.armorProficiencies.join(', ') || '—' }}</p>
+              <p><b>Ferramentas:</b> {{ s.details.toolProficiencies.join(', ') || '—' }}</p>
+            </section>
+            <section class="panel-card">
+              <h3 class="label-section">SENTIDOS E CARGA</h3>
+              <p>Intuição passiva {{ s.details.passiveInsight }} · Investigação passiva {{ s.details.passiveInvestigation }}</p>
+              @if (s.details.carryingCapacityLb) { <p>Carga máxima: {{ s.details.carryingCapacityLb }} lb</p> }
+            </section>
+          </div>
+        }
+      }
+    </div>
+  } @else {
+    <div class="pad">@if (error()) { <span class="erro">{{ error() }}</span> } @else { Abrindo a ficha... }</div>
+  }
+</section>

@@ -4,9 +4,10 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { Api } from '../../core/api';
 import { Auth, errorText } from '../../core/auth';
 import { Live, LiveEvent } from '../../core/live';
-import { Campaign, ChatMessage, Initiative, Scene } from '../../core/models';
+import { Campaign, CharacterSummary, ChatMessage, Initiative, Scene } from '../../core/models';
 import { Icon } from '../../shared/icon';
 import { ThemePicker } from '../../shared/theme-picker';
+import { SheetWindow } from './sheet/sheet';
 
 interface Section { key: string; label: string; icon: string; }
 
@@ -16,7 +17,7 @@ interface Section { key: string; label: string; icon: string; }
  */
 @Component({
   selector: 'cz-game',
-  imports: [FormsModule, Icon, ThemePicker],
+  imports: [FormsModule, Icon, ThemePicker, SheetWindow],
   templateUrl: './game.html',
   styleUrl: './game.css',
 })
@@ -46,6 +47,9 @@ export class GamePage implements OnInit, OnDestroy {
   protected readonly initiative = signal<Initiative>({ round: 1, turnIndex: 0, entries: [] });
   protected readonly messages = signal<ChatMessage[]>([]);
   protected readonly toast = signal('');
+  protected readonly characters = signal<CharacterSummary[]>([]);
+  protected readonly openSheet = signal<string | null>(null);
+  protected newCharacter = '';
   protected text = '';
   protected readonly dice = ['d4', 'd6', 'd8', 'd10', 'd12', 'd20', 'd100'];
   private readonly chatList = viewChild<ElementRef<HTMLElement>>('chatList');
@@ -63,6 +67,7 @@ export class GamePage implements OnInit, OnDestroy {
       this.messages.set(messages);
       this.loadMap();
       this.scrollChat();
+      this.loadCharacters();
       this.live.connect(id, e => this.onEvent(e));
     } catch (err) {
       this.say(errorText(err));
@@ -111,6 +116,23 @@ export class GamePage implements OnInit, OnDestroy {
   async activate(s: Scene): Promise<void> {
     try { await this.api.activateScene(s.id); } catch (err) { this.say(errorText(err)); }
   }
+
+  // ---------------- fichas ----------------
+  protected mine(c: CharacterSummary): boolean { return c.ownerId === this.auth.me()?.userId; }
+  async loadCharacters(): Promise<void> {
+    try { this.characters.set(await this.api.characters(this.campaign()!.id)); } catch (err) { this.say(errorText(err)); }
+  }
+  async createCharacter(): Promise<void> {
+    const name = this.newCharacter.trim();
+    if (!name) return;
+    await this.run(async () => {
+      await this.api.createCharacter(this.campaign()!.id, name);
+      this.newCharacter = '';
+      await this.loadCharacters();
+    });
+  }
+  /** Ficha alheia so o mestre abre (o servidor confere de novo). */
+  canOpen(c: CharacterSummary): boolean { return this.master() || this.mine(c); }
 
   // ---------------- combate ----------------
   protected current(i: number): boolean { return this.initiative().entries.length > 0 && i === this.initiative().turnIndex; }
