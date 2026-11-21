@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Customizr - kit visual (demo)</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="customizr.css">
+</head>
+<body>
+<!-- Demonstracao do kit: a mesma tela principal do programa de PC, feita so com tokens.css + customizr.css. -->
+<div class="app">
+  <header class="top-bar">
+    <span class="top-bar-brand"><img src="img/customizr-64.png" width="24" height="24" alt="">Customizr</span>
+    <span class="top-bar-sep">/</span>
+    <span class="top-bar-title">Campanha</span>
+    <span class="spacer"></span>
+    <label class="label-muted" for="tema">Tema</label>
+    <select id="tema"></select>
+    <button class="button-flat button" title="Configurações">⚙</button>
+    <span class="status-pill">Offline (tudo local)</span>
+  </header>
+
+  <div class="workspace" id="workspace">
+    <nav class="nav-rail" id="rail"></nav>
+
+    <aside class="side-panel">
+      <div class="side-panel-header">
+        <span class="side-panel-title" id="panelTitle">Combate</span>
+        <button class="button button-flat" id="closePanel" title="Fechar o painel (o mapa fica maior)">✕</button>
+      </div>
+      <div class="side-panel-body">
+        <section class="panel-card">
+          <h2 class="label-title">Rodada 2</h2>
+          <div class="list-view" data-vazio="Ninguém na ordem ainda.">
+            <div class="list-cell selected">18 &nbsp; Elora</div>
+            <div class="list-cell">14 &nbsp; Goblin 1</div>
+            <div class="list-cell">9 &nbsp; Goblin 2</div>
+          </div>
+          <div class="row">
+            <button class="button button-primary">Próximo turno</button>
+            <button class="button">Encerrar combate</button>
+          </div>
+        </section>
+        <section class="panel-card">
+          <h3 class="label-section">Mestre: grupo inteiro</h3>
+          <div class="row">
+            <button class="button button-primary">Salvaguarda em grupo...</button>
+            <button class="button">Descanso curto</button>
+            <button class="button">Descanso longo</button>
+          </div>
+          <label class="check-box"><input type="checkbox"> Aprovar pedidos dos jogadores</label>
+          <span class="hint-toggle">ⓘ&nbsp; Como funciona</span>
+        </section>
+      </div>
+    </aside>
+
+    <main class="map-area">
+      <div class="map-board"></div>
+      <div class="map-toolbar" id="toolbar"></div>
+      <div class="empty-state">
+        <img src="img/customizr-64.png" width="54" height="54" alt="">
+        <h2>Comece aqui</h2>
+        <p class="label-muted">Escolha uma imagem de mapa do seu computador ou traga um mapa pronto. Depois é só arrastar fichas e monstros pra cá.</p>
+        <div class="row" style="justify-content:center">
+          <button class="button button-primary">+ Nova cena (imagem)...</button>
+          <button class="button">Importar mapa...</button>
+        </div>
+      </div>
+    </main>
+
+    <section class="chat-panel">
+      <h3 class="label-section">Chat</h3>
+      <div class="chat-list">
+        <div class="chat-entry chat-entry-system"><div class="chat-entry-text">Mesa "Campanha" aberta.</div></div>
+        <div class="chat-entry"><span class="bar"></span><div>
+          <div class="chat-entry-meta">Elora</div>
+          <div class="chat-entry-text">Ataque: Espada longa — 1d20+5</div>
+          <span class="roll-total">17</span>
+        </div></div>
+        <div class="chat-entry chat-entry-private"><span class="bar" style="background:#9B6BDF"></span><div>
+          <div class="chat-entry-meta">Mestre • sussurro para Elora</div>
+          <div class="chat-entry-text">Você ouve passos atrás da porta.</div>
+        </div></div>
+      </div>
+      <div class="chat-dice" id="dice"></div>
+      <div class="row"><button class="chip">Vantagem</button><button class="chip">Desvantagem</button>
+        <label class="check-box"><input type="checkbox"> Escondida</label></div>
+      <div class="row"><input class="text-field chat-input" placeholder="Mensagem ou /r 2d6+3"><button class="button button-primary">Enviar</button></div>
+    </section>
+  </div>
+</div>
+
+<script type="module">
+  import { TEMAS, TEMA_PADRAO } from './temas.js';
+  import { icone } from './icones.js';
+
+  // seletor de tema (troca o atributo data-theme do <html>; fica salvo neste navegador)
+  const sel = document.getElementById('tema');
+  for (const t of TEMAS) sel.add(new Option(t.nome, t.chave));
+  const salvo = (() => { try { return localStorage.getItem('tema'); } catch { return null; } })();
+  const aplicar = chave => {
+    document.documentElement.dataset.theme = chave;
+    sel.value = chave;
+    try { localStorage.setItem('tema', chave); } catch {}
+  };
+  aplicar(new URLSearchParams(location.search).get('tema') || salvo || TEMA_PADRAO);
+  sel.onchange = () => aplicar(sel.value);
+
+  // barra de navegacao (mesmos nomes e icones do programa de PC)
+  const secoes = [['map', 'Mapa'], ['sheet', 'Fichas'], ['party', 'Grupo'], ['combat', 'Combate'], ['journal', 'Diário'], ['sound', 'Som']];
+  const rail = document.getElementById('rail');
+  const ws = document.getElementById('workspace');
+  let aberto = 'Combate';
+  const desenhar = () => {
+    rail.innerHTML = '';
+    const botao = ([ic, nome]) => {
+      const b = document.createElement('button');
+      b.className = 'nav-rail-button' + (nome === aberto ? ' selected' : '');
+      b.innerHTML = icone(ic, 20) + nome;
+      b.onclick = () => { aberto = aberto === nome ? null : nome; ws.classList.toggle('panel-closed', !aberto);
+        if (aberto) document.getElementById('panelTitle').textContent = aberto; desenhar(); };
+      return b;
+    };
+    secoes.forEach(s => rail.append(botao(s)));
+    const grow = document.createElement('div'); grow.className = 'grow'; rail.append(grow);
+    rail.append(botao(['network', 'Rede']));
+  };
+  desenhar();
+  document.getElementById('closePanel').onclick = () => { aberto = null; ws.classList.add('panel-closed'); desenhar(); };
+
+  // barra do mapa e dados do chat
+  const tb = document.getElementById('toolbar');
+  const g1 = document.createElement('div'); g1.className = 'tool-group';
+  for (const ic of ['party', 'ruler', 'brush', 'pin', 'objects', 'cloud', 'wall']) {
+    const b = document.createElement('button'); b.className = 'tool-button' + (ic === 'wall' ? ' selected' : ''); b.innerHTML = icone(ic); g1.append(b);
+  }
+  const g2 = document.createElement('div'); g2.className = 'tool-group';
+  for (const ic of ['undo', 'center']) { const b = document.createElement('button'); b.className = 'tool-button'; b.innerHTML = icone(ic); g2.append(b); }
+  tb.append(g1, g2);
+  const dice = document.getElementById('dice');
+  for (const d of ['d4', 'd6', 'd8', 'd10', 'd12', 'd20', 'd100']) { const b = document.createElement('button'); b.className = 'chip chip-dice'; b.textContent = d; dice.append(b); }
+</script>
+</body>
+</html>

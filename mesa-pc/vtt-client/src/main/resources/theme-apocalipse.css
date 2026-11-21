@@ -1,4 +1,4 @@
-/* Tema Apocalypse World (pós-apocalipse: terra e ferrugem): so as cores base; os tons intermediarios vem do theme-derived.css. */
+/* Tema Apocalypse World (gerado por design/GerarTokens.java a partir de design/tokens.properties). */
 .root {
     -c-bg: #191813;
     -c-surface: #23221B;
@@ -11,6 +11,42 @@
     -c-muted: #A39C84;
     -c-danger: #D2513A;
     -c-success: #8FA644;
+    -c-private: #9B6BDF;
+    -c-bg-deep: #171611;
+    -c-bg-deep2: #151410;
+    -c-bg-input: #1F1D17;
+    -c-bg-alt: #23211B;
+    -c-surface-0: #22211A;
+    -c-surface-1: #2B2A21;
+    -c-surface-1b: #2B2A21;
+    -c-surface-2: #302F26;
+    -c-surface-2b: #302F26;
+    -c-surface-3: #35342A;
+    -c-surface-4: #3D3C31;
+    -c-raised-2: #3B392D;
+    -c-raised-2b: #3B392D;
+    -c-raised-3: #4A473A;
+    -c-raised-3b: #4C493C;
+    -c-raised-armed: #4D2A14;
+    -c-border-2: #5A5543;
+    -c-border-3: #6B6552;
+    -c-accent-deep-2: #693E23;
+    -c-accent-deep-3: #62381E;
+    -c-accent-deep-4: #784C30;
+    -c-accent-deep-5: #3F2311;
+    -c-accent-text-2: #F2D1AF;
+    -c-accent-text-3: #EFC69C;
+    -c-accent-text-4: #EBBB8A;
+    -c-text-2: #CBC5B0;
+    -c-text-3: #AAA493;
+    -c-muted-2: #938C77;
+    -c-muted-3: #86806C;
+    -c-muted-3b: #827D6A;
+    -c-muted-4: #75705F;
+    -c-danger-text: #DD7663;
+    -c-success-text: #B4C67B;
+    -c-success-bg: #2B3214;
+    -c-private-bg: #9B6BDF26;
     -c-accent-88: #C46A2B88;
     -c-accent-66: #C46A2B66;
     -c-accent-55: #C46A2B55;

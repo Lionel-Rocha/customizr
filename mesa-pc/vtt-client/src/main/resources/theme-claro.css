@@ -1,4 +1,4 @@
-/* Tema Claro: so as cores base; os tons intermediarios vem do theme-derived.css. */
+/* Tema Claro (gerado por design/GerarTokens.java a partir de design/tokens.properties). */
 .root {
     -c-bg: #F3EEE6;
     -c-surface: #FFFFFF;
@@ -11,6 +11,42 @@
     -c-muted: #6E5F4F;
     -c-danger: #C0392B;
     -c-success: #2E8B57;
+    -c-private: #9B6BDF;
+    -c-bg-deep: #CFCAC4;
+    -c-bg-deep2: #B6B3AD;
+    -c-bg-input: #F4EFE8;
+    -c-bg-alt: #F4F0E9;
+    -c-surface-0: #F0F0F0;
+    -c-surface-1: #FFFFFF;
+    -c-surface-1b: #FFFFFF;
+    -c-surface-2: #FFFFFF;
+    -c-surface-2b: #FFFFFF;
+    -c-surface-3: #FFFFFF;
+    -c-surface-4: #FFFFFF;
+    -c-raised-2: #EFE8DD;
+    -c-raised-2b: #EFE8DD;
+    -c-raised-3: #F3EDE4;
+    -c-raised-3b: #F3EEE5;
+    -c-raised-armed: #CEB38D;
+    -c-border-2: #DACEBE;
+    -c-border-3: #E0D7C8;
+    -c-accent-deep-2: #F4D9B3;
+    -c-accent-deep-3: #F3D5AD;
+    -c-accent-deep-4: #F6DFC0;
+    -c-accent-deep-5: #A99374;
+    -c-accent-text-2: #AB723B;
+    -c-accent-text-3: #9E6227;
+    -c-accent-text-4: #925316;
+    -c-text-2: #281F17;
+    -c-text-3: #251C14;
+    -c-muted-2: #635647;
+    -c-muted-3: #5A4E41;
+    -c-muted-3b: #584C3F;
+    -c-muted-4: #4F4439;
+    -c-danger-text: #CD5B4F;
+    -c-success-text: #60B083;
+    -c-success-bg: #0E2A1A;
+    -c-private-bg: #9B6BDF26;
     -c-accent-88: #B8681A88;
     -c-accent-66: #B8681A66;
     -c-accent-55: #B8681A55;

@@ -115,7 +115,7 @@ class ThemeUiTest {
                 List<String> sheets = win[0].getScene().getStylesheets();
                 assertEquals(Theme.css(), sheets.get(0), "style.css primeiro");
                 assertTrue(sheets.get(sheets.size() - 1).endsWith("/theme-cyberpunk.css"), "tema por ultimo: " + sheets);
-                assertTrue(sheets.stream().anyMatch(x -> x.endsWith("/theme-derived.css")));
+                assertEquals(2, sheets.size(), "style.css + o tema (todas as cores ja calculadas)");
                 // uma tela que poe o style.css de novo depois: o tema volta pro fim
                 win[0].getScene().getStylesheets().add(Theme.css());
             });

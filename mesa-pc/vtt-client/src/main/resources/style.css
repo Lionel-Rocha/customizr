@@ -1,4 +1,4 @@
-/* ---------- Cores do tema (o tema escolhido troca estas; ver Theme.java e theme-*.css) ---------- */
+/* tokens:inicio (gerado por design/GerarTokens.java a partir de design/tokens.properties; nao edite aqui) */
 .root {
     -c-bg: #1B1411;
     -c-surface: #241B16;
@@ -11,6 +11,7 @@
     -c-muted: #B09A82;
     -c-danger: #D9544C;
     -c-success: #3FBE6E;
+    -c-private: #9B6BDF;
     -c-bg-deep: #17110E;
     -c-bg-deep2: #150F0C;
     -c-bg-input: #1C1512;
@@ -45,6 +46,7 @@
     -c-danger-text: #E98D87;
     -c-success-text: #8FE0AE;
     -c-success-bg: #1D3326;
+    -c-private-bg: #231E2E;
     -c-accent-88: #E8A23E88;
     -c-accent-66: #E8A23E66;
     -c-accent-55: #E8A23E55;
@@ -53,6 +55,7 @@
     -c-surface-glass2: #241B16EE;
     -c-surface-glass3: #211915EE;
 }
+/* tokens:fim */
 
 /*
  * Tema do Customizr ("taverna aconchegante": madeira escura, ambar e creme). Paleta unica usada em toda a aplicacao -- mesma
@@ -678,7 +681,7 @@
     -fx-padding: 6 10 6 6;
 }
 .chat-entry-private {
-    -fx-background-color: #231E2E;
+    -fx-background-color: -c-private-bg;
 }
 .chat-entry-system {
     -fx-background-color: transparent;

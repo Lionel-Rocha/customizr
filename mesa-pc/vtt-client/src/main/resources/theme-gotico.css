@@ -1,4 +1,4 @@
-/* Tema Ordem Paranormal (oculto: preto e carmesim): so as cores base; os tons intermediarios vem do theme-derived.css. */
+/* Tema Ordem Paranormal (gerado por design/GerarTokens.java a partir de design/tokens.properties). */
 .root {
     -c-bg: #110C12;
     -c-surface: #1A131C;
@@ -11,6 +11,42 @@
     -c-muted: #A893AE;
     -c-danger: #E0455E;
     -c-success: #6FA36B;
+    -c-private: #9B6BDF;
+    -c-bg-deep: #0F0B10;
+    -c-bg-deep2: #0E0A0F;
+    -c-bg-input: #161018;
+    -c-bg-alt: #1A131C;
+    -c-surface-0: #19121B;
+    -c-surface-1: #221924;
+    -c-surface-1b: #221924;
+    -c-surface-2: #271D2A;
+    -c-surface-2b: #271D2A;
+    -c-surface-3: #2C212F;
+    -c-surface-4: #342837;
+    -c-raised-2: #322535;
+    -c-raised-2b: #322535;
+    -c-raised-3: #403144;
+    -c-raised-3b: #433347;
+    -c-raised-armed: #47101D;
+    -c-border-2: #4B3851;
+    -c-border-3: #5C4762;
+    -c-accent-deep-2: #5E1C2C;
+    -c-accent-deep-3: #561726;
+    -c-accent-deep-4: #6E2939;
+    -c-accent-deep-5: #400F1A;
+    -c-accent-text-2: #F6C9D4;
+    -c-accent-text-3: #F4BCC9;
+    -c-accent-text-4: #F2AFBF;
+    -c-text-2: #D4CBD7;
+    -c-text-3: #B1AAB3;
+    -c-muted-2: #97849D;
+    -c-muted-3: #8A798F;
+    -c-muted-3b: #86768B;
+    -c-muted-4: #796A7D;
+    -c-danger-text: #E76E81;
+    -c-success-text: #9CC499;
+    -c-success-bg: #213120;
+    -c-private-bg: #9B6BDF26;
     -c-accent-88: #B3263E88;
     -c-accent-66: #B3263E66;
     -c-accent-55: #B3263E55;

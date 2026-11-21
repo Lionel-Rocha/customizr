@@ -13,8 +13,8 @@ import java.util.Map;
  * abre ganha o style.css e o tema escolhido sozinha. Trocar o tema repinta na hora as janelas abertas.
  * <p>
  * O style.css guarda as cores como variaveis (-c-bg, -c-accent...). O tema padrao ("Fogueira") e o proprio
- * style.css; os outros carregam theme-derived.css (tons intermediarios calculados) e o theme-&lt;nome&gt;.css (as
- * cores base daquele tema).
+ * style.css; os outros carregam o theme-&lt;nome&gt;.css com todas as cores daquele tema. Tudo isso e gerado de
+ * design/tokens.properties por design/GerarTokens.java, que gera tambem as mesmas cores pro site.
  */
 public final class Theme {
     public static final String DEFAULT = "fogueira";
@@ -104,10 +104,7 @@ public final class Theme {
         want.add(base);
         for (String s : sheets) if (!s.equals(base) && !s.contains("/theme-") && !want.contains(s)) want.add(s);
         String key = current();
-        if (!DEFAULT.equals(key)) {
-            want.add(url("/theme-derived.css"));
-            want.add(url("/theme-" + key + ".css"));
-        }
+        if (!DEFAULT.equals(key)) want.add(url("/theme-" + key + ".css"));
         if (want.equals(sheets)) return;
         scene.getProperties().put("theme.applying", Boolean.TRUE);
         try {

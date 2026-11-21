@@ -1,4 +1,4 @@
-/* Tema Escuro: so as cores base; os tons intermediarios vem do theme-derived.css. */
+/* Tema Escuro (gerado por design/GerarTokens.java a partir de design/tokens.properties). */
 .root {
     -c-bg: #15171B;
     -c-surface: #1D2025;
@@ -11,6 +11,42 @@
     -c-muted: #9AA1AC;
     -c-danger: #E5534B;
     -c-success: #3FB968;
+    -c-private: #9B6BDF;
+    -c-bg-deep: #131519;
+    -c-bg-deep2: #121417;
+    -c-bg-input: #191C20;
+    -c-bg-alt: #1D1F25;
+    -c-surface-0: #1C1F24;
+    -c-surface-1: #24272D;
+    -c-surface-1b: #24272D;
+    -c-surface-2: #282C32;
+    -c-surface-2b: #282C32;
+    -c-surface-3: #2C3037;
+    -c-surface-4: #33383F;
+    -c-raised-2: #32373F;
+    -c-raised-2b: #32373F;
+    -c-raised-3: #3F444D;
+    -c-raised-3b: #414750;
+    -c-raised-armed: #1D3150;
+    -c-border-2: #454B55;
+    -c-border-3: #545B66;
+    -c-accent-deep-2: #2D476C;
+    -c-accent-deep-3: #284166;
+    -c-accent-deep-4: #3B547B;
+    -c-accent-deep-5: #182942;
+    -c-accent-text-2: #CBE0FC;
+    -c-accent-text-3: #BED8FB;
+    -c-accent-text-4: #B1D0FB;
+    -c-text-2: #CFD1D4;
+    -c-text-3: #ADAEB0;
+    -c-muted-2: #8B919B;
+    -c-muted-3: #7E848D;
+    -c-muted-3b: #7B818A;
+    -c-muted-4: #6F747C;
+    -c-danger-text: #EB7973;
+    -c-success-text: #79D297;
+    -c-success-bg: #13381F;
+    -c-private-bg: #9B6BDF26;
     -c-accent-88: #5B9BEF88;
     -c-accent-66: #5B9BEF66;
     -c-accent-55: #5B9BEF55;

@@ -1,4 +1,4 @@
-/* Tema Cyberpunk RED (neon: magenta e amarelo): so as cores base; os tons intermediarios vem do theme-derived.css. */
+/* Tema Cyberpunk RED (gerado por design/GerarTokens.java a partir de design/tokens.properties). */
 .root {
     -c-bg: #0C0913;
     -c-surface: #150F22;
@@ -11,6 +11,42 @@
     -c-muted: #A894C6;
     -c-danger: #FF4D6D;
     -c-success: #3CF2B0;
+    -c-private: #9B6BDF;
+    -c-bg-deep: #0B0811;
+    -c-bg-deep2: #0A0810;
+    -c-bg-input: #100C19;
+    -c-bg-alt: #130E1D;
+    -c-surface-0: #140E21;
+    -c-surface-1: #1A132A;
+    -c-surface-1b: #1A132A;
+    -c-surface-2: #1E162F;
+    -c-surface-2b: #1E162F;
+    -c-surface-3: #221A35;
+    -c-surface-4: #281F3D;
+    -c-raised-2: #291E40;
+    -c-raised-2b: #291E40;
+    -c-raised-3: #35284E;
+    -c-raised-3b: #372A51;
+    -c-raised-armed: #520E4B;
+    -c-border-2: #4A2C6E;
+    -c-border-3: #573A7D;
+    -c-accent-deep-2: #691960;
+    -c-accent-deep-3: #62145A;
+    -c-accent-deep-4: #78266F;
+    -c-accent-deep-5: #4A0C43;
+    -c-accent-text-2: #FFF4BF;
+    -c-accent-text-3: #FFED94;
+    -c-accent-text-4: #FFE669;
+    -c-text-2: #DBD3E6;
+    -c-text-3: #B6B0BF;
+    -c-muted-2: #9785B2;
+    -c-muted-3: #8A79A2;
+    -c-muted-3b: #86769E;
+    -c-muted-4: #796B8F;
+    -c-danger-text: #FF7D94;
+    -c-success-text: #88F7CF;
+    -c-success-bg: #124935;
+    -c-private-bg: #9B6BDF26;
     -c-accent-88: #FF2BD688;
     -c-accent-66: #FF2BD666;
     -c-accent-55: #FF2BD655;

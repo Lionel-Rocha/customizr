@@ -1,4 +1,4 @@
-/* Tema Starfinder (ficção científica: azul e ciano): so as cores base; os tons intermediarios vem do theme-derived.css. */
+/* Tema Starfinder (gerado por design/GerarTokens.java a partir de design/tokens.properties). */
 .root {
     -c-bg: #0A1220;
     -c-surface: #101B2D;
@@ -11,6 +11,42 @@
     -c-muted: #8AA3BD;
     -c-danger: #F0546A;
     -c-success: #3DDC97;
+    -c-private: #9B6BDF;
+    -c-bg-deep: #09101D;
+    -c-bg-deep2: #090F1B;
+    -c-bg-input: #0C1525;
+    -c-bg-alt: #0E1829;
+    -c-surface-0: #0F1A2B;
+    -c-surface-1: #142035;
+    -c-surface-1b: #142035;
+    -c-surface-2: #17243A;
+    -c-surface-2b: #17243A;
+    -c-surface-3: #1A283F;
+    -c-surface-4: #1E2D46;
+    -c-raised-2: #1D2D46;
+    -c-raised-2b: #1D2D46;
+    -c-raised-3: #263854;
+    -c-raised-3b: #283A57;
+    -c-raised-armed: #0E384F;
+    -c-border-2: #304D6D;
+    -c-border-3: #3D5B7C;
+    -c-accent-deep-2: #194B66;
+    -c-accent-deep-3: #14455F;
+    -c-accent-deep-4: #265A75;
+    -c-accent-deep-5: #0C3347;
+    -c-accent-text-2: #DFF8FF;
+    -c-accent-text-3: #CAF4FF;
+    -c-accent-text-4: #B4EFFF;
+    -c-text-2: #C6D3DE;
+    -c-text-3: #A5B0B9;
+    -c-muted-2: #7C93AA;
+    -c-muted-3: #71869B;
+    -c-muted-3b: #6E8297;
+    -c-muted-4: #637588;
+    -c-danger-text: #F48091;
+    -c-success-text: #85EABE;
+    -c-success-bg: #12422D;
+    -c-private-bg: #9B6BDF26;
     -c-accent-88: #38C6F088;
     -c-accent-66: #38C6F066;
     -c-accent-55: #38C6F055;
