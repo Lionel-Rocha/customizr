@@ -46,7 +46,7 @@ public class SheetAttack {
 
     SheetAttack(Sheet sheet, String name, int attackBonus, String damage, String damageType, String notes) {
         if (name == null || name.isBlank()) {
-            throw new IllegalArgumentException("Attack name is required");
+            throw new IllegalArgumentException("Falta o nome do ataque");
         }
         DiceRoller.roll(damage, sides -> 1); // valida a expressao de dano
         this.id = UUID.randomUUID();

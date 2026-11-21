@@ -55,18 +55,18 @@ public class Shop {
     protected Shop() {}
 
     public Shop(Campaign campaign, String name, String description, boolean open, Integer buyBackPercent) {
-        if (campaign == null) throw new IllegalArgumentException("Campaign is required");
+        if (campaign == null) throw new IllegalArgumentException("Falta informar a campanha");
         this.id = UUID.randomUUID();
         this.campaign = campaign;
         update(name, description, open, buyBackPercent);
     }
 
     public void update(String name, String description, boolean open, Integer buyBackPercent) {
-        if (name == null || name.isBlank()) throw new IllegalArgumentException("Shop name is required");
-        if (name.trim().length() > 80) throw new IllegalArgumentException("Shop name is too long");
-        if (description != null && description.length() > 1000) throw new IllegalArgumentException("Description is too long");
+        if (name == null || name.isBlank()) throw new IllegalArgumentException("Falta o nome da loja");
+        if (name.trim().length() > 80) throw new IllegalArgumentException("Nome da loja muito longo");
+        if (description != null && description.length() > 1000) throw new IllegalArgumentException("Descrição muito longa");
         int percent = buyBackPercent == null ? 50 : buyBackPercent;
-        if (percent < 0 || percent > 100) throw new IllegalArgumentException("Buy-back goes from 0 to 100%");
+        if (percent < 0 || percent > 100) throw new IllegalArgumentException("A recompra vai de 0 a 100%");
         this.name = name.trim();
         this.description = description == null || description.isBlank() ? null : description.trim();
         this.open = open;
@@ -74,7 +74,7 @@ public class Shop {
     }
 
     public ShopEntry addItem(Item item, BigDecimal priceGp, Integer stock) {
-        if (entries.size() >= 300) throw new IllegalArgumentException("Too many items in this shop");
+        if (entries.size() >= 300) throw new IllegalArgumentException("Itens demais nesta loja");
         ShopEntry entry = new ShopEntry(this, item, priceGp, stock);
         entries.add(entry);
         return entry;
@@ -82,6 +82,6 @@ public class Shop {
 
     public ShopEntry entry(UUID entryId) {
         return entries.stream().filter(e -> e.getId().equals(entryId)).findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("This item is not sold here"));
+                .orElseThrow(() -> new IllegalArgumentException("Esse item não é vendido aqui"));
     }
 }

@@ -110,14 +110,14 @@ public class ItemController {
     ) {
         if (value == null || value.isBlank()) {
             if (required) {
-                throw badRequest(field + " is required");
+                throw badRequest(field + " é obrigatório");
             }
             return null;
         }
         try {
             return Enum.valueOf(enumType, value.trim().toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException exception) {
-            throw badRequest("Invalid " + field);
+            throw badRequest("Inválido: " + field);
         }
     }
 

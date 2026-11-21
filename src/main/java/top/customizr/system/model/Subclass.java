@@ -72,7 +72,7 @@ public class Subclass {
             Map<String, Object> metadata
     ) {
         if (unlockLevel < dndClass.getSubclassUnlockLevel() || unlockLevel > 20) {
-            throw new IllegalArgumentException("Subclass unlock level must be within the class levels");
+            throw new IllegalArgumentException("O nível em que a subclasse libera precisa estar entre os níveis da classe");
         }
         this.subclassId = UUID.randomUUID();
         this.dndClass = dndClass;
@@ -96,7 +96,7 @@ public class Subclass {
 
     public void updateFromImport(String name, String sourceCode, Source source, Map<String, Object> metadata) {
         if (name == null || name.isBlank()) {
-            throw new IllegalArgumentException("Subclass name is required");
+            throw new IllegalArgumentException("Falta o nome da subclasse");
         }
         this.name = name;
         this.sourceCode = sourceCode;

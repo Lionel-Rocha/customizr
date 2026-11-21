@@ -20,7 +20,7 @@ public class InventoryAccessService {
 
     public List<Inventory> characterInventories(Character character) {
         if (character == null) {
-            throw new IllegalArgumentException("Character is required");
+            throw new IllegalArgumentException("Falta informar o personagem");
         }
         List<Inventory> inventories = new ArrayList<>();
         inventoryRepository.findByCharacter(character).ifPresent(inventories::add);
@@ -32,7 +32,7 @@ public class InventoryAccessService {
 
     public void assertCanModify(Character actor, Inventory target) {
         if (actor == null || target == null) {
-            throw new IllegalArgumentException("Actor and inventory are required");
+            throw new IllegalArgumentException("Faltam quem age e o inventário");
         }
         if (target.getCharacter() != null
                 && target.getCharacter().getOwner().getUserId().equals(actor.getOwner().getUserId())) {
@@ -46,6 +46,6 @@ public class InventoryAccessService {
                 && target.getNpc().getCampaign().getMaster().getUserId().equals(actor.getOwner().getUserId())) {
             return;
         }
-        throw new AccessDeniedException("You cannot access this inventory");
+        throw new AccessDeniedException("Você não acessa este inventário");
     }
 }

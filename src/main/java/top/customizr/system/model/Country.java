@@ -61,7 +61,7 @@ public class Country implements EncyclopediaReferenceable {
     }
 
     public void update(String name, String info, String masterInfo, String mapUrl, Float worldMapX, Float worldMapY) {
-        this.name = Places.requireName(name, "Country");
+        this.name = Places.requireName(name, "país");
         this.info = Places.blankToNull(info);
         this.masterInfo = Places.blankToNull(masterInfo);
         this.mapUrl = Places.blankToNull(mapUrl);

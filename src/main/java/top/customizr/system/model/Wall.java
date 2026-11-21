@@ -54,10 +54,10 @@ public class Wall {
     Wall(Scene scene, double x1, double y1, double x2, double y2, Type type) {
         for (double v : new double[] {x1, y1, x2, y2}) {
             if (Double.isNaN(v) || Double.isInfinite(v) || v < -10_000 || v > 100_000) {
-                throw new IllegalArgumentException("Wall is outside the map");
+                throw new IllegalArgumentException("A parede está fora do mapa");
             }
         }
-        if (Math.hypot(x2 - x1, y2 - y1) < 1) throw new IllegalArgumentException("A wall needs two different points");
+        if (Math.hypot(x2 - x1, y2 - y1) < 1) throw new IllegalArgumentException("A parede precisa de dois pontos diferentes");
         this.id = UUID.randomUUID();
         this.scene = scene;
         this.x1 = x1;
@@ -73,12 +73,12 @@ public class Wall {
 
     /** Abre/fecha a porta. Parede nao abre. */
     public void setOpen(boolean open) {
-        if (!isDoor()) throw new IllegalArgumentException("Only doors open");
+        if (!isDoor()) throw new IllegalArgumentException("Só porta abre");
         this.open = open;
     }
 
     public void setLocked(boolean locked) {
-        if (!isDoor()) throw new IllegalArgumentException("Only doors can be locked");
+        if (!isDoor()) throw new IllegalArgumentException("Só porta pode ser trancada");
         this.locked = locked;
         if (locked) this.open = false;
     }

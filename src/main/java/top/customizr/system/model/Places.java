@@ -7,10 +7,10 @@ final class Places {
 
     static String requireName(String name, String what) {
         if (name == null || name.isBlank()) {
-            throw new IllegalArgumentException(what + " name is required");
+            throw new IllegalArgumentException("Falta o nome: " + what);
         }
         if (name.length() > 200) {
-            throw new IllegalArgumentException(what + " name is too long");
+            throw new IllegalArgumentException("Nome muito longo: " + what);
         }
         return name.trim();
     }
@@ -22,7 +22,7 @@ final class Places {
     /** Posicao no mapa, relativa (0 = borda esquerda/topo, 1 = direita/baixo). */
     static Float coordinate(Float value, String what) {
         if (value != null && (value.isNaN() || value < 0f || value > 1f)) {
-            throw new IllegalArgumentException(what + " must be between 0 and 1 (relative to the map)");
+            throw new IllegalArgumentException(what + " precisa ficar entre 0 e 1 (relativo ao mapa)");
         }
         return value;
     }

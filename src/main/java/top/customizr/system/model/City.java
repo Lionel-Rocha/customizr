@@ -67,9 +67,9 @@ public class City implements EncyclopediaReferenceable {
     public void update(String name, String info, String cityMapUrl, Float countryMapX, Float countryMapY,
                        Integer population, boolean capital) {
         if (population != null && population < 0) {
-            throw new IllegalArgumentException("Population cannot be negative");
+            throw new IllegalArgumentException("A população não pode ser negativa");
         }
-        this.name = Places.requireName(name, "City");
+        this.name = Places.requireName(name, "cidade");
         this.info = Places.blankToNull(info);
         this.cityMapUrl = Places.blankToNull(cityMapUrl);
         this.countryMapX = Places.coordinate(countryMapX, "countryMapX");

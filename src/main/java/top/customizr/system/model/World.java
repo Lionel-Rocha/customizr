@@ -48,7 +48,7 @@ public class World {
 
     public World(String name, String mapUrl, String masterInfo, Campaign campaign) {
         if (campaign == null) {
-            throw new IllegalArgumentException("World campaign is required");
+            throw new IllegalArgumentException("Falta a campanha do mundo");
         }
         update(name, mapUrl, masterInfo);
         this.id = UUID.randomUUID();
@@ -56,7 +56,7 @@ public class World {
     }
 
     public void update(String name, String mapUrl, String masterInfo) {
-        this.name = Places.requireName(name, "World");
+        this.name = Places.requireName(name, "mundo");
         this.mapUrl = Places.blankToNull(mapUrl);
         this.masterInfo = Places.blankToNull(masterInfo);
     }

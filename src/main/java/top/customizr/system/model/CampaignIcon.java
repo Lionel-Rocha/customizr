@@ -48,8 +48,8 @@ public class CampaignIcon {
     protected CampaignIcon() {}
 
     public CampaignIcon(Campaign campaign, String key, String label, ImageAsset image) {
-        if (campaign == null || image == null) throw new IllegalArgumentException("Campaign and image are required");
-        if (!image.getCampaign().getId().equals(campaign.getId())) throw new IllegalArgumentException("Image is from another campaign");
+        if (campaign == null || image == null) throw new IllegalArgumentException("Faltam a campanha e a imagem");
+        if (!image.getCampaign().getId().equals(campaign.getId())) throw new IllegalArgumentException("A imagem é de outra campanha");
         this.id = UUID.randomUUID();
         this.campaign = campaign;
         this.key = validKey(key);
@@ -58,14 +58,14 @@ public class CampaignIcon {
 
     public void replace(String label, ImageAsset image) {
         String l = label == null || label.isBlank() ? key.substring(key.indexOf(':') + 1) : label.trim();
-        if (l.length() > 60) throw new IllegalArgumentException("Icon label is too long");
+        if (l.length() > 60) throw new IllegalArgumentException("Nome do ícone muito longo");
         this.label = l;
         this.image = image;
     }
 
     private static String validKey(String key) {
         if (key == null || !key.matches("(condition|marker):[\\p{L}0-9 _'().-]{1,70}")) {
-            throw new IllegalArgumentException("Icon key must be condition:CODE or marker:Name");
+            throw new IllegalArgumentException("A chave do ícone precisa ser condition:CODIGO ou marker:Nome");
         }
         if (key.startsWith("condition:")) {
             String code = key.substring("condition:".length());

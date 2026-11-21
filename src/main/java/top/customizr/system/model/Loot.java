@@ -53,28 +53,28 @@ public class Loot {
     protected Loot() {}
 
     public Loot(Campaign campaign, String name, BigDecimal moneyGp, boolean visible) {
-        if (campaign == null) throw new IllegalArgumentException("Campaign is required");
+        if (campaign == null) throw new IllegalArgumentException("Falta informar a campanha");
         this.id = UUID.randomUUID();
         this.campaign = campaign;
         update(name, moneyGp, visible);
     }
 
     public void update(String name, BigDecimal moneyGp, boolean visible) {
-        if (name == null || name.isBlank()) throw new IllegalArgumentException("Loot name is required");
-        if (name.trim().length() > 80) throw new IllegalArgumentException("Loot name is too long");
-        if (moneyGp != null && moneyGp.signum() < 0) throw new IllegalArgumentException("Money cannot be negative");
+        if (name == null || name.isBlank()) throw new IllegalArgumentException("Falta o nome do espólio");
+        if (name.trim().length() > 80) throw new IllegalArgumentException("Nome do espólio muito longo");
+        if (moneyGp != null && moneyGp.signum() < 0) throw new IllegalArgumentException("O dinheiro não pode ser negativo");
         this.name = name.trim();
         if (moneyGp != null) this.moneyGp = moneyGp.setScale(2, RoundingMode.HALF_UP);
         this.visible = visible;
     }
 
     public LootEntry addItem(Item item, int quantity) {
-        if (item == null) throw new IllegalArgumentException("Item is required");
-        if (quantity <= 0) throw new IllegalArgumentException("Quantity must be positive");
+        if (item == null) throw new IllegalArgumentException("Falta informar o item");
+        if (quantity <= 0) throw new IllegalArgumentException("A quantidade precisa ser positiva");
         for (LootEntry e : entries) {
             if (e.getItem().getId().equals(item.getId())) { e.change(quantity); return e; }
         }
-        if (entries.size() >= 300) throw new IllegalArgumentException("Too many items in this loot");
+        if (entries.size() >= 300) throw new IllegalArgumentException("Itens demais neste espólio");
         LootEntry entry = new LootEntry(this, item, quantity);
         entries.add(entry);
         return entry;
@@ -83,9 +83,9 @@ public class Loot {
     /** Tira do bau (o que zerou sai da lista). */
     public Item take(UUID entryId, int quantity) {
         LootEntry entry = entries.stream().filter(e -> e.getId().equals(entryId)).findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("This item is not in the loot"));
+                .orElseThrow(() -> new IllegalArgumentException("Esse item não está no espólio"));
         if (quantity <= 0 || quantity > entry.getQuantity()) {
-            throw new IllegalArgumentException("There are only " + entry.getQuantity() + " of " + entry.getItem().getName());
+            throw new IllegalArgumentException("Só tem " + entry.getQuantity() + " de " + entry.getItem().getName());
         }
         entry.change(-quantity);
         if (entry.getQuantity() == 0) entries.remove(entry);
@@ -93,7 +93,7 @@ public class Loot {
     }
 
     public void takeMoney(BigDecimal amount) {
-        if (amount.compareTo(moneyGp) > 0) throw new IllegalArgumentException("There is not that much money in the loot");
+        if (amount.compareTo(moneyGp) > 0) throw new IllegalArgumentException("Não tem tanto dinheiro no espólio");
         moneyGp = moneyGp.subtract(amount);
     }
 }

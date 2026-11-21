@@ -30,11 +30,11 @@ public final class AbilityScoreGenerator {
      */
     public static List<RolledScore> roll(int dice, int sides, int dropLowest, int sets, int rerollOnesOrBelow,
                                          IntUnaryOperator die) {
-        if (dice < 1 || dice > 10) throw new IllegalArgumentException("Dice must be between 1 and 10");
-        if (sides < 2 || sides > 20) throw new IllegalArgumentException("Sides must be between 2 and 20");
-        if (dropLowest < 0 || dropLowest >= dice) throw new IllegalArgumentException("Drop must be less than the number of dice");
-        if (sets < 1 || sets > 12) throw new IllegalArgumentException("Sets must be between 1 and 12");
-        if (rerollOnesOrBelow < 0 || rerollOnesOrBelow >= sides) throw new IllegalArgumentException("Invalid reroll value");
+        if (dice < 1 || dice > 10) throw new IllegalArgumentException("A quantidade de dados vai de 1 a 10");
+        if (sides < 2 || sides > 20) throw new IllegalArgumentException("Os lados do dado vão de 2 a 20");
+        if (dropLowest < 0 || dropLowest >= dice) throw new IllegalArgumentException("Descartar tem que ser menos que a quantidade de dados");
+        if (sets < 1 || sets > 12) throw new IllegalArgumentException("A quantidade de conjuntos vai de 1 a 12");
+        if (rerollOnesOrBelow < 0 || rerollOnesOrBelow >= sides) throw new IllegalArgumentException("Valor de rolar de novo inválido");
         List<RolledScore> out = new ArrayList<>();
         for (int s = 0; s < sets; s++) {
             int[] rolls = new int[dice];

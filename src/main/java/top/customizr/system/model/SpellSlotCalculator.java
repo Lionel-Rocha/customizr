@@ -33,14 +33,14 @@ public final class SpellSlotCalculator {
 
     public static List<SpellSlotCount> calculate(List<CharacterClass> characterClasses) {
         if (characterClasses == null) {
-            throw new IllegalArgumentException("Character classes are required");
+            throw new IllegalArgumentException("Faltam as classes do personagem");
         }
 
         int sharedCasterLevel = 0;
         List<CharacterClass> pactClasses = new ArrayList<>();
         for (CharacterClass characterClass : characterClasses) {
             if (characterClass == null) {
-                throw new IllegalArgumentException("Character class is required");
+                throw new IllegalArgumentException("Falta a classe do personagem");
             }
             int classLevel = characterClass.getLevel();
             SpellcastingProgression progression = characterClass.getDndClass().getSpellcastingProgression();

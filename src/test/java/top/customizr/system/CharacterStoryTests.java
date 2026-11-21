@@ -97,7 +97,7 @@ class CharacterStoryTests {
 
         var look = sheetService.shareStory(hero, new StoryShareRequest(StoryShareRequest.Part.APPEARANCE), player);
         assertEquals(ChatMessageType.CARD, look.type());
-        assertTrue(look.content().contains("Age: 27 | Height: 1,70 m | Eyes: green"), look.content());
+        assertTrue(look.content().contains("Idade: 27 | Altura: 1,70 m | Olhos: green"), look.content());
         assertTrue(look.content().contains("A scar over the left eye"));
         var back = sheetService.shareStory(hero, new StoryShareRequest(StoryShareRequest.Part.BACKSTORY), player);
         assertTrue(back.content().contains("Raised by wolves"));

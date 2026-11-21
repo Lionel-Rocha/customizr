@@ -59,16 +59,16 @@ public class SheetResource {
 
     void update(String name, int maxUses, ResourceRecharge recharge, String notes) {
         if (name == null || name.isBlank()) {
-            throw new IllegalArgumentException("Resource name is required");
+            throw new IllegalArgumentException("Falta o nome do recurso");
         }
         if (name.trim().length() > 80) {
-            throw new IllegalArgumentException("Resource name is too long (80 characters)");
+            throw new IllegalArgumentException("Nome do recurso muito longo (máximo 80 letras)");
         }
         if (maxUses < 1 || maxUses > MAX_USES) {
-            throw new IllegalArgumentException("Maximum uses must be between 1 and " + MAX_USES);
+            throw new IllegalArgumentException("Os usos máximos vão de 1 a " + MAX_USES);
         }
         if (notes != null && notes.trim().length() > 300) {
-            throw new IllegalArgumentException("Resource notes are too long (300 characters)");
+            throw new IllegalArgumentException("Notas do recurso muito longas (máximo 300 letras)");
         }
         this.name = name.trim();
         this.maxUses = maxUses;

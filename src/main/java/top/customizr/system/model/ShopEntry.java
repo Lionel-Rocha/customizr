@@ -41,7 +41,7 @@ public class ShopEntry {
     protected ShopEntry() {}
 
     ShopEntry(Shop shop, Item item, BigDecimal priceGp, Integer stock) {
-        if (item == null) throw new IllegalArgumentException("Item is required");
+        if (item == null) throw new IllegalArgumentException("Falta informar o item");
         this.id = UUID.randomUUID();
         this.shop = shop;
         this.item = item;
@@ -49,8 +49,8 @@ public class ShopEntry {
     }
 
     public void update(BigDecimal priceGp, Integer stock) {
-        if (priceGp != null && priceGp.signum() < 0) throw new IllegalArgumentException("Price cannot be negative");
-        if (stock != null && stock < 0) throw new IllegalArgumentException("Stock cannot be negative");
+        if (priceGp != null && priceGp.signum() < 0) throw new IllegalArgumentException("O preço não pode ser negativo");
+        if (stock != null && stock < 0) throw new IllegalArgumentException("O estoque não pode ser negativo");
         this.priceGp = priceGp == null ? null : priceGp.setScale(2, RoundingMode.HALF_UP);
         this.stock = stock;
     }
@@ -63,7 +63,7 @@ public class ShopEntry {
     /** Sai do estoque (sem limite = nao conta). */
     public void take(int quantity) {
         if (stock == null) return;
-        if (quantity > stock) throw new IllegalArgumentException("Only " + stock + " left in stock");
+        if (quantity > stock) throw new IllegalArgumentException("Só " + stock + " left in stock");
         stock -= quantity;
     }
 

@@ -73,7 +73,7 @@ public class FiveToolsSyncService {
     /** Mestre de uma campanha dispara a atualizacao (o catalogo e de todo o servidor). */
     public FiveToolsSyncResponse sync(UUID campaignId, boolean includeUnofficial, String username) {
         Campaign campaign = campaignRepository.findById(campaignId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Campaign not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Campanha não encontrada"));
         masterGuard.requireMaster(username, campaign);
         return syncWith(this::download, includeUnofficial);
     }
@@ -198,7 +198,7 @@ public class FiveToolsSyncService {
             try {
                 return json.readTree(java.nio.file.Files.readString(java.nio.file.Path.of(URI.create(dataUrl + file))));
             } catch (IOException | RuntimeException ex) {
-                throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Could not read " + file + " from " + dataUrl);
+                throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Não deu pra ler " + file + " de " + dataUrl);
             }
         }
         HttpRequest request = HttpRequest.newBuilder(URI.create(dataUrl + file)).timeout(Duration.ofSeconds(90))
@@ -206,11 +206,11 @@ public class FiveToolsSyncService {
         try {
             HttpResponse<String> response = client().send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() != 200) {
-                throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "5etools returned " + response.statusCode() + " for " + file);
+                throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "O 5etools respondeu " + response.statusCode() + " pra " + file);
             }
             return json.readTree(response.body());
         } catch (IOException ex) {
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Could not reach 5etools: " + ex.getMessage());
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Não deu pra acessar o 5etools: " + ex.getMessage());
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Interrupted while reading 5etools");

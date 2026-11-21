@@ -71,11 +71,11 @@ public class AreaTemplate {
 
     AreaTemplate(Scene scene, Shape shape, double x, double y, double angle, int sizeFt, Integer widthFt,
                  String label, String color, UUID ownerId) {
-        if (shape == null) throw new IllegalArgumentException("Shape is required");
-        if (sizeFt < 5 || sizeFt > 1000) throw new IllegalArgumentException("Area size must be between 5 and 1000 feet");
+        if (shape == null) throw new IllegalArgumentException("Falta informar a forma");
+        if (sizeFt < 5 || sizeFt > 1000) throw new IllegalArgumentException("O tamanho da área vai de 5 a 1000 pés");
         int width = widthFt == null ? 5 : widthFt;
-        if (width < 5 || width > 200) throw new IllegalArgumentException("Line width must be between 5 and 200 feet");
-        if (Double.isNaN(x) || Double.isNaN(y) || Double.isNaN(angle)) throw new IllegalArgumentException("Invalid position");
+        if (width < 5 || width > 200) throw new IllegalArgumentException("A largura da linha vai de 5 a 200 pés");
+        if (Double.isNaN(x) || Double.isNaN(y) || Double.isNaN(angle)) throw new IllegalArgumentException("Posição inválida");
         this.id = UUID.randomUUID();
         this.scene = scene;
         this.shape = shape;

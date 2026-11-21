@@ -62,7 +62,7 @@ public class EncyclopediaEntry {
     }
 
     public void update(String entryName, String information, EntryType type, boolean visible) {
-        this.entryName = Places.requireName(entryName, "Entry");
+        this.entryName = Places.requireName(entryName, "verbete");
         this.information = Places.blankToNull(information);
         this.type = type == null ? EntryType.OTHER : type;
         this.visible = visible;
@@ -70,7 +70,7 @@ public class EncyclopediaEntry {
 
     public void reference(ReferenceType referenceType, EncyclopediaReferenceable reference) {
         if ((referenceType == null) != (reference == null)) {
-            throw new IllegalArgumentException("Reference type and reference must be given together");
+            throw new IllegalArgumentException("O tipo da referência e a referência vêm juntos");
         }
         this.referenceType = referenceType;
         this.referenceId = reference == null ? null : reference.getReferenceId();

@@ -158,36 +158,36 @@ public class CharacterFeatureService {
     /** Monta o cartao (sem mandar), pra mostrar na tela. */
     @Transactional
     public SharedCard card(SharedKind kind, UUID refId) {
-        if (kind == null || refId == null) throw badRequest("kind and refId are required");
+        if (kind == null || refId == null) throw badRequest("Faltam o tipo (kind) e o id (refId)");
         return switch (kind) {
             case FEATURE -> {
-                Feature f = featureRepository.findById(refId).orElseThrow(() -> notFound("Feature"));
+                Feature f = featureRepository.findById(refId).orElseThrow(() -> notFound("característica"));
                 yield new SharedCard(f.getName(), render(f.getDescription()));
             }
             case FEAT -> {
-                var f = featRepository.findById(refId).orElseThrow(() -> notFound("Feat"));
-                yield new SharedCard(f.getName() + (f.getCategory() == null ? "" : " (" + f.getCategory() + " feat)"),
-                        (f.getPrerequisite() == null ? "" : "Prerequisite: " + f.getPrerequisite() + "\n\n")
+                var f = featRepository.findById(refId).orElseThrow(() -> notFound("talento"));
+                yield new SharedCard(f.getName() + (f.getCategory() == null ? "" : " (talento " + f.getCategory() + ")"),
+                        (f.getPrerequisite() == null ? "" : "Pré-requisito: " + f.getPrerequisite() + "\n\n")
                                 + nonNull(f.getDescriptionText()));
             }
             case SPECIES -> {
-                var s = speciesRepository.findById(refId).orElseThrow(() -> notFound("Species"));
+                var s = speciesRepository.findById(refId).orElseThrow(() -> notFound("espécie"));
                 yield new SharedCard(s.getName(), nonNull(s.getDescriptionText()));
             }
             case BACKGROUND -> {
-                var b = backgroundRepository.findById(refId).orElseThrow(() -> notFound("Background"));
+                var b = backgroundRepository.findById(refId).orElseThrow(() -> notFound("antecedente"));
                 yield new SharedCard(b.getName(), nonNull(b.getDescriptionText()));
             }
             case SPELL -> {
-                Spell s = spellRepository.findById(refId).orElseThrow(() -> notFound("Spell"));
+                Spell s = spellRepository.findById(refId).orElseThrow(() -> notFound("magia"));
                 yield new SharedCard(s.getName(), spellText(s));
             }
             case ITEM -> {
-                Item i = itemRepository.findById(refId).orElseThrow(() -> notFound("Item"));
+                Item i = itemRepository.findById(refId).orElseThrow(() -> notFound("item"));
                 yield new SharedCard(i.getName(), itemText(i));
             }
             case MONSTER -> {
-                Monster m = monsterRepository.findById(refId).orElseThrow(() -> notFound("Monster"));
+                Monster m = monsterRepository.findById(refId).orElseThrow(() -> notFound("monstro"));
                 yield new SharedCard(m.getName(), monsterText(m));
             }
         };
@@ -199,11 +199,11 @@ public class CharacterFeatureService {
      */
     @Transactional
     public ChatMessageResponse share(UUID campaignId, ShareRequest request, String username) {
-        if (request == null) throw badRequest("Request body is required");
-        Campaign campaign = campaignRepository.findById(campaignId).orElseThrow(() -> notFound("Campaign"));
+        if (request == null) throw badRequest("Falta o corpo da requisição");
+        Campaign campaign = campaignRepository.findById(campaignId).orElseThrow(() -> notFound("campanha"));
         boolean master = masterGuard.requireMember(username, campaign);
         if (request.kind() == SharedKind.MONSTER && !master) {
-            throw new AccessDeniedException("Only the campaign master can show a monster");
+            throw new AccessDeniedException("Só o mestre da campanha mostra um monstro");
         }
         SharedCard card = card(request.kind(), request.refId());
         return chatService.postCard(campaignId, request.characterId(), card.title(), card.text(), username);
@@ -214,9 +214,9 @@ public class CharacterFeatureService {
     public ChatMessageResponse shareFromCharacter(UUID characterId, ShareRequest request, String username) {
         Character c = character(characterId);
         if (!c.getOwner().getName().equals(username) && !c.getCampaign().getMaster().getName().equals(username)) {
-            throw new AccessDeniedException("This character is not yours");
+            throw new AccessDeniedException("Este personagem não é seu");
         }
-        if (request == null) throw badRequest("Request body is required");
+        if (request == null) throw badRequest("Falta o corpo da requisição");
         return share(c.getCampaign().getId(), new ShareRequest(request.kind(), request.refId(), characterId), username);
     }
 
@@ -236,39 +236,38 @@ public class CharacterFeatureService {
     }
 
     static String spellText(Spell s) {
-        String level = s.getLevel().getValue() == 0 ? s.getSchool() + " cantrip" : "Level " + s.getLevel().getValue() + " " + s.getSchool();
+        String level = s.getLevel().getValue() == 0 ? "Truque de " + TextoPt.school(s.getSchool()) : "Nível " + s.getLevel().getValue() + ", " + TextoPt.school(s.getSchool());
         String components = s.getComponents().stream().map(Components::name).map(n -> n.substring(0, 1)).collect(Collectors.joining(", "));
         String duration = switch (s.getDuration().getUnit()) {
-            case INSTANTANEOUS -> "Instantaneous";
-            case UNTIL_DISPELLED -> "Until dispelled";
-            case SPECIAL -> "Special";
-            case CONCENTRATION -> "Concentration";
-            default -> s.getDuration().getAmount() + " " + s.getDuration().getUnit().name().toLowerCase()
-                    + (s.getDuration().getAmount() > 1 ? "s" : "");
+            case INSTANTANEOUS -> "Instantânea";
+            case UNTIL_DISPELLED -> "Até ser dissipada";
+            case SPECIAL -> "Especial";
+            case CONCENTRATION -> "Concentração";
+            default -> s.getDuration().getAmount() + " " + TextoPt.timeUnit(s.getDuration().getUnit().name(), s.getDuration().getAmount());
         };
-        return level + " | " + s.getCastingTime() + " | " + (s.getRangeFt() > 0 ? s.getRangeFt() + " ft." : "see text")
-                + " | " + components + " | " + (s.isConcentration() && s.getDuration().getUnit() != top.customizr.system.model.DurationUnit.CONCENTRATION ? "Concentration, " : "")
+        return level + " | " + TextoPt.castingTime(s.getCastingTime()) + " | " + (s.getRangeFt() > 0 ? s.getRangeFt() + " pés" : "ver o texto")
+                + " | " + components + " | " + (s.isConcentration() && s.getDuration().getUnit() != top.customizr.system.model.DurationUnit.CONCENTRATION ? "Concentração, " : "")
                 + duration + "\n\n" + s.getDescription();
     }
 
     static String itemText(Item i) {
         List<String> parts = new ArrayList<>();
-        if (i.getType() != null) parts.add(i.getType().name().toLowerCase());
-        if (i.getCategory() != null) parts.add(i.getCategory().name().toLowerCase().replace('_', ' '));
-        if (i.getRarity() != null) parts.add(i.getRarity().name().toLowerCase().replace('_', ' '));
-        if (i.getPriceGp() != null) parts.add(i.getPriceGp().stripTrailingZeros().toPlainString() + " gp");
+        if (i.getType() != null) parts.add(TextoPt.word(i.getType().name()));
+        if (i.getCategory() != null) parts.add(TextoPt.word(i.getCategory().name()));
+        if (i.getRarity() != null) parts.add(TextoPt.word(i.getRarity().name()));
+        if (i.getPriceGp() != null) parts.add(i.getPriceGp().stripTrailingZeros().toPlainString() + " po");
         return String.join(", ", parts) + (i.getReferenceLink() == null ? "" : "\n" + i.getReferenceLink());
     }
 
     static String monsterText(Monster m) {
         StringBuilder b = new StringBuilder();
-        b.append(nonNull(m.getSize())).append(' ').append(nonNull(m.getCreatureType()))
+        b.append(TextoPt.word(nonNull(m.getSize()))).append(' ').append(TextoPt.word(nonNull(m.getCreatureType())))
                 .append(m.getAlignment() == null ? "" : ", " + m.getAlignment()).append('\n');
-        b.append("AC ").append(m.getArmorClass()).append(" | HP ").append(m.getHpAverage())
+        b.append("CA ").append(m.getArmorClass()).append(" | PV ").append(m.getHpAverage())
                 .append(m.getHpFormula() == null ? "" : " (" + m.getHpFormula() + ")")
-                .append(" | Speed ").append(nonNull(m.getSpeed())).append(" | CR ").append(m.getChallengeRating()).append('\n');
-        b.append("STR ").append(m.getStrength()).append("  DEX ").append(m.getDexterity()).append("  CON ").append(m.getConstitution())
-                .append("  INT ").append(m.getIntelligence()).append("  WIS ").append(m.getWisdom()).append("  CHA ").append(m.getCharisma());
+                .append(" | Deslocamento ").append(nonNull(m.getSpeed())).append(" | ND ").append(m.getChallengeRating()).append('\n');
+        b.append("FOR ").append(m.getStrength()).append("  DES ").append(m.getDexterity()).append("  CON ").append(m.getConstitution())
+                .append("  INT ").append(m.getIntelligence()).append("  SAB ").append(m.getWisdom()).append("  CAR ").append(m.getCharisma());
         for (String section : new String[]{m.getTraits(), m.getActions(), m.getBonusActions(), m.getReactions(), m.getLegendaryActions()}) {
             if (section != null) b.append("\n\n").append(section);
         }
@@ -280,11 +279,11 @@ public class CharacterFeatureService {
     }
 
     private Character character(UUID id) {
-        return characterRepository.findById(id).orElseThrow(() -> notFound("Character"));
+        return characterRepository.findById(id).orElseThrow(() -> notFound("personagem"));
     }
 
     private ResponseStatusException notFound(String what) {
-        return new ResponseStatusException(HttpStatus.NOT_FOUND, what + " not found");
+        return new ResponseStatusException(HttpStatus.NOT_FOUND, what + " não encontrado");
     }
 
     private ResponseStatusException badRequest(String message) {

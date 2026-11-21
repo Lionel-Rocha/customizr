@@ -41,10 +41,10 @@ public class CharacterFeat {
 
     CharacterFeat(Sheet sheet, FeatDefinition feat, int characterLevel, String choices) {
         if (feat == null) {
-            throw new IllegalArgumentException("Feat is required");
+            throw new IllegalArgumentException("Falta informar o talento");
         }
         if (characterLevel < 1 || characterLevel > 20) {
-            throw new IllegalArgumentException("Character level must be between 1 and 20");
+            throw new IllegalArgumentException("O nível do personagem vai de 1 a 20");
         }
         this.id = UUID.randomUUID();
         this.sheet = sheet;

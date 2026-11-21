@@ -51,7 +51,7 @@ public class NPC implements EncyclopediaReferenceable {
     public NPC(String name, String personality, String masterInformation, String photoUrl, Campaign campaign) {
         update(name, personality, masterInformation, photoUrl);
         if (campaign == null) {
-            throw new IllegalArgumentException("NPC campaign is required");
+            throw new IllegalArgumentException("Falta a campanha do NPC");
         }
         this.id = UUID.randomUUID();
         this.campaign = campaign;
@@ -59,7 +59,7 @@ public class NPC implements EncyclopediaReferenceable {
 
     public void update(String name, String personality, String masterInformation, String photoUrl) {
         if (name == null || name.isBlank()) {
-            throw new IllegalArgumentException("NPC name is required");
+            throw new IllegalArgumentException("Falta o nome do NPC");
         }
         this.name = name.trim();
         this.personality = personality;

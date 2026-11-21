@@ -53,8 +53,8 @@ public class MapObject {
     protected MapObject() {}
 
     public MapObject(Campaign campaign, String name, ImageAsset image, Double widthCells, Double heightCells, TokenLayer layer) {
-        if (campaign == null || image == null) throw new IllegalArgumentException("Campaign and image are required");
-        if (!image.getCampaign().getId().equals(campaign.getId())) throw new IllegalArgumentException("Image is from another campaign");
+        if (campaign == null || image == null) throw new IllegalArgumentException("Faltam a campanha e a imagem");
+        if (!image.getCampaign().getId().equals(campaign.getId())) throw new IllegalArgumentException("A imagem é de outra campanha");
         this.id = UUID.randomUUID();
         this.campaign = campaign;
         this.image = image;
@@ -63,12 +63,12 @@ public class MapObject {
 
     public void update(String name, Double widthCells, Double heightCells, TokenLayer layer) {
         String n = name == null || name.isBlank() ? "Object" : name.trim();
-        if (n.length() > 80) throw new IllegalArgumentException("Object name is too long");
+        if (n.length() > 80) throw new IllegalArgumentException("Nome do objeto muito longo");
         double w = widthCells == null ? 1 : widthCells;
         double h = heightCells == null ? w : heightCells;
         for (double v : new double[] {w, h}) {
             if (Double.isNaN(v) || v < 0.5 || v > 30 || Math.abs(v * 2 - Math.round(v * 2)) > 1e-9) {
-                throw new IllegalArgumentException("Object size goes from 0.5 to 30 cells, in steps of 0.5");
+                throw new IllegalArgumentException("O tamanho do objeto vai de 0,5 a 30 casas, de 0,5 em 0,5");
             }
         }
         this.name = n;

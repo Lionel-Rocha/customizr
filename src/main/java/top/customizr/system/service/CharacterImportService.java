@@ -87,10 +87,10 @@ public class CharacterImportService {
     @Transactional
     public CharacterImportResponse importCharacter(UUID campaignId, String fileName, byte[] content, String username) {
         if (content == null || content.length == 0) {
-            throw badRequest("File is empty");
+            throw badRequest("O arquivo está vazio");
         }
         if (content.length > MAX_BYTES) {
-            throw badRequest("File is too big (max 5 MB)");
+            throw badRequest("Arquivo grande demais (máximo 5 MB)");
         }
         ImportedSheet sheet;
         try {
@@ -113,7 +113,7 @@ public class CharacterImportService {
                     .filter(c -> norm(c.getClassName()).equals(norm(classLevel.name())))
                     .findFirst().orElse(null);
             if (match == null) {
-                notes.add("Class \"" + classLevel.name() + "\" (level " + classLevel.level()
+                notes.add("Classe \"" + classLevel.name() + "\" (nível " + classLevel.level()
                         + ") is not imported yet; import it in /class/import and add it to the sheet.");
                 continue;
             }
@@ -122,20 +122,20 @@ public class CharacterImportService {
                         match.getClassId(), Math.max(1, Math.min(20, classLevel.level()))), username);
                 addedClasses.add(match.getClassName() + " " + classLevel.level());
             } catch (ResponseStatusException ex) {
-                notes.add("Could not add class " + classLevel.name() + ": " + ex.getReason());
+                notes.add("Não deu pra pôr a classe " + classLevel.name() + ": " + ex.getReason());
             }
         }
         Integer hpMax = sheet.hpMax();
         if (hpMax == null) {
             hpMax = character.getSheet().getSuggestedHpMax();
             if (hpMax != null) {
-                notes.add("Max HP was not in the file; calculated from the classes (" + hpMax + ").");
+                notes.add("O PV máximo não estava no arquivo; calculado pelas classes (" + hpMax + ").");
             }
         }
         Integer armorClass = sheet.armorClass();
         if (armorClass == null && a != null) {
             armorClass = 10 + Attributes.modifierOf(a[1]);
-            notes.add("Armor class was not in the file; using 10 + DEX (" + armorClass + "). Check the armor.");
+            notes.add("A CA não estava no arquivo; usando 10 + DES (" + armorClass + "). Confira a armadura.");
         }
         Integer hpCurrent = sheet.hpCurrent() == null ? hpMax
                 : hpMax == null ? sheet.hpCurrent() : Math.min(hpMax, sheet.hpCurrent());
@@ -154,7 +154,7 @@ public class CharacterImportService {
         try {
             root = objectMapper.readTree(new String(content, StandardCharsets.UTF_8));
         } catch (RuntimeException ex) {
-            throw new IllegalArgumentException("File is not a PDF nor a valid JSON");
+            throw new IllegalArgumentException("O arquivo não é PDF nem JSON válido");
         }
         if (root.path("system").path("abilities").isObject()) {
             return readFoundry(root);
@@ -163,7 +163,7 @@ public class CharacterImportService {
         if (ddb.path("stats").isArray() && ddb.has("classes")) {
             return readDdb(ddb);
         }
-        throw new IllegalArgumentException("Unknown JSON. Accepted: Foundry VTT dnd5e actor or D&D Beyond character");
+        throw new IllegalArgumentException("JSON desconhecido. Aceitos: ator dnd5e do Foundry VTT ou personagem do D&D Beyond");
     }
 
     // ------------------------------------------------------------------ Foundry VTT (dnd5e)
@@ -186,7 +186,7 @@ public class CharacterImportService {
         }
         if (armorClass == null) {
             armorClass = foundryArmorClass(actor, Attributes.modifierOf(scores[1]));
-            notes.add("Armor class calculated like Foundry does (equipped armor + DEX + shield): " + armorClass
+            notes.add("CA calculada como o Foundry faz (armadura vestida + DES + escudo): " + armorClass
                     + ". Check it if the character has a magic item or feature that changes it.");
         }
         Integer speed = positiveOrNull(sys.path("attributes").path("movement").path("walk"));
@@ -269,7 +269,7 @@ public class CharacterImportService {
         Integer hpCurrent = hpMax == null ? null : Math.max(0, hpMax - d.path("removedHitPoints").asInt(0));
         Integer temp = positiveOrNull(d.path("temporaryHitPoints"));
         Integer speed = positiveOrNull(d.path("race").path("weightSpeeds").path("normal").path("walk"));
-        notes.add("D&D Beyond does not export the armor class (it depends on the armor); check it on the sheet.");
+        notes.add("O D&D Beyond não exporta a CA (depende da armadura); confira na ficha.");
         return new ImportedSheet("D&D Beyond (JSON)", nameOr(d.path("name").asText(null)), scores,
                 hpMax, hpCurrent, temp, null, speed, classes, notes);
     }
@@ -302,7 +302,7 @@ public class CharacterImportService {
                 }
             }
         } catch (org.apache.pdfbox.pdmodel.encryption.InvalidPasswordException ex) {
-            throw new IllegalArgumentException("The PDF has a password; remove it and try again");
+            throw new IllegalArgumentException("O PDF tem senha; tire a senha e tente de novo");
         }
         List<String> notes = new ArrayList<>();
         String name = first(fields, "charactername", "charactername2", "name", "nome", "nomedopersonagem", "personagem");
@@ -318,7 +318,7 @@ public class CharacterImportService {
             scores[i] = score == null ? 10 : score;
         }
         if (recognized < 3) {
-            throw new IllegalArgumentException("Could not read a character sheet from this PDF. It works with fillable "
+            throw new IllegalArgumentException("Não deu pra ler uma ficha deste PDF. Funciona com PDF preenchível "
                     + "PDFs (official 5e sheet, D&D Beyond \"Export to PDF\"); scanned PDFs have no data inside.");
         }
         List<ClassLevel> classes = new ArrayList<>();
@@ -333,7 +333,7 @@ public class CharacterImportService {
         Integer temp = number(first(fields, "hptemp", "temphp", "temporaryhitpoints", "pvtemporarios"));
         String speedText = first(fields, "speed", "deslocamento", "movimento", "walkingspeed");
         Integer speed = speedFeet(speedText);
-        if (speedText != null && speed == null) notes.add("Could not read the speed \"" + speedText + "\".");
+        if (speedText != null && speed == null) notes.add("Não deu pra ler o deslocamento \"" + speedText + "\".");
         return new ImportedSheet("Fillable PDF (" + fields.size() + " fields)", nameOr(name), scores,
                 hpMax != null && hpMax > 0 ? hpMax : null, hp, temp,
                 ac != null && ac > 0 && ac < 40 ? ac : null, speed, classes, notes);

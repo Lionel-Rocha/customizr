@@ -63,7 +63,7 @@ public class CampaignItemService {
         masterGuard.requireMember(username, campaign);
         Set<String> wanted = origins(origin);
         String q = name == null ? "" : name.trim();
-        if (q.isEmpty() && !wanted.equals(Set.of("CUSTOM"))) throw badRequest("Item search name is required");
+        if (q.isEmpty() && !wanted.equals(Set.of("CUSTOM"))) throw badRequest("Falta o nome pra buscar o item");
         List<Item> found = q.isEmpty() ? itemRepository.findByCampaign(campaign) : itemRepository.findByNameContainingIgnoreCase(q);
         Map<UUID, BigDecimal> prices = itemPrices.pricesOf(campaign);
         String lower = q.toLowerCase(Locale.ROOT);
@@ -87,7 +87,7 @@ public class CampaignItemService {
     public CatalogItemResponse create(UUID campaignId, CustomItemRequest r, String username) {
         Campaign campaign = campaign(campaignId);
         masterGuard.requireMaster(username, campaign);
-        if (r == null || r.name() == null || r.name().isBlank()) throw badRequest("Item name is required");
+        if (r == null || r.name() == null || r.name().isBlank()) throw badRequest("Falta o nome do item");
         Source source = monsterService.homebrewSource(campaign);
         String name = r.name().trim();
         requireFreeName(name, source, null);
@@ -103,7 +103,7 @@ public class CampaignItemService {
     @Transactional
     public CatalogItemResponse update(UUID campaignId, UUID itemId, CustomItemRequest r, String username) {
         Item item = customOfMaster(campaignId, itemId, username);
-        if (r == null) throw badRequest("Request body is required");
+        if (r == null) throw badRequest("Falta o corpo da requisição");
         String name = r.name() == null || r.name().isBlank() ? item.getName() : r.name().trim();
         if (!name.equals(item.getName())) requireFreeName(name, item.getSource(), item.getId());
         BigDecimal price = Boolean.TRUE.equals(r.clearPrice()) ? null : r.priceGp() != null ? r.priceGp() : item.getPriceGp();
@@ -122,7 +122,7 @@ public class CampaignItemService {
     public void delete(UUID campaignId, UUID itemId, String username) {
         Item item = customOfMaster(campaignId, itemId, username);
         if (inventoryEntryRepository.existsByItem(item)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Item is present in an inventory");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "O item está em algum inventário");
         }
         itemRepository.delete(item);
     }
@@ -130,18 +130,18 @@ public class CampaignItemService {
     private Item customOfMaster(UUID campaignId, UUID itemId, String username) {
         Campaign campaign = campaign(campaignId);
         masterGuard.requireMaster(username, campaign);
-        if (itemId == null) throw badRequest("Item ID is required");
+        if (itemId == null) throw badRequest("Falta o id do item");
         Item item = itemRepository.findById(itemId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Item not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Item não encontrado"));
         if (item.getCampaign() == null || !item.getCampaign().getId().equals(campaign.getId())) {
-            throw badRequest("Only this campaign's own items can be changed here");
+            throw badRequest("Aqui só dá pra mudar os itens próprios desta campanha");
         }
         return item;
     }
 
     private void requireFreeName(String name, Source source, UUID self) {
         itemRepository.findByNameAndSource_Id(name, source.getId()).filter(other -> !other.getId().equals(self))
-                .ifPresent(other -> { throw new ResponseStatusException(HttpStatus.CONFLICT, "There is already an item named " + name); });
+                .ifPresent(other -> { throw new ResponseStatusException(HttpStatus.CONFLICT, "Já existe um item chamado " + name); });
     }
 
     private Set<String> origins(String origin) {
@@ -149,7 +149,7 @@ public class CampaignItemService {
         Set<String> set = new java.util.HashSet<>();
         for (String part : origin.split(",")) {
             String o = part.trim().toUpperCase(Locale.ROOT);
-            if (!ORIGINS.contains(o)) throw badRequest("Unknown origin " + part + " (OFFICIAL, UNOFFICIAL, UNKNOWN, CUSTOM)");
+            if (!ORIGINS.contains(o)) throw badRequest("Origem desconhecida " + part + " (OFFICIAL, UNOFFICIAL, UNKNOWN, CUSTOM)");
             set.add(o);
         }
         return set;
@@ -171,7 +171,7 @@ public class CampaignItemService {
         try {
             return Enum.valueOf(type, value.trim().toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException ex) {
-            throw badRequest("Invalid item " + field);
+            throw badRequest("Item inválido: " + field);
         }
     }
 
@@ -180,9 +180,9 @@ public class CampaignItemService {
     }
 
     private Campaign campaign(UUID id) {
-        if (id == null) throw badRequest("Campaign ID is required");
+        if (id == null) throw badRequest("Falta o id da campanha");
         return campaignRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Campaign not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Campanha não encontrada"));
     }
 
     private static ResponseStatusException badRequest(String message) {

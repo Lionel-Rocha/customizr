@@ -94,17 +94,17 @@ public class SheetPdfService {
     /** Nome de arquivo pra baixar: "Aria.pdf" (so letras, numeros, espaco, ponto, hifen). */
     @Transactional(readOnly = true)
     public String fileName(UUID characterId) {
-        Character c = characterRepository.findById(characterId).orElseThrow(() -> notFound("Character"));
+        Character c = characterRepository.findById(characterId).orElseThrow(() -> notFound("personagem"));
         String clean = c.getName().replaceAll("[^\\p{L}\\p{N} ._-]", "").trim();
         return (clean.isEmpty() ? "ficha" : clean) + ".pdf";
     }
 
     @Transactional(readOnly = true)
     public byte[] render(UUID characterId, String username) {
-        Character character = characterRepository.findById(characterId).orElseThrow(() -> notFound("Character"));
+        Character character = characterRepository.findById(characterId).orElseThrow(() -> notFound("personagem"));
         if (!character.getOwner().getName().equals(username)
                 && !character.getCampaign().getMaster().getName().equals(username)) {
-            throw new AccessDeniedException("You cannot see this character");
+            throw new AccessDeniedException("Você não pode ver este personagem");
         }
         CharacterSheetResponse sheet = CharacterSheetResponse.from(character);
         List<CharacterFeatureResponse> features = featureService.list(characterId, false, username);
@@ -113,7 +113,7 @@ public class SheetPdfService {
             write(pdf, character, sheet, features, inventory);
             return pdf.bytes();
         } catch (IOException ex) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Could not build the PDF");
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Não deu pra montar o PDF");
         }
     }
 
@@ -320,7 +320,7 @@ public class SheetPdfService {
     }
 
     private static ResponseStatusException notFound(String what) {
-        return new ResponseStatusException(HttpStatus.NOT_FOUND, what + " not found");
+        return new ResponseStatusException(HttpStatus.NOT_FOUND, what + " não encontrado");
     }
 
     // ------------------------------------------------------------------ diagramacao

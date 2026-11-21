@@ -39,7 +39,7 @@ public class Party {
 
     public Party(String name, Campaign campaign) {
         if (name == null || name.isBlank()) {
-            throw new IllegalArgumentException("Party name is required");
+            throw new IllegalArgumentException("Falta o nome do grupo");
         }
         this.partyId = UUID.randomUUID();
         this.name = name.trim();
@@ -48,14 +48,14 @@ public class Party {
 
     public void addMember(Character character) {
         if (!campaign.getId().equals(character.getCampaign().getId())) {
-            throw new IllegalArgumentException("Character must belong to the party's campaign");
+            throw new IllegalArgumentException("O personagem precisa ser da mesma campanha do grupo");
         }
         if (character.getParty() != null && !partyId.equals(character.getParty().getPartyId())) {
-            throw new IllegalStateException("Character already belongs to another party");
+            throw new IllegalStateException("O personagem já está em outro grupo");
         }
         if (!members.contains(character)) {
             if (maxSize != null && members.size() >= maxSize) {
-                throw new IllegalStateException("Party is full (max " + maxSize + " characters)");
+                throw new IllegalStateException("O grupo está cheio (máximo " + maxSize + " personagens)");
             }
             members.add(character);
             character.setParty(this);
@@ -64,10 +64,10 @@ public class Party {
 
     public void changeMaxSize(Integer maxSize) {
         if (maxSize != null && maxSize < 1) {
-            throw new IllegalArgumentException("Party max size must be at least 1");
+            throw new IllegalArgumentException("O tamanho máximo do grupo precisa ser pelo menos 1");
         }
         if (maxSize != null && members.size() > maxSize) {
-            throw new IllegalStateException("Party already has more than " + maxSize + " characters");
+            throw new IllegalStateException("O grupo já tem mais de " + maxSize + " personagens");
         }
         this.maxSize = maxSize;
     }

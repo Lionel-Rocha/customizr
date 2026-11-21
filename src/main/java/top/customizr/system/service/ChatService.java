@@ -63,11 +63,11 @@ public class ChatService {
     @Transactional
     public ChatMessageResponse post(UUID campaignId, ChatMessageRequest request, String username) {
         if (request == null || request.text() == null || request.text().isBlank()) {
-            throw badRequest("Message is empty");
+            throw badRequest("A mensagem está vazia");
         }
         String text = InlineRolls.sanitize(request.text().strip());
         if (text.length() > ChatMessage.MAX_LENGTH) {
-            throw badRequest("Message is too long (max " + ChatMessage.MAX_LENGTH + " characters)");
+            throw badRequest("Mensagem longa demais (máximo " + ChatMessage.MAX_LENGTH + " letras)");
         }
         Campaign campaign = findCampaign(campaignId);
         User author = findUser(username);
@@ -164,7 +164,7 @@ public class ChatService {
             User recipient = findWhisperRecipient(campaign, rest);
             String body = rest.substring(recipient.getName().length()).strip();
             if (body.isEmpty()) {
-                throw new IllegalArgumentException("Whisper is empty");
+                throw new IllegalArgumentException("O sussurro está vazio");
             }
             return new ChatMessage(campaign, author, speaker, ChatMessageType.WHISPER,
                     InlineRolls.expand(body), recipient, null);
@@ -188,7 +188,7 @@ public class ChatService {
             }
         }
         if (best == null) {
-            throw new IllegalArgumentException("Nobody with that name in this campaign");
+            throw new IllegalArgumentException("Ninguém com esse nome nesta campanha");
         }
         return best;
     }
@@ -198,11 +198,11 @@ public class ChatService {
             return null;
         }
         top.customizr.system.model.Character character = characterRepository.findById(characterId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Character not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Personagem não encontrado"));
         boolean master = campaign.getMaster().getUserId().equals(author.getUserId());
         if (!character.getCampaign().getId().equals(campaign.getId())
                 || (!master && !character.getOwner().getUserId().equals(author.getUserId()))) {
-            throw new AccessDeniedException("You cannot speak as this character");
+            throw new AccessDeniedException("Você não pode falar como este personagem");
         }
         return character.getName();
     }
@@ -210,21 +210,21 @@ public class ChatService {
     private void requireCampaignMember(Campaign campaign, User user) {
         if (!campaign.getMaster().getUserId().equals(user.getUserId())
                 && membershipRepository.findByCampaignIdAndUserId(campaign.getId(), user.getUserId()).isEmpty()) {
-            throw new AccessDeniedException("You are not a member of this campaign");
+            throw new AccessDeniedException("Você não participa desta campanha");
         }
     }
 
     private Campaign findCampaign(UUID campaignId) {
         if (campaignId == null) {
-            throw badRequest("Campaign ID is required");
+            throw badRequest("Falta o id da campanha");
         }
         return campaignRepository.findById(campaignId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Campaign not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Campanha não encontrada"));
     }
 
     private User findUser(String username) {
         return userRepository.findByName(username)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuário não encontrado"));
     }
 
     private ResponseStatusException badRequest(String message) {

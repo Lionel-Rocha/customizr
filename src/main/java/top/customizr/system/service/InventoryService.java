@@ -47,13 +47,13 @@ public class InventoryService {
     @Transactional
     public Character actorFor(UUID characterId, String username) {
         if (characterId == null) {
-            throw badRequest("Actor character ID is required");
+            throw badRequest("Falta o id do personagem que age");
         }
         Character actor = characterRepository.findById(characterId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Character not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Personagem não encontrado"));
         if (!actor.getOwner().getName().equals(username)
                 && !actor.getCampaign().getMaster().getName().equals(username)) {
-            throw new org.springframework.security.access.AccessDeniedException("This character is not yours");
+            throw new org.springframework.security.access.AccessDeniedException("Este personagem não é seu");
         }
         return actor;
     }
@@ -75,7 +75,7 @@ public class InventoryService {
         requireActor(actor);
         Party party = actor.getParty();
         if (party == null) {
-            throw badRequest("Character is not in a party");
+            throw badRequest("O personagem não está em um grupo");
         }
         Inventory inventory = inventoryRepository.findByParty(party)
                 .orElseGet(() -> inventoryRepository.save(Inventory.forParty(party)));
@@ -87,10 +87,10 @@ public class InventoryService {
     public Inventory getOrCreateNpcInventory(Character actor, UUID npcId) {
         requireActor(actor);
         if (npcId == null) {
-            throw badRequest("NPC ID is required");
+            throw badRequest("Falta o id do NPC");
         }
         NPC npc = npcRepository.findById(npcId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "NPC not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "NPC não encontrado"));
         Inventory inventory = inventoryRepository.findByNpc(npc)
                 .orElseGet(() -> inventoryRepository.save(Inventory.forNpc(npc)));
         inventoryAccessService.assertCanModify(actor, inventory);
@@ -109,10 +109,10 @@ public class InventoryService {
         Inventory inventory = findInventory(inventoryId);
         inventoryAccessService.assertCanModify(actor, inventory);
         if (itemId == null) {
-            throw badRequest("Item ID is required");
+            throw badRequest("Falta o id do item");
         }
         Item item = itemRepository.findById(itemId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Item not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Item não encontrado"));
         try {
             inventory.addItem(item, quantity);
         } catch (IllegalArgumentException ex) {
@@ -174,15 +174,15 @@ public class InventoryService {
 
     private Inventory findInventory(UUID inventoryId) {
         if (inventoryId == null) {
-            throw badRequest("Inventory ID is required");
+            throw badRequest("Falta o id do inventário");
         }
         return inventoryRepository.findById(inventoryId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Inventory not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Inventário não encontrado"));
     }
 
     private void requireActor(Character actor) {
         if (actor == null) {
-            throw badRequest("Character is required");
+            throw badRequest("Falta informar o personagem");
         }
     }
 

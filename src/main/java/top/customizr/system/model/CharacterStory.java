@@ -79,7 +79,7 @@ public class CharacterStory {
     private static String pick(String current, String incoming, int max, String field) {
         if (incoming == null) return current;
         String value = incoming.strip();
-        if (value.length() > max) throw new IllegalArgumentException("The " + field + " text is too long (" + max + " characters)");
+        if (value.length() > max) throw new IllegalArgumentException("Texto longo demais em " + field + " (máximo " + max + " letras)");
         return value.isEmpty() ? null : value;
     }
 }

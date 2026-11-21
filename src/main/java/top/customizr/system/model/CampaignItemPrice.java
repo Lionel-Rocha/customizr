@@ -45,7 +45,7 @@ public class CampaignItemPrice {
     protected CampaignItemPrice() {}
 
     public CampaignItemPrice(Campaign campaign, Item item, BigDecimal priceGp) {
-        if (campaign == null || item == null) throw new IllegalArgumentException("Campaign and item are required");
+        if (campaign == null || item == null) throw new IllegalArgumentException("Faltam a campanha e o item");
         this.id = UUID.randomUUID();
         this.campaign = campaign;
         this.item = item;
@@ -53,7 +53,7 @@ public class CampaignItemPrice {
     }
 
     public void change(BigDecimal priceGp) {
-        if (priceGp == null || priceGp.signum() < 0) throw new IllegalArgumentException("Price must be zero or more");
+        if (priceGp == null || priceGp.signum() < 0) throw new IllegalArgumentException("O preço precisa ser zero ou mais");
         this.priceGp = priceGp.setScale(2, RoundingMode.HALF_UP);
     }
 }

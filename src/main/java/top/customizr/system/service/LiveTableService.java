@@ -160,7 +160,7 @@ public class LiveTableService {
     public SceneResponse readScene(UUID sceneId, String username) {
         Scene scene = scene(sceneId);
         boolean master = masterGuard.requireMember(username, scene.getCampaign());
-        if (!master && !scene.isActive()) throw notFound("Scene");
+        if (!master && !scene.isActive()) throw notFound("cena");
         return SceneResponse.from(scene, master);
     }
 
@@ -224,12 +224,12 @@ public class LiveTableService {
         requireBody(r);
         UUID campaignId = scene.getCampaign().getId();
         Character character = r.characterId() == null ? null : characterRepository.findById(r.characterId())
-                .filter(c -> c.getCampaign().getId().equals(campaignId)).orElseThrow(() -> notFound("Character"));
+                .filter(c -> c.getCampaign().getId().equals(campaignId)).orElseThrow(() -> notFound("personagem"));
         NPC npc = r.npcId() == null ? null : npcRepository.findById(r.npcId())
                 .filter(n -> n.getCampaign().getId().equals(campaignId)).orElseThrow(() -> notFound("NPC"));
         Monster monster = r.monsterId() == null ? null : monsterRepository.findById(r.monsterId())
                 .filter(m -> !m.isCustom() || m.getCampaign().getId().equals(campaignId)) // homebrew de outra campanha nao
-                .orElseThrow(() -> notFound("Monster"));
+                .orElseThrow(() -> notFound("monstro"));
         Token token = valid(() -> scene.addToken(r.name(), r.x() == null ? 0 : r.x(), r.y() == null ? 0 : r.y(),
                 r.sizeCells(), r.imageUrl(), Boolean.TRUE.equals(r.hidden()), character, npc, monster));
         sceneRepository.save(scene);
@@ -247,11 +247,11 @@ public class LiveTableService {
         boolean master = masterGuard.canManage(user, scene.getCampaign());
         if (!master) {
             if (!token.controlledBy(user.getUserId())) {
-                throw new AccessDeniedException("You can only move your own character's token");
+                throw new AccessDeniedException("Você só move o token do seu personagem");
             }
-            if (!scene.isActive()) throw new AccessDeniedException("This scene is not active");
+            if (!scene.isActive()) throw new AccessDeniedException("Esta cena não está aberta");
         }
-        if (r == null) throw badRequest("Position is required");
+        if (r == null) throw badRequest("Falta a posição");
         double fromX = token.getX();
         double fromY = token.getY();
         if (!master) {
@@ -259,7 +259,7 @@ public class LiveTableService {
             double hw = scene.getGridSizePx() * token.width() / 2.0;
             double hh = scene.getGridSizePx() * token.height() / 2.0;
             if (scene.blockedBetween(fromX + hw, fromY + hh, r.x() + hw, r.y() + hh)) {
-                throw badRequest("There is a wall in the way");
+                throw badRequest("Tem uma parede no caminho");
             }
         }
         valid(() -> { token.moveTo(r.x(), r.y()); return null; });
@@ -398,10 +398,10 @@ public class LiveTableService {
     public List<WallResponse> addWalls(UUID sceneId, WallRequest r, String username) {
         Scene scene = scene(sceneId);
         masterGuard.requireMaster(username, scene.getCampaign());
-        if (r == null || r.walls() == null || r.walls().isEmpty()) throw badRequest("At least one wall is required");
+        if (r == null || r.walls() == null || r.walls().isEmpty()) throw badRequest("Precisa de pelo menos uma parede");
         valid(() -> {
             for (WallRequest.Segment w : r.walls()) {
-                if (w == null) throw new IllegalArgumentException("Empty wall");
+                if (w == null) throw new IllegalArgumentException("Parede vazia");
                 scene.addWall(w.x1(), w.y1(), w.x2(), w.y2(), w.type());
             }
             return null;
@@ -414,7 +414,7 @@ public class LiveTableService {
     public List<WallResponse> removeWall(UUID sceneId, UUID wallId, String username) {
         Scene scene = scene(sceneId);
         masterGuard.requireMaster(username, scene.getCampaign());
-        if (!scene.removeWall(wallId)) throw notFound("Wall");
+        if (!scene.removeWall(wallId)) throw notFound("parede");
         return broadcastWalls(scene);
     }
 
@@ -429,21 +429,21 @@ public class LiveTableService {
     /** Abre/fecha porta (jogador tambem, se a cena estiver ativa e a porta nao estiver trancada); trancar so o mestre. */
     @Transactional
     public WallResponse updateDoor(UUID wallId, DoorRequest r, String username) {
-        Wall wall = wallRepository.findById(wallId).orElseThrow(() -> notFound("Wall"));
+        Wall wall = wallRepository.findById(wallId).orElseThrow(() -> notFound("parede"));
         Scene scene = wall.getScene();
         User user = masterGuard.user(username);
         masterGuard.assertMember(user, scene.getCampaign());
         boolean master = masterGuard.canManage(user, scene.getCampaign());
-        if (r == null) throw badRequest("Request body is required");
+        if (r == null) throw badRequest("Falta o corpo da requisição");
         if (!master) {
-            if (r.locked() != null) throw new AccessDeniedException("Only the master locks doors");
-            if (!scene.isActive()) throw new AccessDeniedException("This scene is not active");
-            if (wall.isLocked()) throw badRequest("The door is locked");
+            if (r.locked() != null) throw new AccessDeniedException("Só o mestre tranca porta");
+            if (!scene.isActive()) throw new AccessDeniedException("Esta cena não está aberta");
+            if (wall.isLocked()) throw badRequest("A porta está trancada");
         }
         valid(() -> {
             if (r.locked() != null) wall.setLocked(r.locked());
             if (r.open() != null) {
-                if (wall.isLocked() && r.open()) throw new IllegalArgumentException("The door is locked");
+                if (wall.isLocked() && r.open()) throw new IllegalArgumentException("A porta está trancada");
                 wall.setOpen(r.open());
             }
             return null;
@@ -457,7 +457,7 @@ public class LiveTableService {
     public SceneResponse setSceneVision(UUID sceneId, VisionRequest r, String username) {
         Scene scene = scene(sceneId);
         masterGuard.requireMaster(username, scene.getCampaign());
-        if (r == null || r.enabled() == null) throw badRequest("enabled is required");
+        if (r == null || r.enabled() == null) throw badRequest("Falta o campo enabled");
         scene.setVisionEnabled(r.enabled());
         broadcastScene(scene);
         return SceneResponse.from(scene, true);
@@ -468,7 +468,7 @@ public class LiveTableService {
     public SceneResponse setSceneLighting(UUID sceneId, SceneLightingRequest r, String username) {
         Scene scene = scene(sceneId);
         masterGuard.requireMaster(username, scene.getCampaign());
-        if (r == null || r.lighting() == null) throw badRequest("lighting is required");
+        if (r == null || r.lighting() == null) throw badRequest("Falta o campo lighting");
         scene.setLighting(r.lighting());
         broadcastScene(scene);
         return SceneResponse.from(scene, true);
@@ -481,8 +481,8 @@ public class LiveTableService {
         User user = masterGuard.user(username);
         masterGuard.assertMember(user, token.getScene().getCampaign());
         boolean master = masterGuard.canManage(user, token.getScene().getCampaign());
-        if (!master && !token.controlledBy(user.getUserId())) throw new AccessDeniedException("Not your token");
-        if (r == null) throw badRequest("Request body is required");
+        if (!master && !token.controlledBy(user.getUserId())) throw new AccessDeniedException("Este token não é seu");
+        if (r == null) throw badRequest("Falta o corpo da requisição");
         valid(() -> { token.setLight(r.brightFt(), r.dimFt(), r.darkvisionFt()); return null; });
         broadcastToken(token, "token_updated");
         return TokenResponse.from(token, master);
@@ -493,7 +493,7 @@ public class LiveTableService {
     public TokenResponse setTokenVision(UUID tokenId, VisionRequest r, String username) {
         Token token = token(tokenId);
         masterGuard.requireMaster(username, token.getScene().getCampaign());
-        if (r == null) throw badRequest("Request body is required");
+        if (r == null) throw badRequest("Falta o corpo da requisição");
         valid(() -> { token.setVisionFt(r.visionFt()); return null; });
         broadcastToken(token, "token_updated");
         return TokenResponse.from(token, true);
@@ -509,11 +509,11 @@ public class LiveTableService {
         User user = masterGuard.user(username);
         masterGuard.assertMember(user, scene.getCampaign());
         boolean master = masterGuard.canManage(user, scene.getCampaign());
-        if (r == null) throw badRequest("Request body is required");
+        if (r == null) throw badRequest("Falta o corpo da requisição");
         if (!master && (r.layer() != null || r.memberIds() != null || r.widthCells() != null || r.heightCells() != null)) {
-            throw new AccessDeniedException("Only the master changes layers, sizes and who travels in a token");
+            throw new AccessDeniedException("Só o mestre muda camada, tamanho e quem viaja num token");
         }
-        if (!master && !token.controlledBy(user.getUserId())) throw new AccessDeniedException("Not your token");
+        if (!master && !token.controlledBy(user.getUserId())) throw new AccessDeniedException("Este token não é seu");
         boolean wasHidden = token.isHiddenFromPlayers();
         valid(() -> {
             if (r.elevationFt() != null) token.setElevationFt(r.elevationFt());
@@ -525,7 +525,7 @@ public class LiveTableService {
             if (r.memberIds() != null) {
                 List<Character> members = r.memberIds().stream().map(id -> characterRepository.findById(id)
                         .filter(c -> c.getCampaign().getId().equals(scene.getCampaign().getId()))
-                        .orElseThrow(() -> new IllegalArgumentException("Character not found in this campaign: " + id))).toList();
+                        .orElseThrow(() -> new IllegalArgumentException("Personagem não encontrado nesta campanha: " + id))).toList();
                 token.replaceMembers(members);
             }
             return null;
@@ -545,8 +545,8 @@ public class LiveTableService {
         User user = masterGuard.user(username);
         masterGuard.assertMember(user, token.getScene().getCampaign());
         boolean master = masterGuard.canManage(user, token.getScene().getCampaign());
-        if (!master && !token.controlledBy(user.getUserId())) throw new AccessDeniedException("Not your token");
-        if (r == null || r.auras() == null) throw badRequest("auras is required");
+        if (!master && !token.controlledBy(user.getUserId())) throw new AccessDeniedException("Este token não é seu");
+        if (r == null || r.auras() == null) throw badRequest("Falta o campo auras");
         valid(() -> {
             token.replaceAuras(r.auras().stream().map(a -> {
                 if (a == null) throw new IllegalArgumentException("Empty aura");
@@ -567,10 +567,10 @@ public class LiveTableService {
         User user = masterGuard.user(username);
         masterGuard.assertMember(user, scene.getCampaign());
         boolean master = masterGuard.canManage(user, scene.getCampaign());
-        if (!master && !scene.isActive()) throw new AccessDeniedException("This scene is not active");
-        if (r == null || r.x() == null || r.y() == null) throw badRequest("x and y are required");
+        if (!master && !scene.isActive()) throw new AccessDeniedException("Esta cena não está aberta");
+        if (r == null || r.x() == null || r.y() == null) throw badRequest("Faltam x e y");
         boolean focus = Boolean.TRUE.equals(r.focus());
-        if (focus && !master) throw new AccessDeniedException("Only the master moves everyone's view");
+        if (focus && !master) throw new AccessDeniedException("Só o mestre move a visão de todos");
         Map<String, Object> payload = Map.of("sceneId", sceneId, "x", r.x(), "y", r.y(), "userId", user.getUserId(),
                 "name", user.getName(), "focus", focus);
         if (scene.isActive()) events.publish(scene.getCampaign().getId(), "ping", payload);
@@ -581,7 +581,7 @@ public class LiveTableService {
     public PinResponse addPin(UUID sceneId, PinRequest r, String username) {
         Scene scene = scene(sceneId);
         masterGuard.requireMaster(username, scene.getCampaign());
-        if (r == null || r.x() == null || r.y() == null) throw badRequest("x and y are required");
+        if (r == null || r.x() == null || r.y() == null) throw badRequest("Faltam x e y");
         var pin = valid(() -> scene.addPin(r.x(), r.y(), r.label(), r.icon(), r.note(), r.entryId(),
                 Boolean.TRUE.equals(r.visibleToPlayers())));
         sceneRepository.flush();
@@ -592,9 +592,9 @@ public class LiveTableService {
     /** Edita o alfinete (campo vazio fica como esta; arrastar = mudar x/y). */
     @Transactional
     public PinResponse updatePin(UUID pinId, PinRequest r, String username) {
-        var pin = pinRepository.findById(pinId).orElseThrow(() -> notFound("Pin"));
+        var pin = pinRepository.findById(pinId).orElseThrow(() -> notFound("alfinete"));
         masterGuard.requireMaster(username, pin.getScene().getCampaign());
-        if (r == null) throw badRequest("Request body is required");
+        if (r == null) throw badRequest("Falta o corpo da requisição");
         valid(() -> { pin.update(r.x() == null ? pin.getX() : r.x(), r.y() == null ? pin.getY() : r.y(),
                 r.label() == null ? pin.getLabel() : r.label(), r.icon() == null ? pin.getIcon() : r.icon(),
                 r.note() == null ? pin.getNote() : r.note(), r.entryId() == null ? pin.getEntryId() : r.entryId(),
@@ -605,7 +605,7 @@ public class LiveTableService {
 
     @Transactional
     public void deletePin(UUID pinId, String username) {
-        var pin = pinRepository.findById(pinId).orElseThrow(() -> notFound("Pin"));
+        var pin = pinRepository.findById(pinId).orElseThrow(() -> notFound("alfinete"));
         Scene scene = pin.getScene();
         masterGuard.requireMaster(username, scene.getCampaign());
         scene.getPins().remove(pin);
@@ -644,7 +644,7 @@ public class LiveTableService {
         Campaign campaign = campaign(campaignId);
         User user = masterGuard.user(username);
         var membership = membershipRepository.findByCampaignIdAndUserId(campaignId, user.getUserId())
-                .orElseThrow(() -> badRequest("Only players have a color (the master's tokens use the monster colors)"));
+                .orElseThrow(() -> badRequest("Só jogador tem cor (os tokens do mestre usam as cores dos monstros)"));
         String color = r == null || r.color() == null || r.color().isBlank() ? null : r.color().trim();
         valid(() -> { membership.changeColor(color); return null; });
         membershipRepository.save(membership);
@@ -660,11 +660,11 @@ public class LiveTableService {
         User user = masterGuard.user(username);
         masterGuard.assertMember(user, scene.getCampaign());
         boolean master = masterGuard.canManage(user, scene.getCampaign());
-        if (!master && !scene.isActive()) throw new AccessDeniedException("This scene is not active");
+        if (!master && !scene.isActive()) throw new AccessDeniedException("Esta cena não está aberta");
         List<double[]> points = r == null || r.points() == null ? List.of() : r.points();
         if (points.size() > 50) throw badRequest("At most 50 ruler points");
         for (double[] p : points) {
-            if (p == null || p.length != 2 || Double.isNaN(p[0]) || Double.isNaN(p[1])) throw badRequest("Points are [x, y] pairs");
+            if (p == null || p.length != 2 || Double.isNaN(p[0]) || Double.isNaN(p[1])) throw badRequest("Os pontos são pares [x, y]");
         }
         Map<String, Object> payload = Map.of("sceneId", sceneId, "userId", user.getUserId(), "name", user.getName(), "points", points);
         if (scene.isActive()) events.publish(scene.getCampaign().getId(), "ruler", payload);
@@ -678,8 +678,8 @@ public class LiveTableService {
         User user = masterGuard.user(username);
         masterGuard.assertMember(user, token.getScene().getCampaign());
         boolean master = masterGuard.canManage(user, token.getScene().getCampaign());
-        if (!master && !token.controlledBy(user.getUserId())) throw new AccessDeniedException("Not your token");
-        if (r == null || r.markers() == null) throw badRequest("markers is required");
+        if (!master && !token.controlledBy(user.getUserId())) throw new AccessDeniedException("Este token não é seu");
+        if (r == null || r.markers() == null) throw badRequest("Falta o campo markers");
         valid(() -> {
             token.replaceMarkers(r.markers().stream().map(m -> {
                 if (m == null) throw new IllegalArgumentException("Empty marker");
@@ -727,9 +727,9 @@ public class LiveTableService {
     public CampaignIconResponse putIcon(UUID campaignId, CampaignIconRequest r, String username) {
         Campaign campaign = campaign(campaignId);
         masterGuard.requireMaster(username, campaign);
-        if (r == null || r.imageId() == null || r.key() == null) throw badRequest("key and imageId are required");
-        var image = imageAssetRepository.findById(r.imageId()).orElseThrow(() -> notFound("Image"));
-        if (!image.getCampaign().getId().equals(campaignId)) throw notFound("Image");
+        if (r == null || r.imageId() == null || r.key() == null) throw badRequest("Faltam key e imageId");
+        var image = imageAssetRepository.findById(r.imageId()).orElseThrow(() -> notFound("imagem"));
+        if (!image.getCampaign().getId().equals(campaignId)) throw notFound("imagem");
         var icon = valid(() -> iconRepository.findByCampaignAndKey(campaign, r.key())
                 .map(existing -> { existing.replace(r.label(), image); return existing; })
                 .orElseGet(() -> new top.customizr.system.model.CampaignIcon(campaign, r.key(), r.label(), image)));
@@ -740,7 +740,7 @@ public class LiveTableService {
 
     @Transactional
     public void deleteIcon(UUID iconId, String username) {
-        var icon = iconRepository.findById(iconId).orElseThrow(() -> notFound("Icon"));
+        var icon = iconRepository.findById(iconId).orElseThrow(() -> notFound("ícone"));
         masterGuard.requireMaster(username, icon.getCampaign());
         UUID campaignId = icon.getCampaign().getId();
         iconRepository.delete(icon);
@@ -769,8 +769,8 @@ public class LiveTableService {
     public MapObjectResponse addObject(UUID campaignId, MapObjectRequest r, String username) {
         Campaign campaign = campaign(campaignId);
         masterGuard.requireMaster(username, campaign);
-        if (r == null || r.imageId() == null) throw badRequest("imageId is required (upload the image with POST /image)");
-        var image = imageAssetRepository.findById(r.imageId()).orElseThrow(() -> notFound("Image"));
+        if (r == null || r.imageId() == null) throw badRequest("Falta o imageId (mande a imagem com POST /image)");
+        var image = imageAssetRepository.findById(r.imageId()).orElseThrow(() -> notFound("imagem"));
         var object = valid(() -> new top.customizr.system.model.MapObject(campaign, r.name(), image, r.widthCells(),
                 r.heightCells(), r.layer()));
         return MapObjectResponse.from(mapObjectRepository.save(object));
@@ -778,9 +778,9 @@ public class LiveTableService {
 
     @Transactional
     public MapObjectResponse updateObject(UUID objectId, MapObjectRequest r, String username) {
-        var object = mapObjectRepository.findById(objectId).orElseThrow(() -> notFound("Object"));
+        var object = mapObjectRepository.findById(objectId).orElseThrow(() -> notFound("objeto"));
         masterGuard.requireMaster(username, object.getCampaign());
-        if (r == null) throw badRequest("Request body is required");
+        if (r == null) throw badRequest("Falta o corpo da requisição");
         valid(() -> { object.update(r.name() == null ? object.getName() : r.name(),
                 r.widthCells() == null ? object.getWidthCells() : r.widthCells(),
                 r.heightCells() == null ? object.getHeightCells() : r.heightCells(),
@@ -790,7 +790,7 @@ public class LiveTableService {
 
     @Transactional
     public void deleteObject(UUID objectId, String username) {
-        var object = mapObjectRepository.findById(objectId).orElseThrow(() -> notFound("Object"));
+        var object = mapObjectRepository.findById(objectId).orElseThrow(() -> notFound("objeto"));
         masterGuard.requireMaster(username, object.getCampaign());
         mapObjectRepository.delete(object);
     }
@@ -800,8 +800,8 @@ public class LiveTableService {
     public TokenResponse placeObject(UUID sceneId, UUID objectId, PlaceObjectRequest r, String username) {
         Scene scene = scene(sceneId);
         masterGuard.requireMaster(username, scene.getCampaign());
-        var object = mapObjectRepository.findById(objectId).orElseThrow(() -> notFound("Object"));
-        if (!object.getCampaign().getId().equals(scene.getCampaign().getId())) throw notFound("Object");
+        var object = mapObjectRepository.findById(objectId).orElseThrow(() -> notFound("objeto"));
+        if (!object.getCampaign().getId().equals(scene.getCampaign().getId())) throw notFound("objeto");
         Token token = valid(() -> {
             Token t = scene.addToken(object.getName(), r == null || r.x() == null ? 0 : r.x(), r == null || r.y() == null ? 0 : r.y(),
                     null, object.getImage().getUrl(), r != null && Boolean.TRUE.equals(r.hidden()), null, null, null);
@@ -824,9 +824,9 @@ public class LiveTableService {
         User user = masterGuard.user(username);
         masterGuard.assertMember(user, scene.getCampaign());
         boolean master = masterGuard.canManage(user, scene.getCampaign());
-        if (!master && !scene.isActive()) throw new AccessDeniedException("This scene is not active");
+        if (!master && !scene.isActive()) throw new AccessDeniedException("Esta cena não está aberta");
         if (r == null || r.shape() == null || r.x() == null || r.y() == null || r.sizeFt() == null) {
-            throw badRequest("shape, x, y and sizeFt are required");
+            throw badRequest("Faltam shape, x, y e sizeFt");
         }
         var template = valid(() -> scene.addTemplate(r.shape(), r.x(), r.y(), r.angle() == null ? 0 : r.angle(), r.sizeFt(),
                 r.widthFt(), r.label(), r.color(), user.getUserId(), Boolean.TRUE.equals(r.darkness())));
@@ -838,12 +838,12 @@ public class LiveTableService {
     /** Tira a area (quem colocou ou o mestre). */
     @Transactional
     public void removeTemplate(UUID templateId, String username) {
-        var template = templateRepository.findById(templateId).orElseThrow(() -> notFound("Area"));
+        var template = templateRepository.findById(templateId).orElseThrow(() -> notFound("área"));
         Scene scene = template.getScene();
         User user = masterGuard.user(username);
         masterGuard.assertMember(user, scene.getCampaign());
         if (!masterGuard.canManage(user, scene.getCampaign()) && !template.getOwnerId().equals(user.getUserId())) {
-            throw new AccessDeniedException("Only who placed the area or the master removes it");
+            throw new AccessDeniedException("Só quem pôs a área ou o mestre tira");
         }
         scene.getTemplates().remove(template);
         broadcastTemplates(scene);
@@ -913,23 +913,23 @@ public class LiveTableService {
     }
 
     private void requireBody(Object body) {
-        if (body == null) throw badRequest("Request body is required");
+        if (body == null) throw badRequest("Falta o corpo da requisição");
     }
 
     private Campaign campaign(UUID id) {
-        return campaignRepository.findById(id).orElseThrow(() -> notFound("Campaign"));
+        return campaignRepository.findById(id).orElseThrow(() -> notFound("campanha"));
     }
 
     private Scene scene(UUID id) {
-        return sceneRepository.findById(id).orElseThrow(() -> notFound("Scene"));
+        return sceneRepository.findById(id).orElseThrow(() -> notFound("cena"));
     }
 
     private Token token(UUID id) {
-        return tokenRepository.findById(id).orElseThrow(() -> notFound("Token"));
+        return tokenRepository.findById(id).orElseThrow(() -> notFound("token"));
     }
 
     private ResponseStatusException notFound(String what) {
-        return new ResponseStatusException(HttpStatus.NOT_FOUND, what + " not found");
+        return new ResponseStatusException(HttpStatus.NOT_FOUND, what + " não encontrado");
     }
 
     private ResponseStatusException badRequest(String message) {

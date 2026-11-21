@@ -68,10 +68,10 @@ public class Background {
 
     public Background(String name, Source source) {
         if (name == null || name.isBlank()) {
-            throw new IllegalArgumentException("Background name is required");
+            throw new IllegalArgumentException("Falta o nome do antecedente");
         }
         if (source == null) {
-            throw new IllegalArgumentException("Background source is required");
+            throw new IllegalArgumentException("Falta a fonte do antecedente");
         }
         this.id = UUID.randomUUID();
         this.name = name.trim();

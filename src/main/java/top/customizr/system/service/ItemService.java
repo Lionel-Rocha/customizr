@@ -219,7 +219,7 @@ public class ItemService {
             }
         }
         if (!found) {
-            throw badRequest("Expected a JSON object with an item or baseitem array");
+            throw badRequest("Esperava um JSON com a lista \"item\" ou \"baseitem\"");
         }
         return list;
     }
@@ -336,7 +336,7 @@ public class ItemService {
     @Transactional
     public List<Item> search(String name) {
         if (name == null || name.isBlank()) {
-            throw badRequest("Item search name is required");
+            throw badRequest("Falta o nome pra buscar o item");
         }
         // item proprio de campanha nao aparece na busca geral (so na busca da campanha dele)
         return itemRepository.findByNameContainingIgnoreCase(name.trim()).stream()
@@ -368,7 +368,7 @@ public class ItemService {
     public void delete(UUID itemId) {
         Item item = findItem(itemId);
         if (inventoryEntryRepository.existsByItem(item)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Item is present in an inventory");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "O item está em algum inventário");
         }
         itemRepository.delete(item);
     }
@@ -391,18 +391,18 @@ public class ItemService {
 
     private Item findItem(UUID itemId) {
         if (itemId == null) {
-            throw badRequest("Item ID is required");
+            throw badRequest("Falta o id do item");
         }
         return itemRepository.findById(itemId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Item not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Item não encontrado"));
     }
 
     private Source findSource(UUID sourceId) {
         if (sourceId == null) {
-            throw badRequest("Source ID is required");
+            throw badRequest("Falta o id da fonte");
         }
         return sourceRepository.findById(sourceId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Source not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Fonte não encontrada"));
     }
 
     private ResponseStatusException badRequest(String message) {
@@ -417,14 +417,14 @@ public class ItemService {
     ) {
         if (value == null || value.isBlank()) {
             if (required) {
-                throw badRequest("Item " + field + " is required");
+                throw badRequest("Item " + field + " é obrigatório");
             }
             return null;
         }
         try {
             return Enum.valueOf(enumType, value.trim().toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException exception) {
-            throw badRequest("Invalid item " + field);
+            throw badRequest("Item inválido: " + field);
         }
     }
 

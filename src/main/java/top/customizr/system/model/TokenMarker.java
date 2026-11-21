@@ -26,11 +26,11 @@ public class TokenMarker {
     protected TokenMarker() {}
 
     public TokenMarker(String label, String icon, Integer roundsLeft) {
-        if (label == null || label.isBlank()) throw new IllegalArgumentException("Marker label is required");
-        if (label.trim().length() > 40) throw new IllegalArgumentException("Marker label is too long");
-        if (icon != null && icon.length() > 16) throw new IllegalArgumentException("Marker icon is too long");
+        if (label == null || label.isBlank()) throw new IllegalArgumentException("Falta o nome do marcador");
+        if (label.trim().length() > 40) throw new IllegalArgumentException("Nome do marcador muito longo");
+        if (icon != null && icon.length() > 16) throw new IllegalArgumentException("Ícone do marcador muito longo");
         if (roundsLeft != null && (roundsLeft < 1 || roundsLeft > 1000)) {
-            throw new IllegalArgumentException("Rounds must be between 1 and 1000");
+            throw new IllegalArgumentException("As rodadas vão de 1 a 1000");
         }
         this.label = label.trim();
         this.icon = icon == null || icon.isBlank() ? null : icon.trim();

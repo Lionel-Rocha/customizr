@@ -81,7 +81,7 @@ class ContentImportTests {
 
         var acolyte = contentImportService.backgrounds(null).stream()
                 .filter(b -> b.name().equals("Acolyte")).findFirst().orElseThrow();
-        assertTrue(acolyte.abilityScoreIncreases().startsWith("choose from INT, WIS, CHA"));
+        assertTrue(acolyte.abilityScoreIncreases().startsWith("escolha entre INT, WIS, CHA"));
         assertEquals("Insight, Religion", acolyte.skillProficiencies());
         assertEquals("Magic Initiate; Cleric", acolyte.grantedFeat());
         assertEquals("- Skill Proficiencies: Insight and Religion", acolyte.descriptionText());

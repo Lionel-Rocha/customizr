@@ -97,14 +97,14 @@ public class LiveCombatService {
         Token attacker = token(tokenId);
         boolean master = requireControl(attacker, username);
         if (request == null || request.attackId() == null || request.attackId().isBlank()) {
-            throw badRequest("attackId is required");
+            throw badRequest("Falta o attackId");
         }
         Token target = null;
         if (request.targetTokenId() != null) {
             target = token(request.targetTokenId());
-            if (!master && target.isHiddenFromPlayers()) throw notFound("Token");
+            if (!master && target.isHiddenFromPlayers()) throw notFound("token");
             if (!target.getScene().getId().equals(attacker.getScene().getId())) {
-                throw badRequest("The target is in another scene");
+                throw badRequest("O alvo está em outra cena");
             }
         }
         List<String> notes = new ArrayList<>();
@@ -113,7 +113,7 @@ public class LiveCombatService {
         if (target != null) {
             // cobertura pelas paredes: meia (+2 na CA), tres quartos (+5) ou total (nao da pra atacar)
             int cover = attacker.getScene().coverBetween(attacker, target);
-            if (cover < 0) throw badRequest("Total cover: there is no clear line to " + target.getName());
+            if (cover < 0) throw badRequest("Cobertura total: não há linha livre até " + target.getName());
             if (cover > 0) {
                 notes.add((cover == 2 ? "Meia cobertura" : "Cobertura de três quartos") + " (+" + cover + " na CA)");
                 if (targetAc != null) targetAc += cover;
@@ -141,7 +141,7 @@ public class LiveCombatService {
         if (attacker.getCharacter() != null) {
             SheetAttack sheetAttack = attacker.getCharacter().getSheet().getAttacks().stream()
                     .filter(a -> a.getId().toString().equals(request.attackId())).findFirst()
-                    .orElseThrow(() -> notFound("Attack"));
+                    .orElseThrow(() -> notFound("ataque"));
             // condicoes de quem ataca (envenenado, caido...) a ficha ja aplica; aqui entram invisivel e o alvo
             mode = withTargetConditions(withInvisibleAttacker(mode, attacker, notes), target, null, notes);
             SheetRollResponse rolled = sheetService.rollAttack(attacker.getCharacter().getCharacterId(), sheetAttack.getId(),
@@ -209,7 +209,7 @@ public class LiveCombatService {
     public SheetRollResponse roll(UUID tokenId, SheetRollRequest request, String username) {
         Token token = token(tokenId);
         requireControl(token, username);
-        if (request == null || request.kind() == null) throw badRequest("Roll kind is required");
+        if (request == null || request.kind() == null) throw badRequest("Falta o tipo da rolagem");
         if (token.getCharacter() != null) {
             return sheetService.roll(token.getCharacter().getCharacterId(),
                     new SheetRollRequest(request.kind(), request.skill(), request.ability(), request.mode(), true,
@@ -230,7 +230,7 @@ public class LiveCombatService {
     /** Rolagem pela ficha de monstro, sem chat. */
     private MonsterRoll monsterRoll(Token token, SheetRollRequest request) {
         Monster stats = token.statBlock();
-        if (stats == null) throw badRequest("This token has no stat block to roll from");
+        if (stats == null) throw badRequest("Este token não tem ficha pra rolar");
         List<String> notes = new ArrayList<>();
         RollMode mode = request.mode() == null ? RollMode.NORMAL : request.mode();
         Set<Condition> conditions = token.activeConditions();
@@ -240,7 +240,7 @@ public class LiveCombatService {
         switch (request.kind()) {
             case SKILL -> {
                 Skill skill = request.skill();
-                if (skill == null) throw badRequest("Skill is required");
+                if (skill == null) throw badRequest("Falta informar a perícia");
                 label = TextoPt.skill(skill);
                 Integer written = writtenBonus(stats.getSkills(), skill.getLabel());
                 bonus = written != null ? written : Attributes.modifierOf(score(stats, skill.getAbility()));
@@ -273,7 +273,7 @@ public class LiveCombatService {
                 label = "Iniciativa";
                 bonus = Attributes.modifierOf(stats.getDexterity());
             }
-            default -> throw badRequest("Monsters don't make death saves");
+            default -> throw badRequest("Monstro não faz teste contra a morte");
         }
         return new MonsterRoll(label, DiceRoller.roll(d20(mode) + signed(bonus)), outcome, notes);
     }
@@ -286,15 +286,15 @@ public class LiveCombatService {
      */
     @Transactional
     public TemplateResolveResponse resolveTemplate(UUID templateId, TemplateResolveRequest request, String username) {
-        AreaTemplate template = templateRepository.findById(templateId).orElseThrow(() -> notFound("Area"));
+        AreaTemplate template = templateRepository.findById(templateId).orElseThrow(() -> notFound("área"));
         Campaign campaign = template.getScene().getCampaign();
         User user = masterGuard.user(username);
         masterGuard.assertMember(user, campaign);
         boolean master = masterGuard.canManage(user, campaign);
         if (!master && !template.getOwnerId().equals(user.getUserId())) {
-            throw new AccessDeniedException("Only who placed the area or the master resolves it");
+            throw new AccessDeniedException("Só quem pôs a área ou o mestre resolve");
         }
-        if (request == null) throw badRequest("Request body is required");
+        if (request == null) throw badRequest("Falta o corpo da requisição");
         AbilityScore ability = request.ability();
         Integer dc = request.dc();
         String damage = request.damage();
@@ -306,7 +306,7 @@ public class LiveCombatService {
             requireControl(attacker, username);
             if (request.attackId() != null) {
                 MonsterAttacks.Attack action = monsterAttack(attacker, request.attackId());
-                if (action.kind() != MonsterAttacks.Kind.SAVE) throw badRequest("This action is not a saving throw");
+                if (action.kind() != MonsterAttacks.Kind.SAVE) throw badRequest("Esta ação não é de salvaguarda");
                 dc = action.saveDc();
                 ability = abilityOf(action.saveAbility());
                 damage = action.damage();
@@ -314,7 +314,7 @@ public class LiveCombatService {
                 label = action.name();
             }
         }
-        if (ability == null || dc == null) throw badRequest("ability and dc are required");
+        if (ability == null || dc == null) throw badRequest("Faltam o atributo (ability) e a CD (dc)");
         RollResult damageRoll = null;
         if (damage != null && !damage.isBlank()) {
             try {
@@ -354,18 +354,18 @@ public class LiveCombatService {
                 int amount = saved ? (half ? damageRoll.total() / 2 : 0) : damageRoll.total();
                 applied = apply ? applyDamage(target, amount, damageType, notes, username) : amount;
             }
-            String name = target.isHiddenFromPlayers() ? "Unseen creature" : target.getName();
+            String name = target.isHiddenFromPlayers() ? "Criatura oculta" : target.getName();
             results.add(new TemplateResolveResponse.Target(target.getId(), target.getName(), roll.total(), saved, autoFail, applied));
-            lines.add(name + ": " + roll.total() + (cover > 0 ? " +" + cover + " cover" : "")
-                    + (autoFail ? " (automatic failure)" : saved ? " saved" : " failed")
-                    + (applied == null ? "" : " -> " + applied + " " + (damageType == null ? "damage" : damageType)));
-            notes.stream().filter(n -> n.contains("concentration")).forEach(n -> lines.add("  " + n));
+            lines.add(name + ": " + roll.total() + (cover > 0 ? " +" + cover + " de cobertura" : "")
+                    + (autoFail ? " (falha automática)" : saved ? " passou" : " falhou")
+                    + (applied == null ? "" : " -> " + applied + " " + (damageType == null ? "de dano" : TextoPt.damageType(damageType))));
+            notes.stream().filter(n -> n.contains("concentra")).forEach(n -> lines.add("  " + n));
         }
         String abilityShort = ability.getKey().substring(0, 3).toUpperCase(Locale.ROOT);
-        String title = label + " (DC " + dc + " " + abilityShort + (damageRoll == null ? "" : ", damage " + damageRoll.detail()) + ")";
+        String title = label + " (CD " + dc + " de " + TextoPt.ability(ability) + (damageRoll == null ? "" : ", dano " + damageRoll.detail()) + ")";
         UUID chatId = chatService.postCard(campaign.getId(), attacker != null && attacker.getCharacter() != null
                         ? attacker.getCharacter().getCharacterId() : null, title,
-                lines.isEmpty() ? "Nobody in the area." : String.join("\n", lines), username).id();
+                lines.isEmpty() ? "Ninguém na área." : String.join("\n", lines), username).id();
         return new TemplateResolveResponse(label, dc, abilityShort, damageRoll, results, chatId);
     }
 
@@ -401,7 +401,7 @@ public class LiveCombatService {
     }
 
     private static AbilityScore requireAbility(AbilityScore ability) {
-        if (ability == null) throw badRequest("Ability is required");
+        if (ability == null) throw badRequest("Falta informar o atributo");
         return ability;
     }
 
@@ -414,7 +414,7 @@ public class LiveCombatService {
     public TokenResponse changeHitPoints(UUID tokenId, HitPointChangeRequest request, String username) {
         Token token = token(tokenId);
         boolean master = requireControl(token, username);
-        if (request == null || request.type() == null) throw badRequest("Hit point change type is required");
+        if (request == null || request.type() == null) throw badRequest("Falta o tipo da mudança de PV");
         if (token.getCharacter() != null) {
             characterService.changeHitPoints(token.getCharacter().getCharacterId(), request, username);
             return TokenResponse.from(token, master);
@@ -426,7 +426,7 @@ public class LiveCombatService {
                     concentration.afterDamage(token, request.amount(), username);
                 }
                 case HEALING -> token.heal(request.amount());
-                case TEMPORARY -> throw badRequest("Temporary HP is only tracked on character sheets");
+                case TEMPORARY -> throw badRequest("PV temporário só fica na ficha de personagem");
             }
         } catch (IllegalArgumentException | IllegalStateException ex) {
             throw badRequest(ex.getMessage());
@@ -440,7 +440,7 @@ public class LiveCombatService {
     public TokenResponse updateConditions(UUID tokenId, ConditionsRequest request, String username) {
         Token token = token(tokenId);
         boolean master = requireControl(token, username);
-        if (request == null) throw badRequest("Request body is required");
+        if (request == null) throw badRequest("Falta o corpo da requisição");
         if (token.getCharacter() != null) {
             sheetService.updateConditions(token.getCharacter().getCharacterId(), request, username);
             return TokenResponse.from(token, master);
@@ -552,15 +552,15 @@ public class LiveCombatService {
     }
 
     private MonsterAttacks.Attack monsterAttack(Token attacker, String attackId) {
-        if (!attackId.startsWith("m:")) throw notFound("Attack");
+        if (!attackId.startsWith("m:")) throw notFound("ataque");
         int index;
         try {
             index = Integer.parseInt(attackId.substring(2));
         } catch (NumberFormatException ex) {
-            throw notFound("Attack");
+            throw notFound("ataque");
         }
         return MonsterAttacks.of(attacker.statBlock()).stream().filter(a -> a.index() == index).findFirst()
-                .orElseThrow(() -> notFound("Attack"));
+                .orElseThrow(() -> notFound("ataque"));
     }
 
     // ------------------------------------------------------------------ acesso
@@ -572,17 +572,17 @@ public class LiveCombatService {
         if (masterGuard.canManage(user, campaign)) return true;
         masterGuard.assertMember(user, campaign);
         if (!token.controlledBy(user.getUserId())) {
-            throw new AccessDeniedException("You can only act with your own character's token");
+            throw new AccessDeniedException("Você só age com o token do seu personagem");
         }
         return false;
     }
 
     private Token token(UUID id) {
-        return tokenRepository.findById(id).orElseThrow(() -> notFound("Token"));
+        return tokenRepository.findById(id).orElseThrow(() -> notFound("token"));
     }
 
     private static ResponseStatusException notFound(String what) {
-        return new ResponseStatusException(HttpStatus.NOT_FOUND, what + " not found");
+        return new ResponseStatusException(HttpStatus.NOT_FOUND, what + " não encontrado");
     }
 
     private static ResponseStatusException badRequest(String message) {

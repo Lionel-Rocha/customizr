@@ -46,10 +46,10 @@ public class PartyService {
     @Transactional
     public PartyResponse create(UUID campaignId, CreatePartyRequest request, String username) {
         if (request == null || request.name() == null || request.name().isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Party name is required");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Falta o nome do grupo");
         }
         Campaign campaign = campaignRepository.findById(campaignId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Campaign not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Campanha não encontrada"));
         requireCampaignMaster(campaign, username);
         Party party = new Party(request.name(), campaign);
         try {
@@ -70,7 +70,7 @@ public class PartyService {
     @Transactional
     public List<PartyResponse> listByCampaign(UUID campaignId, String username) {
         Campaign campaign = campaignRepository.findById(campaignId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Campaign not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Campanha não encontrada"));
         requireCampaignMember(campaign, username);
         return partyRepository.findByCampaign(campaign).stream().map(PartyResponse::from).toList();
     }
@@ -94,7 +94,7 @@ public class PartyService {
         Party party = findParty(partyId);
         requireCampaignMaster(party.getCampaign(), username);
         Character character = characterRepository.findById(characterId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Character not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Personagem não encontrado"));
         try {
             party.addMember(character);
         } catch (IllegalArgumentException ex) {
@@ -110,10 +110,10 @@ public class PartyService {
         Party party = findParty(partyId);
         requireCampaignMaster(party.getCampaign(), username);
         Character character = characterRepository.findById(characterId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Character not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Personagem não encontrado"));
         if (character.getParty() == null
                 || !character.getParty().getPartyId().equals(party.getPartyId())) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Character is not in this party");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "O personagem não está neste grupo");
         }
         party.removeMember(character);
         return PartyResponse.from(party);
@@ -121,7 +121,7 @@ public class PartyService {
 
     private Party findParty(UUID partyId) {
         return partyRepository.findById(partyId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Party not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Grupo não encontrado"));
     }
 
     private void requireCampaignMember(Campaign campaign, String username) {
@@ -129,15 +129,15 @@ public class PartyService {
             return;
         }
         User user = userRepository.findByName(username)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuário não encontrado"));
         if (membershipRepository.findByCampaignIdAndUserId(campaign.getId(), user.getUserId()).isEmpty()) {
-            throw new AccessDeniedException("You are not a member of this campaign");
+            throw new AccessDeniedException("Você não participa desta campanha");
         }
     }
 
     private void requireCampaignMaster(Campaign campaign, String username) {
         if (!campaign.getMaster().getName().equals(username)) {
-            throw new AccessDeniedException("Only the campaign master can manage parties");
+            throw new AccessDeniedException("Só o mestre da campanha mexe nos grupos");
         }
     }
 }

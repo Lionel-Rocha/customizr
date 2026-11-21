@@ -34,7 +34,7 @@ public final class DiceRoller {
     public static RollResult roll(String expression, IntUnaryOperator die) {
         String expr = expression == null ? "" : expression.replaceAll("\\s+", "").toLowerCase();
         if (expr.isEmpty()) {
-            throw new IllegalArgumentException("Dice expression is required, e.g. 2d6+3");
+            throw new IllegalArgumentException("Falta a expressão de dados, ex.: 2d6+3");
         }
         int total = 0;
         boolean anyDice = false;
@@ -46,7 +46,7 @@ public final class DiceRoller {
         int lastEnd = 0;
         while (m.find()) {
             if (m.start() != lastEnd) {
-                throw new IllegalArgumentException("Invalid dice expression: " + expr);
+                throw new IllegalArgumentException("Expressão de dados inválida: " + expr);
             }
             lastEnd = m.end();
             boolean negative = "-".equals(m.group(1));
@@ -102,14 +102,14 @@ public final class DiceRoller {
                 total += negative ? -value : value;
                 parts.add(prefix + value);
             } else {
-                throw new IllegalArgumentException("Invalid dice term: " + term);
+                throw new IllegalArgumentException("Termo de dados inválido: " + term);
             }
         }
         if (lastEnd != expr.length()) {
-            throw new IllegalArgumentException("Invalid dice expression: " + expr);
+            throw new IllegalArgumentException("Expressão de dados inválida: " + expr);
         }
         if (!anyDice) {
-            throw new IllegalArgumentException("Include at least one die, e.g. 1d20");
+            throw new IllegalArgumentException("Inclua pelo menos um dado, ex.: 1d20");
         }
         return new RollResult(expr, total, String.join(" ", parts) + " = " + total, naturalD20);
     }

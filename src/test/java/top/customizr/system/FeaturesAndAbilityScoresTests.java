@@ -198,7 +198,7 @@ class FeaturesAndAbilityScoresTests {
                 new ShareRequest(SharedKind.MONSTER, goblin.getId(), null), player));
         ChatMessageResponse shown = featureService.share(campaign.getId(),
                 new ShareRequest(SharedKind.MONSTER, goblin.getId(), null), master);
-        assertTrue(shown.content().contains("AC 15 | HP 10 (3d6)"));
+        assertTrue(shown.content().contains("CA 15 | PV 10 (3d6)"));
         assertThrows(ResponseStatusException.class, () -> featureService.share(campaign.getId(),
                 new ShareRequest(SharedKind.SPELL, UUID.randomUUID(), null), master));
     }

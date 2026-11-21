@@ -22,9 +22,9 @@ public class TokenAura {
     protected TokenAura() {}
 
     public TokenAura(int radiusFt, String color, String label) {
-        if (radiusFt < 5 || radiusFt > 500) throw new IllegalArgumentException("Aura radius goes from 5 to 500 feet");
-        if (color != null && !color.matches("#[0-9A-Fa-f]{6}")) throw new IllegalArgumentException("Aura color must be #RRGGBB");
-        if (label != null && label.length() > 30) throw new IllegalArgumentException("Aura label is too long");
+        if (radiusFt < 5 || radiusFt > 500) throw new IllegalArgumentException("O raio da aura vai de 5 a 500 pés");
+        if (color != null && !color.matches("#[0-9A-Fa-f]{6}")) throw new IllegalArgumentException("A cor da aura precisa ser #RRGGBB");
+        if (label != null && label.length() > 30) throw new IllegalArgumentException("Nome da aura muito longo");
         this.radiusFt = radiusFt;
         this.color = color;
         this.label = label == null || label.isBlank() ? null : label.trim();

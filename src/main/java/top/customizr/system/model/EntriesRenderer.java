@@ -213,7 +213,7 @@ public final class EntriesRenderer {
                         list.append(a.asString().toUpperCase());
                     }
                     if (!one.isEmpty()) one.append(", ");
-                    one.append("choose from ").append(list);
+                    one.append("escolha entre ").append(list);
                     if (choose.has("weighted")) {
                         one.append(" (").append(choose.path("weighted").path("weights").toString()).append(")");
                     } else if (choose.has("count")) {

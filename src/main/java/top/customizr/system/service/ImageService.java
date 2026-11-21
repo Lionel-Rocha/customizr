@@ -37,17 +37,17 @@ public class ImageService {
     @Transactional
     public ImageResponse upload(UUID campaignId, byte[] data, String fileName, String username) {
         Campaign campaign = campaignRepository.findById(campaignId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Campaign not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Campanha não encontrada"));
         masterGuard.requireMember(username, campaign);
         if (data == null || data.length == 0) {
-            throw badRequest("Image is empty");
+            throw badRequest("A imagem está vazia");
         }
         if (data.length > ImageAsset.MAX_BYTES) {
-            throw badRequest("Image is too big (max 8 MB)");
+            throw badRequest("Imagem grande demais (máximo 8 MB)");
         }
         String type = detectType(data);
         if (type == null) {
-            throw badRequest("Only PNG, JPEG, WebP and GIF images are accepted");
+            throw badRequest("Só aceita imagem PNG, JPEG, WebP e GIF");
         }
         String hash = sha256(data);
         ImageAsset image = imageAssetRepository.findByCampaignAndSha256(campaign, hash)
@@ -59,7 +59,7 @@ public class ImageService {
     @Transactional
     public ImageAsset read(UUID imageId, String username) {
         ImageAsset image = imageAssetRepository.findById(imageId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Image not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Imagem não encontrada"));
         masterGuard.requireMember(username, image.getCampaign());
         return image;
     }

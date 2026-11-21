@@ -35,7 +35,7 @@ public class PlayerService {
                 loggedUser.getUsername()
         ));
         Character character = characterRepository.findById(created.characterId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Character not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Personagem não encontrado"));
         return character.getSheet();
     }
 
@@ -63,9 +63,9 @@ public class PlayerService {
 
     private Sheet findSheet(UUID characterId) {
         Character character = characterRepository.findById(characterId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Character sheet not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ficha não encontrada"));
         if (character.getSheet() == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Character sheet not found");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Ficha não encontrada");
         }
         return character.getSheet();
     }

@@ -41,10 +41,10 @@ public class InventoryEntry {
 
     InventoryEntry(Inventory inventory, Item item, int quantity) {
         if (inventory == null || item == null) {
-            throw new IllegalArgumentException("Inventory and item are required");
+            throw new IllegalArgumentException("Faltam o inventário e o item");
         }
         if (quantity <= 0) {
-            throw new IllegalArgumentException("Quantity must be positive");
+            throw new IllegalArgumentException("A quantidade precisa ser positiva");
         }
         this.id = UUID.randomUUID();
         this.inventory = inventory;
@@ -54,11 +54,11 @@ public class InventoryEntry {
 
     void changeQuantity(int difference) {
         if (difference > 0 && quantity > Integer.MAX_VALUE - difference) {
-            throw new IllegalArgumentException("Quantity exceeds the supported limit");
+            throw new IllegalArgumentException("Quantidade acima do limite");
         }
         int updatedQuantity = Math.addExact(quantity, difference);
         if (updatedQuantity <= 0) {
-            throw new IllegalArgumentException("Quantity must remain positive");
+            throw new IllegalArgumentException("A quantidade precisa continuar positiva");
         }
         this.quantity = updatedQuantity;
     }

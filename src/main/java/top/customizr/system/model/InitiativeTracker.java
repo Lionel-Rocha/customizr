@@ -44,7 +44,7 @@ public class InitiativeTracker {
     protected InitiativeTracker() {}
 
     public InitiativeTracker(Campaign campaign) {
-        if (campaign == null) throw new IllegalArgumentException("Campaign is required");
+        if (campaign == null) throw new IllegalArgumentException("Falta informar a campanha");
         this.id = UUID.randomUUID();
         this.campaign = campaign;
         this.round = 1;
@@ -65,7 +65,7 @@ public class InitiativeTracker {
     public void remove(UUID entryId) {
         int index = -1;
         for (int i = 0; i < entries.size(); i++) if (entries.get(i).getId().equals(entryId)) index = i;
-        if (index < 0) throw new IllegalArgumentException("Entry not found");
+        if (index < 0) throw new IllegalArgumentException("Não encontrado na ordem de iniciativa");
         entries.remove(index);
         if (index < turnIndex) turnIndex--;
         if (turnIndex >= entries.size()) turnIndex = 0;
@@ -73,7 +73,7 @@ public class InitiativeTracker {
 
     /** Passa a vez; depois do ultimo, nova rodada. */
     public void next() {
-        if (entries.isEmpty()) throw new IllegalStateException("Nobody is in the initiative order");
+        if (entries.isEmpty()) throw new IllegalStateException("Ninguém na ordem de iniciativa");
         turnIndex++;
         if (turnIndex >= entries.size()) {
             turnIndex = 0;

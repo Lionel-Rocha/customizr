@@ -105,7 +105,7 @@ public class NpcService {
         NPC npc = findNpc(npcId);
         requireCampaignMaster(npc.getCampaign(), username);
         npc.useStatBlock(monsterId == null ? null : monsterRepository.findById(monsterId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Monster not found")));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Monstro não encontrado")));
         return NpcResponse.from(npc, true);
     }
 
@@ -119,31 +119,31 @@ public class NpcService {
 
     private NPC findNpc(UUID npcId) {
         if (npcId == null) {
-            throw badRequest("NPC ID is required");
+            throw badRequest("Falta o id do NPC");
         }
         return npcRepository.findById(npcId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "NPC not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "NPC não encontrado"));
     }
 
     private Campaign findCampaign(UUID campaignId) {
         if (campaignId == null) {
-            throw badRequest("Campaign ID is required");
+            throw badRequest("Falta o id da campanha");
         }
         return campaignRepository.findById(campaignId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Campaign not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Campanha não encontrada"));
     }
 
     private void requireCampaignMember(Campaign campaign, String username) {
         User user = findUser(username);
         if (!campaign.getMaster().getUserId().equals(user.getUserId())
                 && membershipRepository.findByCampaignIdAndUserId(campaign.getId(), user.getUserId()).isEmpty()) {
-            throw new AccessDeniedException("You are not a member of this campaign");
+            throw new AccessDeniedException("Você não participa desta campanha");
         }
     }
 
     private void requireCampaignMaster(Campaign campaign, String username) {
         if (!isCampaignMaster(campaign, username)) {
-            throw new AccessDeniedException("Only the campaign master can manage NPCs");
+            throw new AccessDeniedException("Só o mestre da campanha mexe nos NPCs");
         }
     }
 
@@ -153,10 +153,10 @@ public class NpcService {
 
     private User findUser(String username) {
         if (username == null || username.isBlank()) {
-            throw new AccessDeniedException("Authentication is required");
+            throw new AccessDeniedException("Precisa estar logado");
         }
         return userRepository.findByName(username)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuário não encontrado"));
     }
 
     private ResponseStatusException badRequest(String message) {

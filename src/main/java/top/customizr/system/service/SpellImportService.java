@@ -58,7 +58,7 @@ public class SpellImportService {
     @Transactional
     public ContentImportResponse importSpells(JsonNode payload) {
         if (payload == null || !payload.path("spell").isArray()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Expected a JSON object with a \"spell\" array (5etools format)");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Esperava um JSON com a lista \"spell\" (formato do 5etools)");
         }
         List<ContentImportResponse.Processed> created = new ArrayList<>();
         List<ContentImportResponse.Processed> updated = new ArrayList<>();
@@ -103,7 +103,7 @@ public class SpellImportService {
     @Transactional
     public int importClassLists(JsonNode lookup) {
         if (lookup == null || !lookup.isObject()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Expected the 5etools spell source lookup object");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Esperava o objeto de fontes das magias do 5etools");
         }
         int links = 0;
         for (Map.Entry<String, JsonNode> bySource : lookup.properties()) {
@@ -144,9 +144,9 @@ public class SpellImportService {
 
     static ParsedSpell parse(JsonNode e) {
         SpellSchool school = SCHOOLS.get(e.path("school").asText());
-        if (school == null) throw new IllegalArgumentException("Unknown school: " + e.path("school").asText());
+        if (school == null) throw new IllegalArgumentException("Escola desconhecida: " + e.path("school").asText());
         int lv = e.path("level").asInt(-1);
-        if (lv < 0 || lv > 9) throw new IllegalArgumentException("Invalid level");
+        if (lv < 0 || lv > 9) throw new IllegalArgumentException("Nível inválido");
         SpellLevel level = SpellLevel.values()[lv];
 
         List<String> header = new ArrayList<>();
@@ -222,7 +222,7 @@ public class SpellImportService {
         if (higher != null) description.append("\n\n").append(higher);
         String text = description.toString().strip();
         return new ParsedSpell(school, level, time, rangeFt, components, duration,
-                text.isEmpty() ? "(no description)" : text);
+                text.isEmpty() ? "(sem descrição)" : text);
     }
 
     private static Time time(int number, String unit) {

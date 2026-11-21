@@ -68,10 +68,10 @@ public class Species {
 
     public Species(String name, Source source) {
         if (name == null || name.isBlank()) {
-            throw new IllegalArgumentException("Species name is required");
+            throw new IllegalArgumentException("Falta o nome da espécie");
         }
         if (source == null) {
-            throw new IllegalArgumentException("Species source is required");
+            throw new IllegalArgumentException("Falta a fonte da espécie");
         }
         this.id = UUID.randomUUID();
         this.name = name.trim();

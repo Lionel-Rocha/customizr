@@ -67,7 +67,7 @@ public class ClassService {
     public ImportClassesResponse importClasses(JsonNode payload) {
         JsonNode classEntries = payload == null ? null : payload.get("class");
         if (classEntries == null || !classEntries.isArray()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Expected a JSON object with a class array");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Esperava um JSON com a lista \"class\"");
         }
 
         JsonNode classFeatureEntries = arrayOrEmpty(payload, "classFeature");
@@ -190,7 +190,7 @@ public class ClassService {
     @Transactional
     public AddSubclassFeatureResponse addSubclassFeature(JsonNode payload) {
         if (payload == null || !payload.isObject()) {
-            throw badRequest("A subclass feature object is required");
+            throw badRequest("Falta o objeto da característica de subclasse");
         }
 
         String className = text(payload, "className");
@@ -200,34 +200,34 @@ public class ClassService {
         String featureName = text(payload, "name");
         JsonNode levelNode = payload.get("level");
         if (isBlank(className) || isBlank(classSource) || isBlank(subclassShortName)) {
-            throw badRequest("className, classSource, and subclassShortName are required");
+            throw badRequest("Faltam className, classSource e subclassShortName");
         }
         if (isBlank(featureName)) {
-            throw badRequest("Feature name is required");
+            throw badRequest("Falta o nome da característica");
         }
         if (levelNode == null || !levelNode.canConvertToInt()
                 || levelNode.asInt() < 1 || levelNode.asInt() > 20) {
-            throw badRequest("Feature level must be between 1 and 20");
+            throw badRequest("O nível da característica vai de 1 a 20");
         }
 
         DndClass dndClass = dndClassRepository.findByClassNameAndSourceCode(className, classSource)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Class not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Classe não encontrada"));
         List<Subclass> matchingSubclasses = dndClass.getSubclasses().stream()
                 .filter(subclass -> subclassShortName.equals(subclass.getShortName()))
                 .filter(subclass -> isBlank(subclassSource)
                         || subclassSource.equals(subclass.getSourceCode()))
                 .toList();
         if (matchingSubclasses.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Subclass not found");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Subclasse não encontrada");
         }
         if (matchingSubclasses.size() > 1) {
-            throw badRequest("subclassSource is required to identify the subclass");
+            throw badRequest("Falta subclassSource pra identificar a subclasse");
         }
 
         Subclass subclass = matchingSubclasses.getFirst();
         int level = levelNode.asInt();
         if (level < subclass.getUnlockLevel()) {
-            throw badRequest("Feature level cannot be before the subclass unlock level");
+            throw badRequest("O nível da característica não pode vir antes do nível em que a subclasse libera");
         }
 
         Feature feature = createFeature(payload, "subclass");
@@ -257,7 +257,7 @@ public class ClassService {
     @Transactional
     public DndClassDetailResponse getClassDetails(UUID classId) {
         DndClass dndClass = dndClassRepository.findById(classId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Class not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Classe não encontrada"));
         return DndClassDetailResponse.from(dndClass);
     }
 

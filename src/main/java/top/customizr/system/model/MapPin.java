@@ -58,12 +58,12 @@ public class MapPin {
 
     public void update(double x, double y, String label, String icon, String note, UUID entryId, boolean visibleToPlayers) {
         if (Double.isNaN(x) || Double.isNaN(y) || x < -10_000 || y < -10_000 || x > 100_000 || y > 100_000) {
-            throw new IllegalArgumentException("Pin is outside the map");
+            throw new IllegalArgumentException("O alfinete está fora do mapa");
         }
-        if (label == null || label.isBlank()) throw new IllegalArgumentException("Pin name is required");
-        if (label.trim().length() > 60) throw new IllegalArgumentException("Pin name is too long");
-        if (icon != null && icon.length() > 16) throw new IllegalArgumentException("Pin icon is too long");
-        if (note != null && note.length() > 2000) throw new IllegalArgumentException("Pin note is too long");
+        if (label == null || label.isBlank()) throw new IllegalArgumentException("Falta o nome do alfinete");
+        if (label.trim().length() > 60) throw new IllegalArgumentException("Nome do alfinete muito longo");
+        if (icon != null && icon.length() > 16) throw new IllegalArgumentException("Ícone do alfinete muito longo");
+        if (note != null && note.length() > 2000) throw new IllegalArgumentException("Nota do alfinete muito longa");
         this.x = x;
         this.y = y;
         this.label = label.trim();

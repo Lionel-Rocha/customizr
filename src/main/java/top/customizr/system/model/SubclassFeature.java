@@ -39,7 +39,7 @@ public class SubclassFeature {
 
     SubclassFeature(Subclass subclass, Feature feature, int level, String choiceGroup) {
         if (level < 1 || level > 20) {
-            throw new IllegalArgumentException("Feature level must be between 1 and 20");
+            throw new IllegalArgumentException("O nível da característica vai de 1 a 20");
         }
         this.id = UUID.randomUUID();
         this.subclass = subclass;

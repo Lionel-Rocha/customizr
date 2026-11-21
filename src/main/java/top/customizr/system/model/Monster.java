@@ -150,10 +150,10 @@ public class Monster {
 
     public Monster(String name, Source source) {
         if (name == null || name.isBlank()) {
-            throw new IllegalArgumentException("Monster name is required");
+            throw new IllegalArgumentException("Falta o nome do monstro");
         }
         if (source == null) {
-            throw new IllegalArgumentException("Monster source is required");
+            throw new IllegalArgumentException("Falta a fonte do monstro");
         }
         this.id = UUID.randomUUID();
         this.name = name.trim();
@@ -162,7 +162,7 @@ public class Monster {
 
     /** Ficha customizada (em branco ou copia) de uma campanha, na fonte homebrew dela. */
     public static Monster custom(String name, Source source, Campaign campaign) {
-        if (campaign == null) throw new IllegalArgumentException("Campaign is required for a custom monster");
+        if (campaign == null) throw new IllegalArgumentException("Monstro próprio precisa de campanha");
         Monster monster = new Monster(name, source);
         monster.campaign = campaign;
         return monster;
@@ -173,7 +173,7 @@ public class Monster {
     }
 
     public void rename(String name) {
-        if (name == null || name.isBlank()) throw new IllegalArgumentException("Monster name is required");
+        if (name == null || name.isBlank()) throw new IllegalArgumentException("Falta o nome do monstro");
         this.name = name.trim();
     }
 
@@ -181,13 +181,13 @@ public class Monster {
     public void updateCore(String size, String creatureType, String alignment, Integer armorClass, String armorNote,
                            Integer hpAverage, String hpFormula, String speed, int[] abilities, String challengeRating) {
         if (abilities == null || abilities.length != 6) {
-            throw new IllegalArgumentException("Six ability scores are required");
+            throw new IllegalArgumentException("Faltam os seis atributos");
         }
         for (int a : abilities) {
-            if (a < 1 || a > 30) throw new IllegalArgumentException("Ability scores must be between 1 and 30");
+            if (a < 1 || a > 30) throw new IllegalArgumentException("Os valores de atributo vão de 1 a 30");
         }
         if (challengeRating != null && !XP_BY_CR.containsKey(challengeRating)) {
-            throw new IllegalArgumentException("Unknown challenge rating: " + challengeRating);
+            throw new IllegalArgumentException("Nível de desafio desconhecido: " + challengeRating);
         }
         this.size = size;
         this.creatureType = creatureType;

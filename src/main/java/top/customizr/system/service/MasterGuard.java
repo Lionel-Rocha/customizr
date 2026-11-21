@@ -41,16 +41,16 @@ public class MasterGuard {
 
     public void assertMember(User user, Campaign campaign) {
         if (!isMember(user, campaign)) {
-            throw new AccessDeniedException("You are not a member of this campaign");
+            throw new AccessDeniedException("Você não participa desta campanha");
         }
     }
 
     public User user(String username) {
         if (username == null || username.isBlank()) {
-            throw new AccessDeniedException("Authentication is required");
+            throw new AccessDeniedException("Precisa estar logado");
         }
         return userRepository.findByName(username)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuário não encontrado"));
     }
 
     /** Atalho: usuario logado tem que ser o mestre. Devolve o usuario. */

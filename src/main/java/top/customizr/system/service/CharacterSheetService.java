@@ -98,9 +98,9 @@ public class CharacterSheetService {
         requireBody(request);
         character.chooseOrigin(
                 request.speciesId() == null ? null : speciesRepository.findById(request.speciesId())
-                        .orElseThrow(() -> notFound("Species")),
+                        .orElseThrow(() -> notFound("espécie")),
                 request.backgroundId() == null ? null : backgroundRepository.findById(request.backgroundId())
-                        .orElseThrow(() -> notFound("Background")));
+                        .orElseThrow(() -> notFound("antecedente")));
         return CharacterSheetResponse.from(character);
     }
 
@@ -160,7 +160,7 @@ public class CharacterSheetService {
         Character character = manageable(characterId, username);
         requireBody(r);
         boolean master = isMaster(character, username);
-        if (r.gmNotes() != null && !master) throw new AccessDeniedException("Only the game master writes the game master notes");
+        if (r.gmNotes() != null && !master) throw new AccessDeniedException("Só o mestre escreve as notas do mestre");
         var story = character.getSheet().getStory();
         valid(() -> {
             story.update(r.alignment(), r.age(), r.height(), r.weight(), r.eyes(), r.hair(), r.skin(), r.appearance(),
@@ -175,25 +175,25 @@ public class CharacterSheetService {
     @Transactional
     public ChatMessageResponse shareStory(UUID characterId, StoryShareRequest request, String username) {
         Character character = manageable(characterId, username);
-        if (request == null || request.part() == null) throw badRequest("Part is required");
+        if (request == null || request.part() == null) throw badRequest("Falta informar a parte");
         var s = character.getSheet().getStory();
         String text;
         if (request.part() == StoryShareRequest.Part.APPEARANCE) {
             List<String> details = new ArrayList<>();
-            addDetail(details, "Age", s.getAge());
-            addDetail(details, "Height", s.getHeight());
-            addDetail(details, "Weight", s.getWeight());
-            addDetail(details, "Eyes", s.getEyes());
-            addDetail(details, "Hair", s.getHair());
-            addDetail(details, "Skin", s.getSkin());
+            addDetail(details, "Idade", s.getAge());
+            addDetail(details, "Altura", s.getHeight());
+            addDetail(details, "Peso", s.getWeight());
+            addDetail(details, "Olhos", s.getEyes());
+            addDetail(details, "Cabelo", s.getHair());
+            addDetail(details, "Pele", s.getSkin());
             String joined = String.join(" | ", details);
             text = s.getAppearance() == null ? joined : joined.isEmpty() ? s.getAppearance() : joined + "\n" + s.getAppearance();
         } else {
             text = s.getBackstory() == null ? "" : s.getBackstory();
         }
-        if (text.isBlank()) throw badRequest("Nothing written there yet");
+        if (text.isBlank()) throw badRequest("Ainda não tem nada escrito aí");
         return chatService.postCard(character.getCampaign().getId(), character.getCharacterId(),
-                character.getName() + (request.part() == StoryShareRequest.Part.APPEARANCE ? " - appearance" : " - backstory"),
+                character.getName() + (request.part() == StoryShareRequest.Part.APPEARANCE ? " - aparência" : " - história"),
                 text, username);
     }
 
@@ -249,7 +249,7 @@ public class CharacterSheetService {
     public CharacterSheetResponse addCustomResource(UUID characterId, CustomResourceRequest request, String username) {
         Character character = manageable(characterId, username);
         requireBody(request);
-        valid(() -> character.getSheet().addCustomResource(request.name(), require(request.maxUses(), "Maximum uses"),
+        valid(() -> character.getSheet().addCustomResource(request.name(), require(request.maxUses(), "usos máximos"),
                 request.recharge(), request.notes()));
         return CharacterSheetResponse.from(character);
     }
@@ -260,7 +260,7 @@ public class CharacterSheetService {
         Character character = manageable(characterId, username);
         requireBody(request);
         valid(() -> character.getSheet().updateCustomResource(resourceId, request.name(),
-                require(request.maxUses(), "Maximum uses"), request.recharge(), request.notes()));
+                require(request.maxUses(), "usos máximos"), request.recharge(), request.notes()));
         return CharacterSheetResponse.from(character);
     }
 
@@ -270,7 +270,7 @@ public class CharacterSheetService {
         try {
             character.getSheet().removeCustomResource(resourceId);
         } catch (IllegalArgumentException ex) {
-            throw notFound("Custom resource");
+            throw notFound("recurso próprio");
         }
         return CharacterSheetResponse.from(character);
     }
@@ -282,7 +282,7 @@ public class CharacterSheetService {
         requireBody(request);
         boolean give = require(request.heroicInspiration(), "heroicInspiration");
         if (give && !character.getCampaign().getMaster().getName().equals(username)) {
-            throw new AccessDeniedException("Only the game master gives Heroic Inspiration");
+            throw new AccessDeniedException("Só o mestre dá Inspiração Heroica");
         }
         character.getSheet().changeHeroicInspiration(give);
         return CharacterSheetResponse.from(character);
@@ -315,11 +315,11 @@ public class CharacterSheetService {
     public CharacterSheetResponse addCatalogFeat(UUID characterId, CatalogFeatRequest request, String username) {
         Character character = manageable(characterId, username);
         requireBody(request);
-        var feat = featRepository.findById(request.featId()).orElseThrow(() -> notFound("Feat"));
+        var feat = featRepository.findById(request.featId()).orElseThrow(() -> notFound("talento"));
         // pre-requisitos: o jogador precisa cumprir; o mestre pode liberar (regra da casa)
         java.util.List<String> unmet = top.customizr.system.model.FeatPrerequisites.unmet(feat, character);
         if (!unmet.isEmpty() && !character.getCampaign().getMaster().getName().equals(username)) {
-            throw badRequest("Prerequisites not met for " + feat.getName() + ": " + String.join(" | ", unmet));
+            throw badRequest("Pré-requisitos não atendidos pra " + feat.getName() + ": " + String.join(" | ", unmet));
         }
         valid(() -> character.getSheet().addCatalogFeat(feat, request.characterLevel(), request.choices()));
         return CharacterSheetResponse.from(character);
@@ -338,9 +338,9 @@ public class CharacterSheetService {
                                                String username) {
         Character character = manageable(characterId, username);
         var cc = character.getSheet().getClasses().stream().filter(c -> c.getId().equals(characterClassId)).findFirst()
-                .orElseThrow(() -> notFound("Character class"));
+                .orElseThrow(() -> notFound("classe do personagem"));
         if (prepare) {
-            var spell = spellRepository.findById(spellId).orElseThrow(() -> notFound("Spell"));
+            var spell = spellRepository.findById(spellId).orElseThrow(() -> notFound("magia"));
             valid(() -> { cc.prepareSpell(spell); return null; });
         } else {
             valid(() -> { cc.unprepareSpell(spellId); return null; });
@@ -353,7 +353,7 @@ public class CharacterSheetService {
     public CharacterSheetResponse gainExperience(UUID characterId, ExperienceRequest request, String username) {
         Character character = find(characterId);
         if (!character.getCampaign().getMaster().getName().equals(username)) {
-            throw new AccessDeniedException("Only the campaign master can award experience");
+            throw new AccessDeniedException("Só o mestre da campanha dá experiência");
         }
         requireBody(request);
         character.gainExperience(request.amount());
@@ -380,7 +380,7 @@ public class CharacterSheetService {
      */
     @Transactional
     public SheetRollResponse rollFor(Character character, SheetRollRequest request, String username) {
-        if (request == null || request.kind() == null) throw badRequest("Roll kind is required");
+        if (request == null || request.kind() == null) throw badRequest("Falta o tipo da rolagem");
         Sheet sheet = character.getSheet();
         List<String> notes = new ArrayList<>();
         RollMode mode = request.mode() == null ? RollMode.NORMAL : request.mode();
@@ -389,19 +389,19 @@ public class CharacterSheetService {
         String outcome = null;
         switch (request.kind()) {
             case SKILL -> {
-                Skill skill = require(request.skill(), "Skill");
+                Skill skill = require(request.skill(), "perícia");
                 label = TextoPt.skill(skill);
                 bonus = sheet.skillBonus(skill);
                 mode = withConditions(mode, sheet, DISADVANTAGE_ON_CHECKS, notes);
             }
             case ABILITY -> {
-                AbilityScore ability = require(request.ability(), "Ability");
+                AbilityScore ability = require(request.ability(), "atributo");
                 label = "Teste de " + name(ability);
                 bonus = sheet.abilityModifier(ability);
                 mode = withConditions(mode, sheet, DISADVANTAGE_ON_CHECKS, notes);
             }
             case SAVE -> {
-                AbilityScore ability = require(request.ability(), "Ability");
+                AbilityScore ability = require(request.ability(), "atributo");
                 label = "Salvaguarda de " + name(ability);
                 bonus = sheet.savingThrowBonus(ability);
                 if ((ability == AbilityScore.STRENGTH || ability == AbilityScore.DEXTERITY)
@@ -415,8 +415,8 @@ public class CharacterSheetService {
                 }
             }
             case TOOL -> {
-                AbilityScore ability = require(request.ability(), "Ability");
-                String tool = require(request.tool() == null || request.tool().isBlank() ? null : request.tool().trim(), "Tool");
+                AbilityScore ability = require(request.ability(), "atributo");
+                String tool = require(request.tool() == null || request.tool().isBlank() ? null : request.tool().trim(), "ferramenta");
                 boolean proficient = sheet.isProficientWithTool(tool);
                 label = tool + " (" + name(ability) + ")";
                 bonus = sheet.abilityModifier(ability) + (proficient ? sheet.getProficiencyBonus() : 0);
@@ -430,13 +430,13 @@ public class CharacterSheetService {
             case DEATH_SAVE -> {
                 // o resultado ja conta na ficha: rolar de novo contaria duas vezes
                 if (Boolean.TRUE.equals(request.heroicInspiration())) {
-                    throw badRequest("Heroic Inspiration cannot reroll a death saving throw here");
+                    throw badRequest("A Inspiração Heroica não rola de novo um teste contra a morte aqui");
                 }
                 RollResult d20 = DiceRoller.roll("1d20");
                 Sheet.DeathSaveOutcome result = valid(() -> sheet.deathSave(d20.naturalD20()));
                 return finish(character, "Teste contra a morte", d20, null, null, result.name(), notes, request.toChat(), username);
             }
-            default -> throw badRequest("Unknown roll kind");
+            default -> throw badRequest("Tipo de rolagem desconhecido");
         }
         useInspiration(sheet, request.heroicInspiration(), notes);
         int penalty = sheet.getD20Penalty();
@@ -451,7 +451,7 @@ public class CharacterSheetService {
         Character character = manageable(characterId, username);
         Sheet sheet = character.getSheet();
         SheetAttack attack = sheet.getAttacks().stream().filter(a -> a.getId().equals(attackId)).findFirst()
-                .orElseThrow(() -> notFound("Attack"));
+                .orElseThrow(() -> notFound("ataque"));
         List<String> notes = new ArrayList<>();
         RollMode mode = withConditions(request == null || request.mode() == null ? RollMode.NORMAL : request.mode(),
                 sheet, DISADVANTAGE_ON_ATTACKS, notes);
@@ -523,7 +523,7 @@ public class CharacterSheetService {
     // ------------------------------------------------------------------ utilitarios
 
     private <T> T require(T value, String what) {
-        if (value == null) throw badRequest(what + " is required");
+        if (value == null) throw badRequest(what + " é obrigatório");
         return value;
     }
 
@@ -536,24 +536,24 @@ public class CharacterSheetService {
     }
 
     private void requireBody(Object request) {
-        if (request == null) throw badRequest("Request body is required");
+        if (request == null) throw badRequest("Falta o corpo da requisição");
     }
 
     private Character find(UUID characterId) {
-        return characterRepository.findById(characterId).orElseThrow(() -> notFound("Character"));
+        return characterRepository.findById(characterId).orElseThrow(() -> notFound("personagem"));
     }
 
     private Character manageable(UUID characterId, String username) {
         Character character = find(characterId);
         if (!character.getOwner().getName().equals(username)
                 && !character.getCampaign().getMaster().getName().equals(username)) {
-            throw new AccessDeniedException("You cannot manage this character");
+            throw new AccessDeniedException("Você não pode mexer neste personagem");
         }
         return character;
     }
 
     private ResponseStatusException notFound(String what) {
-        return new ResponseStatusException(HttpStatus.NOT_FOUND, what + " not found");
+        return new ResponseStatusException(HttpStatus.NOT_FOUND, what + " não encontrado");
     }
 
     private ResponseStatusException badRequest(String message) {

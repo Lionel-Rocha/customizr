@@ -69,7 +69,7 @@ public class Item {
     /** Item proprio do mestre, na fonte homebrew da campanha. */
     public static Item custom(String name, Source source, Campaign campaign, ItemType type, ItemCategory category,
                               String referenceLink, Rarity rarity, BigDecimal priceGp) {
-        if (campaign == null) throw new IllegalArgumentException("Campaign is required");
+        if (campaign == null) throw new IllegalArgumentException("Falta informar a campanha");
         Item item = new Item(name, source, type, category, referenceLink, rarity, priceGp);
         item.custom = true;
         item.campaign = campaign;
@@ -79,13 +79,13 @@ public class Item {
     public Item(String name, Source source, ItemType type, ItemCategory category,
                 String referenceLink, Rarity rarity, BigDecimal priceGp) {
         if (name == null || name.isBlank()) {
-            throw new IllegalArgumentException("Item name is required");
+            throw new IllegalArgumentException("Falta o nome do item");
         }
         if (source == null || type == null || rarity == null) {
-            throw new IllegalArgumentException("Item source, type, and rarity are required");
+            throw new IllegalArgumentException("Faltam a fonte, o tipo e a raridade do item");
         }
         if (priceGp != null && priceGp.signum() < 0) {
-            throw new IllegalArgumentException("Item price cannot be negative");
+            throw new IllegalArgumentException("O preço do item não pode ser negativo");
         }
         this.id = UUID.randomUUID();
         this.name = name.trim();
@@ -101,13 +101,13 @@ public class Item {
     public void update(String name, Source source, ItemType type, ItemCategory category,
                        String referenceLink, Rarity rarity, BigDecimal priceGp) {
         if (name == null || name.isBlank()) {
-            throw new IllegalArgumentException("Item name is required");
+            throw new IllegalArgumentException("Falta o nome do item");
         }
         if (source == null || type == null || rarity == null) {
-            throw new IllegalArgumentException("Item source, type, and rarity are required");
+            throw new IllegalArgumentException("Faltam a fonte, o tipo e a raridade do item");
         }
         if (priceGp != null && priceGp.signum() < 0) {
-            throw new IllegalArgumentException("Item price cannot be negative");
+            throw new IllegalArgumentException("O preço do item não pode ser negativo");
         }
         this.name = name.trim();
         this.source = source;

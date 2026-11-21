@@ -72,20 +72,20 @@ public class CharacterService {
     public Character create(CreateCharacterRequest request, String username) {
         requireName(request == null ? null : request.name());
         if (request.campaignId() == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Campaign ID is required");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Falta o id da campanha");
         }
 
         Campaign campaign = campaignRepository.findById(request.campaignId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Campaign not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Campanha não encontrada"));
         User owner = userRepository.findByName(username)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Usuário não encontrado"));
 
         if (!isCampaignMaster(campaign, owner)) {
             Membership membership = membershipRepository
                     .findByCampaignIdAndUserId(campaign.getId(), owner.getUserId())
-                    .orElseThrow(() -> new AccessDeniedException("You are not a member of this campaign"));
+                    .orElseThrow(() -> new AccessDeniedException("Você não participa desta campanha"));
             if (membership.getRole() == Role.SPECTATOR) {
-                throw new AccessDeniedException("Spectators cannot create characters");
+                throw new AccessDeniedException("Espectador não cria personagem");
             }
         }
 
@@ -123,11 +123,11 @@ public class CharacterService {
             String username
     ) {
         if (request == null || request.classId() == null) {
-            throw badRequest("Class ID is required");
+            throw badRequest("Falta o id da classe");
         }
         Character character = findManageableCharacter(characterId, username);
         DndClass dndClass = dndClassRepository.findById(request.classId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Class not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Classe não encontrada"));
         try {
             character.getSheet().addClass(dndClass, request.level());
         } catch (IllegalArgumentException ex) {
@@ -144,12 +144,12 @@ public class CharacterService {
             String username
     ) {
         if (request == null || request.subclassId() == null) {
-            throw badRequest("Subclass ID is required");
+            throw badRequest("Falta o id da subclasse");
         }
         Character character = findManageableCharacter(characterId, username);
         CharacterClass characterClass = findCharacterClass(character, characterClassId);
         Subclass subclass = subclassRepository.findById(request.subclassId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Subclass not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Subclasse não encontrada"));
         try {
             characterClass.chooseSubclass(subclass, request.chosenAtLevel());
         } catch (IllegalArgumentException | IllegalStateException ex) {
@@ -166,12 +166,12 @@ public class CharacterService {
             String username
     ) {
         if (request == null || request.featureId() == null) {
-            throw badRequest("Feature ID is required");
+            throw badRequest("Falta o id da característica");
         }
         Character character = findManageableCharacter(characterId, username);
         CharacterClass characterClass = findCharacterClass(character, characterClassId);
         Feature feature = featureRepository.findById(request.featureId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Feature not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Característica não encontrada"));
         try {
             characterClass.selectFeature(feature, request.selectedAtLevel());
         } catch (IllegalArgumentException ex) {
@@ -187,7 +187,7 @@ public class CharacterService {
             String username
     ) {
         if (request == null) {
-            throw badRequest("Ability scores are required");
+            throw badRequest("Faltam os atributos");
         }
         Character character = findManageableCharacter(characterId, username);
         try {
@@ -212,7 +212,7 @@ public class CharacterService {
             String username
     ) {
         if (request == null) {
-            throw badRequest("Combat stats are required");
+            throw badRequest("Faltam os dados de combate");
         }
         Character character = findManageableCharacter(characterId, username);
         try {
@@ -228,7 +228,7 @@ public class CharacterService {
     @Transactional
     public CharacterSheetResponse changeHitPoints(UUID characterId, HitPointChangeRequest request, String username) {
         if (request == null || request.type() == null) {
-            throw badRequest("Hit point change type is required");
+            throw badRequest("Falta o tipo da mudança de PV");
         }
         Character character = findManageableCharacter(characterId, username);
         try {
@@ -254,7 +254,7 @@ public class CharacterService {
 
     private Character findCharacter(UUID characterId) {
         return characterRepository.findById(characterId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Character not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Personagem não encontrado"));
     }
 
     private Character findManageableCharacter(UUID characterId, String username) {
@@ -265,12 +265,12 @@ public class CharacterService {
 
     private CharacterClass findCharacterClass(Character character, UUID characterClassId) {
         if (characterClassId == null) {
-            throw badRequest("Character class ID is required");
+            throw badRequest("Falta o id da classe do personagem");
         }
         return character.getSheet().getClasses().stream()
                 .filter(characterClass -> characterClass.getId().equals(characterClassId))
                 .findFirst()
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Character class not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Classe do personagem não encontrada"));
     }
 
     private ResponseStatusException badRequest(String message) {
@@ -282,7 +282,7 @@ public class CharacterService {
                 || character.getCampaign().getMaster().getName().equals(username)) {
             return;
         }
-        throw new AccessDeniedException("You cannot manage this character");
+        throw new AccessDeniedException("Você não pode mexer neste personagem");
     }
 
     private boolean isCampaignMaster(Campaign campaign, User user) {
@@ -291,7 +291,7 @@ public class CharacterService {
 
     private void requireName(String name) {
         if (name == null || name.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Character name is required");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Falta o nome do personagem");
         }
     }
 

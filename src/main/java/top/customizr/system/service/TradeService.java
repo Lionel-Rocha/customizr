@@ -85,7 +85,7 @@ public class TradeService {
     public ShopResponse createShop(UUID campaignId, ShopRequest r, String username) {
         Campaign campaign = campaign(campaignId);
         masterGuard.requireMaster(username, campaign);
-        if (r == null) throw badRequest("Request body is required");
+        if (r == null) throw badRequest("Falta o corpo da requisição");
         Shop shop = valid(() -> new Shop(campaign, r.name(), r.description(), Boolean.TRUE.equals(r.open()), r.buyBackPercent()));
         return broadcast(shopRepository.save(shop));
     }
@@ -93,7 +93,7 @@ public class TradeService {
     @Transactional
     public ShopResponse updateShop(UUID shopId, ShopRequest r, String username) {
         Shop shop = shopOfMaster(shopId, username);
-        if (r == null) throw badRequest("Request body is required");
+        if (r == null) throw badRequest("Falta o corpo da requisição");
         valid(() -> { shop.update(r.name() == null ? shop.getName() : r.name(), r.description() == null ? shop.getDescription() : r.description(),
                 r.open() == null ? shop.isOpen() : r.open(), r.buyBackPercent() == null ? shop.getBuyBackPercent() : r.buyBackPercent()); return null; });
         return broadcast(shop);
@@ -110,7 +110,7 @@ public class TradeService {
     @Transactional
     public ShopResponse addShopItem(UUID shopId, ShopItemRequest r, String username) {
         Shop shop = shopOfMaster(shopId, username);
-        if (r == null || r.itemId() == null) throw badRequest("itemId is required");
+        if (r == null || r.itemId() == null) throw badRequest("Falta o itemId");
         Item item = itemFor(r.itemId(), shop.getCampaign());
         valid(() -> shop.addItem(item, r.priceGp(), r.stock()));
         shopRepository.flush();
@@ -120,7 +120,7 @@ public class TradeService {
     @Transactional
     public ShopResponse updateShopItem(UUID shopId, UUID entryId, ShopItemRequest r, String username) {
         Shop shop = shopOfMaster(shopId, username);
-        if (r == null) throw badRequest("Request body is required");
+        if (r == null) throw badRequest("Falta o corpo da requisição");
         valid(() -> { shop.entry(entryId).update(r.priceGp(), r.stock()); return null; });
         return broadcast(shop);
     }
@@ -140,17 +140,17 @@ public class TradeService {
         Shop shop = shop(shopId);
         Character buyer = actor(r, shop.getCampaign(), username);
         if (!shop.isOpen() && !masterGuard.canManage(masterGuard.user(username), shop.getCampaign())) {
-            throw new AccessDeniedException("This shop is closed");
+            throw new AccessDeniedException("Esta loja está fechada");
         }
         int quantity = quantity(r);
         ShopEntry entry = valid(() -> shop.entry(r.entryId()));
         BigDecimal price = entryPrice(entry);
-        if (price == null) throw badRequest(entry.getItem().getName() + " has no price; ask the master");
+        if (price == null) throw badRequest(entry.getItem().getName() + " não tem preço; fale com o mestre");
         BigDecimal total = price.multiply(BigDecimal.valueOf(quantity));
         Inventory inventory = inventoryService.getOrCreateCharacterInventory(buyer);
         valid(() -> {
             if (inventory.getMoneyGp().compareTo(total) < 0) {
-                throw new IllegalArgumentException(buyer.getName() + " needs " + gp(total) + " but has " + gp(inventory.getMoneyGp()));
+                throw new IllegalArgumentException(buyer.getName() + " precisa de " + gp(total) + " mas tem " + gp(inventory.getMoneyGp()));
             }
             entry.take(quantity);
             inventory.changeMoney(total.negate());
@@ -158,7 +158,7 @@ public class TradeService {
             return null;
         });
         chatService.postCard(shop.getCampaign().getId(), buyer.getCharacterId(), "🛒 " + shop.getName(),
-                buyer.getName() + " bought " + quantity + "x " + entry.getItem().getName() + " for " + gp(total), username);
+                buyer.getName() + " comprou " + quantity + "x " + entry.getItem().getName() + " por " + gp(total), username);
         broadcast(shop);
         return InventoryResponse.from(inventory);
     }
@@ -169,14 +169,14 @@ public class TradeService {
         Shop shop = shop(shopId);
         Character seller = actor(r, shop.getCampaign(), username);
         if (!shop.isOpen() && !masterGuard.canManage(masterGuard.user(username), shop.getCampaign())) {
-            throw new AccessDeniedException("This shop is closed");
+            throw new AccessDeniedException("Esta loja está fechada");
         }
-        if (r.itemId() == null) throw badRequest("itemId is required");
+        if (r.itemId() == null) throw badRequest("Falta o itemId");
         int quantity = quantity(r);
         Item item = item(r.itemId());
         BigDecimal base = shop.getEntries().stream().filter(e -> e.getItem().getId().equals(item.getId())).findFirst()
                 .map(this::entryPrice).orElseGet(() -> itemPrices.price(shop.getCampaign(), item));
-        if (base == null) throw badRequest(item.getName() + " has no price; ask the master");
+        if (base == null) throw badRequest(item.getName() + " não tem preço; fale com o mestre");
         BigDecimal total = base.multiply(BigDecimal.valueOf(quantity)).multiply(BigDecimal.valueOf(shop.getBuyBackPercent()))
                 .divide(BigDecimal.valueOf(100), 2, RoundingMode.DOWN);
         Inventory inventory = inventoryService.getOrCreateCharacterInventory(seller);
@@ -187,7 +187,7 @@ public class TradeService {
         });
         shop.getEntries().stream().filter(e -> e.getItem().getId().equals(item.getId())).findFirst().ifPresent(e -> e.restock(quantity));
         chatService.postCard(shop.getCampaign().getId(), seller.getCharacterId(), "💰 " + shop.getName(),
-                seller.getName() + " sold " + quantity + "x " + item.getName() + " for " + gp(total), username);
+                seller.getName() + " vendeu " + quantity + "x " + item.getName() + " por " + gp(total), username);
         broadcast(shop);
         return InventoryResponse.from(inventory);
     }
@@ -206,7 +206,7 @@ public class TradeService {
     public LootResponse createLoot(UUID campaignId, LootRequest r, String username) {
         Campaign campaign = campaign(campaignId);
         masterGuard.requireMaster(username, campaign);
-        if (r == null) throw badRequest("Request body is required");
+        if (r == null) throw badRequest("Falta o corpo da requisição");
         Loot loot = valid(() -> new Loot(campaign, r.name(), r.moneyGp(), Boolean.TRUE.equals(r.visible())));
         return broadcast(lootRepository.save(loot));
     }
@@ -214,7 +214,7 @@ public class TradeService {
     @Transactional
     public LootResponse updateLoot(UUID lootId, LootRequest r, String username) {
         Loot loot = lootOfMaster(lootId, username);
-        if (r == null) throw badRequest("Request body is required");
+        if (r == null) throw badRequest("Falta o corpo da requisição");
         valid(() -> { loot.update(r.name() == null ? loot.getName() : r.name(), r.moneyGp(),
                 r.visible() == null ? loot.isVisible() : r.visible()); return null; });
         return broadcast(loot);
@@ -231,7 +231,7 @@ public class TradeService {
     @Transactional
     public LootResponse addLootItem(UUID lootId, LootItemRequest r, String username) {
         Loot loot = lootOfMaster(lootId, username);
-        if (r == null || r.itemId() == null) throw badRequest("itemId is required");
+        if (r == null || r.itemId() == null) throw badRequest("Falta o itemId");
         Item item = itemFor(r.itemId(), loot.getCampaign());
         valid(() -> loot.addItem(item, r.quantity() == null ? 1 : r.quantity()));
         lootRepository.flush();
@@ -243,7 +243,7 @@ public class TradeService {
     public LootResponse removeLootItem(UUID lootId, UUID entryId, String username) {
         Loot loot = lootOfMaster(lootId, username);
         valid(() -> loot.take(entryId, loot.getEntries().stream().filter(e -> e.getId().equals(entryId)).findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("This item is not in the loot")).getQuantity()));
+                .orElseThrow(() -> new IllegalArgumentException("Esse item não está no espólio")).getQuantity()));
         return broadcast(loot);
     }
 
@@ -253,7 +253,7 @@ public class TradeService {
         Loot loot = loot(lootId);
         Character taker = actor(r, loot.getCampaign(), username);
         if (!loot.isVisible() && !masterGuard.canManage(masterGuard.user(username), loot.getCampaign())) {
-            throw new AccessDeniedException("This loot is not visible yet");
+            throw new AccessDeniedException("Este espólio ainda não está visível");
         }
         int quantity = quantity(r);
         Inventory target = Boolean.TRUE.equals(r.toParty()) ? inventoryService.getOrCreatePartyInventory(taker)
@@ -261,7 +261,7 @@ public class TradeService {
         Item item = valid(() -> loot.take(r.entryId(), quantity));
         valid(() -> target.addItem(item, quantity));
         chatService.postCard(loot.getCampaign().getId(), taker.getCharacterId(), "🎁 " + loot.getName(),
-                taker.getName() + " took " + quantity + "x " + item.getName() + (Boolean.TRUE.equals(r.toParty()) ? " for the party" : ""), username);
+                taker.getName() + " pegou " + quantity + "x " + item.getName() + (Boolean.TRUE.equals(r.toParty()) ? " pro grupo" : ""), username);
         broadcast(loot);
         return InventoryResponse.from(target);
     }
@@ -274,13 +274,13 @@ public class TradeService {
         if (r != null && r.characterIds() != null && !r.characterIds().isEmpty()) {
             characters = r.characterIds().stream().map(id -> characterRepository.findById(id)
                     .filter(c -> c.getCampaign().getId().equals(loot.getCampaign().getId()))
-                    .orElseThrow(() -> notFound("Character"))).toList();
+                    .orElseThrow(() -> notFound("personagem"))).toList();
         } else {
             characters = characterRepository.allCampaignCharacters(loot.getCampaign().getId());
         }
-        if (characters.isEmpty()) throw badRequest("Nobody to split the money with");
+        if (characters.isEmpty()) throw badRequest("Ninguém pra dividir o dinheiro");
         BigDecimal share = loot.getMoneyGp().divide(BigDecimal.valueOf(characters.size()), 2, RoundingMode.DOWN);
-        if (share.signum() == 0) throw badRequest("Not enough money to split");
+        if (share.signum() == 0) throw badRequest("Não tem dinheiro suficiente pra dividir");
         List<String> names = new ArrayList<>();
         for (Character c : characters) {
             inventoryService.getOrCreateCharacterInventory(c).changeMoney(share);
@@ -288,27 +288,27 @@ public class TradeService {
         }
         loot.takeMoney(share.multiply(BigDecimal.valueOf(characters.size())));
         chatService.postCard(loot.getCampaign().getId(), null, "🎁 " + loot.getName(),
-                gp(share) + " each for " + String.join(", ", names), username);
+                gp(share) + " pra cada: " + String.join(", ", names), username);
         return broadcast(loot);
     }
 
     // ------------------------------------------------------------------ apoio
 
     private Character actor(TradeRequest r, Campaign campaign, String username) {
-        if (r == null || r.characterId() == null) throw badRequest("characterId is required");
+        if (r == null || r.characterId() == null) throw badRequest("Falta o characterId");
         Character c = inventoryService.actorFor(r.characterId(), username);
-        if (!c.getCampaign().getId().equals(campaign.getId())) throw badRequest("This character is from another campaign");
+        if (!c.getCampaign().getId().equals(campaign.getId())) throw badRequest("Este personagem é de outra campanha");
         return c;
     }
 
     private static int quantity(TradeRequest r) {
         int q = r.quantity() == null ? 1 : r.quantity();
-        if (q < 1 || q > 1000) throw badRequest("Quantity goes from 1 to 1000");
+        if (q < 1 || q > 1000) throw badRequest("A quantidade vai de 1 a 1000");
         return q;
     }
 
     private static String gp(BigDecimal value) {
-        return value.stripTrailingZeros().toPlainString() + " gp";
+        return value.stripTrailingZeros().toPlainString() + " po";
     }
 
     private ShopResponse broadcast(Shop shop) {
@@ -341,26 +341,26 @@ public class TradeService {
     }
 
     private Shop shop(UUID id) {
-        return shopRepository.findById(id).orElseThrow(() -> notFound("Shop"));
+        return shopRepository.findById(id).orElseThrow(() -> notFound("loja"));
     }
 
     private Loot loot(UUID id) {
-        return lootRepository.findById(id).orElseThrow(() -> notFound("Loot"));
+        return lootRepository.findById(id).orElseThrow(() -> notFound("espólio"));
     }
 
     private Item item(UUID id) {
-        return itemRepository.findById(id).orElseThrow(() -> notFound("Item"));
+        return itemRepository.findById(id).orElseThrow(() -> notFound("item"));
     }
 
     /** Item do catalogo, ou item proprio desta campanha (o de outra campanha nao entra). */
     private Item itemFor(UUID id, Campaign campaign) {
         Item item = item(id);
-        if (item.getCampaign() != null && !item.getCampaign().getId().equals(campaign.getId())) throw notFound("Item");
+        if (item.getCampaign() != null && !item.getCampaign().getId().equals(campaign.getId())) throw notFound("item");
         return item;
     }
 
     private Campaign campaign(UUID id) {
-        return campaignRepository.findById(id).orElseThrow(() -> notFound("Campaign"));
+        return campaignRepository.findById(id).orElseThrow(() -> notFound("campanha"));
     }
 
     private static <T> T valid(Supplier<T> action) {
@@ -372,7 +372,7 @@ public class TradeService {
     }
 
     private static ResponseStatusException notFound(String what) {
-        return new ResponseStatusException(HttpStatus.NOT_FOUND, what + " not found");
+        return new ResponseStatusException(HttpStatus.NOT_FOUND, what + " não encontrado");
     }
 
     private static ResponseStatusException badRequest(String message) {

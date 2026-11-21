@@ -183,7 +183,7 @@ public class Sheet {
         boolean alreadyHasClass = classes.stream()
                 .anyMatch(characterClass -> characterClass.getDndClass().getClassId().equals(dndClass.getClassId()));
         if (alreadyHasClass) {
-            throw new IllegalArgumentException("Character already has this class");
+            throw new IllegalArgumentException("O personagem já tem esta classe");
         }
         CharacterClass characterClass = new CharacterClass(this, dndClass, level);
         classes.add(characterClass);
@@ -197,7 +197,7 @@ public class Sheet {
     /** Sobe 1 nivel na classe (ou entra nela no nivel 1, se for multiclasse nova). */
     public CharacterClass gainClassLevel(DndClass dndClass) {
         if (getTotalLevel() >= MAX_LEVEL) {
-            throw new IllegalStateException("The character is already level " + MAX_LEVEL);
+            throw new IllegalStateException("O personagem já está no nível " + MAX_LEVEL);
         }
         CharacterClass existing = classOf(dndClass);
         if (existing == null) return addClass(dndClass, 1);
@@ -229,7 +229,7 @@ public class Sheet {
 
     /** PV ganho no nivel: soma no maximo e no atual (quem ainda nao tinha PV comeca com o ganho). */
     public void raiseMaxHp(int gain) {
-        if (gain < 1) throw new IllegalArgumentException("Hit point gain must be at least 1");
+        if (gain < 1) throw new IllegalArgumentException("O ganho de PV precisa ser pelo menos 1");
         hpMax = (hpMax == null ? 0 : hpMax) + gain;
         hpCurrent = Math.min(hpMax, (hpCurrent == null ? 0 : hpCurrent) + gain);
     }
@@ -237,15 +237,15 @@ public class Sheet {
     /** Aumento de atributo (Aumento de Valor de Atributo, talento, Dadiva Epica), sem passar de {@code cap}. */
     public void increaseAbilities(Map<AbilityScore, Integer> increases, int cap) {
         if (increases == null || increases.isEmpty()) return;
-        if (attributes == null) throw new IllegalStateException("Set the ability scores before increasing them");
+        if (attributes == null) throw new IllegalStateException("Preencha os atributos antes de aumentá-los");
         int[] v = {attributes.getStrength(), attributes.getDexterity(), attributes.getConstitution(),
                 attributes.getIntelligence(), attributes.getWisdom(), attributes.getCharisma()};
         for (Map.Entry<AbilityScore, Integer> e : increases.entrySet()) {
             int amount = e.getValue() == null ? 0 : e.getValue();
-            if (e.getKey() == null || amount < 0) throw new IllegalArgumentException("Invalid ability increase");
+            if (e.getKey() == null || amount < 0) throw new IllegalArgumentException("Aumento de atributo inválido");
             int i = e.getKey().ordinal();
             if (v[i] + amount > cap) {
-                throw new IllegalArgumentException(e.getKey().name().toLowerCase() + " cannot go above " + cap);
+                throw new IllegalArgumentException(top.customizr.system.service.TextoPt.ability(e.getKey()) + " não pode passar de " + cap);
             }
             v[i] += amount;
         }
@@ -350,7 +350,7 @@ public class Sheet {
         for (String raw : names) {
             if (raw == null || raw.isBlank()) continue;
             String name = raw.trim().replaceAll("\\s+", " ");
-            if (name.length() > 80) throw new IllegalArgumentException("A " + what + " name is too long (80 characters)");
+            if (name.length() > 80) throw new IllegalArgumentException("Nome muito longo (máximo 80 letras): " + what);
             if (seen.add(name.toLowerCase())) out.add(name);
         }
         if (out.size() > MAX_OTHER_PROFICIENCIES) {
@@ -390,15 +390,15 @@ public class Sheet {
     }
 
     public void updateCombatStats(Integer hpMax, Integer hpCurrent, Integer hpTemp, Integer armorClass, Integer speedFt) {
-        requireNonNegative(hpMax, "Max HP");
-        requireNonNegative(hpCurrent, "Current HP");
-        requireNonNegative(hpTemp, "Temporary HP");
-        requireNonNegative(armorClass, "Armor class");
-        requireNonNegative(speedFt, "Speed");
+        requireNonNegative(hpMax, "PV máximo");
+        requireNonNegative(hpCurrent, "PV atual");
+        requireNonNegative(hpTemp, "PV temporário");
+        requireNonNegative(armorClass, "CA");
+        requireNonNegative(speedFt, "deslocamento");
         Integer max = hpMax != null ? hpMax : this.hpMax;
         Integer current = hpCurrent != null ? hpCurrent : this.hpCurrent;
         if (max != null && current != null && current > max) {
-            throw new IllegalArgumentException("Current HP cannot exceed max HP");
+            throw new IllegalArgumentException("O PV atual não pode passar do máximo");
         }
         if (hpMax != null) this.hpMax = hpMax;
         if (hpCurrent != null) this.hpCurrent = hpCurrent;
@@ -412,7 +412,7 @@ public class Sheet {
     public void applyDamage(int amount) {
         requireHp();
         if (amount < 0) {
-            throw new IllegalArgumentException("Damage must be positive");
+            throw new IllegalArgumentException("O dano precisa ser positivo");
         }
         int temp = hpTemp == null ? 0 : hpTemp;
         int absorbed = Math.min(temp, amount);
@@ -424,7 +424,7 @@ public class Sheet {
     public void heal(int amount) {
         requireHp();
         if (amount < 0) {
-            throw new IllegalArgumentException("Healing must be positive");
+            throw new IllegalArgumentException("A cura precisa ser positiva");
         }
         boolean wasDown = hpCurrent == 0;
         hpCurrent = Math.min(hpMax, hpCurrent + amount);
@@ -437,20 +437,20 @@ public class Sheet {
     /** PV temporario nao acumula: fica o maior entre o atual e o novo. */
     public void grantTemporaryHp(int amount) {
         if (amount < 0) {
-            throw new IllegalArgumentException("Temporary HP must be positive");
+            throw new IllegalArgumentException("O PV temporário precisa ser positivo");
         }
         hpTemp = Math.max(hpTemp == null ? 0 : hpTemp, amount);
     }
 
     private void requireHp() {
         if (hpMax == null || hpCurrent == null) {
-            throw new IllegalStateException("Set the character's max HP first");
+            throw new IllegalStateException("Preencha antes o PV máximo do personagem");
         }
     }
 
     private static void requireNonNegative(Integer value, String field) {
         if (value != null && value < 0) {
-            throw new IllegalArgumentException(field + " cannot be negative");
+            throw new IllegalArgumentException("Não pode ser negativo: " + field);
         }
     }
 
@@ -476,7 +476,7 @@ public class Sheet {
         Set<Skill> proficient = skills == null ? EnumSet.noneOf(Skill.class) : EnumSet.copyOf(nonEmpty(skills, Skill.class));
         Set<Skill> experts = expertise == null ? EnumSet.noneOf(Skill.class) : EnumSet.copyOf(nonEmpty(expertise, Skill.class));
         if (!proficient.containsAll(experts)) {
-            throw new IllegalArgumentException("Expertise requires proficiency in the same skill");
+            throw new IllegalArgumentException("Especialização exige proficiência na mesma perícia");
         }
         skillProficiencies.clear();
         skillProficiencies.addAll(proficient);
@@ -499,7 +499,7 @@ public class Sheet {
     /** Regra de 2024: cada nivel de exaustao tira 2 dos testes de d20 e 5 pes do deslocamento; 6 = morte. */
     public void updateConditions(Set<Condition> conditions, Integer exhaustion) {
         if (exhaustion != null && (exhaustion < 0 || exhaustion > 6)) {
-            throw new IllegalArgumentException("Exhaustion must be between 0 and 6");
+            throw new IllegalArgumentException("A exaustão vai de 0 a 6");
         }
         if (conditions != null) {
             this.conditions.clear();
@@ -539,10 +539,10 @@ public class Sheet {
      */
     public DeathSaveOutcome deathSave(int naturalD20) {
         if (hpCurrent == null || hpCurrent > 0) {
-            throw new IllegalStateException("Death saves are only rolled at 0 hit points");
+            throw new IllegalStateException("Teste contra a morte só com 0 PV");
         }
         if (getDeathSaveFailures() >= 3 || getDeathSaveSuccesses() >= 3) {
-            throw new IllegalStateException("The character is already stable or dead");
+            throw new IllegalStateException("O personagem já está estável ou morto");
         }
         if (naturalD20 == 20) {
             heal(1);
@@ -576,11 +576,11 @@ public class Sheet {
         SpellSlotCount slot = getSpellSlots().stream()
                 .filter(s -> s.pool() == pool && s.spellLevel() == spellLevel)
                 .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("The character has no level " + spellLevel + " "
+                .orElseThrow(() -> new IllegalArgumentException("O personagem não tem espaço de magia de nível " + spellLevel + " "
                         + pool.name().toLowerCase() + " slots"));
         int spent = spentSlots(pool, spellLevel);
         if (spent >= slot.totalSlots()) {
-            throw new IllegalStateException("No level " + spellLevel + " slots left");
+            throw new IllegalStateException("Sem espaço de nível " + spellLevel + " sobrando");
         }
         if (pool == SpellSlotPool.PACT) pactSlotsSpent = spent + 1;
         else spentSpellSlots.put(spellLevel, spent + 1);
@@ -606,7 +606,7 @@ public class Sheet {
      */
     public ShortRestResult shortRest(int hitDice, IntUnaryOperator die) {
         if (hitDice < 0 || hitDice > getHitDiceRemaining()) {
-            throw new IllegalArgumentException("Only " + getHitDiceRemaining() + " hit dice left");
+            throw new IllegalArgumentException("Só " + getHitDiceRemaining() + " hit dice left");
         }
         if (hitDice > 0) requireHp();
         List<Integer> pool = new ArrayList<>();
@@ -684,10 +684,10 @@ public class Sheet {
 
     /** Gasta {@code amount} usos (pontos, no caso de Cura pelas Maos). */
     public ResourceUse spendResource(String resourceId, int amount) {
-        if (amount < 1) throw new IllegalArgumentException("Amount must be at least 1");
+        if (amount < 1) throw new IllegalArgumentException("A quantidade precisa ser pelo menos 1");
         ResourceUse use = resource(resourceId);
         if (amount > use.remaining()) {
-            throw new IllegalStateException("Only " + use.remaining() + " " + use.name() + " left");
+            throw new IllegalStateException("Só " + use.remaining() + " " + use.name() + " left");
         }
         setSpent(use, use.spent() + amount);
         return resource(resourceId);
@@ -695,14 +695,14 @@ public class Sheet {
 
     /** Devolve usos; {@code amount} nulo = devolve tudo. */
     public ResourceUse recoverResource(String resourceId, Integer amount) {
-        if (amount != null && amount < 1) throw new IllegalArgumentException("Amount must be at least 1");
+        if (amount != null && amount < 1) throw new IllegalArgumentException("A quantidade precisa ser pelo menos 1");
         ResourceUse use = resource(resourceId);
         setSpent(use, amount == null ? 0 : Math.max(0, use.spent() - amount));
         return resource(resourceId);
     }
 
     public SheetResource addCustomResource(String name, int maxUses, ResourceRecharge recharge, String notes) {
-        if (customResources.size() >= 50) throw new IllegalStateException("A sheet can have at most 50 custom resources");
+        if (customResources.size() >= 50) throw new IllegalStateException("Uma ficha tem no máximo 50 recursos próprios");
         SheetResource resource = new SheetResource(this, name, maxUses, recharge, notes);
         customResources.add(resource);
         return resource;
@@ -728,19 +728,19 @@ public class Sheet {
 
     /** Gasta a Inspiracao Heroica (pra rolar um dado de novo). */
     public void useHeroicInspiration() {
-        if (!getHeroicInspiration()) throw new IllegalStateException("The character has no Heroic Inspiration");
+        if (!getHeroicInspiration()) throw new IllegalStateException("O personagem não tem Inspiração Heroica");
         heroicInspiration = false;
     }
 
     private ResourceUse resource(String resourceId) {
-        if (resourceId == null || resourceId.isBlank()) throw new IllegalArgumentException("Resource is required");
+        if (resourceId == null || resourceId.isBlank()) throw new IllegalArgumentException("Falta informar o recurso");
         return getResources().stream().filter(r -> r.id().equalsIgnoreCase(resourceId.trim())).findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("The character has no resource " + resourceId));
+                .orElseThrow(() -> new IllegalArgumentException("O personagem não tem o recurso " + resourceId));
     }
 
     private SheetResource customResource(UUID resourceId) {
         return customResources.stream().filter(r -> r.getId().equals(resourceId)).findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Custom resource not found"));
+                .orElseThrow(() -> new IllegalArgumentException("Recurso próprio não encontrado"));
     }
 
     private void setSpent(ResourceUse use, int spent) {
@@ -793,13 +793,13 @@ public class Sheet {
 
     public void removeAttack(UUID attackId) {
         if (!attacks.removeIf(a -> a.getId().equals(attackId))) {
-            throw new IllegalArgumentException("Attack not found");
+            throw new IllegalArgumentException("Ataque não encontrado");
         }
     }
 
     public CharacterFeat addCatalogFeat(FeatDefinition feat, int characterLevel, String choices) {
         if (catalogFeats.stream().anyMatch(f -> f.getFeat().getId().equals(feat.getId())) && !feat.isRepeatable()) {
-            throw new IllegalArgumentException("The character already has this feat");
+            throw new IllegalArgumentException("O personagem já tem este talento");
         }
         CharacterFeat selection = new CharacterFeat(this, feat, characterLevel, choices);
         catalogFeats.add(selection);
@@ -808,7 +808,7 @@ public class Sheet {
 
     public void removeCatalogFeat(UUID characterFeatId) {
         if (!catalogFeats.removeIf(f -> f.getId().equals(characterFeatId))) {
-            throw new IllegalArgumentException("Feat not found on this character");
+            throw new IllegalArgumentException("Este personagem não tem esse talento");
         }
     }
 }

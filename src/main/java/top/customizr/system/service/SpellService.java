@@ -82,7 +82,7 @@ public class SpellService {
     @Transactional
     public List<Spell> search(String name) {
         if (name == null || name.isBlank()) {
-            throw badRequest("Spell search name is required");
+            throw badRequest("Falta o nome pra buscar a magia");
         }
         return spellRepository.findByNameContainingIgnoreCase(name.trim());
     }
@@ -116,7 +116,7 @@ public class SpellService {
         Spell spell = findSpell(spellId);
         if (dndClassRepository.existsByAvailableSpells_SpellId(spellId)
                 || characterClassRepository.existsByPreparedSpells_SpellId(spellId)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Spell is used by a class or character sheet");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "A magia está em uso numa classe ou ficha");
         }
         spellRepository.delete(spell);
     }
@@ -141,23 +141,23 @@ public class SpellService {
 
     private Spell findSpell(UUID spellId) {
         if (spellId == null) {
-            throw badRequest("Spell ID is required");
+            throw badRequest("Falta o id da magia");
         }
         return spellRepository.findById(spellId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Spell not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Magia não encontrada"));
     }
 
     private Source findSource(UUID sourceId) {
         if (sourceId == null) {
-            throw badRequest("Source ID is required");
+            throw badRequest("Falta o id da fonte");
         }
         return sourceRepository.findById(sourceId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Source not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Fonte não encontrada"));
     }
 
     private void ensureNameAvailable(String name, UUID sourceId, UUID currentSpellId) {
         if (name == null || name.isBlank()) {
-            throw badRequest("Spell name is required");
+            throw badRequest("Falta o nome da magia");
         }
         spellRepository.findByNameAndSource_Id(name.trim(), sourceId)
                 .filter(existing -> !existing.getSpellId().equals(currentSpellId))
@@ -178,6 +178,6 @@ public class SpellService {
                 return constant;
             }
         }
-        throw badRequest("Invalid " + field);
+        throw badRequest("Inválido: " + field);
     }
 }

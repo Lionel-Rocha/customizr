@@ -147,7 +147,7 @@ public class Token {
           Character character, NPC npc, Monster monster) {
         int links = (character == null ? 0 : 1) + (npc == null ? 0 : 1) + (monster == null ? 0 : 1);
         if (links > 1) {
-            throw new IllegalArgumentException("A token links to one character, NPC or monster at most");
+            throw new IllegalArgumentException("Um token se liga a no máximo um personagem, NPC ou monstro");
         }
         this.id = UUID.randomUUID();
         this.scene = scene;
@@ -168,9 +168,9 @@ public class Token {
     }
 
     public void update(String name, Integer sizeCells, String imageUrl, boolean hidden, int rotation) {
-        this.name = Places.requireName(name, "Token");
+        this.name = Places.requireName(name, "token");
         int size = sizeCells == null ? 1 : sizeCells;
-        if (size < 1 || size > 10) throw new IllegalArgumentException("Token size must be between 1 and 10 cells");
+        if (size < 1 || size > 10) throw new IllegalArgumentException("O tamanho do token vai de 1 a 10 casas");
         if (size != this.sizeCells) { widthCells = null; heightCells = null; }
         this.sizeCells = size;
         this.imageUrl = Places.blankToNull(imageUrl);
@@ -180,10 +180,10 @@ public class Token {
 
     public void moveTo(double x, double y) {
         if (Double.isNaN(x) || Double.isNaN(y) || Double.isInfinite(x) || Double.isInfinite(y)) {
-            throw new IllegalArgumentException("Invalid position");
+            throw new IllegalArgumentException("Posição inválida");
         }
         if (x < -10_000 || y < -10_000 || x > 100_000 || y > 100_000) {
-            throw new IllegalArgumentException("Position is outside the map");
+            throw new IllegalArgumentException("A posição está fora do mapa");
         }
         this.x = x;
         this.y = y;
@@ -191,11 +191,11 @@ public class Token {
 
     public void setHitPoints(Integer hpCurrent, Integer hpMax) {
         if ((hpCurrent != null && hpCurrent < 0) || (hpMax != null && hpMax < 0)) {
-            throw new IllegalArgumentException("Hit points cannot be negative");
+            throw new IllegalArgumentException("O PV não pode ser negativo");
         }
         Integer max = hpMax != null ? hpMax : this.hpMax;
         if (hpCurrent != null && max != null && hpCurrent > max) {
-            throw new IllegalArgumentException("Current HP cannot exceed max HP");
+            throw new IllegalArgumentException("O PV atual não pode passar do máximo");
         }
         if (hpMax != null) this.hpMax = hpMax;
         if (hpCurrent != null) this.hpCurrent = hpCurrent;
@@ -214,7 +214,7 @@ public class Token {
     public void resize(double width, double height) {
         for (double v : new double[] {width, height}) {
             if (Double.isNaN(v) || v < 0.5 || v > 30 || Math.abs(v * 2 - Math.round(v * 2)) > 1e-9) {
-                throw new IllegalArgumentException("Token size goes from 0.5 to 30 cells, in steps of 0.5");
+                throw new IllegalArgumentException("O tamanho do token vai de 0,5 a 30 casas, de 0,5 em 0,5");
             }
         }
         this.widthCells = width;
@@ -251,7 +251,7 @@ public class Token {
 
     public void setElevationFt(Integer elevationFt) {
         if (elevationFt != null && (elevationFt < -1000 || elevationFt > 100_000)) {
-            throw new IllegalArgumentException("Elevation must be between -1000 and 100000 feet");
+            throw new IllegalArgumentException("A altura vai de -1000 a 100000 pés");
         }
         this.elevationFt = elevationFt == null || elevationFt == 0 ? null : elevationFt;
     }
@@ -261,7 +261,7 @@ public class Token {
     }
 
     public void replaceMembers(List<Character> characters) {
-        if (characters.size() > 30) throw new IllegalArgumentException("A token holds at most 30 characters");
+        if (characters.size() > 30) throw new IllegalArgumentException("Um token leva no máximo 30 personagens");
         members.clear();
         members.addAll(characters.stream().distinct().toList());
     }
@@ -273,7 +273,7 @@ public class Token {
     }
 
     public void replaceAuras(List<TokenAura> newAuras) {
-        if (newAuras.size() > 4) throw new IllegalArgumentException("At most 4 auras per token");
+        if (newAuras.size() > 4) throw new IllegalArgumentException("No máximo 4 auras por token");
         auras.clear();
         auras.addAll(newAuras);
     }
@@ -288,7 +288,7 @@ public class Token {
     }
 
     public void replaceMarkers(List<TokenMarker> newMarkers) {
-        if (newMarkers.size() > 20) throw new IllegalArgumentException("At most 20 markers per token");
+        if (newMarkers.size() > 20) throw new IllegalArgumentException("No máximo 20 marcadores por token");
         markers.clear();
         markers.addAll(newMarkers);
     }
@@ -307,7 +307,7 @@ public class Token {
     /** Luz do token e visao no escuro, em pes (0 ou null = nada). */
     public void setLight(Integer brightFt, Integer dimFt, Integer darkvisionFt) {
         for (Integer v : new Integer[] {brightFt, dimFt, darkvisionFt}) {
-            if (v != null && (v < 0 || v > 1000)) throw new IllegalArgumentException("Light and darkvision go from 0 to 1000 feet");
+            if (v != null && (v < 0 || v > 1000)) throw new IllegalArgumentException("Luz e visão no escuro vão de 0 a 1000 pés");
         }
         this.lightBrightFt = brightFt == null || brightFt == 0 ? null : brightFt;
         this.lightDimFt = dimFt == null || dimFt == 0 ? null : dimFt;
@@ -316,7 +316,7 @@ public class Token {
 
     public void setVisionFt(Integer visionFt) {
         if (visionFt != null && (visionFt < 0 || visionFt > 10_000)) {
-            throw new IllegalArgumentException("Vision must be between 0 and 10000 feet");
+            throw new IllegalArgumentException("A visão vai de 0 a 10000 pés");
         }
         this.visionFt = visionFt;
     }
@@ -350,15 +350,15 @@ public class Token {
 
     /** Dano no PV do proprio token (NPC/monstro): nao passa de 0. */
     public void damage(int amount) {
-        if (amount < 0) throw new IllegalArgumentException("Damage must be positive");
-        if (hpCurrent == null) throw new IllegalStateException("This token has no hit points");
+        if (amount < 0) throw new IllegalArgumentException("O dano precisa ser positivo");
+        if (hpCurrent == null) throw new IllegalStateException("Este token não tem PV");
         hpCurrent = Math.max(0, hpCurrent - amount);
     }
 
     /** Cura no PV do proprio token: nao passa do maximo. */
     public void heal(int amount) {
-        if (amount < 0) throw new IllegalArgumentException("Healing must be positive");
-        if (hpCurrent == null) throw new IllegalStateException("This token has no hit points");
+        if (amount < 0) throw new IllegalArgumentException("A cura precisa ser positiva");
+        if (hpCurrent == null) throw new IllegalStateException("Este token não tem PV");
         hpCurrent = hpMax == null ? hpCurrent + amount : Math.min(hpMax, hpCurrent + amount);
     }
 

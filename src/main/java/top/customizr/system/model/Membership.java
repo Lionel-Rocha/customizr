@@ -40,7 +40,7 @@ public class Membership {
     }
 
     public void changeColor(String color) {
-        if (color != null && !color.matches("#[0-9A-Fa-f]{6}")) throw new IllegalArgumentException("Color must be #RRGGBB");
+        if (color != null && !color.matches("#[0-9A-Fa-f]{6}")) throw new IllegalArgumentException("A cor precisa ser #RRGGBB");
         this.color = color;
     }
 }

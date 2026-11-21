@@ -26,7 +26,7 @@ public class Duration {
 
     public Duration(int amount, DurationUnit unit, boolean concentration) {
         if (unit == null) {
-            throw new IllegalArgumentException("Duration unit is required");
+            throw new IllegalArgumentException("Falta a unidade da duração");
         }
         if ((unit == DurationUnit.INSTANTANEOUS || unit == DurationUnit.CONCENTRATION) && amount != 0) {
             throw new IllegalArgumentException("Instantaneous and unbounded concentration durations use amount 0");
@@ -35,14 +35,14 @@ public class Duration {
             throw new IllegalArgumentException("Until dispelled and special durations use amount 0");
         }
         if (unit == DurationUnit.INSTANTANEOUS && concentration) {
-            throw new IllegalArgumentException("Instantaneous duration cannot require concentration");
+            throw new IllegalArgumentException("Duração instantânea não pode exigir concentração");
         }
         if (unit != DurationUnit.INSTANTANEOUS && unit != DurationUnit.CONCENTRATION
                 && unit != DurationUnit.UNTIL_DISPELLED && unit != DurationUnit.SPECIAL && amount < 1) {
-            throw new IllegalArgumentException("Duration amount must be positive");
+            throw new IllegalArgumentException("A duração precisa ser positiva");
         }
         if (unit == DurationUnit.CONCENTRATION && !concentration) {
-            throw new IllegalArgumentException("Concentration duration must be marked as concentration");
+            throw new IllegalArgumentException("Duração de concentração precisa estar marcada como concentração");
         }
 
         this.amount = amount;

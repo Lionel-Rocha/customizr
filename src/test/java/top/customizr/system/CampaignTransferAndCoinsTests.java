@@ -175,7 +175,7 @@ class CampaignTransferAndCoinsTests {
         assertEquals("Lost Mine", result.name());
         assertEquals(1, result.characters());
         assertEquals(1, result.images());
-        assertTrue(result.warnings().stream().anyMatch(w -> w.contains("belonged to " + player)));
+        assertTrue(result.warnings().stream().anyMatch(w -> w.contains("era de " + player)));
 
         var newWorld = worldService.listWorlds(result.campaignId(), importer).getFirst();
         assertEquals("secret", newWorld.masterInfo());

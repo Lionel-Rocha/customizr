@@ -58,10 +58,10 @@ public class ImageAsset {
 
     public ImageAsset(Campaign campaign, byte[] data, String contentType, String sha256, String fileName) {
         if (campaign == null || data == null || data.length == 0) {
-            throw new IllegalArgumentException("Campaign and image data are required");
+            throw new IllegalArgumentException("Faltam a campanha e os dados da imagem");
         }
         if (data.length > MAX_BYTES) {
-            throw new IllegalArgumentException("Image is too big (max 8 MB)");
+            throw new IllegalArgumentException("Imagem grande demais (máximo 8 MB)");
         }
         this.id = UUID.randomUUID();
         this.campaign = campaign;

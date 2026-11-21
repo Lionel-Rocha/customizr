@@ -53,7 +53,7 @@ public class Point implements EncyclopediaReferenceable {
     }
 
     public void update(String name, PointType type, String info, Float cityMapX, Float cityMapY) {
-        this.name = Places.requireName(name, "Point");
+        this.name = Places.requireName(name, "ponto");
         this.type = type == null ? PointType.OTHER : type;
         this.info = Places.blankToNull(info);
         this.cityMapX = Places.coordinate(cityMapX, "cityMapX");

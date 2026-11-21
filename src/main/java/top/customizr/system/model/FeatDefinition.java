@@ -60,10 +60,10 @@ public class FeatDefinition {
 
     public FeatDefinition(String name, Source source) {
         if (name == null || name.isBlank()) {
-            throw new IllegalArgumentException("Feat name is required");
+            throw new IllegalArgumentException("Falta o nome do talento");
         }
         if (source == null) {
-            throw new IllegalArgumentException("Feat source is required");
+            throw new IllegalArgumentException("Falta a fonte do talento");
         }
         this.id = UUID.randomUUID();
         this.name = name.trim();

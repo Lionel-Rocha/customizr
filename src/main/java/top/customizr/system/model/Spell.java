@@ -103,16 +103,16 @@ public class Spell {
             String description
     ) {
         if (name == null || name.isBlank()) {
-            throw new IllegalArgumentException("Spell name is required");
+            throw new IllegalArgumentException("Falta o nome da magia");
         }
         if (school == null || level == null || castingTime == null || duration == null || source == null) {
-            throw new IllegalArgumentException("Spell school, level, casting time, duration, and source are required");
+            throw new IllegalArgumentException("Faltam a escola, o nível, o tempo de conjuração, a duração e a fonte da magia");
         }
         if (rangeFt < 0) {
-            throw new IllegalArgumentException("Spell range cannot be negative");
+            throw new IllegalArgumentException("O alcance da magia não pode ser negativo");
         }
         if (description == null || description.isBlank()) {
-            throw new IllegalArgumentException("Spell description is required");
+            throw new IllegalArgumentException("Falta a descrição da magia");
         }
 
         this.name = name.trim();

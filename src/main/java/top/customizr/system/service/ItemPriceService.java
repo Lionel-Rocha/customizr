@@ -85,11 +85,11 @@ public class ItemPriceService {
     public ItemPriceResponse set(UUID campaignId, UUID itemId, BigDecimal priceGp, String username) {
         Campaign campaign = campaign(campaignId);
         masterGuard.requireMaster(username, campaign);
-        if (itemId == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Item ID is required");
+        if (itemId == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Falta o id do item");
         Item item = itemRepository.findById(itemId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Item not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Item não encontrado"));
         if (item.getPriceGp() != null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, item.getName() + " already has an official price");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, item.getName() + " já tem preço oficial");
         }
         var existing = priceRepository.findByCampaignAndItem(campaign, item);
         if (priceGp == null) {
@@ -106,8 +106,8 @@ public class ItemPriceService {
     }
 
     private Campaign campaign(UUID id) {
-        if (id == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Campaign ID is required");
+        if (id == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Falta o id da campanha");
         return campaignRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Campaign not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Campanha não encontrada"));
     }
 }

@@ -103,7 +103,7 @@ public class Scene {
     public Scene(Campaign campaign, String name, String mapUrl, GridType gridType, Integer gridSizePx, Integer feetPerCell,
                  Integer widthPx, Integer heightPx) {
         if (campaign == null) {
-            throw new IllegalArgumentException("Scene campaign is required");
+            throw new IllegalArgumentException("Falta a campanha da cena");
         }
         this.id = UUID.randomUUID();
         this.campaign = campaign;
@@ -112,17 +112,17 @@ public class Scene {
 
     public void update(String name, String mapUrl, GridType gridType, Integer gridSizePx, Integer feetPerCell,
                        Integer widthPx, Integer heightPx) {
-        this.name = Places.requireName(name, "Scene");
+        this.name = Places.requireName(name, "cena");
         this.mapUrl = Places.blankToNull(mapUrl);
         this.gridType = gridType == null ? GridType.SQUARE : gridType;
         int size = gridSizePx == null ? 70 : gridSizePx;
-        if (size < 8 || size > 500) throw new IllegalArgumentException("Grid size must be between 8 and 500 px");
+        if (size < 8 || size > 500) throw new IllegalArgumentException("O tamanho da casa vai de 8 a 500 px");
         this.gridSizePx = size;
         int feet = feetPerCell == null ? 5 : feetPerCell;
-        if (feet < 1 || feet > 5280) throw new IllegalArgumentException("Feet per cell must be between 1 and 5280");
+        if (feet < 1 || feet > 5280) throw new IllegalArgumentException("Pés por casa vai de 1 a 5280");
         this.feetPerCell = feet;
         if ((widthPx != null && widthPx < 1) || (heightPx != null && heightPx < 1)) {
-            throw new IllegalArgumentException("Map size must be positive");
+            throw new IllegalArgumentException("O tamanho do mapa precisa ser positivo");
         }
         this.widthPx = widthPx;
         this.heightPx = heightPx;
@@ -213,7 +213,7 @@ public class Scene {
     }
 
     public Wall addWall(double x1, double y1, double x2, double y2, Wall.Type type) {
-        if (walls.size() >= 5_000) throw new IllegalArgumentException("Too many walls in this scene");
+        if (walls.size() >= 5_000) throw new IllegalArgumentException("Paredes demais nesta cena");
         Wall wall = new Wall(this, x1, y1, x2, y2, type);
         walls.add(wall);
         return wall;
@@ -225,7 +225,7 @@ public class Scene {
 
     public AreaTemplate addTemplate(AreaTemplate.Shape shape, double x, double y, double angle, int sizeFt, Integer widthFt,
                                     String label, String color, java.util.UUID ownerId) {
-        if (templates.size() >= 200) throw new IllegalArgumentException("Too many areas in this scene");
+        if (templates.size() >= 200) throw new IllegalArgumentException("Áreas demais nesta cena");
         AreaTemplate template = new AreaTemplate(this, shape, x, y, angle, sizeFt, widthFt, label, color, ownerId);
         templates.add(template);
         return template;
@@ -240,7 +240,7 @@ public class Scene {
     }
 
     public MapPin addPin(double x, double y, String label, String icon, String note, java.util.UUID entryId, boolean visible) {
-        if (pins.size() >= 300) throw new IllegalArgumentException("Too many pins in this scene");
+        if (pins.size() >= 300) throw new IllegalArgumentException("Alfinetes demais nesta cena");
         MapPin pin = new MapPin(this, x, y, label, icon, note, entryId, visible);
         pins.add(pin);
         return pin;
@@ -257,7 +257,7 @@ public class Scene {
 
     public void revealCells(Collection<int[]> cells, boolean reveal) {
         for (int[] cell : cells) {
-            if (cell == null || cell.length != 2) throw new IllegalArgumentException("Cells are [column, row] pairs");
+            if (cell == null || cell.length != 2) throw new IllegalArgumentException("As casas são pares [coluna, linha]");
             String key = cell[0] + "," + cell[1];
             if (reveal) revealedCells.add(key);
             else revealedCells.remove(key);

@@ -68,7 +68,7 @@ public class EncyclopediaService {
     public EncyclopediaEntryResponse create(UUID campaignId, EncyclopediaEntryRequest request, String username) {
         Campaign campaign = findCampaign(campaignId);
         masterGuard.requireMaster(username, campaign);
-        if (request == null) throw badRequest("Request body is required");
+        if (request == null) throw badRequest("Falta o corpo da requisição");
         Encyclopedia encyclopedia = encyclopediaRepository.findByCampaign(campaign)
                 .orElseGet(() -> encyclopediaRepository.save(new Encyclopedia(campaign)));
         EncyclopediaReferenceable reference = resolve(campaign, request.referenceType(), request.referenceId());
@@ -104,7 +104,7 @@ public class EncyclopediaService {
         EncyclopediaEntry entry = findEntry(entryId);
         boolean master = masterGuard.requireMember(username, entry.getEncyclopedia().getCampaign());
         if (!master && !entry.isVisible()) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Entry not found");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Não encontrado na ordem de iniciativa");
         }
         return EncyclopediaEntryResponse.from(entry);
     }
@@ -114,7 +114,7 @@ public class EncyclopediaService {
         EncyclopediaEntry entry = findEntry(entryId);
         Campaign campaign = entry.getEncyclopedia().getCampaign();
         masterGuard.requireMaster(username, campaign);
-        if (request == null) throw badRequest("Request body is required");
+        if (request == null) throw badRequest("Falta o corpo da requisição");
         EncyclopediaReferenceable reference = resolve(campaign, request.referenceType(), request.referenceId());
         try {
             entry.update(request.entryName(), request.information(), request.type(),
@@ -146,7 +146,7 @@ public class EncyclopediaService {
             return null;
         }
         if (type == null || id == null) {
-            throw badRequest("Reference type and reference ID must be given together");
+            throw badRequest("O tipo da referência e o id da referência vêm juntos");
         }
         UUID owner;
         EncyclopediaReferenceable reference;
@@ -157,24 +157,24 @@ public class EncyclopediaService {
                 reference = npc;
             }
             case COUNTRY -> {
-                Country country = countryRepository.findById(id).orElseThrow(() -> notFound("Country"));
+                Country country = countryRepository.findById(id).orElseThrow(() -> notFound("país"));
                 owner = country.getWorld().getCampaign().getId();
                 reference = country;
             }
             case CITY -> {
-                City city = cityRepository.findById(id).orElseThrow(() -> notFound("City"));
+                City city = cityRepository.findById(id).orElseThrow(() -> notFound("cidade"));
                 owner = city.getCountry().getWorld().getCampaign().getId();
                 reference = city;
             }
             case POINT -> {
-                Point point = pointRepository.findById(id).orElseThrow(() -> notFound("Point"));
+                Point point = pointRepository.findById(id).orElseThrow(() -> notFound("ponto"));
                 owner = point.getCity().getCountry().getWorld().getCampaign().getId();
                 reference = point;
             }
-            default -> throw badRequest("Unknown reference type");
+            default -> throw badRequest("Tipo de referência desconhecido");
         }
         if (!owner.equals(campaign.getId())) {
-            throw badRequest("The reference belongs to another campaign");
+            throw badRequest("A referência é de outra campanha");
         }
         return reference;
     }
@@ -185,16 +185,16 @@ public class EncyclopediaService {
     }
 
     private Campaign findCampaign(UUID campaignId) {
-        if (campaignId == null) throw badRequest("Campaign ID is required");
-        return campaignRepository.findById(campaignId).orElseThrow(() -> notFound("Campaign"));
+        if (campaignId == null) throw badRequest("Falta o id da campanha");
+        return campaignRepository.findById(campaignId).orElseThrow(() -> notFound("campanha"));
     }
 
     private EncyclopediaEntry findEntry(UUID entryId) {
-        return entryRepository.findById(entryId).orElseThrow(() -> notFound("Entry"));
+        return entryRepository.findById(entryId).orElseThrow(() -> notFound("verbete"));
     }
 
     private ResponseStatusException notFound(String what) {
-        return new ResponseStatusException(HttpStatus.NOT_FOUND, what + " not found");
+        return new ResponseStatusException(HttpStatus.NOT_FOUND, what + " não encontrado");
     }
 
     private ResponseStatusException badRequest(String message) {

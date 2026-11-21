@@ -70,7 +70,7 @@ public class LevelUpService {
     @Transactional
     public LevelUpResponse apply(UUID characterId, LevelUpRequest request, String username) {
         Character character = manageable(characterId, username);
-        if (request == null) throw badRequest("Request body is required");
+        if (request == null) throw badRequest("Falta o corpo da requisição");
         DndClass dndClass = targetClass(character, request.classId());
         LevelUpPreviewResponse plan = plan(character, dndClass);
         Sheet sheet = character.getSheet();
@@ -78,25 +78,25 @@ public class LevelUpService {
         // escolhas do nivel, conferidas antes de mexer na ficha
         Subclass subclass = null;
         if (request.subclassId() != null) {
-            if (!plan.subclassRequired()) throw badRequest("This level does not choose a subclass");
+            if (!plan.subclassRequired()) throw badRequest("Este nível não escolhe subclasse");
             subclass = dndClass.getSubclasses().stream().filter(s -> s.getSubclassId().equals(request.subclassId()))
-                    .findFirst().orElseThrow(() -> badRequest("Subclass does not belong to " + dndClass.getClassName()));
+                    .findFirst().orElseThrow(() -> badRequest("A subclasse não é de " + dndClass.getClassName()));
         } else if (plan.subclassRequired() && !plan.subclasses().isEmpty()) {
-            throw badRequest("Choose a subclass for " + dndClass.getClassName() + " " + plan.classLevel());
+            throw badRequest("Escolha a subclasse de " + dndClass.getClassName() + " " + plan.classLevel());
         }
         Map<AbilityScore, Integer> increases = cleanIncreases(request.abilityIncreases());
         int increaseTotal = increases.values().stream().mapToInt(Integer::intValue).sum();
         FeatDefinition feat = request.featId() == null ? null
-                : featRepository.findById(request.featId()).orElseThrow(() -> notFound("Feat"));
+                : featRepository.findById(request.featId()).orElseThrow(() -> notFound("talento"));
         boolean improvement = plan.abilityScoreImprovement() || plan.epicBoon();
         if (!improvement && (feat != null || increaseTotal > 0)) {
-            throw badRequest("This level does not give an Ability Score Improvement");
+            throw badRequest("Este nível não dá Aumento no Valor de Atributo");
         }
         if (feat != null && increaseTotal > 1) {
-            throw badRequest("With a feat, only +1 to one ability (half-feat) is allowed");
+            throw badRequest("Com talento, só +1 em um atributo (meio-talento)");
         }
         if (feat == null && increaseTotal > 0 && (increaseTotal != 2 || increases.values().stream().anyMatch(v -> v > 2))) {
-            throw badRequest("Ability Score Improvement is +2 to one ability or +1 to two");
+            throw badRequest("O Aumento no Valor de Atributo é +2 em um atributo ou +1 em dois");
         }
 
         int levelsBefore = sheet.getTotalLevel();
@@ -127,7 +127,7 @@ public class LevelUpService {
                 }
                 case MANUAL -> {
                     Integer value = request.hpValue();
-                    if (value == null || value < 1 || value > die) throw badRequest("hpValue must be between 1 and " + die);
+                    if (value == null || value < 1 || value > die) throw badRequest("hpValue vai de 1 a " + die);
                     yield value;
                 }
             };
@@ -138,7 +138,7 @@ public class LevelUpService {
         liveTable.characterChanged(character);
         if (!Boolean.FALSE.equals(request.announce())) {
             chatService.postCard(character.getCampaign().getId(), character.getCharacterId(),
-                    character.getName() + " reached level " + sheet.getTotalLevel(),
+                    character.getName() + " chegou ao nível " + sheet.getTotalLevel(),
                     announcement(characterClass, plan, levelHp + retroactive, chosen, feat, increases), username);
         }
         return new LevelUpResponse(plan, levelHp + retroactive, retroactive, hpRoll,
@@ -150,7 +150,7 @@ public class LevelUpService {
 
     private LevelUpPreviewResponse plan(Character character, DndClass dndClass) {
         Sheet sheet = character.getSheet();
-        if (sheet.getTotalLevel() >= Sheet.MAX_LEVEL) throw badRequest("The character is already level " + Sheet.MAX_LEVEL);
+        if (sheet.getTotalLevel() >= Sheet.MAX_LEVEL) throw badRequest("O personagem já está no nível " + Sheet.MAX_LEVEL);
         CharacterClass current = sheet.classOf(dndClass);
         boolean newClass = current == null;
         int classLevel = newClass ? 1 : current.getLevel() + 1;
@@ -187,7 +187,7 @@ public class LevelUpService {
                     || (name.equals("rogue") && classLevel == 10);
             if (classLevel == 19) { if (classic) asiLevel = true; else boon = true; }
             asi = asiLevel;
-            if (asi || boon) warnings.add("Class features were not imported: Ability Score Improvement levels come from the standard table");
+            if (asi || boon) warnings.add("As características da classe não foram importadas: os níveis de Aumento no Valor de Atributo vêm da tabela padrão");
         }
 
         boolean subclassRequired = classLevel >= dndClass.getSubclassUnlockLevel()
@@ -198,15 +198,15 @@ public class LevelUpService {
                         .map(s -> new LevelUpPreviewResponse.SubclassOption(s.getSubclassId(), s.getName(), s.getSourceCode()))
                         .toList()
                 : List.of();
-        if (subclassRequired && subclasses.isEmpty()) warnings.add("No subclasses imported for " + dndClass.getClassName());
+        if (subclassRequired && subclasses.isEmpty()) warnings.add("Nenhuma subclasse importada pra " + dndClass.getClassName());
 
         if (newClass && !sheet.getClasses().isEmpty()) {
             warnings.addAll(unmetMulticlass(sheet, dndClass));
             for (CharacterClass cc : sheet.getClasses()) warnings.addAll(unmetMulticlass(sheet, cc.getDndClass()));
         }
-        if (sheet.getAttributes() == null) warnings.add("Ability scores are not set: Constitution counts as +0");
+        if (sheet.getAttributes() == null) warnings.add("Atributos não preenchidos: a Constituição conta como +0");
         boolean experienceReady = character.getLevelByExperience() >= totalLevel;
-        if (!experienceReady) warnings.add("Experience is below level " + totalLevel + " (fine for milestone leveling)");
+        if (!experienceReady) warnings.add("A experiência está abaixo do nível " + totalLevel + " (tudo bem se a mesa sobe por marcos)");
 
         List<CharacterClass> after = sheet.classesAfterLevelUp(dndClass);
         return new LevelUpPreviewResponse(
@@ -307,13 +307,13 @@ public class LevelUpService {
     private static String announcement(CharacterClass cc, LevelUpPreviewResponse plan, int hp, Subclass subclass,
                                        FeatDefinition feat, Map<AbilityScore, Integer> increases) {
         List<String> lines = new ArrayList<>();
-        lines.add(cc.getDndClass().getClassName() + " " + cc.getLevel() + " | +" + hp + " HP");
-        if (plan.proficiencyAfter() > plan.proficiencyBefore()) lines.add("Proficiency bonus +" + plan.proficiencyAfter());
-        if (subclass != null) lines.add("Subclass: " + subclass.getName());
-        if (!plan.features().isEmpty()) lines.add("Features: " + String.join(", ", plan.features()));
-        if (!increases.isEmpty()) lines.add("Abilities: " + String.join(", ", increases.entrySet().stream()
-                .map(e -> e.getKey().name().substring(0, 3) + " +" + e.getValue()).toList()));
-        if (feat != null) lines.add("Feat: " + feat.getName());
+        lines.add(cc.getDndClass().getClassName() + " " + cc.getLevel() + " | +" + hp + " PV");
+        if (plan.proficiencyAfter() > plan.proficiencyBefore()) lines.add("Bônus de proficiência +" + plan.proficiencyAfter());
+        if (subclass != null) lines.add("Subclasse: " + subclass.getName());
+        if (!plan.features().isEmpty()) lines.add("Características: " + String.join(", ", plan.features()));
+        if (!increases.isEmpty()) lines.add("Atributos: " + String.join(", ", increases.entrySet().stream()
+                .map(e -> TextoPt.ability(e.getKey()) + " +" + e.getValue()).toList()));
+        if (feat != null) lines.add("Talento: " + feat.getName());
         return String.join("\n", lines);
     }
 
@@ -321,11 +321,11 @@ public class LevelUpService {
 
     private DndClass targetClass(Character character, UUID classId) {
         if (classId != null) {
-            return dndClassRepository.findById(classId).orElseThrow(() -> notFound("Class"));
+            return dndClassRepository.findById(classId).orElseThrow(() -> notFound("classe"));
         }
         List<CharacterClass> classes = character.getSheet().getClasses();
         if (classes.size() == 1) return classes.getFirst().getDndClass();
-        throw badRequest(classes.isEmpty() ? "Choose the character's first class" : "Choose which class gains the level");
+        throw badRequest(classes.isEmpty() ? "Escolha a primeira classe do personagem" : "Escolha qual classe ganha o nível");
     }
 
     private static Map<AbilityScore, Integer> cleanIncreases(Map<AbilityScore, Integer> raw) {
@@ -333,7 +333,7 @@ public class LevelUpService {
         if (raw == null) return out;
         raw.forEach((ability, amount) -> {
             if (ability == null || amount == null || amount == 0) return;
-            if (amount < 0) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Ability increases cannot be negative");
+            if (amount < 0) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Aumento de atributo não pode ser negativo");
             out.put(ability, amount);
         });
         return out;
@@ -352,16 +352,16 @@ public class LevelUpService {
     }
 
     private Character manageable(UUID characterId, String username) {
-        Character character = characterRepository.findById(characterId).orElseThrow(() -> notFound("Character"));
+        Character character = characterRepository.findById(characterId).orElseThrow(() -> notFound("personagem"));
         if (!character.getOwner().getName().equals(username)
                 && !character.getCampaign().getMaster().getName().equals(username)) {
-            throw new AccessDeniedException("You cannot manage this character");
+            throw new AccessDeniedException("Você não pode mexer neste personagem");
         }
         return character;
     }
 
     private static ResponseStatusException notFound(String what) {
-        return new ResponseStatusException(HttpStatus.NOT_FOUND, what + " not found");
+        return new ResponseStatusException(HttpStatus.NOT_FOUND, what + " não encontrado");
     }
 
     private static ResponseStatusException badRequest(String message) {

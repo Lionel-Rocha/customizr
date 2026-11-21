@@ -57,7 +57,7 @@ public class MonsterService {
     @Transactional
     public ContentImportResponse importBestiary(JsonNode payload) {
         if (payload == null || !payload.path("monster").isArray()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Expected a JSON object with a \"monster\" array (5etools format)");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Esperava um JSON com a lista \"monster\" (formato do 5etools)");
         }
         List<ContentImportResponse.Processed> created = new ArrayList<>();
         List<ContentImportResponse.Processed> updated = new ArrayList<>();
@@ -131,7 +131,7 @@ public class MonsterService {
     /** Ficha nova (em branco ou preenchida) nos monstros da campanha. So o mestre. */
     @Transactional
     public MonsterResponse createCustom(MonsterRequest request, String username) {
-        if (request == null || request.campaignId() == null) throw badRequest("campaignId is required");
+        if (request == null || request.campaignId() == null) throw badRequest("Falta o campaignId");
         Campaign campaign = campaign(request.campaignId());
         masterGuard.requireMaster(username, campaign);
         Source source = homebrewSource(campaign);
@@ -146,7 +146,7 @@ public class MonsterService {
     @Transactional
     public MonsterResponse updateCustom(UUID id, MonsterRequest request, String username) {
         Monster monster = customOfMaster(id, username);
-        if (request == null) throw badRequest("Request body is required");
+        if (request == null) throw badRequest("Falta o corpo da requisição");
         if (request.name() != null && !request.name().isBlank() && !request.name().trim().equals(monster.getName())) {
             requireFreeName(request.name().trim(), monster.getSource(), monster.getId());
             valid(() -> { monster.rename(request.name()); return null; });
@@ -158,7 +158,7 @@ public class MonsterService {
     /** Copia um monstro (catalogo ou outro customizado) pra campanha, pra ajustar a vontade. */
     @Transactional
     public MonsterResponse copyToCampaign(UUID id, MonsterCopyRequest request, String username) {
-        if (request == null || request.campaignId() == null) throw badRequest("campaignId is required");
+        if (request == null || request.campaignId() == null) throw badRequest("Falta o campaignId");
         Monster original = monster(id);
         Campaign campaign = campaign(request.campaignId());
         masterGuard.requireMaster(username, campaign);
@@ -200,9 +200,9 @@ public class MonsterService {
     }
 
     private void fillCustom(Monster m, MonsterRequest r) {
-        if (r.hpAverage() != null && r.hpAverage() < 1) throw badRequest("Hit points must be at least 1");
+        if (r.hpAverage() != null && r.hpAverage() < 1) throw badRequest("O PV precisa ser pelo menos 1");
         if (r.armorClass() != null && (r.armorClass() < 1 || r.armorClass() > 40)) {
-            throw badRequest("Armor class must be between 1 and 40");
+            throw badRequest("A CA vai de 1 a 40");
         }
         int[] abilities = {orTen(r.strength()), orTen(r.dexterity()), orTen(r.constitution()),
                 orTen(r.intelligence()), orTen(r.wisdom()), orTen(r.charisma())};
@@ -226,7 +226,7 @@ public class MonsterService {
         List<Map<String, Object>> typed = new ArrayList<>();
         StringBuilder actionsText = new StringBuilder();
         for (MonsterAction a : actions) {
-            if (a == null || a.name() == null || a.name().isBlank()) throw badRequest("Every action needs a name");
+            if (a == null || a.name() == null || a.name().isBlank()) throw badRequest("Toda ação precisa de nome");
             String entry = valid(() -> actionEntry(a));
             entries.add(Map.of("name", a.name().trim(), "entries", List.of(entry)));
             Map<String, Object> raw = new LinkedHashMap<>();
@@ -271,7 +271,7 @@ public class MonsterService {
         String extra = a.text() == null || a.text().isBlank() ? "" : " " + a.text().trim();
         return switch (kind(a)) {
             case "ATTACK" -> {
-                if (a.attackBonus() == null) throw new IllegalArgumentException("Attack bonus is required for " + a.name());
+                if (a.attackBonus() == null) throw new IllegalArgumentException("Falta o bônus de ataque de " + a.name());
                 boolean melee = a.melee() == null || a.melee();
                 String reach = a.reach() == null || a.reach().isBlank()
                         ? (melee ? "reach 5 ft." : "range 80/320 ft.") : a.reach().trim();
@@ -279,11 +279,11 @@ public class MonsterService {
                         + (damage == null ? "" : " {@h}" + hitText) + extra;
             }
             case "SAVE" -> {
-                if (a.saveDc() == null) throw new IllegalArgumentException("Save DC is required for " + a.name());
+                if (a.saveDc() == null) throw new IllegalArgumentException("Falta a CD da salvaguarda de " + a.name());
                 String ability = a.saveAbility() == null || a.saveAbility().isBlank()
                         ? "dex" : a.saveAbility().trim().toLowerCase(Locale.ROOT);
                 if (!List.of("str", "dex", "con", "int", "wis", "cha").contains(ability)) {
-                    throw new IllegalArgumentException("Save ability must be STR, DEX, CON, INT, WIS or CHA");
+                    throw new IllegalArgumentException("O atributo da salvaguarda precisa ser STR, DEX, CON, INT, WIS ou CHA");
                 }
                 yield "{@actSave " + ability + "} {@dc " + a.saveDc() + "}."
                         + (damage == null ? "" : " {@actSaveFail} " + hitText) + extra;
@@ -317,24 +317,24 @@ public class MonsterService {
     private void requireFreeName(String name, Source source, UUID except) {
         monsterRepository.findByNameAndSource_Id(name, source.getId())
                 .filter(m -> !m.getId().equals(except))
-                .ifPresent(m -> { throw badRequest("This campaign already has a monster named " + name); });
+                .ifPresent(m -> { throw badRequest("Esta campanha já tem um monstro chamado " + name); });
     }
 
     private Monster customOfMaster(UUID id, String username) {
         Monster monster = monster(id);
-        if (!monster.isCustom()) throw badRequest("Catalog monsters can't be edited; copy it to the campaign first");
+        if (!monster.isCustom()) throw badRequest("Monstro do catálogo não se edita; copie pra campanha antes");
         masterGuard.requireMaster(username, monster.getCampaign());
         return monster;
     }
 
     private Monster monster(UUID id) {
         return monsterRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Monster not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Monstro não encontrado"));
     }
 
     private Campaign campaign(UUID id) {
         return campaignRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Campaign not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Campanha não encontrada"));
     }
 
     private static <T> T valid(java.util.function.Supplier<T> action) {

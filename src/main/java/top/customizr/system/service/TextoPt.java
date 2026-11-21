@@ -94,6 +94,77 @@ public final class TextoPt {
         };
     }
 
+    /** Escola de magia (o nome da magia em si nao e traduzido). */
+    public static String school(top.customizr.system.model.SpellSchool s) {
+        if (s == null) return "";
+        return switch (s) {
+            case Abjuration -> "abjuração";
+            case Conjuration -> "conjuração";
+            case Divination -> "adivinhação";
+            case Enchantment -> "encantamento";
+            case Evocation -> "evocação";
+            case Illusion -> "ilusão";
+            case Necromancy -> "necromancia";
+            case Transmutation -> "transmutação";
+        };
+    }
+
+    /** Tempo de conjuracao. */
+    public static String castingTime(top.customizr.system.model.Time t) {
+        if (t == null) return "";
+        return switch (t.name()) {
+            case "Action" -> "1 ação";
+            case "BonusAction" -> "1 ação bônus";
+            case "Reaction" -> "1 reação";
+            case "Ritual" -> "ritual";
+            case "OneMinute" -> "1 minuto";
+            case "TenMinutes" -> "10 minutos";
+            case "OneHour" -> "1 hora";
+            case "EightHours" -> "8 horas";
+            case "TwelveHours" -> "12 horas";
+            case "TwentyFourHours" -> "24 horas";
+            default -> t.name();
+        };
+    }
+
+    /** Unidade da duracao com o plural certo ("1 minuto", "10 minutos"). */
+    public static String timeUnit(String unit, int amount) {
+        boolean many = amount > 1;
+        return switch (unit == null ? "" : unit) {
+            case "ROUND" -> many ? "rodadas" : "rodada";
+            case "MINUTE" -> many ? "minutos" : "minuto";
+            case "HOUR" -> many ? "horas" : "hora";
+            case "DAY" -> many ? "dias" : "dia";
+            default -> unit == null ? "" : unit.toLowerCase(Locale.ROOT);
+        };
+    }
+
+    private static final Map<String, String> WORDS = Map.ofEntries(
+            // itens
+            Map.entry("mundane", "comum"), Map.entry("magical", "mágico"), Map.entry("consumable", "consumível"),
+            Map.entry("armor", "armadura"), Map.entry("weapon", "arma"), Map.entry("adventuring gear", "equipamento de aventura"),
+            Map.entry("mounts vehicles", "montarias e veículos"), Map.entry("trinkets", "bugigangas"), Map.entry("poisons", "venenos"),
+            Map.entry("tools", "ferramentas"), Map.entry("wondrous item", "item maravilhoso"),
+            Map.entry("ammunition explosives", "munição e explosivos"), Map.entry("common", "comum"), Map.entry("uncommon", "incomum"),
+            Map.entry("rare", "raro"), Map.entry("veryrare", "muito raro"), Map.entry("very rare", "muito raro"),
+            Map.entry("legendary", "lendário"), Map.entry("artifact", "artefato"),
+            // tamanho das criaturas
+            Map.entry("tiny", "Minúsculo"), Map.entry("small", "Pequeno"), Map.entry("medium", "Médio"), Map.entry("large", "Grande"),
+            Map.entry("huge", "Enorme"), Map.entry("gargantuan", "Imenso"),
+            // tipo das criaturas
+            Map.entry("aberration", "aberração"), Map.entry("beast", "fera"), Map.entry("celestial", "celestial"),
+            Map.entry("construct", "constructo"), Map.entry("dragon", "dragão"), Map.entry("elemental", "elemental"),
+            Map.entry("fey", "fada"), Map.entry("fiend", "corruptor"), Map.entry("giant", "gigante"), Map.entry("humanoid", "humanoide"),
+            Map.entry("monstrosity", "monstruosidade"), Map.entry("ooze", "limo"), Map.entry("plant", "planta"),
+            Map.entry("undead", "morto-vivo"));
+
+    /** Palavra de item (tipo, categoria, raridade) ou de criatura (tamanho, tipo); o resto fica como veio. */
+    public static String word(String raw) {
+        if (raw == null || raw.isBlank()) return raw == null ? "" : raw;
+        String key = raw.trim().toLowerCase(Locale.ROOT).replace('_', ' ');
+        return WORDS.getOrDefault(key, raw);
+    }
+
     /** "Distância", "dano" etc. num lugar so pros servicos usarem igual. */
     public static String hitText(Boolean hit) {
         return hit == null ? "" : hit ? " | ACERTOU" : " | ERROU";

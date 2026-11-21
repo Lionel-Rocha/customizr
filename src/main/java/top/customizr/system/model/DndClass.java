@@ -108,13 +108,13 @@ public class DndClass {
             Map<String, Object> metadata
     ) {
         if (hitDie <= 0) {
-            throw new IllegalArgumentException("Hit die must be positive");
+            throw new IllegalArgumentException("O dado de vida precisa ser positivo");
         }
         if (hitDieNumber <= 0) {
-            throw new IllegalArgumentException("Hit die number must be positive");
+            throw new IllegalArgumentException("A quantidade de dados de vida precisa ser positiva");
         }
         if (subclassUnlockLevel < 1 || subclassUnlockLevel > 20) {
-            throw new IllegalArgumentException("Subclass unlock level must be between 1 and 20");
+            throw new IllegalArgumentException("O nível em que a subclasse libera vai de 1 a 20");
         }
         this.classId = UUID.randomUUID();
         this.className = className;
@@ -143,14 +143,14 @@ public class DndClass {
 
     public void addAvailableSpell(Spell spell) {
         if (spell == null) {
-            throw new IllegalArgumentException("Spell is required");
+            throw new IllegalArgumentException("Falta informar a magia");
         }
         availableSpells.add(spell);
     }
 
     public void removeAvailableSpell(UUID spellId) {
         if (spellId == null || !availableSpells.removeIf(spell -> spellId.equals(spell.getSpellId()))) {
-            throw new IllegalArgumentException("Spell is not available to this class");
+            throw new IllegalArgumentException("Essa magia não está disponível pra esta classe");
         }
     }
 

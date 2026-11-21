@@ -94,7 +94,7 @@ public class CoinPurse {
     void add(Currency currency, long amount) {
         long next = count(currency) + amount;
         if (next < 0) {
-            throw new IllegalArgumentException("Only " + count(currency) + " " + currency.getSymbol() + " in the purse");
+            throw new IllegalArgumentException("Só " + count(currency) + " " + currency.getSymbol() + " na bolsa");
         }
         set(currency, next);
     }
@@ -104,8 +104,8 @@ public class CoinPurse {
      * Ex.: 5 pc + 2 po pagando 1 po = gasta os 5 pc e 1 po, volta 1 pp de troco.
      */
     void pay(long copperCost) {
-        if (copperCost < 0) throw new IllegalArgumentException("Cost cannot be negative");
-        if (copperCost > totalCopper()) throw new IllegalArgumentException("Not enough money");
+        if (copperCost < 0) throw new IllegalArgumentException("O custo não pode ser negativo");
+        if (copperCost > totalCopper()) throw new IllegalArgumentException("Dinheiro insuficiente");
         long paid = 0;
         for (Currency c : SMALLEST_FIRST) {
             long value = COPPER.get(c);
@@ -126,11 +126,11 @@ public class CoinPurse {
      */
     void exchange(Currency from, Currency to, long amount) {
         if (from == null || to == null || from == to) throw new IllegalArgumentException("Choose two different coins");
-        if (amount < 1) throw new IllegalArgumentException("Amount must be at least 1");
+        if (amount < 1) throw new IllegalArgumentException("A quantidade precisa ser pelo menos 1");
         long value = amount * COPPER.get(from);
         long target = COPPER.get(to);
         if (value % target != 0) {
-            throw new IllegalArgumentException(amount + " " + from.getSymbol() + " does not make whole " + to.getSymbol());
+            throw new IllegalArgumentException(amount + " " + from.getSymbol() + " não fecha um número inteiro de " + to.getSymbol());
         }
         add(from, -amount);
         add(to, value / target);

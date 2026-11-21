@@ -43,7 +43,7 @@ public class InitiativeEntry {
     InitiativeEntry(InitiativeTracker tracker, String name, int initiative, int bonus, UUID tokenId) {
         this.id = UUID.randomUUID();
         this.tracker = tracker;
-        this.name = Places.requireName(name, "Initiative entry");
+        this.name = Places.requireName(name, "entrada da iniciativa");
         this.initiative = initiative;
         this.bonus = bonus;
         this.tokenId = tokenId;

@@ -43,7 +43,7 @@ public class Attributes {
      */
     public int getModifier(String ability) {
         if (ability == null) {
-            throw new IllegalArgumentException("Ability is required");
+            throw new IllegalArgumentException("Falta informar o atributo");
         }
         return modifierOf(switch (ability.trim().toLowerCase()) {
             case "strength", "str", "for", "força", "forca" -> strength;
@@ -52,13 +52,13 @@ public class Attributes {
             case "intelligence", "int", "inteligência", "inteligencia" -> intelligence;
             case "wisdom", "wis", "sab", "sabedoria" -> wisdom;
             case "charisma", "cha", "car", "carisma" -> charisma;
-            default -> throw new IllegalArgumentException("Unknown ability: " + ability);
+            default -> throw new IllegalArgumentException("Atributo desconhecido: " + ability);
         });
     }
 
     private void validate(int score) {
         if (score < 1 || score > 30) {
-            throw new IllegalArgumentException("Ability scores must be between 1 and 30");
+            throw new IllegalArgumentException("Os valores de atributo vão de 1 a 30");
         }
     }
 }

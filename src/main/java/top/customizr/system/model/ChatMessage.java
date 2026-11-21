@@ -68,16 +68,16 @@ public class ChatMessage {
     public ChatMessage(Campaign campaign, User author, String speakerName, ChatMessageType type, String content,
                        User recipient, RollResult roll) {
         if (campaign == null || author == null || type == null) {
-            throw new IllegalArgumentException("Campaign, author and type are required");
+            throw new IllegalArgumentException("Faltam a campanha, o autor e o tipo");
         }
         if (content == null || content.isBlank()) {
-            throw new IllegalArgumentException("Message is empty");
+            throw new IllegalArgumentException("A mensagem está vazia");
         }
         if (content.length() > 4000) {
-            throw new IllegalArgumentException("Message is too long");
+            throw new IllegalArgumentException("A mensagem é longa demais");
         }
         if (type == ChatMessageType.WHISPER && recipient == null) {
-            throw new IllegalArgumentException("Whisper needs a recipient");
+            throw new IllegalArgumentException("O sussurro precisa de um destinatário");
         }
         this.id = UUID.randomUUID();
         this.campaign = campaign;

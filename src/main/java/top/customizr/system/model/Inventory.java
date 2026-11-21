@@ -57,7 +57,7 @@ public class Inventory {
 
     public static Inventory forCharacter(Character character) {
         if (character == null) {
-            throw new IllegalArgumentException("Character is required");
+            throw new IllegalArgumentException("Falta informar o personagem");
         }
         Inventory inventory = new Inventory();
         inventory.id = UUID.randomUUID();
@@ -67,7 +67,7 @@ public class Inventory {
 
     public static Inventory forParty(Party party) {
         if (party == null) {
-            throw new IllegalArgumentException("Party is required");
+            throw new IllegalArgumentException("Falta informar o grupo");
         }
         Inventory inventory = new Inventory();
         inventory.id = UUID.randomUUID();
@@ -77,7 +77,7 @@ public class Inventory {
 
     public static Inventory forNpc(NPC npc) {
         if (npc == null) {
-            throw new IllegalArgumentException("NPC is required");
+            throw new IllegalArgumentException("Falta informar o NPC");
         }
         Inventory inventory = new Inventory();
         inventory.id = UUID.randomUUID();
@@ -87,10 +87,10 @@ public class Inventory {
 
     public InventoryEntry addItem(Item item, int quantity) {
         if (item == null) {
-            throw new IllegalArgumentException("Item is required");
+            throw new IllegalArgumentException("Falta informar o item");
         }
         if (quantity <= 0) {
-            throw new IllegalArgumentException("Quantity must be positive");
+            throw new IllegalArgumentException("A quantidade precisa ser positiva");
         }
         InventoryEntry existing = entries.stream()
                 .filter(entry -> entry.getItem().getId().equals(item.getId()))
@@ -107,14 +107,14 @@ public class Inventory {
 
     public void removeItem(UUID itemId, int quantity) {
         if (itemId == null || quantity <= 0) {
-            throw new IllegalArgumentException("Item ID and a positive quantity are required");
+            throw new IllegalArgumentException("Faltam o id do item e uma quantidade positiva");
         }
         InventoryEntry entry = entries.stream()
                 .filter(candidate -> candidate.getItem().getId().equals(itemId))
                 .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Item is not in this inventory"));
+                .orElseThrow(() -> new IllegalArgumentException("Esse item não está neste inventário"));
         if (quantity > entry.getQuantity()) {
-            throw new IllegalArgumentException("Cannot remove more items than the inventory contains");
+            throw new IllegalArgumentException("Não dá pra tirar mais itens do que o inventário tem");
         }
         if (quantity == entry.getQuantity()) {
             entries.remove(entry);
@@ -125,11 +125,11 @@ public class Inventory {
 
     public void changeMoney(BigDecimal amount) {
         if (amount == null) {
-            throw new IllegalArgumentException("Money amount is required");
+            throw new IllegalArgumentException("Falta o valor em dinheiro");
         }
         BigDecimal updatedAmount = moneyGp.add(amount);
         if (updatedAmount.signum() < 0) {
-            throw new IllegalArgumentException("Inventory money cannot be negative");
+            throw new IllegalArgumentException("O dinheiro do inventário não pode ficar negativo");
         }
         // as moedas acompanham: receber vira po/pp/pc; pagar usa as moedas menores primeiro e volta troco
         CoinPurse purse = getCoins();
@@ -156,8 +156,8 @@ public class Inventory {
      * pelo valor, com troco (ex.: tirar 30 pp tendo 10 pp e 5 po).
      */
     public void changeCoins(Currency currency, long amount) {
-        if (currency == null) throw new IllegalArgumentException("Currency is required");
-        if (amount == 0) throw new IllegalArgumentException("Amount cannot be zero");
+        if (currency == null) throw new IllegalArgumentException("Falta a moeda");
+        if (amount == 0) throw new IllegalArgumentException("A quantidade não pode ser zero");
         CoinPurse purse = getCoins();
         if (amount > 0) {
             purse.add(currency, amount);
@@ -166,7 +166,7 @@ public class Inventory {
             long fromSame = Math.min(want, purse.count(currency));
             long rest = (want - fromSame) * CoinPurse.copperValue(currency);
             if (rest > purse.totalCopper() - fromSame * CoinPurse.copperValue(currency)) {
-                throw new IllegalArgumentException("Inventory money cannot be negative");
+                throw new IllegalArgumentException("O dinheiro do inventário não pode ficar negativo");
             }
             purse.add(currency, -fromSame);
             if (rest > 0) purse.pay(rest);

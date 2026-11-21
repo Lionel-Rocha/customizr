@@ -26,7 +26,7 @@ public class ClassSpellService {
 
         var matchingSpells = spellRepository.findAllByNameIgnoreCase(normalizedSpellName);
         if (matchingSpells.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Spell not found");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Magia não encontrada");
         }
         if (matchingSpells.size() > 1) {
             throw new ResponseStatusException(
@@ -37,7 +37,7 @@ public class ClassSpellService {
 
         DndClass dndClass = dndClassRepository.findByClassName(normalizedClassName);
         if (dndClass == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Class not found");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Classe não encontrada");
         }
 
         dndClass.addAvailableSpell(spell);

@@ -37,7 +37,7 @@ public class Encyclopedia {
 
     public Encyclopedia(Campaign campaign) {
         if (campaign == null) {
-            throw new IllegalArgumentException("Encyclopedia campaign is required");
+            throw new IllegalArgumentException("Falta a campanha da enciclopédia");
         }
         this.id = UUID.randomUUID();
         this.campaign = campaign;

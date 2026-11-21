@@ -136,7 +136,7 @@ public class CampaignTransferService {
     @Transactional
     public CampaignExport export(UUID campaignId, boolean includeImages, String username) {
         Campaign campaign = campaignRepository.findById(campaignId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Campaign not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Campanha não encontrada"));
         masterGuard.requireMaster(username, campaign);
 
         List<CampaignExport.WorldData> worlds = worldRepository.findByCampaignOrderByName(campaign).stream()
@@ -292,7 +292,7 @@ public class CampaignTransferService {
     @Transactional
     public CampaignImportResponse importCampaign(CampaignExport data, String username) {
         if (data == null || data.name() == null || data.name().isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "This is not a Customizr campaign export");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Isso não é uma exportação de campanha do Customizr");
         }
         currentCampaign.remove();
         if (data.formatVersion() > CampaignExport.FORMAT_VERSION) {
@@ -306,7 +306,7 @@ public class CampaignTransferService {
         for (String code : nullSafe(data.sourceCodes())) {
             sourceRepository.getSourceByCode(code).ifPresentOrElse(
                     source -> campaignSourceRepository.save(new CampaignSourceConfig(campaign, source, true)),
-                    () -> warnings.add("Source " + code + " does not exist on this server"));
+                    () -> warnings.add("Source " + code + " não existe neste servidor"));
         }
 
         // imagens primeiro: os enderecos /image/{id antigo} sao trocados pelos novos
@@ -358,7 +358,7 @@ public class CampaignTransferService {
                 Optional<Source> source = sourceRepository.getSourceByCode(n.statBlock().source());
                 source.flatMap(s -> monsterRepository.findByNameAndSource_Id(n.statBlock().name(), s.getId()))
                         .ifPresentOrElse(npc::useStatBlock,
-                                () -> warnings.add("NPC " + n.name() + ": monster " + n.statBlock().name() + " not found"));
+                                () -> warnings.add("NPC " + n.name() + ": monstro " + n.statBlock().name() + " não encontrado"));
             }
             restoreInventory(n.inventory(), Inventory.forNpc(npc), warnings);
             references.put(ReferenceType.NPC + ":" + n.name(), npc);
@@ -379,7 +379,7 @@ public class CampaignTransferService {
         for (CampaignExport.CharacterData d : nullSafe(data.characters())) {
             Character character = characterRepository.save(new Character(d.name(), campaign, master));
             if (!master.getName().equals(d.ownerName())) {
-                warnings.add("Character " + d.name() + " belonged to " + d.ownerName() + "; it is yours now");
+                warnings.add("Character " + d.name() + " era de " + d.ownerName() + "; agora é sua");
             }
             Sheet sheet = character.getSheet();
             if (d.attributes() != null && d.attributes().length == 6) {
@@ -389,7 +389,7 @@ public class CampaignTransferService {
             for (CampaignExport.ClassData cd : nullSafe(d.classes())) {
                 Optional<DndClass> dndClass = dndClassRepository.findByClassNameAndSourceCode(cd.className(), cd.sourceCode());
                 if (dndClass.isEmpty()) {
-                    warnings.add(d.name() + ": class " + cd.className() + " (" + cd.sourceCode() + ") not found");
+                    warnings.add(d.name() + ": classe " + cd.className() + " (" + cd.sourceCode() + ") não encontrado");
                     continue;
                 }
                 CharacterClass cc = sheet.addClass(dndClass.get(), cd.level());
@@ -413,7 +413,7 @@ public class CampaignTransferService {
                 sourceRepository.getSourceByCode(f.source())
                         .flatMap(s -> featRepository.findByNameAndSource_Id(f.name(), s.getId()))
                         .ifPresentOrElse(feat -> sheet.addCatalogFeat(feat, Math.max(1, sheet.getTotalLevel()), null),
-                                () -> warnings.add(d.name() + ": feat " + f.name() + " not found"));
+                                () -> warnings.add(d.name() + ": talento " + f.name() + " não encontrado"));
             }
             if (Boolean.TRUE.equals(d.heroicInspiration())) sheet.changeHeroicInspiration(true);
             if (d.story() != null) {
@@ -440,7 +440,7 @@ public class CampaignTransferService {
                     var created = sheet.addCustomResource(r.name(), r.maxUses(), recharge, r.notes());
                     if (r.used() > 0) sheet.spendResource(created.getId().toString(), Math.min(r.used(), r.maxUses()));
                 } catch (IllegalArgumentException | IllegalStateException ex) {
-                    warnings.add(d.name() + ": resource " + r.name() + " skipped (" + ex.getMessage() + ")");
+                    warnings.add(d.name() + ": recurso " + r.name() + " skipped (" + ex.getMessage() + ")");
                 }
             }
             restoreInventory(d.inventory(), Inventory.forCharacter(character), warnings);
@@ -488,12 +488,12 @@ public class CampaignTransferService {
         }
         for (CampaignExport.ObjectData o : nullSafe(data.objects())) {
             ImageAsset image = imageOf(url.apply(o.imageUrl()), campaign);
-            if (image == null) { warnings.add("Object " + o.name() + ": image not found (export with images)"); continue; }
+            if (image == null) { warnings.add("Object " + o.name() + ": imagem não encontrada (exporte com as imagens)"); continue; }
             mapObjectRepository.save(new top.customizr.system.model.MapObject(campaign, o.name(), image, o.widthCells(), o.heightCells(), o.layer()));
         }
         for (CampaignExport.IconData i : nullSafe(data.icons())) {
             ImageAsset image = imageOf(url.apply(i.imageUrl()), campaign);
-            if (image == null) { warnings.add("Icon " + i.label() + ": image not found (export with images)"); continue; }
+            if (image == null) { warnings.add("Icon " + i.label() + ": imagem não encontrada (exporte com as imagens)"); continue; }
             try {
                 iconRepository.save(new top.customizr.system.model.CampaignIcon(campaign, i.key(), i.label(), image));
             } catch (IllegalArgumentException ex) {
@@ -504,7 +504,7 @@ public class CampaignTransferService {
             var shop = new top.customizr.system.model.Shop(campaign, sd.name(), sd.description(), sd.open(), sd.buyBackPercent());
             for (CampaignExport.ShopItemData it : nullSafe(sd.items())) {
                 catalogItem(it.item()).ifPresentOrElse(item -> shop.addItem(item, it.priceGp(), it.stock()),
-                        () -> warnings.add("Shop " + sd.name() + ": item " + it.item().name() + " not found"));
+                        () -> warnings.add("Shop " + sd.name() + ": item " + it.item().name() + " não encontrado"));
             }
             shopRepository.save(shop);
         }
@@ -512,7 +512,7 @@ public class CampaignTransferService {
             var loot = new top.customizr.system.model.Loot(campaign, ld.name(), ld.moneyGp(), ld.visible());
             for (CampaignExport.LootItemData it : nullSafe(ld.items())) {
                 catalogItem(it.item()).ifPresentOrElse(item -> loot.addItem(item, it.quantity()),
-                        () -> warnings.add("Loot " + ld.name() + ": item " + it.item().name() + " not found"));
+                        () -> warnings.add("Loot " + ld.name() + ": item " + it.item().name() + " não encontrado"));
             }
             lootRepository.save(loot);
         }
@@ -521,7 +521,7 @@ public class CampaignTransferService {
                     itemPriceRepository.save(new top.customizr.system.model.CampaignItemPrice(campaign, item, pd.priceGp())));
         }
         if (scenes > 0 || !customMonsters.isEmpty()) {
-            warnings.add(scenes + " scene(s) and " + customMonsters.size() + " custom monster(s) restored");
+            warnings.add(scenes + " cena(s) e " + customMonsters.size() + " monstro(s) próprio(s) restaurado(s)");
         }
 
         currentCampaign.remove();
@@ -566,9 +566,9 @@ public class CampaignTransferService {
                 monster = CampaignExport.HOMEBREW.equals(td.monster().source()) ? customMonsters.get(td.monster().name())
                         : sourceRepository.getSourceByCode(td.monster().source())
                         .flatMap(s -> monsterRepository.findByNameAndSource_Id(td.monster().name(), s.getId())).orElse(null);
-                if (monster == null) warnings.add("Token " + td.name() + ": monster " + td.monster().name() + " not found");
+                if (monster == null) warnings.add("Token " + td.name() + ": monstro " + td.monster().name() + " não encontrado");
             }
-            if (td.characterName() != null && character == null) warnings.add("Token " + td.name() + ": character not found");
+            if (td.characterName() != null && character == null) warnings.add("Token " + td.name() + ": personagem não encontrado");
             Token token = scene.addToken(td.name(), td.x(), td.y(), Math.max(1, Math.min(10, td.sizeCells())), url.apply(td.imageUrl()),
                     td.hidden(), character, npc, monster);
             token.update(token.getName(), token.getSizeCells(), token.getImageUrl(), td.hidden(), td.rotation());
@@ -627,10 +627,10 @@ public class CampaignTransferService {
         Origin(CampaignExport.CharacterData d, List<String> warnings) {
             this.species = d.species() == null ? null : sourceRepository.getSourceByCode(d.species().source())
                     .flatMap(s -> speciesRepository.findByNameAndSource_Id(d.species().name(), s.getId()))
-                    .orElseGet(() -> { warnings.add(d.name() + ": species " + d.species().name() + " not found"); return null; });
+                    .orElseGet(() -> { warnings.add(d.name() + ": species " + d.species().name() + " não encontrado"); return null; });
             this.background = d.background() == null ? null : sourceRepository.getSourceByCode(d.background().source())
                     .flatMap(s -> backgroundRepository.findByNameAndSource_Id(d.background().name(), s.getId()))
-                    .orElseGet(() -> { warnings.add(d.name() + ": background " + d.background().name() + " not found"); return null; });
+                    .orElseGet(() -> { warnings.add(d.name() + ": background " + d.background().name() + " não encontrado"); return null; });
         }
     }
 
@@ -649,7 +649,7 @@ public class CampaignTransferService {
         for (CampaignExport.ItemData item : nullSafe(data.items())) {
             Optional<Item> found = findItem(item.name(), item.source());
             if (found.isPresent() && item.quantity() > 0) inventory.addItem(found.get(), item.quantity());
-            else warnings.add("Item " + item.name() + " (" + item.source() + ") not found");
+            else warnings.add("Item " + item.name() + " (" + item.source() + ") não encontrado");
         }
         inventoryRepository.save(inventory);
     }

@@ -73,42 +73,42 @@ public class CharacterClass {
     public void setLevel(int level) {
         validateLevel(level);
         if (subclassChosenAtLevel != null && level < subclassChosenAtLevel) {
-            throw new IllegalArgumentException("Class level cannot be lower than the subclass selection level");
+            throw new IllegalArgumentException("O nível da classe não pode ficar abaixo do nível em que a subclasse foi escolhida");
         }
         if (featureSelections.stream().anyMatch(selection -> selection.getLevel() > level)) {
-            throw new IllegalArgumentException("Class level cannot be lower than a selected feature's level");
+            throw new IllegalArgumentException("O nível da classe não pode ficar abaixo do nível de uma característica escolhida");
         }
         this.level = level;
     }
 
     public void prepareSpell(Spell spell) {
         if (spell == null || !dndClass.getAvailableSpells().contains(spell)) {
-            throw new IllegalArgumentException("Spell is not available to this class");
+            throw new IllegalArgumentException("Essa magia não está disponível pra esta classe");
         }
         if (!preparedSpells.add(spell)) {
-            throw new IllegalArgumentException("Spell is already prepared");
+            throw new IllegalArgumentException("Essa magia já está preparada");
         }
     }
 
     public void unprepareSpell(UUID spellId) {
         if (spellId == null || !preparedSpells.removeIf(spell -> spellId.equals(spell.getSpellId()))) {
-            throw new IllegalArgumentException("Spell is not prepared");
+            throw new IllegalArgumentException("Essa magia não está preparada");
         }
     }
 
     public void chooseSubclass(Subclass subclass, int chosenAtLevel) {
         if (this.subclass != null) {
-            throw new IllegalStateException("A subclass has already been chosen for this class");
+            throw new IllegalStateException("Esta classe já tem subclasse escolhida");
         }
         if (!dndClass.getClassId().equals(subclass.getDndClass().getClassId())) {
-            throw new IllegalArgumentException("Subclass does not belong to this class");
+            throw new IllegalArgumentException("Essa subclasse não é desta classe");
         }
         validateLevel(chosenAtLevel);
         if (chosenAtLevel < subclass.getUnlockLevel()) {
-            throw new IllegalArgumentException("Subclass cannot be chosen before its unlock level");
+            throw new IllegalArgumentException("A subclasse não pode ser escolhida antes do nível em que ela libera");
         }
         if (chosenAtLevel > level) {
-            throw new IllegalArgumentException("Subclass cannot be chosen above the character's class level");
+            throw new IllegalArgumentException("A subclasse não pode ser escolhida acima do nível do personagem na classe");
         }
         this.subclass = subclass;
         this.subclassChosenAtLevel = chosenAtLevel;
@@ -117,28 +117,28 @@ public class CharacterClass {
     public CharacterFeatureSelection selectFeature(Feature feature, int selectedAtLevel) {
         validateLevel(selectedAtLevel);
         if (selectedAtLevel > level) {
-            throw new IllegalArgumentException("Feature cannot be selected above the character's class level");
+            throw new IllegalArgumentException("A característica não pode ser escolhida acima do nível do personagem na classe");
         }
         if (feature.getType() == FeatureType.AUTOMATIC) {
-            throw new IllegalArgumentException("Automatic features are granted by level and cannot be selected");
+            throw new IllegalArgumentException("Características automáticas vêm com o nível e não precisam ser escolhidas");
         }
         if (featureSelections.stream().anyMatch(selection ->
                 selection.getFeature().getFeatureId().equals(feature.getFeatureId()))) {
-            throw new IllegalArgumentException("Feature has already been selected");
+            throw new IllegalArgumentException("Essa característica já foi escolhida");
         }
 
         FeatureOffer offer = findFeatureOffer(feature, selectedAtLevel);
         if (offer == null) {
-            throw new IllegalArgumentException("Feature is not offered by this class at the selected level");
+            throw new IllegalArgumentException("Esta classe não oferece essa característica nesse nível");
         }
         if (feature.getType() == FeatureType.CHOICE
                 && (offer.choiceGroup() == null || offer.choiceGroup().isBlank())) {
-            throw new IllegalArgumentException("Choice features must belong to a choice group");
+            throw new IllegalArgumentException("Características de escolha precisam pertencer a um grupo de escolha");
         }
         if (offer.choiceGroup() != null && featureSelections.stream().anyMatch(selection ->
                 offer.choiceGroup().equals(selection.getChoiceGroup())
                         && offer.level() == selection.getOfferedAtLevel())) {
-            throw new IllegalArgumentException("A feature has already been selected from this choice group");
+            throw new IllegalArgumentException("Já foi escolhida uma característica deste grupo");
         }
 
         CharacterFeatureSelection selection = new CharacterFeatureSelection(
@@ -172,7 +172,7 @@ public class CharacterClass {
 
     private void validateLevel(int level) {
         if (level < 1 || level > 20) {
-            throw new IllegalArgumentException("Class level must be between 1 and 20");
+            throw new IllegalArgumentException("O nível da classe vai de 1 a 20");
         }
     }
 }

@@ -94,7 +94,7 @@ public class SpellController {
 
     private Duration toDuration(SpellCreationRequest request) {
         if (request.duration() == null) {
-            throw badRequest("duration is required");
+            throw badRequest("Falta informar a duração");
         }
         try {
             return request.duration().toModel();
@@ -105,14 +105,14 @@ public class SpellController {
 
     private <T extends Enum<T>> T parseEnum(Class<T> enumType, String value, String field) {
         if (value == null || value.isBlank()) {
-            throw badRequest(field + " is required");
+            throw badRequest(field + " é obrigatório");
         }
         for (T constant : enumType.getEnumConstants()) {
             if (constant.name().equalsIgnoreCase(value.trim())) {
                 return constant;
             }
         }
-        throw badRequest("Invalid " + field);
+        throw badRequest("Inválido: " + field);
     }
 
     private ResponseStatusException badRequest(String message) {

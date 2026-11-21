@@ -228,13 +228,13 @@ public class WorldService {
         Campaign campaign = findCampaign(campaignId);
         masterGuard.requireMaster(username, campaign);
         if (root == null || !root.path("pack").isObject()) {
-            throw badRequest("This is not an Azgaar JSON. In the generator: Menu > Export > JSON > Full");
+            throw badRequest("Isso não é um JSON do Azgaar. No gerador: Menu > Export > JSON > Full");
         }
         int perCountry = maxCitiesPerCountry == null ? DEFAULT_CITIES_PER_COUNTRY : Math.max(1, Math.min(500, maxCitiesPerCountry));
         double width = root.path("info").path("width").asDouble(0);
         double height = root.path("info").path("height").asDouble(0);
         if (width <= 0 || height <= 0) {
-            throw badRequest("The Azgaar JSON has no map size (info.width / info.height)");
+            throw badRequest("O JSON do Azgaar não tem o tamanho do mapa (info.width / info.height)");
         }
         double populationRate = root.path("settings").path("populationRate").asDouble(1000);
         double urbanization = root.path("settings").path("urbanization").asDouble(1);
@@ -312,34 +312,34 @@ public class WorldService {
 
     private void requireBody(Object request) {
         if (request == null) {
-            throw badRequest("Request body is required");
+            throw badRequest("Falta o corpo da requisição");
         }
     }
 
     private Campaign findCampaign(UUID campaignId) {
-        if (campaignId == null) throw badRequest("Campaign ID is required");
+        if (campaignId == null) throw badRequest("Falta o id da campanha");
         return campaignRepository.findById(campaignId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Campaign not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Campanha não encontrada"));
     }
 
     private World findWorld(UUID id) {
         return worldRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "World not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Mundo não encontrado"));
     }
 
     private Country findCountry(UUID id) {
         return countryRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Country not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "País não encontrado"));
     }
 
     private City findCity(UUID id) {
         return cityRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "City not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Cidade não encontrada"));
     }
 
     private Point findPoint(UUID id) {
         return pointRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Point not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Ponto não encontrado"));
     }
 
     private ResponseStatusException badRequest(String message) {
