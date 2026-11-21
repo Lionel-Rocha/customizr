@@ -373,7 +373,8 @@ public class Main extends Application {
         });
         logEntries.add(LogEntry.system("Mesa \"" + mesaService.getName()
                 + "\" aberta. Crie uma cena ou uma ficha para começar."));
-        if (compendiumService.getCompendium().getEntries().isEmpty()) {
+        if (compendiumService.getCompendium().getEntries().isEmpty() && history.isEmpty()) {
+            // so na primeira vez que a mesa abre (depois disso o historico do chat ja tem a dica)
             logEntries.add(LogEntry.system("Dica: compêndio vazio. Fichas > Abrir compêndio > \"Carregar conteúdo 2024 pronto\"."));
         }
     }
@@ -1025,7 +1026,7 @@ public class Main extends Application {
 
         Button hint = new Button("Atalhos (F1)");
         hint.getStyleClass().add("button-flat");
-        hint.setStyle("-fx-font-size: 11px;");
+        hint.setStyle("-fx-font-size: 12px;");
         hint.setOnAction(e -> showShortcuts());
         hint.setTooltip(new Tooltip("Alt+clique = ping, Ctrl+Z desfaz, Shift+arrastar = selecionar varios..."));
 

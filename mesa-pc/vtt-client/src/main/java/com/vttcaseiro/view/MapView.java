@@ -1834,7 +1834,7 @@ public class MapView extends Pane {
                 + "Sísmico: sente quem está no chão (altura 0), até atrás de parede.");
         help.setWrapText(true);
         help.setMaxWidth(430);
-        help.setStyle("-fx-font-size: 11px; -fx-opacity: 0.8;");
+        help.setStyle("-fx-font-size: 12px; -fx-opacity: 0.8;");
         grid.add(help, 0, row, 3, 1);
         dialog.getDialogPane().setContent(grid);
         dialog.getDialogPane().getButtonTypes().addAll(javafx.scene.control.ButtonType.OK,

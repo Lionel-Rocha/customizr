@@ -92,7 +92,7 @@ public class MesaSelectorView {
             folder.getStyleClass().add("label-muted");
             folder.setWrapText(true);
             folder.setMaxWidth(270);
-            folder.setStyle("-fx-font-size: 11px; -fx-text-alignment: center;");
+            folder.setStyle("-fx-font-size: 12px; -fx-text-alignment: center;");
             Button change = new Button("Trocar pasta...");
             change.getStyleClass().add("button-flat");
             change.setOnAction(e -> chooseBaseFolder());
@@ -182,7 +182,7 @@ public class MesaSelectorView {
                 n.getStyleClass().add("mesa-name");
                 Label when = new Label(lastUsed(baseFolder.resolve(item)));
                 when.getStyleClass().add("label-muted");
-                when.setStyle("-fx-font-size: 11px;");
+                when.setStyle("-fx-font-size: 12px;");
                 HBox row = new HBox(10, Icons.icon("map", 18), new VBox(1, n, when));
                 row.setAlignment(Pos.CENTER_LEFT);
                 setText(null);

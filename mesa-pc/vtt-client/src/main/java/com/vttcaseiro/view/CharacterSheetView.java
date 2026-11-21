@@ -322,7 +322,7 @@ public class CharacterSheetView {
     private static Label savedLabel() {
         Label l = new Label("✓ Salvo");
         l.getStyleClass().add("label-muted");
-        l.setStyle("-fx-font-size: 11px;");
+        l.setStyle("-fx-font-size: 12px;");
         l.setTooltip(new Tooltip("A ficha salva sozinha logo depois de cada mudança."));
         return l;
     }
@@ -551,7 +551,7 @@ public class CharacterSheetView {
                 || java.util.Arrays.stream(Ability.values()).anyMatch(a -> sheet.getSkillBonusFor(a) != 0);
         CheckBox showExtras = new CheckBox("Bônus extras");
         showExtras.setMinWidth(Region.USE_PREF_SIZE);
-        showExtras.setStyle("-fx-font-size: 11px;");
+        showExtras.setStyle("-fx-font-size: 12px;");
         showExtras.setTooltip(new Tooltip("Bônus extra em todas as perícias, todas as salvaguardas ou nas perícias de um atributo"
                 + " (itens mágicos, bênçãos...)."));
         showExtras.setSelected(anyExtra);
@@ -793,9 +793,9 @@ public class CharacterSheetView {
         Node abilities = buildAbilitiesTab();
         Node combat = buildCombatTab();
         if (combat instanceof Region r) {
-            r.setMinWidth(330);
-            r.setPrefWidth(360);
-            r.setMaxWidth(380);
+            r.setMinWidth(350);
+            r.setPrefWidth(380);
+            r.setMaxWidth(400);
         }
         // esquerda: atributos, ataques e recursos; direita: combate; embaixo, de ponta a ponta: condicoes e efeitos
         VBox left = new VBox(12, abilities, sectionLabel("ARMAS E TRUQUES DE DANO"), buildAttacksTable(), buildResourcesCard());
@@ -1890,7 +1890,7 @@ public class CharacterSheetView {
         }
         Label dragHint = new Label("arraste p/ o mapa");
         dragHint.getStyleClass().add("label-muted");
-        dragHint.setStyle("-fx-font-size: 10px;");
+        dragHint.setStyle("-fx-font-size: 11px;");
         portraitBox.getChildren().add(dragHint);
     }
 
@@ -1984,6 +1984,10 @@ public class CharacterSheetView {
     private static HBox row(Node... children) {
         HBox box = new HBox(6, children);
         box.setAlignment(Pos.CENTER_LEFT);
+        // rotulos curtos nunca encolhem pra "..." (quem cede espaco sao os campos)
+        for (Node n : children) {
+            if (n instanceof Label l && !l.isWrapText()) l.setMinWidth(Region.USE_PREF_SIZE);
+        }
         return box;
     }
 

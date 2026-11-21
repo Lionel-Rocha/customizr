@@ -21,7 +21,7 @@
     -fx-background-color: #1B1411;
     -fx-text-fill: #F6E9D3;
     -fx-font-family: "Segoe UI", sans-serif;
-    -fx-font-size: 13px;
+    -fx-font-size: 14px;
     -fx-accent: #E8A23E;
     -fx-focus-color: #E8A23E;
     -fx-faint-focus-color: #E8A23E22;
@@ -162,7 +162,7 @@
 }
 .tab .tab-label {
     -fx-text-fill: #B09A82;
-    -fx-font-size: 11px;
+    -fx-font-size: 12px;
 }
 .tab:selected .tab-label {
     -fx-text-fill: #FFCF7F;
@@ -252,7 +252,7 @@
 }
 .chat-entry-meta {
     -fx-text-fill: #7D6A58;
-    -fx-font-size: 10px;
+    -fx-font-size: 11px;
 }
 
 /* ---------- Dialogos ---------- */
@@ -311,7 +311,7 @@
     -fx-text-fill: #F6E9D3;
     -fx-border-color: #E8A23E;
     -fx-border-width: 1;
-    -fx-font-size: 11px;
+    -fx-font-size: 12px;
 }
 
 /* ---------- Separador visual entre secoes de um painel ---------- */
@@ -548,7 +548,7 @@
 }
 .tool-group-label {
     -fx-text-fill: #E8A23E;
-    -fx-font-size: 10px;
+    -fx-font-size: 11px;
     -fx-font-weight: bold;
     -fx-padding: 0 4 0 6;
 }
@@ -630,11 +630,11 @@
 }
 .chat-entry-system .chat-entry-text {
     -fx-text-fill: #BBA58C;
-    -fx-font-size: 11px;
+    -fx-font-size: 12px;
 }
 .chat-entry-meta {
     -fx-text-fill: #9A8571;
-    -fx-font-size: 10px;
+    -fx-font-size: 11px;
     -fx-font-weight: bold;
 }
 .chat-input {
@@ -671,7 +671,7 @@
 }
 .stat-chip-label {
     -fx-text-fill: #B09A82;
-    -fx-font-size: 10px;
+    -fx-font-size: 11px;
     -fx-font-weight: bold;
 }
 .stat-chip-value {
@@ -940,7 +940,7 @@
     -fx-alignment: center;
 }
 .roll-chip {
-    -fx-font-size: 11px;
+    -fx-font-size: 12px;
     -fx-padding: 2 8 2 8;
     -fx-background-radius: 10;
     -fx-border-radius: 10;
@@ -1013,7 +1013,7 @@
     -fx-background-color: transparent;
     -fx-border-color: transparent;
     -fx-text-fill: #B09A82;
-    -fx-font-size: 11px;
+    -fx-font-size: 12px;
     -fx-padding: 9 2 9 2;
     -fx-graphic-text-gap: 4;
     -fx-background-radius: 8;
@@ -1048,12 +1048,12 @@
     -fx-text-fill: #B09A82;
 }
 .side-panel .label-section {
-    -fx-font-size: 11px;
+    -fx-font-size: 12px;
     -fx-padding: 8 0 0 0;
 }
 .hint-toggle {
     -fx-text-fill: #8C7A66;
-    -fx-font-size: 11px;
+    -fx-font-size: 12px;
     -fx-padding: 0 0 2 0;
 }
 .hint-toggle:hover {
@@ -1066,7 +1066,7 @@
 
 .chat-panel .chip {
     -fx-padding: 3 9 3 9;
-    -fx-font-size: 11px;
+    -fx-font-size: 12px;
 }
 .chat-panel {
     -fx-border-color: transparent transparent transparent #45342A;
@@ -1087,7 +1087,7 @@
 
 .chat-panel .chip.chip-dice {
     -fx-padding: 3 6 3 6;
-    -fx-font-size: 11px;
+    -fx-font-size: 12px;
 }
 
 /* icone azul padrao (?) destoa do tema: some nas perguntas e avisos simples; erro e alerta continuam com icone */

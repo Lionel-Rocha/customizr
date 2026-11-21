@@ -56,5 +56,8 @@ class OfficialClassesImportTest {
         // gravou na mesa: abrir de novo traz tudo
         assertEquals(2, new ClassImportService(mesa).getClasses().get(0).getSubclasses().size());
         assertEquals(0, service.importOfficial(files::get).subclasses(), "de novo nao duplica");
+        // abrir a mesa outra vez (servico novo, mesmos arquivos): nada novo, entao o chat nao recebe aviso
+        assertFalse(new ClassImportService(mesa).importOfficial(files::get).changedSomething(),
+                "reabrir a mesa nao repete o aviso de classes");
     }
 }

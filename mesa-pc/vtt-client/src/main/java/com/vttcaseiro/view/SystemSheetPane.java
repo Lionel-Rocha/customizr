@@ -163,7 +163,7 @@ public class SystemSheetPane extends VBox {
     private static VBox labeled(String label, Node field) {
         Label l = new Label(label);
         l.getStyleClass().add("label-muted");
-        l.setStyle("-fx-font-size: 11px;");
+        l.setStyle("-fx-font-size: 12px;");
         return new VBox(2, l, field);
     }
 
@@ -292,7 +292,7 @@ public class SystemSheetPane extends VBox {
         def.setStyle("-fx-font-size: 18px; -fx-font-weight: bold;");
         Label hint = new Label();
         hint.getStyleClass().add("label-muted");
-        hint.setStyle("-fx-font-size: 11px;");
+        hint.setStyle("-fx-font-size: 12px;");
         updaters.add(() -> hint.setText("sugerida: " + system.suggestedDefense(sheet) + " + armadura"));
         VBox box = new VBox(3, title, def, hint);
         box.getStyleClass().add("attr-card");

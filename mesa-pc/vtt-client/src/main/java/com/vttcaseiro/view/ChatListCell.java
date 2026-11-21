@@ -256,7 +256,7 @@ public class ChatListCell extends ListCell<LogEntry> {
     private static Label badge(String text, String color) {
         Label l = new Label(text);
         l.setStyle("-fx-background-color: " + color + "; -fx-text-fill: white; -fx-font-weight: bold;"
-                + " -fx-font-size: 10px; -fx-padding: 1 6 1 6; -fx-background-radius: 8;");
+                + " -fx-font-size: 11px; -fx-padding: 1 6 1 6; -fx-background-radius: 8;");
         return l;
     }
 
