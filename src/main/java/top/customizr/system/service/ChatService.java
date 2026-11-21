@@ -103,7 +103,7 @@ public class ChatService {
         requireCampaignMember(campaign, author);
         String speaker = speakerName(campaign, author, characterId);
         String content = InlineRolls.sanitize(label + ": " + roll.detail()
-                + (roll.isCriticalHit() ? " (CRITICAL!)" : roll.isCriticalFail() ? " (critical fail)" : "")
+                + (roll.isCriticalHit() ? " (CRÍTICO!)" : roll.isCriticalFail() ? " (falha crítica)" : "")
                 + (extra == null ? "" : extra));
         ChatMessage message = new ChatMessage(campaign, author, speaker, ChatMessageType.ROLL,
                 content.length() > 3900 ? content.substring(0, 3900) : content, null, roll);
@@ -152,7 +152,7 @@ public class ChatService {
             String label = space < 0 ? "" : rest.substring(space + 1).strip();
             RollResult roll = DiceRoller.roll(expression);
             String content = (label.isEmpty() ? "" : label + ": ") + roll.detail()
-                    + (roll.isCriticalHit() ? " (CRITICAL!)" : roll.isCriticalFail() ? " (critical fail)" : "");
+                    + (roll.isCriticalHit() ? " (CRÍTICO!)" : roll.isCriticalFail() ? " (falha crítica)" : "");
             return new ChatMessage(campaign, author, speaker, ChatMessageType.ROLL, content, null, roll);
         }
         if (lower.startsWith("/me ")) {

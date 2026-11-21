@@ -115,7 +115,7 @@ public class LiveCombatService {
             int cover = attacker.getScene().coverBetween(attacker, target);
             if (cover < 0) throw badRequest("Total cover: there is no clear line to " + target.getName());
             if (cover > 0) {
-                notes.add((cover == 2 ? "Half cover" : "Three-quarters cover") + " (+" + cover + " AC)");
+                notes.add((cover == 2 ? "Meia cobertura" : "Cobertura de três quartos") + " (+" + cover + " na CA)");
                 if (targetAc != null) targetAc += cover;
             }
         }
@@ -128,7 +128,7 @@ public class LiveCombatService {
             int up = Math.abs(attacker.elevation() - target.elevation());
             if (flat != null) {
                 long total = Math.round(Math.hypot(flat, up) / 5.0) * 5;
-                notes.add("Distance " + total + " ft (" + up + " ft height difference)");
+                notes.add("Distância " + total + " pés (" + up + " pés de diferença de altura)");
             }
         }
 
@@ -172,7 +172,7 @@ public class LiveCombatService {
                 damageRoll = action.damage() == null ? null : DiceRoller.roll(action.damage());
                 hit = null;
                 outcome = null;
-                notes.add("DC " + action.saveDc() + (action.saveAbility() == null ? "" : " " + action.saveAbility()) + " save");
+                notes.add("CD " + action.saveDc() + " salvaguarda" + (action.saveAbility() == null ? "" : " de " + TextoPt.ability(action.saveAbility())));
             }
         }
 
@@ -183,15 +183,15 @@ public class LiveCombatService {
         }
 
         // token oculto atacando: o chat nao entrega quem e
-        String label = (attacker.isHiddenFromPlayers() ? "Unseen creature" : attacker.getName()) + (target == null ? "" : " -> " + target.getName()) + ": " + attackName
-                + (damageType == null ? "" : " (" + damageType + ")");
+        String label = (attacker.isHiddenFromPlayers() ? "Criatura oculta" : attacker.getName()) + (target == null ? "" : " -> " + target.getName()) + ": " + attackName
+                + (damageType == null ? "" : " (" + TextoPt.damageType(damageType) + ")");
         RollResult shown = attackRoll != null ? attackRoll : damageRoll;
         UUID chatId = null;
         if (shown != null) {
-            String extra = (attackRoll != null && damageRoll != null ? " | damage: " + damageRoll.detail() : "")
-                    + (hit == null ? "" : hit ? " | HIT" : " | MISS")
-                    + (outcome == null ? "" : " | " + outcome)
-                    + (applied == null ? "" : " | -" + applied + " HP")
+            String extra = (attackRoll != null && damageRoll != null ? " | dano: " + damageRoll.detail() : "")
+                    + TextoPt.hitText(hit)
+                    + (outcome == null ? "" : " | " + TextoPt.outcome(outcome))
+                    + (applied == null ? "" : " | -" + applied + " PV")
                     + (notes.isEmpty() ? "" : " (" + String.join("; ", notes) + ")");
             chatId = chatService.postRoll(attacker.getScene().getCampaign().getId(),
                     attacker.getCharacter() == null ? null : attacker.getCharacter().getCharacterId(),
@@ -216,7 +216,7 @@ public class LiveCombatService {
                             request.heroicInspiration()), username);
         }
         MonsterRoll rolled = monsterRoll(token, request);
-        String speaker = token.isHiddenFromPlayers() ? "Unseen creature" : token.getName();
+        String speaker = token.isHiddenFromPlayers() ? "Criatura oculta" : token.getName();
         String extra = (rolled.outcome() == null ? "" : " | " + rolled.outcome())
                 + (rolled.notes().isEmpty() ? "" : " (" + String.join("; ", rolled.notes()) + ")");
         UUID chatId = chatService.postRoll(token.getScene().getCampaign().getId(), null, speaker + " - " + rolled.label(),
@@ -241,20 +241,20 @@ public class LiveCombatService {
             case SKILL -> {
                 Skill skill = request.skill();
                 if (skill == null) throw badRequest("Skill is required");
-                label = skill.getLabel();
+                label = TextoPt.skill(skill);
                 Integer written = writtenBonus(stats.getSkills(), skill.getLabel());
                 bonus = written != null ? written : Attributes.modifierOf(score(stats, skill.getAbility()));
                 mode = poisonedCheck(mode, conditions, notes);
             }
             case ABILITY -> {
                 AbilityScore ability = requireAbility(request.ability());
-                label = capitalize(ability.getKey()) + " check";
+                label = "Teste de " + TextoPt.ability(ability);
                 bonus = Attributes.modifierOf(score(stats, ability));
                 mode = poisonedCheck(mode, conditions, notes);
             }
             case SAVE -> {
                 AbilityScore ability = requireAbility(request.ability());
-                label = capitalize(ability.getKey()) + " save";
+                label = "Salvaguarda de " + TextoPt.ability(ability);
                 Integer written = writtenBonus(stats.getSavingThrows(), ability.getKey().substring(0, 3));
                 bonus = written != null ? written : Attributes.modifierOf(score(stats, ability));
                 boolean strDex = ability == AbilityScore.STRENGTH || ability == AbilityScore.DEXTERITY;
@@ -262,15 +262,15 @@ public class LiveCombatService {
                         Condition.STUNNED, Condition.UNCONSCIOUS));
                 if (strDex && !failing.isEmpty()) {
                     outcome = "AUTOMATIC_FAILURE";
-                    notes.add("Automatic failure: " + failing);
+                    notes.add("Falha automática: " + failing);
                 }
                 if (ability == AbilityScore.DEXTERITY && conditions.contains(Condition.RESTRAINED)) {
-                    notes.add("Disadvantage: restrained");
+                    notes.add("Desvantagem: restringido");
                     mode = combine(mode, RollMode.DISADVANTAGE);
                 }
             }
             case INITIATIVE -> {
-                label = "Initiative";
+                label = "Iniciativa";
                 bonus = Attributes.modifierOf(stats.getDexterity());
             }
             default -> throw badRequest("Monsters don't make death saves");
@@ -396,7 +396,7 @@ public class LiveCombatService {
 
     private static RollMode poisonedCheck(RollMode mode, Set<Condition> conditions, List<String> notes) {
         if (!conditions.contains(Condition.POISONED)) return mode;
-        notes.add("Disadvantage: poisoned");
+        notes.add("Desvantagem: envenenado");
         return combine(mode, RollMode.DISADVANTAGE);
     }
 
@@ -460,30 +460,30 @@ public class LiveCombatService {
             String type = damageType.toLowerCase(Locale.ROOT);
             if (mentions(stats.getDamageImmunities(), type)) {
                 finalAmount = 0;
-                notes.add(target.getName() + " is immune to " + type);
+                notes.add(target.getName() + " é imune a " + TextoPt.damageType(type));
             } else if (mentions(stats.getDamageResistances(), type)) {
                 finalAmount = amount / 2;
-                notes.add(target.getName() + " resists " + type);
+                notes.add(target.getName() + " resiste a " + TextoPt.damageType(type));
             } else if (mentions(stats.getDamageVulnerabilities(), type)) {
                 finalAmount = amount * 2;
-                notes.add(target.getName() + " is vulnerable to " + type);
+                notes.add(target.getName() + " é vulnerável a " + TextoPt.damageType(type));
             }
         }
         try {
             if (target.getCharacter() != null) {
                 target.getCharacter().getSheet().applyDamage(finalAmount);
                 liveTable.characterChanged(target.getCharacter());
-                if (target.getCharacter().getSheet().getHpCurrent() == 0) notes.add(target.getName() + " drops to 0 HP");
+                if (target.getCharacter().getSheet().getHpCurrent() == 0) notes.add(target.getName() + " cai a 0 PV");
             } else if (target.getHpCurrent() != null) {
                 target.damage(finalAmount);
                 liveTable.broadcastTokenChange(target);
-                if (target.getHpCurrent() == 0) notes.add(target.getName() + " drops to 0 HP");
+                if (target.getHpCurrent() == 0) notes.add(target.getName() + " cai a 0 PV");
             } else {
-                notes.add(target.getName() + " has no HP to track");
+                notes.add(target.getName() + " não tem PV anotado");
                 return null;
             }
         } catch (IllegalStateException ex) {
-            notes.add(target.getName() + " has no HP to track");
+            notes.add(target.getName() + " não tem PV anotado");
             return null;
         }
         concentration.afterDamage(target, finalAmount, username).ifPresent(c -> notes.add(c.note()));
@@ -497,13 +497,13 @@ public class LiveCombatService {
     private static RollMode withAttackerConditions(RollMode mode, Token attacker, List<String> notes) {
         String found = names(attacker.activeConditions(), ATTACKER_DISADVANTAGE);
         if (found.isEmpty()) return mode;
-        notes.add("Disadvantage: " + found);
+        notes.add("Desvantagem: " + found);
         return combine(mode, RollMode.DISADVANTAGE);
     }
 
     private static RollMode withInvisibleAttacker(RollMode mode, Token attacker, List<String> notes) {
         if (!attacker.activeConditions().contains(Condition.INVISIBLE)) return mode;
-        notes.add("Advantage: attacker invisible");
+        notes.add("Vantagem: atacante invisível");
         return combine(mode, RollMode.ADVANTAGE);
     }
 
@@ -514,15 +514,15 @@ public class LiveCombatService {
         Set<Condition> conditions = target.activeConditions();
         String helps = names(conditions, TARGET_GRANTS_ADVANTAGE);
         if (!helps.isEmpty()) {
-            notes.add("Advantage: target " + helps);
+            notes.add("Vantagem: alvo " + helps);
             mode = combine(mode, RollMode.ADVANTAGE);
         }
         if (conditions.contains(Condition.PRONE) && melee != null) {
-            notes.add((melee ? "Advantage" : "Disadvantage") + ": target prone");
+            notes.add((melee ? "Vantagem" : "Desvantagem") + ": alvo caído");
             mode = combine(mode, melee ? RollMode.ADVANTAGE : RollMode.DISADVANTAGE);
         }
         if (conditions.contains(Condition.INVISIBLE)) {
-            notes.add("Disadvantage: target invisible");
+            notes.add("Desvantagem: alvo invisível");
             mode = combine(mode, RollMode.DISADVANTAGE);
         }
         return mode;
@@ -536,8 +536,7 @@ public class LiveCombatService {
     }
 
     private static String names(Set<Condition> conditions, Set<Condition> filter) {
-        return conditions.stream().filter(filter::contains).map(c -> c.name().toLowerCase(Locale.ROOT)).sorted()
-                .reduce((x, y) -> x + ", " + y).orElse("");
+        return TextoPt.conditions(conditions, filter);
     }
 
     private static String d20(RollMode mode) {

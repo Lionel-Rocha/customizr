@@ -128,7 +128,7 @@ class FullSheetTests {
         SheetRollResponse check = sheetService.roll(aria,
                 new SheetRollRequest(SheetRollRequest.RollKind.SKILL, Skill.STEALTH, null, RollMode.NORMAL, false), player);
         assertTrue(check.roll().expression().startsWith("2d20kl1"), "envenenado = desvantagem");
-        assertTrue(check.notes().contains("Exhaustion 2: -4"));
+        assertTrue(check.notes().contains("Exaustão 2: -4"));
 
         SheetRollResponse both = sheetService.roll(aria,
                 new SheetRollRequest(SheetRollRequest.RollKind.SKILL, Skill.STEALTH, null, RollMode.ADVANTAGE, false), player);
@@ -200,7 +200,7 @@ class FullSheetTests {
         }
         ChatMessageResponse card = chatService.history(campaign.getId(), null, null, master).getLast();
         assertEquals("Aria", card.speakerName());
-        assertTrue(card.content().startsWith("Aria - Rapier (piercing): 1d20["));
+        assertTrue(card.content().startsWith("Aria - Rapier (perfurante): 1d20["), card.content());
 
         assertThrows(ResponseStatusException.class, () -> sheetService.addAttack(aria,
                 new AttackRequest("Bad", 1, "banana", null, null), player));

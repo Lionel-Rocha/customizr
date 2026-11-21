@@ -94,7 +94,7 @@ class OtherProficienciesTests {
         SheetRollResponse without = sheetService.roll(hero, new SheetRollRequest(SheetRollRequest.RollKind.TOOL, null,
                 AbilityScore.DEXTERITY, null, false, null, "Lute"), master);
         assertTrue(without.roll().expression().endsWith("+3"));
-        assertTrue(without.notes().contains("Not proficient with Lute"));
+        assertTrue(without.notes().contains("Sem proficiência com Lute"));
 
         var details = sheetService.updateProficiencies(hero, new ProficienciesRequest(Set.of(Skill.INSIGHT), null, null), master).details();
         assertEquals(10 + 2 + 2, details.passiveInsight(), "SAB +2 + proficiencia");

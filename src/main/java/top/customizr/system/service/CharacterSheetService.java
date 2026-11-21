@@ -292,7 +292,7 @@ public class CharacterSheetService {
     private void useInspiration(Sheet sheet, Boolean requested, List<String> notes) {
         if (!Boolean.TRUE.equals(requested)) return;
         valid(() -> { sheet.useHeroicInspiration(); return null; });
-        notes.add("Heroic Inspiration: reroll");
+        notes.add("Inspiração Heroica: rolou de novo");
     }
 
     @Transactional
@@ -390,28 +390,28 @@ public class CharacterSheetService {
         switch (request.kind()) {
             case SKILL -> {
                 Skill skill = require(request.skill(), "Skill");
-                label = skill.getLabel();
+                label = TextoPt.skill(skill);
                 bonus = sheet.skillBonus(skill);
                 mode = withConditions(mode, sheet, DISADVANTAGE_ON_CHECKS, notes);
             }
             case ABILITY -> {
                 AbilityScore ability = require(request.ability(), "Ability");
-                label = name(ability) + " check";
+                label = "Teste de " + name(ability);
                 bonus = sheet.abilityModifier(ability);
                 mode = withConditions(mode, sheet, DISADVANTAGE_ON_CHECKS, notes);
             }
             case SAVE -> {
                 AbilityScore ability = require(request.ability(), "Ability");
-                label = name(ability) + " saving throw";
+                label = "Salvaguarda de " + name(ability);
                 bonus = sheet.savingThrowBonus(ability);
                 if ((ability == AbilityScore.STRENGTH || ability == AbilityScore.DEXTERITY)
                         && sheet.getConditions().stream().anyMatch(FAIL_STR_DEX_SAVES::contains)) {
                     outcome = "AUTOMATIC_FAILURE";
-                    notes.add("Fails Strength and Dexterity saving throws (" + conditionNames(sheet, FAIL_STR_DEX_SAVES) + ")");
+                    notes.add("Falha automática em salvaguardas de Força e Destreza (" + conditionNames(sheet, FAIL_STR_DEX_SAVES) + ")");
                 }
                 if (ability == AbilityScore.DEXTERITY && sheet.getConditions().contains(Condition.RESTRAINED)) {
                     mode = combine(mode, RollMode.DISADVANTAGE);
-                    notes.add("Disadvantage: restrained");
+                    notes.add("Desvantagem: restringido");
                 }
             }
             case TOOL -> {
@@ -420,11 +420,11 @@ public class CharacterSheetService {
                 boolean proficient = sheet.isProficientWithTool(tool);
                 label = tool + " (" + name(ability) + ")";
                 bonus = sheet.abilityModifier(ability) + (proficient ? sheet.getProficiencyBonus() : 0);
-                if (!proficient) notes.add("Not proficient with " + tool);
+                if (!proficient) notes.add("Sem proficiência com " + tool);
                 mode = withConditions(mode, sheet, DISADVANTAGE_ON_CHECKS, notes);
             }
             case INITIATIVE -> {
-                label = "Initiative";
+                label = "Iniciativa";
                 bonus = sheet.getInitiative();
             }
             case DEATH_SAVE -> {
@@ -434,13 +434,13 @@ public class CharacterSheetService {
                 }
                 RollResult d20 = DiceRoller.roll("1d20");
                 Sheet.DeathSaveOutcome result = valid(() -> sheet.deathSave(d20.naturalD20()));
-                return finish(character, "Death saving throw", d20, null, null, result.name(), notes, request.toChat(), username);
+                return finish(character, "Teste contra a morte", d20, null, null, result.name(), notes, request.toChat(), username);
             }
             default -> throw badRequest("Unknown roll kind");
         }
         useInspiration(sheet, request.heroicInspiration(), notes);
         int penalty = sheet.getD20Penalty();
-        if (penalty > 0) notes.add("Exhaustion " + sheet.getExhaustion() + ": -" + penalty);
+        if (penalty > 0) notes.add("Exaustão " + sheet.getExhaustion() + ": -" + penalty);
         RollResult roll = DiceRoller.roll(d20(mode) + signed(bonus - penalty));
         return finish(character, label, roll, null, null, outcome, notes, request.toChat(), username);
     }
@@ -457,7 +457,7 @@ public class CharacterSheetService {
                 sheet, DISADVANTAGE_ON_ATTACKS, notes);
         useInspiration(sheet, request == null ? null : request.heroicInspiration(), notes);
         int penalty = sheet.getD20Penalty();
-        if (penalty > 0) notes.add("Exhaustion " + sheet.getExhaustion() + ": -" + penalty);
+        if (penalty > 0) notes.add("Exaustão " + sheet.getExhaustion() + ": -" + penalty);
         RollResult hit = DiceRoller.roll(d20(mode) + signed(attack.getAttackBonus() - penalty));
         boolean critical = hit.isCriticalHit();
         RollResult damage = hit.isCriticalFail() ? null
@@ -467,7 +467,7 @@ public class CharacterSheetService {
             hits = !hit.isCriticalFail() && (critical || hit.total() >= request.targetArmorClass());
         }
         String outcome = critical ? "CRITICAL_HIT" : hit.isCriticalFail() ? "CRITICAL_MISS" : null;
-        return finish(character, attack.getName() + (attack.getDamageType() == null ? "" : " (" + attack.getDamageType() + ")"),
+        return finish(character, attack.getName() + (attack.getDamageType() == null ? "" : " (" + TextoPt.damageType(attack.getDamageType()) + ")"),
                 hit, damage, hits, outcome, notes, request != null ? request.toChat() : null, username);
     }
 
@@ -476,9 +476,9 @@ public class CharacterSheetService {
         String fullLabel = character.getName() + " - " + label;
         UUID messageId = null;
         if (Boolean.TRUE.equals(toChat)) {
-            String extra = (damage == null ? "" : " | damage: " + damage.detail())
-                    + (hit == null ? "" : hit ? " | HIT" : " | MISS")
-                    + (outcome == null ? "" : " | " + outcome)
+            String extra = (damage == null ? "" : " | dano: " + damage.detail())
+                    + TextoPt.hitText(hit)
+                    + (outcome == null ? "" : " | " + TextoPt.outcome(outcome))
                     + (notes.isEmpty() ? "" : " (" + String.join("; ", notes) + ")");
             messageId = chatService.postRoll(character.getCampaign().getId(), character.getCharacterId(),
                     fullLabel, roll, extra, username).id();
@@ -489,7 +489,7 @@ public class CharacterSheetService {
     private static RollMode withConditions(RollMode mode, Sheet sheet, Set<Condition> causes, List<String> notes) {
         String found = conditionNames(sheet, causes);
         if (found.isEmpty()) return mode;
-        notes.add("Disadvantage: " + found);
+        notes.add("Desvantagem: " + found);
         return combine(mode, RollMode.DISADVANTAGE);
     }
 
@@ -501,8 +501,7 @@ public class CharacterSheetService {
     }
 
     private static String conditionNames(Sheet sheet, Set<Condition> causes) {
-        return sheet.getConditions().stream().filter(causes::contains)
-                .map(c -> c.name().toLowerCase()).sorted().reduce((x, y) -> x + ", " + y).orElse("");
+        return TextoPt.conditions(sheet.getConditions(), causes);
     }
 
     private static String d20(RollMode mode) {
@@ -518,8 +517,7 @@ public class CharacterSheetService {
     }
 
     private static String name(AbilityScore ability) {
-        String n = ability.name().toLowerCase();
-        return java.lang.Character.toUpperCase(n.charAt(0)) + n.substring(1);
+        return TextoPt.ability(ability);
     }
 
     // ------------------------------------------------------------------ utilitarios

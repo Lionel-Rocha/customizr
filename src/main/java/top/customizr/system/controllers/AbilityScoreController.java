@@ -62,7 +62,7 @@ public class AbilityScoreController {
             for (AbilityScoreGenerator.RolledScore s : rolls) {
                 if (!detail.isEmpty()) detail.append(" | ");
                 detail.append(s.total()).append(" ").append(s.kept());
-                if (!s.dropped().isEmpty()) detail.append(" (dropped ").append(s.dropped()).append(")");
+                if (!s.dropped().isEmpty()) detail.append(" (fora ").append(s.dropped()).append(")");
             }
             messageId = chatService.postRoll(r.campaignId(), r.characterId(), "Ability scores (" + method + ")",
                     new RollResult(method, total, detail + " = " + scores, null), null, loggedUser.getUsername()).id();

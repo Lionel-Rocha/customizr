@@ -1013,7 +1013,7 @@ function addChat(m) {
  */
 function damageOf(m) {
   if (m.type !== 'ROLL') return null;
-  const hit = /damage:[^|]*?=\s*(\d+)/i.exec(m.content || '');
+  const hit = /(?:dano|damage):[^|]*?=\s*(\d+)/i.exec(m.content || '');
   if (hit) return /\| MISS/.test(m.content) ? null : Number(hit[1]);
   if (m.naturalD20 != null || /concentration|save|check|initiative/i.test(m.content || '')) return null;
   return m.rollTotal != null && m.rollTotal > 0 ? m.rollTotal : null;

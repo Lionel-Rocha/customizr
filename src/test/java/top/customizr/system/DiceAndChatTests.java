@@ -72,7 +72,7 @@ class DiceAndChatTests {
         RollResult r = DiceRoller.roll("4d6kh3 + 2", sides -> values[next.getAndIncrement()]);
 
         assertEquals(17, r.total(), "6 + 5 + 4 (fora o 1) + 2");
-        assertTrue(r.detail().contains("dropped: 1"));
+        assertTrue(r.detail().contains("fora: 1"), r.detail());
 
         RollResult crit = DiceRoller.roll("1d20+5", sides -> 20);
         assertEquals(25, crit.total());

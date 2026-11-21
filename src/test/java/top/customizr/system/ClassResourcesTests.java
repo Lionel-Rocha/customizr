@@ -145,7 +145,7 @@ class ClassResourcesTests {
 
         var reroll = sheetService.roll(hero, new SheetRollRequest(SheetRollRequest.RollKind.SKILL, Skill.ATHLETICS,
                 null, null, false, true), player);
-        assertTrue(reroll.notes().contains("Heroic Inspiration: reroll"));
+        assertTrue(reroll.notes().contains("Inspiração Heroica: rolou de novo"));
         assertFalse(sheet(hero).details().heroicInspiration());
         assertThrows(ResponseStatusException.class, () -> sheetService.roll(hero, new SheetRollRequest(
                 SheetRollRequest.RollKind.SKILL, Skill.ATHLETICS, null, null, false, true), player), "ja gastou");

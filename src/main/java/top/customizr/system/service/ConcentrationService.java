@@ -52,8 +52,8 @@ public class ConcentrationService {
     /** Resultado pra quem aplicou o dano anotar (ex.: nas notas do ataque). */
     public record Check(String tokenName, int dc, Integer total, boolean kept, String reason) {
         public String note() {
-            return kept ? tokenName + " keeps concentration (" + total + " vs DC " + dc + ")"
-                    : tokenName + " loses concentration" + (reason == null ? " (" + total + " vs DC " + dc + ")" : " (" + reason + ")");
+            return kept ? tokenName + " mantém a concentração (" + total + " contra CD " + dc + ")"
+                    : tokenName + " perde a concentração" + (reason == null ? " (" + total + " contra CD " + dc + ")" : " (" + reason + ")");
         }
     }
 
@@ -68,9 +68,9 @@ public class ConcentrationService {
         if (damage <= 0 || token.getMarkers().stream().noneMatch(ConcentrationService::isConcentration)) return Optional.empty();
         int dc = Math.min(30, Math.max(10, damage / 2));
         Integer hp = token.getCharacter() != null ? token.getCharacter().getSheet().getHpCurrent() : token.getHpCurrent();
-        String broken = hp != null && hp == 0 ? "dropped to 0 HP"
-                : token.activeConditions().stream().anyMatch(BREAKS::contains) ? "incapacitated" : null;
-        String speaker = token.isHiddenFromPlayers() ? "Unseen creature" : token.getName();
+        String broken = hp != null && hp == 0 ? "caiu a 0 PV"
+                : token.activeConditions().stream().anyMatch(BREAKS::contains) ? "incapacitado" : null;
+        String speaker = token.isHiddenFromPlayers() ? "Criatura oculta" : token.getName();
         Check check;
         RollResult roll = null;
         if (broken != null) {
@@ -84,10 +84,10 @@ public class ConcentrationService {
             liveTable.broadcastTokenChange(token);
         }
         UUID characterId = token.getCharacter() == null ? null : token.getCharacter().getCharacterId();
-        String label = speaker + " - Concentration (DC " + dc + ")";
+        String label = speaker + " - Concentração (CD " + dc + ")";
         if (roll != null) {
             chatService.postRoll(token.getScene().getCampaign().getId(), characterId, label, roll,
-                    check.kept() ? " | KEPT" : " | LOST", username);
+                    check.kept() ? " | MANTEVE" : " | PERDEU", username);
         } else {
             chatService.postCard(token.getScene().getCampaign().getId(), characterId, label, check.note(), username);
         }

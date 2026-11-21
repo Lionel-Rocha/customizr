@@ -86,7 +86,7 @@ class ConcentrationTests {
         constitution(30); // +10: nunca falha contra CD 10
         combat.changeHitPoints(hero.id(), damage(4), master);
         assertTrue(hasConcentration(hero.id()), "CD 10, rolou pelo menos 11");
-        assertTrue(lastChat().contains("Concentration (DC 10)") && lastChat().contains("KEPT"), lastChat());
+        assertTrue(lastChat().contains("Concentração (CD 10)") && lastChat().contains("MANTEVE"), lastChat());
     }
 
     @Test
@@ -94,7 +94,7 @@ class ConcentrationTests {
         constitution(1); // -5: nunca chega a CD 30
         combat.changeHitPoints(hero.id(), damage(60), master);
         assertTrue(!hasConcentration(hero.id()), "CD 30 (metade de 60)");
-        assertTrue(lastChat().contains("LOST"), lastChat());
+        assertTrue(lastChat().contains("PERDEU"), lastChat());
     }
 
     @Test
@@ -112,7 +112,7 @@ class ConcentrationTests {
         concentrate(goblin.id(), master);
         combat.changeHitPoints(goblin.id(), damage(50), master);
         assertTrue(!hasConcentration(goblin.id()));
-        assertTrue(lastChat().contains("dropped to 0 HP"), lastChat());
+        assertTrue(lastChat().contains("caiu a 0 PV"), lastChat());
     }
 
     @Test

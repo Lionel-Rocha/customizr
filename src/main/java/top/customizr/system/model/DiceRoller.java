@@ -95,7 +95,7 @@ public final class DiceRoller {
                 firstDice = false;
                 anyDice = true;
                 total += negative ? -subtotal : subtotal;
-                if (!droppedText.isEmpty()) keptText.append(" (dropped: ").append(droppedText).append(")");
+                if (!droppedText.isEmpty()) keptText.append(" (fora: ").append(droppedText).append(")");
                 parts.add(prefix + count + "d" + sides + (keepMode == null ? "" : keepMode + keep) + "[" + keptText + "]");
             } else if (NUMBER.matcher(term).matches()) {
                 int value = Integer.parseInt(term);

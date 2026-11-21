@@ -138,7 +138,7 @@ class LiveCombatTests {
 
         combat.updateConditions(hero.id(), new ConditionsRequest(Set.of(Condition.UNCONSCIOUS), null), master);
         TokenAttackResponse onSleeper = combat.attack(goblin.id(), new TokenAttackRequest(scimitar, hero.id(), null, false), master);
-        assertTrue(onSleeper.notes().contains("Advantage: target unconscious"));
+        assertTrue(onSleeper.notes().contains("Vantagem: alvo inconsciente"));
         assertTrue(onSleeper.attackRoll().expression().startsWith("2d20kh1"));
     }
 

@@ -215,7 +215,7 @@ class ExportLightAndCoverTests {
         var goblinToken = scene.getTokens().stream().filter(t -> t.getId().equals(goblin.id())).findFirst().orElseThrow();
         assertEquals(2, scene.coverBetween(heroToken, goblinToken));
         var attack = combat.attack(hero.id(), new TokenAttackRequest(swordId.toString(), goblin.id(), null, false), ana);
-        assertTrue(attack.notes().contains("Half cover (+2 AC)"), attack.notes().toString());
+        assertTrue(attack.notes().contains("Meia cobertura (+2 na CA)"), attack.notes().toString());
 
         // parede inteira entre os dois -> cobertura total, o ataque nao passa
         live.addWalls(sceneId, new WallRequest(List.of(new WallRequest.Segment(140, -10, 140, 500, null))), master);
