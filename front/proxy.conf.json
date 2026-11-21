@@ -1,0 +1,86 @@
+{
+  "/api": {
+    "target": "http://localhost:8080",
+    "secure": false
+  },
+  "/user": {
+    "target": "http://localhost:8080",
+    "secure": false
+  },
+  "/campaign": {
+    "target": "http://localhost:8080",
+    "secure": false
+  },
+  "/live": {
+    "target": "http://localhost:8080",
+    "secure": false
+  },
+  "/chat": {
+    "target": "http://localhost:8080",
+    "secure": false
+  },
+  "/character": {
+    "target": "http://localhost:8080",
+    "secure": false
+  },
+  "/image": {
+    "target": "http://localhost:8080",
+    "secure": false
+  },
+  "/party": {
+    "target": "http://localhost:8080",
+    "secure": false
+  },
+  "/monster": {
+    "target": "http://localhost:8080",
+    "secure": false
+  },
+  "/item": {
+    "target": "http://localhost:8080",
+    "secure": false
+  },
+  "/spell": {
+    "target": "http://localhost:8080",
+    "secure": false
+  },
+  "/class": {
+    "target": "http://localhost:8080",
+    "secure": false
+  },
+  "/source": {
+    "target": "http://localhost:8080",
+    "secure": false
+  },
+  "/inventory": {
+    "target": "http://localhost:8080",
+    "secure": false
+  },
+  "/dice": {
+    "target": "http://localhost:8080",
+    "secure": false
+  },
+  "/npc": {
+    "target": "http://localhost:8080",
+    "secure": false
+  },
+  "/world": {
+    "target": "http://localhost:8080",
+    "secure": false
+  },
+  "/encyclopedia": {
+    "target": "http://localhost:8080",
+    "secure": false
+  },
+  "/content": {
+    "target": "http://localhost:8080",
+    "secure": false
+  },
+  "/shops": {
+    "target": "http://localhost:8080",
+    "secure": false
+  },
+  "/loot": {
+    "target": "http://localhost:8080",
+    "secure": false
+  }
+}

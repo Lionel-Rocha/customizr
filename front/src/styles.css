@@ -1,0 +1,9 @@
+/* Estilo global do site. As cores e os blocos vem de design/web/tokens.css e design/web/customizr.css
+   (os mesmos do programa de PC); aqui so o que e especifico do Angular. */
+app-root { display: block; height: 100%; }
+.erro { color: var(--c-danger-text); font-size: 13px; }
+.toast {
+  position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 50;
+  background: var(--c-surface); border: 1px solid var(--c-accent-55); border-radius: 8px; padding: 8px 14px;
+  box-shadow: 0 3px 12px #00000088;
+}

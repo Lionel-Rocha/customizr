@@ -1,0 +1,37 @@
+<div class="app">
+  <header class="top-bar">
+    <span class="top-bar-brand"><img src="img/customizr-64.png" width="24" height="24" alt="">Customizr</span>
+    <span class="spacer"></span>
+    <cz-theme-picker />
+    <span class="label-muted">{{ auth.me()?.name }}</span>
+    <button class="button button-flat" (click)="auth.logout()">Sair</button>
+  </header>
+
+  <main class="page">
+    <h1 class="label-title">Suas mesas</h1>
+    <p class="label-muted">Cada mesa é uma campanha. Clique pra entrar.</p>
+    @if (error()) { <div class="erro">{{ error() }}</div> }
+
+    <div class="grid">
+      @for (c of list() ?? []; track c.id) {
+        <button class="action-card" [class.primary]="isMaster(c)" (click)="open(c)">
+          <cz-icon name="map" [size]="22" />
+          <span>
+            <span class="title">{{ c.name }}</span><br>
+            <span class="desc">{{ isMaster(c) ? 'Você é o mestre' : 'Mestre: ' + (c.master?.name ?? '?') }} · código {{ c.code }}</span>
+          </span>
+        </button>
+      } @empty {
+        @if (list()) { <div class="panel-card label-muted">Você ainda não está em nenhuma mesa. Crie uma abaixo ou peça um convite ao mestre.</div> }
+      }
+    </div>
+
+    <form class="panel-card new" (ngSubmit)="create()">
+      <h2 class="label-section">Nova mesa</h2>
+      <div class="row">
+        <input type="text" name="newName" [(ngModel)]="newName" placeholder="Nome da campanha">
+        <button class="button button-primary" type="submit"><cz-icon name="add" /> Criar</button>
+      </div>
+    </form>
+  </main>
+</div>

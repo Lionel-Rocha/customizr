@@ -1,0 +1,21 @@
+<div class="screen-center">
+  <div class="login">
+    <img src="img/customizr-128.png" width="104" height="104" alt="">
+    <h1 class="hero-name">Customizr</h1>
+    <div class="hero-tagline">histórias em volta da fogueira</div>
+
+    <form class="panel-card" (ngSubmit)="submit()">
+      <h2 class="label-title">{{ creating() ? 'Criar conta' : 'Entrar' }}</h2>
+      <label>Usuário <input type="text" name="user" [(ngModel)]="user" autocomplete="username" required></label>
+      <label>Senha <input type="password" name="pass" [(ngModel)]="pass"
+             [attr.autocomplete]="creating() ? 'new-password' : 'current-password'" required></label>
+      @if (error()) { <div class="erro">{{ error() }}</div> }
+      <button class="button button-primary" type="submit" [disabled]="busy()">{{ creating() ? 'Criar e entrar' : 'Entrar' }}</button>
+      <button class="button button-flat" type="button" (click)="creating.set(!creating())">
+        {{ creating() ? 'Já tenho conta' : 'Criar uma conta' }}
+      </button>
+    </form>
+
+    <div class="theme"><span class="label-muted">Tema</span> <cz-theme-picker /></div>
+  </div>
+</div>

@@ -1,0 +1,123 @@
+<div class="app">
+  <header class="top-bar">
+    <span class="top-bar-brand"><img src="img/customizr-64.png" width="24" height="24" alt="">Customizr</span>
+    <span class="top-bar-sep">/</span>
+    <span class="top-bar-title">{{ campaign()?.name }}</span>
+    <span class="spacer"></span>
+    <cz-theme-picker />
+    <span class="status-pill" [class.status-pill-online]="live.online()">{{ live.online() ? 'Ao vivo' : 'Reconectando...' }}</span>
+    <button class="button button-flat" (click)="auth.logout()" title="Sair">Sair</button>
+  </header>
+
+  <div class="workspace" [class.panel-closed]="!open()">
+    <nav class="nav-rail">
+      @for (s of sections; track s.key) {
+        <button class="nav-rail-button" [class.selected]="open() === s.key" (click)="toggle(s.key)" [title]="s.label">
+          <cz-icon [name]="s.icon" [size]="20" />{{ s.label }}
+        </button>
+      }
+      <div class="grow"></div>
+      <a class="nav-rail-button" href="/mesas" title="Voltar pra lista de mesas"><cz-icon name="back" [size]="20" />Mesas</a>
+    </nav>
+
+    <aside class="side-panel">
+      <div class="side-panel-header">
+        <span class="side-panel-title">{{ openLabel() }}</span>
+        <button class="button button-flat" (click)="open.set(null)" title="Fechar o painel (o mapa fica maior)">✕</button>
+      </div>
+      <div class="side-panel-body">
+        @switch (open()) {
+          @case ('mapa') {
+            <section class="panel-card">
+              <h3 class="label-section">Cenas desta mesa</h3>
+              <div class="list-view" data-vazio="Nenhuma cena ainda (o mestre cria pelo programa ou pela /mesa).">
+                @for (s of scenes(); track s.id) {
+                  <div class="list-cell" [class.selected]="s.active">
+                    {{ s.name }} @if (s.active) { <span class="label-muted">· aberta</span> }
+                    @if (master() && !s.active) { <button class="chip open-btn" (click)="activate(s)">Abrir pra todos</button> }
+                  </div>
+                }
+              </div>
+            </section>
+          }
+          @case ('combate') {
+            <section class="panel-card">
+              <h2 class="label-title">{{ initiative().entries.length ? 'Rodada ' + initiative().round : 'Sem combate em andamento' }}</h2>
+              <div class="list-view" data-vazio="Ninguém na ordem ainda.">
+                @for (e of initiative().entries; track e.id; let i = $index) {
+                  <div class="list-cell" [class.selected]="current(i)"><b>{{ e.initiative }}</b>&nbsp; {{ e.name }}</div>
+                }
+              </div>
+              @if (master()) {
+                <div class="row">
+                  <button class="button button-primary" (click)="roll()">Rolar iniciativa</button>
+                  <button class="button button-primary" (click)="next()">Próximo turno</button>
+                  <button class="button" (click)="end()">Encerrar</button>
+                </div>
+              }
+            </section>
+          }
+          @default {
+            <section class="panel-card">
+              <p class="label-muted">Esta parte ainda vai chegar no site. Por enquanto ela existe no programa de PC e na tela /mesa.</p>
+            </section>
+          }
+        }
+      </div>
+    </aside>
+
+    <main class="map-area">
+      @if (scene(); as s) {
+        <div class="board" [style.width.px]="s.widthPx || 1400" [style.height.px]="s.heightPx || 1000"
+             [style.background-image]="mapImage() ? 'url(' + mapImage() + ')' : null"
+             [style.--grid]="s.gridSizePx + 'px'">
+          <div class="grid-lines" [class.no-map]="!mapImage()"></div>
+          @for (t of s.tokens; track t.id) {
+            <div class="token" [style.left.px]="t.x" [style.top.px]="t.y"
+                 [style.width.px]="s.gridSizePx * (t.widthCells || 1)" [style.height.px]="s.gridSizePx * (t.heightCells || 1)"
+                 [title]="t.name">
+              <span>{{ t.name.slice(0, 2) }}</span>
+            </div>
+          }
+        </div>
+        <div class="scene-name">{{ s.name }}</div>
+      } @else {
+        <div class="map-board"></div>
+        <div class="empty-state">
+          <img src="img/customizr-64.png" width="54" height="54" alt="">
+          <h2>Nenhuma cena aberta</h2>
+          <p class="label-muted">Quando o mestre abrir uma cena, ela aparece aqui pra todo mundo.</p>
+        </div>
+      }
+    </main>
+
+    <section class="chat-panel">
+      <h3 class="label-section">Chat</h3>
+      <div class="chat-list" #chatList>
+        @for (m of messages(); track m.id) {
+          @if (m.type === 'SYSTEM') {
+            <div class="chat-entry chat-entry-system"><div class="chat-entry-text">{{ m.content }}</div></div>
+          } @else {
+            <div class="chat-entry" [class.chat-entry-private]="m.type === 'WHISPER'">
+              <span class="bar" [class]="'bar ' + crit(m)" [class.private]="m.type === 'WHISPER'"></span>
+              <div class="body">
+                <div class="chat-entry-meta">{{ who(m) }}</div>
+                <div class="chat-entry-text">{{ m.content }}</div>
+                @if (m.rollTotal != null) { <span class="roll-total" [class]="'roll-total ' + crit(m)">{{ m.rollTotal }}</span> }
+              </div>
+            </div>
+          }
+        }
+      </div>
+      <div class="chat-dice">
+        @for (d of dice; track d) { <button class="chip chip-dice" (click)="rollDie(d)">{{ d }}</button> }
+      </div>
+      <form class="row" (ngSubmit)="send()">
+        <input class="chat-input" type="text" name="text" [(ngModel)]="text" placeholder="Mensagem ou /r 2d6+3">
+        <button class="button button-primary" type="submit">Enviar</button>
+      </form>
+    </section>
+  </div>
+
+  @if (toast()) { <div class="toast">{{ toast() }}</div> }
+</div>

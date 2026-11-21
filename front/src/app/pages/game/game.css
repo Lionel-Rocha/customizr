@@ -1,0 +1,31 @@
+.map-area { overflow: auto; }
+.board { position: relative; background-size: 100% 100%; background-color: var(--c-surface-1); margin: 16px; }
+.grid-lines {
+  position: absolute; inset: 0; pointer-events: none;
+  background-image: linear-gradient(to right, #ffffff40 1px, transparent 1px), linear-gradient(to bottom, #ffffff40 1px, transparent 1px);
+  background-size: var(--grid) var(--grid);
+}
+/* sem imagem de mapa: a grade usa a cor do texto do tema, transparente (aparece em qualquer um dos 7 temas) */
+.grid-lines.no-map {
+  --line: color-mix(in srgb, var(--c-text) 16%, transparent);
+  background-image: linear-gradient(to right, var(--line) 1px, transparent 1px), linear-gradient(to bottom, var(--line) 1px, transparent 1px);
+}
+.token {
+  position: absolute; border-radius: 50%; display: grid; place-items: center;
+  background: var(--c-raised); border: 2px solid var(--c-accent); color: var(--c-accent-text); font-weight: bold;
+  box-shadow: 0 2px 6px #00000088; text-transform: uppercase; font-size: 13px;
+}
+.scene-name {
+  position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+  background: var(--c-surface-glass); border: 1px solid var(--c-border); border-radius: 10px; padding: 3px 12px; font-weight: bold;
+}
+.list-cell { display: flex; align-items: center; gap: 6px; }
+.open-btn { margin-left: auto; }
+.chat-entry .body { min-width: 0; }
+.chat-entry-text { white-space: pre-wrap; word-break: break-word; }
+.bar.crit { background: var(--c-success); }
+.bar.fumble { background: var(--c-danger); }
+.bar.private { background: var(--c-private); }
+.roll-total.crit { color: var(--c-success); border-color: var(--c-success); }
+.roll-total.fumble { color: var(--c-danger); border-color: var(--c-danger); }
+a.nav-rail-button { text-decoration: none; }

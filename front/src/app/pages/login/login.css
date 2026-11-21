@@ -1,0 +1,5 @@
+.login { width: min(360px, 100%); display: flex; flex-direction: column; align-items: center; text-align: center; gap: 4px; }
+form { width: 100%; margin-top: 18px; text-align: left; }
+label { display: flex; flex-direction: column; gap: 4px; color: var(--c-muted); font-size: 13px; }
+form .button { justify-content: center; }
+.theme { margin-top: 18px; display: flex; gap: 8px; align-items: center; }

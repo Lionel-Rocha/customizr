@@ -101,6 +101,33 @@ public class GerarTokens {
                 + "    + `<path fill=\"currentColor\" d=\"${d}\"/></svg>`;\n"
                 + "}\n");
         Files.writeString(root.resolve("design/web/icones.js"), ic.toString(), StandardCharsets.UTF_8);
+        // Front em Angular (pasta front/): os mesmos temas e icones, em TypeScript
+        Path front = root.resolve("front/src/app/design");
+        if (Files.isDirectory(root.resolve("front/src/app"))) {
+            Files.createDirectories(front);
+            StringBuilder ts = new StringBuilder("// Gerado por design/GerarTokens.java a partir de design/tokens.properties. Nao edite aqui.\n"
+                    + "export interface Tema { chave: string; nome: string; }\n\nexport const TEMAS: Tema[] = [\n");
+            for (String t : cores.keySet()) ts.append("  { chave: '").append(t).append("', nome: '").append(p.getProperty(t + ".nome", t)).append("' },\n");
+            ts.append("];\n\nexport const TEMA_PADRAO = '").append(padrao).append("';\n");
+            Files.writeString(front.resolve("temas.ts"), ts.toString(), StandardCharsets.UTF_8);
+            String icTs = ic.toString()
+                    .replace("export const ICONES = {", "export const ICONES: Record<string, string> = {")
+                    .replace("export function icone(nome, tamanho = 16) {", "export function icone(nome: string, tamanho = 16): string {");
+            Files.writeString(front.resolve("icones.ts"), icTs, StandardCharsets.UTF_8);
+            // o Angular so aceita arquivos dentro da pasta dele: copia o kit (estilos) e o logo
+            Path kit = root.resolve("front/src/kit");
+            Files.createDirectories(kit);
+            String aviso = "/* COPIA gerada por design/GerarTokens.java. Edite em design/web/ e rode o gerador de novo. */\n";
+            for (String f : new String[]{"tokens.css", "customizr.css"}) {
+                Files.writeString(kit.resolve(f), aviso + Files.readString(root.resolve("design/web/" + f), StandardCharsets.UTF_8),
+                        StandardCharsets.UTF_8);
+            }
+            Path pub = root.resolve("front/public/img");
+            Files.createDirectories(pub);
+            for (String f : new String[]{"customizr-64.png", "customizr-128.png", "customizr-logo.png"}) {
+                Files.copy(fx.resolve("icons/" + f), pub.resolve(f), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            }
+        }
         // logo
         Files.createDirectories(root.resolve("design/web/img"));
         for (String f : new String[]{"customizr-64.png", "customizr-128.png", "customizr-logo.png"}) {
