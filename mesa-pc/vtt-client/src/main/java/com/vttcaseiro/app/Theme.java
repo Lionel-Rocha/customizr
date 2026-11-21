@@ -18,17 +18,17 @@ import java.util.Map;
  */
 public final class Theme {
     public static final String DEFAULT = "fogueira";
-    /** chave -> nome mostrado, na ordem do seletor. */
+    /** chave -> nome mostrado, na ordem do seletor (a chave fica igual: e o que esta salvo nas preferencias). */
     public static final Map<String, String> THEMES = new LinkedHashMap<>();
 
     static {
         THEMES.put("fogueira", "Fogueira (padrão)");
         THEMES.put("claro", "Claro");
         THEMES.put("escuro", "Escuro");
-        THEMES.put("gotico", "Gótico");
-        THEMES.put("scifi", "Sci-fi");
-        THEMES.put("cyberpunk", "Cyberpunk");
-        THEMES.put("apocalipse", "Apocalipse");
+        THEMES.put("gotico", "Ordem Paranormal");
+        THEMES.put("scifi", "Starfinder");
+        THEMES.put("cyberpunk", "Cyberpunk RED");
+        THEMES.put("apocalipse", "Apocalypse World");
     }
 
     private static boolean installed;
