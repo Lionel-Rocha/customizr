@@ -98,6 +98,10 @@ public class MesaSelectorView {
             change.setOnAction(e -> chooseBaseFolder());
             hero.getChildren().addAll(folder, change);
         }
+        Label themeLabel = new Label("Tema");
+        themeLabel.getStyleClass().add("label-muted");
+        javafx.scene.control.ComboBox<String> theme = com.vttcaseiro.app.Theme.picker();
+        hero.getChildren().add(new VBox(4, themeLabel, theme));
         return hero;
     }
 

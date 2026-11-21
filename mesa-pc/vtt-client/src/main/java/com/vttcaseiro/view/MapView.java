@@ -118,7 +118,7 @@ public class MapView extends Pane {
         measureLine.setStroke(Color.web("#E8A23E"));
         measureLine.setStrokeWidth(2);
         measureLine.setVisible(false);
-        measureLabel.setStyle("-fx-background-color: rgba(0,0,0,0.75); -fx-text-fill: #F6E9D3;"
+        measureLabel.setStyle("-fx-background-color: rgba(0,0,0,0.75); -fx-text-fill: -c-text;"
                 + " -fx-padding: 2 6 2 6; -fx-background-radius: 4;");
         measureLabel.setVisible(false);
         measureLabel.setMouseTransparent(true);
@@ -136,9 +136,11 @@ public class MapView extends Pane {
         content.getChildren().addAll(backgroundView, gridCanvas, objectLayer, drawingLayer, wallLayer, lightLayer, tokenLayer, visionLayer,
                 fogCanvas, pinLayer, fogPreview, measureLine, measureLabel, templateGroup);
         getChildren().add(content);
-        setStyle("-fx-background-color: #1B1411;");
+        setStyle("-fx-background-color: -c-bg;");
+        // trocou o tema: a cor de fundo muda e o tabuleiro e a grade acompanham
+        backgroundProperty().addListener((o, a, b) -> redrawGrid());
 
-        emptyStateLabel.setStyle("-fx-text-fill: #7D6A58; -fx-font-size: 14px; -fx-text-alignment: center;");
+        emptyStateLabel.setStyle("-fx-text-fill: -c-muted-4; -fx-font-size: 14px; -fx-text-alignment: center;");
         emptyStateLabel.setMouseTransparent(true);
         getChildren().add(emptyStateLabel);
         widthProperty().addListener((obs, oldV, newV) -> centerEmptyState());
@@ -808,7 +810,7 @@ public class MapView extends Pane {
         ping.getChildren().add(dot);
         if (who != null && !who.isBlank()) {
             Label name = new Label(who);
-            name.setStyle("-fx-background-color: rgba(0,0,0,0.75); -fx-text-fill: #FFCF7F; -fx-font-weight: bold;"
+            name.setStyle("-fx-background-color: rgba(0,0,0,0.75); -fx-text-fill: -c-accent-text; -fx-font-weight: bold;"
                     + " -fx-padding: 2 6 2 6; -fx-background-radius: 4;");
             name.setLayoutX(x + 10);
             name.setLayoutY(y - 28);
@@ -1232,7 +1234,7 @@ public class MapView extends Pane {
             marker.setOpacity(0.6);
         }
         Label label = new Label(pin.getTitle().isEmpty() ? "(sem nome)" : pin.getTitle());
-        label.setStyle("-fx-background-color: #1B1411D9; -fx-background-radius: 6; -fx-text-fill: #F6E9D3;"
+        label.setStyle("-fx-background-color: #1B1411D9; -fx-background-radius: 6; -fx-text-fill: -c-text;"
                 + " -fx-font-size: 12px; -fx-font-weight: bold; -fx-padding: 2 7 2 7;");
         label.setMouseTransparent(true);
         label.layoutBoundsProperty().addListener((o, a, b) -> {
@@ -1509,12 +1511,22 @@ public class MapView extends Pane {
         return gridCanvas.getHeight();
     }
 
+    /** Cor de fundo do tema atual (o -c-bg ja resolvido no proprio MapView). */
+    private Color themeBackground() {
+        javafx.scene.layout.Background b = getBackground();
+        if (b != null && !b.getFills().isEmpty() && b.getFills().get(0).getFill() instanceof Color c) return c;
+        return Color.web("#1B1411");
+    }
+
     public void redrawGrid() {
         applyMapSize();
         GraphicsContext gc = gridCanvas.getGraphicsContext2D();
         gc.clearRect(0, 0, gridCanvas.getWidth(), gridCanvas.getHeight());
+        Color themeBg = themeBackground();
+        boolean lightTheme = themeBg.getBrightness() > 0.6;
         if (backgroundView.getImage() == null) {
-            gc.setFill(Color.web("#261D18"));
+            // tabuleiro vazio: um tom acima do fundo do tema (no tema padrao da o mesmo #261D18 de antes)
+            gc.setFill(lightTheme ? themeBg.deriveColor(0, 1, 0.97, 1) : themeBg.deriveColor(0, 1, 1.4, 1));
             gc.fillRect(0, 0, gridCanvas.getWidth(), gridCanvas.getHeight());
         }
         if (!scene.getGrid().isVisible()) {
@@ -1526,7 +1538,8 @@ public class MapView extends Pane {
         }
         double w = gridCanvas.getWidth();
         double h = gridCanvas.getHeight();
-        gc.setStroke(Color.rgb(255, 255, 255, 0.35));
+        // grade clara no tema escuro, escura no tema claro (sobre imagem de mapa continua clara)
+        gc.setStroke(lightTheme && backgroundView.getImage() == null ? Color.rgb(0, 0, 0, 0.22) : Color.rgb(255, 255, 255, 0.35));
         gc.setLineWidth(1);
         if (scene.getGrid().isGridless()) return;
         if (scene.getGrid().isHex()) {
@@ -2473,7 +2486,7 @@ public class MapView extends Pane {
         shape.setMouseTransparent(true);
 
         Label sizeLabel = new Label(feetLabelFor(templateShapeType, dragDistance, dx, dy));
-        sizeLabel.setStyle("-fx-background-color: rgba(0,0,0,0.75); -fx-text-fill: #F6E9D3;"
+        sizeLabel.setStyle("-fx-background-color: rgba(0,0,0,0.75); -fx-text-fill: -c-text;"
                 + " -fx-padding: 2 6 2 6; -fx-background-radius: 4;");
         sizeLabel.setLayoutX(x2);
         sizeLabel.setLayoutY(y2 - 10);

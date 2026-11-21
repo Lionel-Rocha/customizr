@@ -246,6 +246,9 @@ class SheetCombatUiTest {
         mob.getSavingThrowBonuses().put("dex", 4);
         mob.getActions().add(new com.vttcaseiro.character.CharacterTrait("Cimitarra",
                 "Melee Weapon Attack: +4 to hit, reach 5 ft. Hit: 5 (1d6 + 2) slashing damage.", "action"));
+        mob.getTraits().add(new com.vttcaseiro.character.CharacterTrait("Fuga Ágil",
+                "O goblin pode Desengajar ou Esconder como ação bônus.", "trait"));
+        mob.getDamageImmunities().add("lightning");
         java.util.List<String> rolled = new ArrayList<>();
         com.vttcaseiro.view.MobSheetView.Actions actions = new com.vttcaseiro.view.MobSheetView.Actions() {
             @Override public void rollD20(String label, int modifier, com.vttcaseiro.character.RollKind kind,
@@ -272,6 +275,17 @@ class SheetCombatUiTest {
             Button save = (Button) find(root, n -> n instanceof Button b && b.getText() != null
                     && b.getText().startsWith("◆ Salvaguarda  +4")).get(0);
             save.fire();
+            // cada acao aparece de verdade: nome, texto e o acerto a vista (antes a lista ficava com altura zero)
+            root.applyCss();
+            ((javafx.scene.Parent) root).layout();
+            Label actionName = (Label) find(root, n -> n instanceof Label l && "Cimitarra".equals(l.getText())).get(0);
+            assertTrue(actionName.getHeight() > 0, "nome da acao visivel");
+            assertFalse(find(root, n -> n instanceof Label l && l.getText() != null && l.getText().startsWith("Melee Weapon Attack")
+                    && ((Label) n).getHeight() > 0).isEmpty(), "texto da acao visivel");
+            assertFalse(find(root, n -> n instanceof Label l && "+4 pra acertar".equals(l.getText())).isEmpty(), "acerto a vista");
+            assertFalse(find(root, n -> n instanceof Label l && "Fuga Ágil".equals(l.getText())).isEmpty(), "traco aparece");
+            assertFalse(find(root, n -> n instanceof Label l && l.getText() != null && l.getText().contains("Imunidade a dano: elétrico"))
+                    .isEmpty(), "imunidade em portugues");
             button(root, "Atacar").fire();
             for (javafx.stage.Window w : new ArrayList<>(javafx.stage.Window.getWindows())) if (w instanceof Stage s) s.close();
         });

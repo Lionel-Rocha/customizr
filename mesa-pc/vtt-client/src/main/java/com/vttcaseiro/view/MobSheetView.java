@@ -112,14 +112,14 @@ public class MobSheetView {
 
         root = new VBox(10);
         root.setPadding(new Insets(14));
-        root.setStyle("-fx-background-color: #1B1411;");
+        root.setStyle("-fx-background-color: -c-bg;");
         refresh();
 
         ScrollPane scroll = new ScrollPane(root);
         scroll.setFitToWidth(true);
-        scroll.setFitToHeight(true);
-        scroll.setStyle("-fx-background: #1B1411; -fx-background-color: #1B1411;");
-        Scene scene = new Scene(scroll, 520, 720);
+        // sem fitToHeight: com ele o conteudo era espremido na altura da janela e as listas de acoes sumiam
+        scroll.setStyle("-fx-background: -c-bg; -fx-background-color: -c-bg;");
+        Scene scene = new Scene(scroll, 600, 760);
         scene.getStylesheets().add(getClass().getResource("/style.css").toExternalForm());
         stage.setScene(scene);
         stage.show();
@@ -139,16 +139,16 @@ public class MobSheetView {
             root.getChildren().add(extrasLabel);
         }
         if (!mob.getTraits().isEmpty()) {
-            root.getChildren().add(sectionLabel("Traços (clique pra mandar ao chat)"));
-            root.getChildren().add(buildTraitList(mob.getTraits()));
+            root.getChildren().add(sectionLabel("Traços"));
+            root.getChildren().add(buildEntryCards(mob.getTraits(), false));
         }
         if (!mob.getActions().isEmpty()) {
             root.getChildren().add(sectionLabel("Ações"));
-            root.getChildren().add(buildActionBox(mob.getActions()));
+            root.getChildren().add(buildEntryCards(mob.getActions(), true));
         }
         if (!mob.getLegendaryActions().isEmpty()) {
-            root.getChildren().add(sectionLabel("Ações legendarias"));
-            root.getChildren().add(buildActionBox(mob.getLegendaryActions()));
+            root.getChildren().add(sectionLabel("Ações lendárias"));
+            root.getChildren().add(buildEntryCards(mob.getLegendaryActions(), true));
         }
         if (!mob.getLootInventory().getItems().isEmpty()) {
             root.getChildren().add(sectionLabel("Loot (ainda sem transferir pro grupo por aqui)"));
@@ -277,7 +277,7 @@ public class MobSheetView {
         Label title = new Label(fullName(a));
         title.getStyleClass().add("stat-chip-label");
         Label modLabel = new Label(signed(mod));
-        modLabel.setStyle("-fx-font-size: 22px; -fx-font-weight: bold; -fx-text-fill: #FFCF7F;");
+        modLabel.setStyle("-fx-font-size: 22px; -fx-font-weight: bold; -fx-text-fill: -c-accent-text;");
         Label scoreLabel = new Label(String.valueOf(score));
         scoreLabel.getStyleClass().add("label-muted");
         HBox top = new HBox(8, modLabel, scoreLabel);
@@ -436,53 +436,76 @@ public class MobSheetView {
     }
 
     /** Lista de acoes + botoes de rolar a selecionada (ataque/dano/critico). */
-    private Node buildActionBox(List<CharacterTrait> list) {
-        ListView<CharacterTrait> view = buildTraitList(list);
-        if (actions == null) return view;
-        view.setOnMouseClicked(null);
-        view.getSelectionModel().selectFirst();
-        view.setCellFactory(lv -> new ListCell<>() {
-            @Override
-            protected void updateItem(CharacterTrait t, boolean empty) {
-                super.updateItem(t, empty);
-                if (empty || t == null) {
-                    setText(null);
-                    return;
+    /**
+     * Um cartao por traco/acao: nome em destaque, acerto / CD / dano a vista, o texto inteiro e os botoes daquela acao
+     * (Atacar ou Rolar dano, e Chat). Antes era uma lista onde so o nome aparecia (e as vezes nem isso).
+     */
+    private Node buildEntryCards(List<CharacterTrait> list, boolean rollable) {
+        VBox box = new VBox(6);
+        for (CharacterTrait t : list) box.getChildren().add(entryCard(t, rollable));
+        return box;
+    }
+
+    private Node entryCard(CharacterTrait t, boolean rollable) {
+        Label name = new Label(t.getName() == null ? "(sem nome)" : t.getName());
+        name.setStyle("-fx-font-weight: bold; -fx-text-fill: -c-accent-text;");
+        name.setWrapText(true);
+        javafx.scene.layout.FlowPane head = new javafx.scene.layout.FlowPane(6, 4, name);
+        head.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+        String desc = t.getDescription() == null ? "" : t.getDescription();
+        var bonus = MobAttack.attackBonus(desc);
+        var dc = MobAttack.saveDc(desc);
+        var dmg = MobAttack.damage(desc);
+        String type = MobAttack.damageType(desc);
+        bonus.ifPresent(b -> head.getChildren().add(chip(signed(b) + " pra acertar")));
+        dc.ifPresent(d -> head.getChildren().add(chip("CD " + d)));
+        dmg.ifPresent(d -> head.getChildren().add(chip(d + (type == null ? ""
+                : " " + com.vttcaseiro.character.DamageTypes.namePt(type)))));
+        VBox card = new VBox(4, head);
+        if (!desc.isBlank()) {
+            Label text = new Label(desc);
+            text.setWrapText(true);
+            text.getStyleClass().add("label-muted");
+            text.setMinHeight(javafx.scene.layout.Region.USE_PREF_SIZE);
+            card.getChildren().add(text);
+        }
+        HBox buttons = new HBox(6);
+        if (actions != null && rollable && (bonus.isPresent() || dmg.isPresent())) {
+            Button roll = new Button(bonus.isPresent() ? "Atacar" : "Rolar dano");
+            roll.getStyleClass().add("button-primary");
+            roll.setTooltip(new javafx.scene.control.Tooltip("Acerto e dano juntos. Crítico (20) dobra os dados do dano; "
+                    + "falha crítica (1) não rola dano. Ação com CD rola só o dano."));
+            roll.setOnAction(e -> {
+                String typeText = type == null ? "" : " (" + com.vttcaseiro.character.DamageTypes.namePt(type) + ")";
+                if (bonus.isPresent()) {
+                    actions.attack(displayName + " - Ataque: " + t.getName(), bonus.getAsInt(),
+                            displayName + " - Dano: " + t.getName() + typeText, dmg.orElse(null), mode, hidden);
+                } else {
+                    rollDamage(t, false);
                 }
-                StringBuilder sb = new StringBuilder(t.getName());
-                MobAttack.attackBonus(t.getDescription()).ifPresent(b -> sb.append("   ").append(signed(b)));
-                MobAttack.saveDc(t.getDescription()).ifPresent(dc -> sb.append("   CD ").append(dc));
-                MobAttack.damage(t.getDescription()).ifPresent(d -> sb.append("   ").append(d));
-                setText(sb.toString());
-                setTooltip(new javafx.scene.control.Tooltip(t.getDescription()));
-            }
-        });
-        Button attack = new Button("Atacar");
-        attack.getStyleClass().add("button-primary");
-        attack.setTooltip(new javafx.scene.control.Tooltip("Acerto e dano juntos. Crítico (20) dobra os dados do dano; "
-                + "falha crítica (1) não rola dano. Ação com CD rola só o dano."));
-        attack.setOnAction(e -> {
-            CharacterTrait t = view.getSelectionModel().getSelectedItem();
-            if (t == null) return;
-            var bonus = MobAttack.attackBonus(t.getDescription());
-            String type = MobAttack.damageType(t.getDescription());
-            String typeText = type == null ? "" : " (" + com.vttcaseiro.character.DamageTypes.namePt(type) + ")";
-            String expr = MobAttack.damage(t.getDescription()).orElse(null);
-            if (bonus.isPresent()) {
-                actions.attack(displayName + " - Ataque: " + t.getName(), bonus.getAsInt(),
-                        displayName + " - Dano: " + t.getName() + typeText, expr, mode, hidden);
-            } else if (expr != null) {
-                rollDamage(t, false);
-            } else {
-                actions.chat(displayName + " usa " + t.toChatText());
-            }
-        });
-        Button chat = new Button("Mandar ao chat");
-        chat.setOnAction(e -> {
-            CharacterTrait t = view.getSelectionModel().getSelectedItem();
-            if (t != null) actions.chat(displayName + " usa " + t.toChatText());
-        });
-        return new VBox(4, view, new HBox(6, attack, chat));
+            });
+            buttons.getChildren().add(roll);
+        }
+        if (actions != null || onTraitClicked != null) {
+            Button chat = new Button("Chat");
+            chat.setTooltip(new javafx.scene.control.Tooltip("Manda o texto inteiro pro chat"));
+            chat.setOnAction(e -> {
+                if (actions != null) actions.chat(displayName + " usa " + t.toChatText());
+                else onTraitClicked.accept(t);
+            });
+            buttons.getChildren().add(chat);
+        }
+        if (!buttons.getChildren().isEmpty()) card.getChildren().add(buttons);
+        card.setStyle("-fx-background-color: -c-surface; -fx-background-radius: 8; -fx-border-color: -c-raised-2;"
+                + " -fx-border-radius: 8; -fx-padding: 8 10 8 10;");
+        return card;
+    }
+
+    private static Label chip(String text) {
+        Label l = new Label(text);
+        l.setStyle("-fx-background-color: -c-raised-2b; -fx-text-fill: -c-text; -fx-background-radius: 10;"
+                + " -fx-padding: 1 8 1 8; -fx-font-size: 12px;");
+        return l;
     }
 
     private void rollDamage(CharacterTrait t, boolean critical) {
@@ -562,13 +585,31 @@ public class MobSheetView {
      * separada pra cada lista, a maioria vem vazia na pratica). */
     private String buildExtrasText() {
         StringBuilder sb = new StringBuilder();
-        appendListLine(sb, "Vulnerabilidade a dano", mob.getDamageVulnerabilities());
-        appendListLine(sb, "Resistência a dano", mob.getDamageResistances());
-        appendListLine(sb, "Imunidade a dano", mob.getDamageImmunities());
-        appendListLine(sb, "Imunidade a condição", mob.getConditionImmunities());
+        appendListLine(sb, "Vulnerabilidade a dano", damagePt(mob.getDamageVulnerabilities()));
+        appendListLine(sb, "Resistência a dano", damagePt(mob.getDamageResistances()));
+        appendListLine(sb, "Imunidade a dano", damagePt(mob.getDamageImmunities()));
+        appendListLine(sb, "Imunidade a condição", conditionPt(mob.getConditionImmunities()));
         appendListLine(sb, "Sentidos", mob.getSenses());
         appendListLine(sb, "Idiomas", mob.getLanguages());
         return sb.toString().trim();
+    }
+
+    private static List<String> damagePt(List<String> values) {
+        return values.stream().map(v -> {
+            String key = v == null ? "" : v.trim().toLowerCase(java.util.Locale.ROOT);
+            return com.vttcaseiro.character.DamageTypes.namePt(key).equals(key) ? v
+                    : com.vttcaseiro.character.DamageTypes.namePt(key);
+        }).toList();
+    }
+
+    private static List<String> conditionPt(List<String> values) {
+        return values.stream().map(v -> {
+            try {
+                return com.vttcaseiro.model.Condition.valueOf(v.trim().toUpperCase(java.util.Locale.ROOT)).label();
+            } catch (RuntimeException ex) {
+                return v;
+            }
+        }).toList();
     }
 
     private void appendBonusLine(StringBuilder sb, String label, Map<String, Integer> bonuses) {
@@ -585,26 +626,6 @@ public class MobSheetView {
     private void appendListLine(StringBuilder sb, String label, List<String> values) {
         if (values.isEmpty()) return;
         sb.append(label).append(": ").append(String.join(", ", values)).append("\n");
-    }
-
-    private ListView<CharacterTrait> buildTraitList(List<CharacterTrait> traits) {
-        ListView<CharacterTrait> list = new ListView<>();
-        list.getItems().addAll(traits);
-        list.setPrefHeight(Math.min(160, 32 * Math.max(1, traits.size())));
-        list.setCellFactory(lv -> new ListCell<>() {
-            @Override
-            protected void updateItem(CharacterTrait trait, boolean empty) {
-                super.updateItem(trait, empty);
-                setText(empty || trait == null ? null : trait.getName());
-            }
-        });
-        list.setOnMouseClicked(e -> {
-            CharacterTrait selected = list.getSelectionModel().getSelectedItem();
-            if (selected != null && onTraitClicked != null) {
-                onTraitClicked.accept(selected);
-            }
-        });
-        return list;
     }
 
     private ListView<InventoryItem> buildLootList() {

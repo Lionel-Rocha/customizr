@@ -1,0 +1,22 @@
+/* Tema Sci-fi: so as cores base; os tons intermediarios vem do theme-derived.css. */
+.root {
+    -c-bg: #0A1220;
+    -c-surface: #101B2D;
+    -c-raised: #17263D;
+    -c-border: #24405F;
+    -c-accent: #38C6F0;
+    -c-accent-deep: #0F3E57;
+    -c-accent-text: #A6ECFF;
+    -c-text: #DCEAF7;
+    -c-muted: #8AA3BD;
+    -c-danger: #F0546A;
+    -c-success: #3DDC97;
+    -c-accent-88: #38C6F088;
+    -c-accent-66: #38C6F066;
+    -c-accent-55: #38C6F055;
+    -c-accent-22: #38C6F022;
+    -c-surface-glass: #101B2DF2;
+    -c-surface-glass2: #101B2DEE;
+    -c-surface-glass3: #101B2DEE;
+    -fx-font-family: "Bahnschrift", "Segoe UI", sans-serif;
+}

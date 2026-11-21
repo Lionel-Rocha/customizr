@@ -1,0 +1,21 @@
+/* Tema Claro: so as cores base; os tons intermediarios vem do theme-derived.css. */
+.root {
+    -c-bg: #F3EEE6;
+    -c-surface: #FFFFFF;
+    -c-raised: #EDE5D8;
+    -c-border: #D3C6B3;
+    -c-accent: #B8681A;
+    -c-accent-deep: #F2D2A6;
+    -c-accent-text: #8A4A0C;
+    -c-text: #2B2118;
+    -c-muted: #6E5F4F;
+    -c-danger: #C0392B;
+    -c-success: #2E8B57;
+    -c-accent-88: #B8681A88;
+    -c-accent-66: #B8681A66;
+    -c-accent-55: #B8681A55;
+    -c-accent-22: #B8681A22;
+    -c-surface-glass: #FFFFFFF2;
+    -c-surface-glass2: #FFFFFFEE;
+    -c-surface-glass3: #FFFFFFEE;
+}

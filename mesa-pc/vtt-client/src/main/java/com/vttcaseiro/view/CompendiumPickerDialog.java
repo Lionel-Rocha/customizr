@@ -116,8 +116,7 @@ public final class CompendiumPickerDialog {
         dialog.setTitle(title);
         dialog.getDialogPane().setContent(content);
         dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
-        var css = CompendiumPickerDialog.class.getResource("/style.css");
-        if (css != null) dialog.getDialogPane().getStylesheets().add(css.toExternalForm());
+        // tema: o Theme poe na janela (folha no proprio DialogPane venceria o tema escolhido)
         list.setOnMouseClicked(e -> {
             if (e.getClickCount() == 2 && list.getSelectionModel().getSelectedItem() != null) {
                 dialog.setResult(ButtonType.OK);

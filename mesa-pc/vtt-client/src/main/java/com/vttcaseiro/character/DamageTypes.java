@@ -22,16 +22,16 @@ public final class DamageTypes {
     private static final Map<String, String> WORDS = new LinkedHashMap<>();
 
     static {
-        add("acid", "acido", "acid", "acido", "acida");
+        add("acid", "ácido", "acid", "acido", "acida");
         add("bludgeoning", "contundente", "bludgeoning", "contundente", "concussao");
         add("cold", "frio", "cold", "frio", "gelo");
         add("fire", "fogo", "fire", "fogo", "igneo");
         add("force", "energia", "force", "energia", "forca");
-        add("lightning", "eletrico", "lightning", "eletrico", "eletricidade", "relampago", "raio");
-        add("necrotic", "necrotico", "necrotic", "necrotico");
+        add("lightning", "elétrico", "lightning", "eletrico", "eletricidade", "relampago", "raio");
+        add("necrotic", "necrótico", "necrotic", "necrotico");
         add("piercing", "perfurante", "piercing", "perfurante", "perfuracao");
         add("poison", "veneno", "poison", "veneno", "venenoso");
-        add("psychic", "psiquico", "psychic", "psiquico");
+        add("psychic", "psíquico", "psychic", "psiquico");
         add("radiant", "radiante", "radiant", "radiante");
         add("slashing", "cortante", "slashing", "cortante", "corte");
         add("thunder", "trovejante", "thunder", "trovao", "trovejante", "sonico");

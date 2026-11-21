@@ -99,4 +99,42 @@ class ThemeUiTest {
             extra.close();
         });
     }
+
+    @Test
+    void switchingThemeRepaintsOpenWindowsAndKeepsThemeSheetsLast() throws Exception {
+        Assumptions.assumeTrue(fxReady, "sem tela");
+        String before = Theme.current();
+        javafx.stage.Stage[] win = new javafx.stage.Stage[1];
+        try {
+            onFx(() -> {
+                Theme.install();
+                win[0] = new javafx.stage.Stage();
+                win[0].setScene(new javafx.scene.Scene(new javafx.scene.layout.Pane(), 10, 10));
+                win[0].show();
+                Theme.set("cyberpunk");
+                List<String> sheets = win[0].getScene().getStylesheets();
+                assertEquals(Theme.css(), sheets.get(0), "style.css primeiro");
+                assertTrue(sheets.get(sheets.size() - 1).endsWith("/theme-cyberpunk.css"), "tema por ultimo: " + sheets);
+                assertTrue(sheets.stream().anyMatch(x -> x.endsWith("/theme-derived.css")));
+                // uma tela que poe o style.css de novo depois: o tema volta pro fim
+                win[0].getScene().getStylesheets().add(Theme.css());
+            });
+            onFx(() -> { });
+            onFx(() -> {
+                List<String> sheets = win[0].getScene().getStylesheets();
+                assertTrue(sheets.get(sheets.size() - 1).endsWith("/theme-cyberpunk.css"), "continua por ultimo: " + sheets);
+                assertEquals(1, sheets.stream().filter(Theme.css()::equals).count(), "style.css uma vez so");
+                Theme.set(Theme.DEFAULT);
+                assertTrue(win[0].getScene().getStylesheets().stream().noneMatch(x -> x.contains("/theme-")), "padrao sem folha extra");
+                for (String key : Theme.THEMES.keySet()) {
+                    if (!key.equals(Theme.DEFAULT)) assertNotNull(Theme.class.getResource("/theme-" + key + ".css"), key);
+                }
+            });
+        } finally {
+            onFx(() -> {
+                Theme.set(before);
+                if (win[0] != null) win[0].close();
+            });
+        }
+    }
 }

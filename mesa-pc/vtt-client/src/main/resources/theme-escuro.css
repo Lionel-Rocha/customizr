@@ -1,0 +1,21 @@
+/* Tema Escuro: so as cores base; os tons intermediarios vem do theme-derived.css. */
+.root {
+    -c-bg: #15171B;
+    -c-surface: #1D2025;
+    -c-raised: #2A2E35;
+    -c-border: #363B44;
+    -c-accent: #5B9BEF;
+    -c-accent-deep: #223A5E;
+    -c-accent-text: #A9CBFA;
+    -c-text: #E6E8EB;
+    -c-muted: #9AA1AC;
+    -c-danger: #E5534B;
+    -c-success: #3FB968;
+    -c-accent-88: #5B9BEF88;
+    -c-accent-66: #5B9BEF66;
+    -c-accent-55: #5B9BEF55;
+    -c-accent-22: #5B9BEF22;
+    -c-surface-glass: #1D2025F2;
+    -c-surface-glass2: #1D2025EE;
+    -c-surface-glass3: #1D2025EE;
+}

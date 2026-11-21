@@ -109,9 +109,9 @@ public class CharacterSheetView {
     public static final DataFormat CHARACTER_ID_FORMAT = new DataFormat("application/x-vtt-character-id");
 
     private static final Duration SAVE_DELAY = Duration.millis(800);
-    private static final String CARD_STYLE = "-fx-background-color: #241B16; -fx-padding: 8;"
-            + " -fx-background-radius: 6; -fx-border-color: #45342A; -fx-border-radius: 6;";
-    private static final String BIG_NUMBER_STYLE = "-fx-text-fill: #F6E9D3; -fx-font-size: 20px; -fx-font-weight: bold;";
+    private static final String CARD_STYLE = "-fx-background-color: -c-surface; -fx-padding: 8;"
+            + " -fx-background-radius: 6; -fx-border-color: -c-border; -fx-border-radius: 6;";
+    private static final String BIG_NUMBER_STYLE = "-fx-text-fill: -c-text; -fx-font-size: 20px; -fx-font-weight: bold;";
     private static final List<String> HIT_DICE = List.of("d6", "d8", "d10", "d12");
 
     /**
@@ -254,7 +254,7 @@ public class CharacterSheetView {
 
         VBox root = new VBox(10, buildHeader(), tabs);
         root.setPadding(new Insets(12));
-        root.setStyle("-fx-background-color: #1B1411;");
+        root.setStyle("-fx-background-color: -c-bg;");
         VBox.setVgrow(tabs, Priority.ALWAYS);
         recalc();
         return root;
@@ -853,7 +853,7 @@ public class CharacterSheetView {
             String d = com.vttcaseiro.character.EffectModifiers.describe(sheet.getEffects());
             return d.isEmpty() ? "" : "Efeitos ativos: " + d;
         });
-        active.setStyle("-fx-text-fill: #FFCF7F; -fx-font-weight: bold;");
+        active.setStyle("-fx-text-fill: -c-accent-text; -fx-font-weight: bold;");
         active.setWrapText(true);
         Label hint = mutedLabel("Condições, exaustão e efeitos já mudam as rolagens e a CA desta ficha. Conhecidos: "
                 + "Bênção, Perdição, Escudo (+5 CA), Escudo da Fé, Orientação, Fúria, Velocidade, Esquiva. "
@@ -1632,7 +1632,7 @@ public class CharacterSheetView {
         bastionName.setPromptText("Nome do bastião");
         GridPane.setHgrow(bastionName, Priority.ALWAYS);
         Label who = new Label(orEmpty(sheet.getName()) + "  •  nível " + sheet.getLevel());
-        who.setStyle("-fx-text-fill: #FFCF7F; -fx-font-weight: bold;");
+        who.setStyle("-fx-text-fill: -c-accent-text; -fx-font-weight: bold;");
         addLabeled(top, 0, 0, "Nome do bastião", bastionName);
         addLabeled(top, 1, 0, "Personagem", who);
         Label rule = mutedLabel(sheet.getLevel() < 5 ? "Bastiões começam no nível 5." : "");

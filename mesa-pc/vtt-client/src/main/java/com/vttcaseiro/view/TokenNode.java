@@ -244,7 +244,7 @@ public class TokenNode extends StackPane {
             // So o mestre chega a ver este token (o servidor nem manda pros jogadores).
             setOpacity(0.45);
             Label hiddenBadge = new Label("OCULTO");
-            hiddenBadge.setStyle("-fx-background-color: #000000CC; -fx-text-fill: #FFCF7F; -fx-font-size: 8px;"
+            hiddenBadge.setStyle("-fx-background-color: #000000CC; -fx-text-fill: -c-accent-text; -fx-font-size: 8px;"
                     + " -fx-font-weight: bold; -fx-padding: 0 3 0 3; -fx-background-radius: 3;");
             StackPane.setAlignment(hiddenBadge, Pos.CENTER);
             hiddenBadge.setMouseTransparent(true);

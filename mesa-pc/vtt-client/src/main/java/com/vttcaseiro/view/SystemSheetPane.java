@@ -62,7 +62,7 @@ public class SystemSheetPane extends VBox {
         this.rename = rename;
         setSpacing(10);
         setPadding(new Insets(12));
-        setStyle("-fx-background-color: #1B1411;");
+        setStyle("-fx-background-color: -c-bg;");
 
         TabPane tabs = new TabPane(
                 tab("Perícias", buildSkills()),
@@ -282,7 +282,7 @@ public class SystemSheetPane extends VBox {
 
     private Node defenseBox() {
         Label title = new Label("Defesa");
-        title.setStyle("-fx-font-weight: bold; -fx-text-fill: #E8A23E;");
+        title.setStyle("-fx-font-weight: bold; -fx-text-fill: -c-accent;");
         TextField def = textField(sheet.getArmorClass() == null ? "" : String.valueOf(sheet.getArmorClass()), v -> {
             try {
                 sheet.setArmorClass(Integer.parseInt(v));
@@ -336,7 +336,7 @@ public class SystemSheetPane extends VBox {
                 } catch (NumberFormatException ignored) { }
             }, 48);
             Label total = new Label();
-            total.setStyle("-fx-font-weight: bold; -fx-text-fill: #FFCF7F;");
+            total.setStyle("-fx-font-weight: bold; -fx-text-fill: -c-accent-text;");
             updaters.add(() -> {
                 total.setText(system == GameSystem.ORDEM
                         ? system.skillTest(sheet, d.name()).replace("kh1", "").replace("kl1", "(menor)")

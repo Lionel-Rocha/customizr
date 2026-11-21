@@ -1,0 +1,22 @@
+/* Tema Gótico: so as cores base; os tons intermediarios vem do theme-derived.css. */
+.root {
+    -c-bg: #110C12;
+    -c-surface: #1A131C;
+    -c-raised: #281D2B;
+    -c-border: #3B2A40;
+    -c-accent: #B3263E;
+    -c-accent-deep: #4E1220;
+    -c-accent-text: #F0A7B8;
+    -c-text: #ECE2EF;
+    -c-muted: #A893AE;
+    -c-danger: #E0455E;
+    -c-success: #6FA36B;
+    -c-accent-88: #B3263E88;
+    -c-accent-66: #B3263E66;
+    -c-accent-55: #B3263E55;
+    -c-accent-22: #B3263E22;
+    -c-surface-glass: #1A131CF2;
+    -c-surface-glass2: #1A131CEE;
+    -c-surface-glass3: #1A131CEE;
+    -fx-font-family: "Georgia", serif;
+}

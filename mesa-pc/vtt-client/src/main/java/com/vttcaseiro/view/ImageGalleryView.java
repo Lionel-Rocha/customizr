@@ -48,7 +48,7 @@ public class ImageGalleryView {
 
         VBox root = new VBox(8);
         root.setPadding(new Insets(12));
-        root.setStyle("-fx-background-color: #1B1411;");
+        root.setStyle("-fx-background-color: -c-bg;");
 
         List<String> ids = imageAssetService.list();
 

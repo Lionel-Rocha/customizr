@@ -1060,7 +1060,7 @@ public class Main extends Application {
         Button gear = new Button("⚙");
         gear.getStyleClass().add("button-flat");
         gear.setStyle("-fx-font-size: 15px;");
-        gear.setTooltip(new Tooltip("Configurações da mesa: backup e cópias automáticas"));
+        gear.setTooltip(new Tooltip("Configurações: tema, backup e cópias automáticas"));
         gear.setOnAction(e -> showMesaSettings());
         bar.getChildren().addAll(brand, sep, title, spacer, returnSceneButton, hint, gear, netStatusLabel);
         return bar;
@@ -1234,7 +1234,7 @@ public class Main extends Application {
                 : null);
         dialog.getDialogPane().getButtonTypes().addAll(javafx.scene.control.ButtonType.OK,
                 javafx.scene.control.ButtonType.CANCEL);
-        dialog.getDialogPane().getStylesheets().add(getClass().getResource("/style.css").toExternalForm());
+        // tema: o Theme poe na janela (folha no proprio DialogPane venceria o tema escolhido)
 
         TextField title = new TextField(pin.getTitle());
         title.setPromptText("Ex.: Alta Torre, Forja do Anão, Covil do Dragão");
@@ -2677,6 +2677,11 @@ public class Main extends Application {
         if (mesaSettingsWindow == null) {
             VBox settings = new VBox(8);
             settings.setPadding(new Insets(12));
+            ComboBox<String> themePicker = Theme.picker();
+            Label themeHint = new Label("Muda as cores do programa todo na hora (fica salvo neste computador).");
+            themeHint.getStyleClass().add("label-muted");
+            themeHint.setWrapText(true);
+            settings.getChildren().addAll(sectionLabel("Aparência"), themePicker, themeHint);
         // --- Backup da mesa inteira ---
             Button exportButton = new Button("Exportar mesa inteira (backup)...");
             exportButton.setTooltip(new Tooltip("Um .zip com fichas, cenas, monstros, imagens, sons, diário e tabelas."
@@ -2719,7 +2724,7 @@ public class Main extends Application {
             mesaSettingsWindow = new Stage();
             mesaSettingsWindow.initOwner(stage);
             mesaSettingsWindow.setTitle("Mesa: " + mesaService.getName());
-            Scene sc = new Scene(scroll, 420, 460);
+            Scene sc = new Scene(scroll, 420, 560);
             sc.getStylesheets().add(getClass().getResource("/style.css").toExternalForm());
             mesaSettingsWindow.setScene(sc);
             com.vttcaseiro.view.Icons.applyTo(mesaSettingsWindow);
@@ -2781,7 +2786,7 @@ public class Main extends Application {
         Label webTitle = sectionLabel("Jogadores pelo navegador");
         Label webLinks = new Label();
         webLinks.setWrapText(true);
-        webLinks.setStyle("-fx-text-fill: #FFCF7F; -fx-font-weight: bold;");
+        webLinks.setStyle("-fx-text-fill: -c-accent-text; -fx-font-weight: bold;");
         Label webHint = new Label("Quem não tem o programa abre este endereço no navegador (PC ou celular, na mesma "
                 + "rede, ou pela Tailscale/ZeroTier). Usa a mesma senha da mesa.");
         webHint.getStyleClass().add("label-muted");
@@ -3089,7 +3094,7 @@ public class Main extends Application {
                 }
                 boolean gm = networkService.isGm();
                 setText(gm ? (h.isRevealed() ? "\u25CF  " : "\u25CB  ") + h.getTitle() : h.getTitle());
-                setStyle(gm && h.isRevealed() ? "-fx-text-fill: #FFCF7F;" : "");
+                setStyle(gm && h.isRevealed() ? "-fx-text-fill: -c-accent-text;" : "");
                 setTooltip(new Tooltip(gm ? (h.isRevealed() ? "Revelada: os jogadores veem" : "Só você vê")
                         : "Clique duplo abre em janela"));
             }
@@ -3210,7 +3215,7 @@ public class Main extends Application {
     private void openHandoutWindow(com.vttcaseiro.model.Handout h) {
         VBox content = new VBox(10);
         content.setPadding(new Insets(16));
-        content.setStyle("-fx-background-color: #1B1411;");
+        content.setStyle("-fx-background-color: -c-bg;");
         Label title = new Label(h.getTitle());
         title.getStyleClass().add("label-title");
         content.getChildren().add(title);
@@ -4049,7 +4054,7 @@ public class Main extends Application {
         // --- todos: tocando agora, volume, dados animados ---
         Label playing = new Label();
         playing.setWrapText(true);
-        playing.setStyle("-fx-text-fill: #FFCF7F;");
+        playing.setStyle("-fx-text-fill: -c-accent-text;");
         Runnable refreshPlaying = () -> {
             String m = soundPlayer.nowPlaying(com.vttcaseiro.model.AudioCommand.MUSIC);
             String a = soundPlayer.nowPlaying(com.vttcaseiro.model.AudioCommand.AMBIENT);
@@ -6139,7 +6144,7 @@ public class Main extends Application {
         count.setPrefWidth(70);
         Label result = new Label();
         result.setWrapText(true);
-        result.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #FFCF7F;");
+        result.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: -c-accent-text;");
         Runnable recalc = () -> {
             List<Integer> lv = new java.util.ArrayList<>();
             for (String p : party.getText().split("[,;\\s]+")) {

@@ -96,7 +96,7 @@ public class DiceAnimator extends HBox {
             number.setStyle("-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: "
                     + (!d.kept() ? "#B09A82" : "#FFCF7F") + ";");
             Label kind = new Label("d" + d.sides());
-            kind.setStyle("-fx-font-size: 9px; -fx-text-fill: #B09A82;");
+            kind.setStyle("-fx-font-size: 9px; -fx-text-fill: -c-muted;");
             kind.setTranslateY(22);
             StackPane die = new StackPane(body, number, kind);
             die.setPrefSize(70, 70);

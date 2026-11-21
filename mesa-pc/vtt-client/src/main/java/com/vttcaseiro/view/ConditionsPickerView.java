@@ -46,7 +46,7 @@ public class ConditionsPickerView {
 
         VBox root = new VBox(6);
         root.setPadding(new Insets(12));
-        root.setStyle("-fx-background-color: #1B1411;");
+        root.setStyle("-fx-background-color: -c-bg;");
 
         Label header = new Label("Marque as condições ativas em " + token.getName() + ":");
         header.getStyleClass().add("label-muted");

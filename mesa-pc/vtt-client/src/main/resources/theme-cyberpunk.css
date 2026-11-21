@@ -1,0 +1,22 @@
+/* Tema Cyberpunk: so as cores base; os tons intermediarios vem do theme-derived.css. */
+.root {
+    -c-bg: #0C0913;
+    -c-surface: #150F22;
+    -c-raised: #221836;
+    -c-border: #3D2160;
+    -c-accent: #FF2BD6;
+    -c-accent-deep: #5A0F52;
+    -c-accent-text: #FFE14D;
+    -c-text: #F3EAFF;
+    -c-muted: #A894C6;
+    -c-danger: #FF4D6D;
+    -c-success: #3CF2B0;
+    -c-accent-88: #FF2BD688;
+    -c-accent-66: #FF2BD666;
+    -c-accent-55: #FF2BD655;
+    -c-accent-22: #FF2BD622;
+    -c-surface-glass: #150F22F2;
+    -c-surface-glass2: #150F22EE;
+    -c-surface-glass3: #150F22EE;
+    -fx-font-family: "Bahnschrift", "Segoe UI", sans-serif;
+}

@@ -1,0 +1,21 @@
+/* Tema Apocalipse: so as cores base; os tons intermediarios vem do theme-derived.css. */
+.root {
+    -c-bg: #191813;
+    -c-surface: #23221B;
+    -c-raised: #312F25;
+    -c-border: #4A4535;
+    -c-accent: #C46A2B;
+    -c-accent-deep: #5A3218;
+    -c-accent-text: #E9B47E;
+    -c-text: #E2DBC4;
+    -c-muted: #A39C84;
+    -c-danger: #D2513A;
+    -c-success: #8FA644;
+    -c-accent-88: #C46A2B88;
+    -c-accent-66: #C46A2B66;
+    -c-accent-55: #C46A2B55;
+    -c-accent-22: #C46A2B22;
+    -c-surface-glass: #23221BF2;
+    -c-surface-glass2: #23221BEE;
+    -c-surface-glass3: #23221BEE;
+}
