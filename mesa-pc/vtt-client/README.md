@@ -79,6 +79,25 @@ com o mestre, e o programa lembra dele. Se um dia o codigo mudar, a conexao e
 recusada com aviso. Pelo navegador o link vira `https://...`; o aviso de
 "certificado nao confiavel" e esperado (certificado proprio) -- e so avancar.
 
+### Jogar pela internet com playit.gg (o mais facil)
+
+O [playit.gg](https://playit.gg) e um programa gratis que roda no PC do mestre e da um endereco
+publico pra mesa: ninguem abre porta no roteador, nao precisa de servidor e os jogadores nao instalam
+nada alem do Customizr.
+
+1. Mestre: painel **Rede** > **"▸ Jogar pela internet com playit.gg"** > **"Baixar o playit.gg"**.
+   Abra o playit e crie a conta quando ele pedir.
+2. No site do playit: **Add Tunnel** > tipo **TCP** > porta local **55055** (a de "Hospedar aqui").
+3. **"Hospedar aqui"** no Customizr, de preferencia **com senha da mesa** (pelo tunel, qualquer um
+   com o endereco chega na tela de senha).
+4. Cole o endereco que o playit mostrou (ex.: `algo.ply.gg:12345`) e clique em **"Testar e mostrar
+   pros jogadores"**. O programa confere se a mesa responde pelo tunel.
+5. Jogadores: **"Entrar numa mesa online"** e colam o endereco inteiro no campo Endereco (a porta
+   se separa sozinha).
+
+O playit precisa ficar aberto enquanto voces jogam. Pra jogadores pelo navegador, crie um segundo
+tunel TCP pra porta **55056**.
+
 ### Ponte: jogar pela internet sem abrir porta
 
 Pra quem nao quer abrir porta no roteador nem usar Tailscale: a **ponte** e um programinha do
@@ -136,7 +155,12 @@ Painel **Fichas** > **"Importar..."**. Aceita:
 Antes de salvar aparece um resumo e o que conferir (ex.: CA que o D&D Beyond nao
 manda pronta). A ficha importada vira uma ficha nova, do jogador que importou.
 
-### Importar mapas (Azgaar e Watabou)
+### Importar mapas (Azgaar, Watabou e Dungeondraft)
+
+Mapas do **Dungeondraft** (ou de outro editor) no formato **Universal VTT** (`.dd2vtt`, `.uvtt`,
+`.df2vtt`): no Dungeondraft, File > Export > Universal VTT, com imagem em PNG. No Customizr, a mesma
+opcao de importar mapa > "Dungeondraft / Universal VTT". Vem a imagem, a grade, as paredes, as portas
+(abertas ou fechadas) e as luzes, com a visao ja ligada.
 
 Painel **Mapa** > **"Importar mapa (Azgaar / Watabou)..."** (ou o cartao "Comece aqui"
 no mapa vazio):

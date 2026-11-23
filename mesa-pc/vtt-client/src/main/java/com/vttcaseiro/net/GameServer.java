@@ -565,6 +565,9 @@ public class GameServer {
                     }
                     if (!PasswordProof.matches(tablePassword, from.getChallenge(), msg.passwordProof)) {
                         if (!local) loginGuard.failed(ip);
+                        // Pelo playit.gg (tunel no PC do mestre) todo mundo chega como 127.0.0.1 e fica fora do limite
+                        // por IP: uma espera em cada senha errada deixa adivinhar a senha lenta demais.
+                        else sleepQuietly(LOCAL_WRONG_PASSWORD_DELAY_MS);
                         from.send(NetMessage.chat("servidor", "Senha da mesa incorreta -- conexão encerrada."));
                         from.close();
                         break;
@@ -771,6 +774,17 @@ public class GameServer {
         }
         c.knownTokens.clear();
         c.knownTokens.addAll(now);
+    }
+
+    /** Espera depois de senha errada vinda de conexao local (tunel do playit.gg, ponte do navegador). */
+    static final long LOCAL_WRONG_PASSWORD_DELAY_MS = 1500;
+
+    private static void sleepQuietly(long ms) {
+        try {
+            Thread.sleep(ms);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private void resyncAll() {

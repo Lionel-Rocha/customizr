@@ -2918,7 +2918,8 @@ public class Main extends Application {
             hostMore.setManaged(show);
             hostMoreToggle.setText((show ? "▾" : "▸") + "  Senhas, criptografia e ponte");
         });
-        box.getChildren().addAll(hostRow, hostMoreToggle, hostMore, tlsCode, webBox, relayInfo, divider());
+        javafx.scene.Node playit = buildPlayitSection();
+        box.getChildren().addAll(hostRow, hostMoreToggle, hostMore, playit, tlsCode, webBox, relayInfo, divider());
 
         box.getChildren().add(sectionLabel("Conectar"));
         Button joinButton = new Button("Entrar numa mesa online...", com.vttcaseiro.view.Icons.icon("network", 14));
@@ -5892,6 +5893,126 @@ public class Main extends Application {
             // sem lista de interfaces: cai no localhost
         }
         return out;
+    }
+
+    public static final String PLAYIT_DOWNLOAD = "https://playit.gg/download";
+
+    /**
+     * Passo a passo do playit.gg: um tunel que roda no PC do mestre e da um endereco publico pra mesa, sem abrir
+     * porta no roteador e sem servidor de ponte. O mestre cola aqui o endereco que o playit mostrou; o programa testa
+     * e mostra o que passar pros jogadores.
+     */
+    private javafx.scene.Node buildPlayitSection() {
+        Label steps = new Label("""
+                1. Baixe e abra o playit.gg (programa grátis; crie a conta quando ele pedir).
+                2. No site do playit: "Add Tunnel" > tipo "TCP" > porta local 55055 (a de "Hospedar aqui").
+                3. Clique em "Hospedar aqui" (de preferência com senha da mesa).
+                4. Cole abaixo o endereço que o playit mostrou pro túnel (ex.: algo.ply.gg:12345).
+                O playit precisa ficar aberto enquanto vocês jogam.""");
+        steps.setWrapText(true);
+        Button download = new Button("Baixar o playit.gg", com.vttcaseiro.view.Icons.icon("download", 14));
+        download.setOnAction(e -> getHostServices().showDocument(PLAYIT_DOWNLOAD));
+        TextField address = new TextField(AppSettings.getString("playit.endereco", ""));
+        address.setPromptText("endereço do túnel, ex.: algo.ply.gg:12345");
+        HBox.setHgrow(address, Priority.ALWAYS);
+        Button test = new Button("Testar e mostrar pros jogadores");
+        test.setMinWidth(Region.USE_PREF_SIZE);
+        Label result = new Label();
+        result.setWrapText(true);
+        result.setVisible(false);
+        result.setManaged(false);
+        Button copy = new Button("Copiar endereço");
+        copy.setVisible(false);
+        copy.setManaged(false);
+        test.setOnAction(e -> {
+            String[] hp = com.vttcaseiro.view.MesaSelectorView.splitHostPort(address.getText());
+            if (hp == null) {
+                showError("Cole o endereço completo que o playit mostrou, com a porta no fim (ex.: algo.ply.gg:12345).");
+                return;
+            }
+            if (!networkService.isConnected() || !networkService.isGm()) {
+                showError("Clique em \"Hospedar aqui\" primeiro: o túnel do playit leva os jogadores até a mesa hospedada.");
+                return;
+            }
+            AppSettings.setString("playit.endereco", hp[0] + ":" + hp[1]);
+            test.setDisable(true);
+            result.setText("Testando o túnel...");
+            result.setStyle("");
+            result.setVisible(true);
+            result.setManaged(true);
+            Thread t = new Thread(() -> {
+                String problem = testTunnel(hp[0], Integer.parseInt(hp[1]));
+                Platform.runLater(() -> {
+                    test.setDisable(false);
+                    String forPlayers = "Jogadores: \"Entrar numa mesa online\" > endereço " + hp[0] + ", porta " + hp[1]
+                            + (networkService.isTls() ? " (e marcar \"Mesa criptografada\")" : "") + " e a senha da mesa.";
+                    if (problem == null) {
+                        result.setText("Túnel funcionando! " + forPlayers);
+                        result.setStyle("-fx-text-fill: #8FE0AE;");
+                        logEntries.add(LogEntry.system("playit.gg: túnel funcionando em " + hp[0] + ":" + hp[1] + "."));
+                    } else {
+                        result.setText(problem + "\n(Se o playit já mostra o túnel como ativo, pode tentar mesmo assim. "
+                                + forPlayers + ")");
+                        result.setStyle("-fx-text-fill: -c-danger;");
+                    }
+                    copy.setVisible(true);
+                    copy.setManaged(true);
+                });
+            }, "testar-playit");
+            t.setDaemon(true);
+            t.start();
+        });
+        copy.setOnAction(e -> {
+            String[] hp = com.vttcaseiro.view.MesaSelectorView.splitHostPort(address.getText());
+            if (hp == null) return;
+            javafx.scene.input.ClipboardContent cc = new javafx.scene.input.ClipboardContent();
+            cc.putString(hp[0] + ":" + hp[1]);
+            javafx.scene.input.Clipboard.getSystemClipboard().setContent(cc);
+            logEntries.add(LogEntry.system("Endereço copiado: " + hp[0] + ":" + hp[1] + " (o jogador pode colar tudo no campo Endereço)."));
+        });
+        HBox row = new HBox(6, address, test);
+        row.setAlignment(Pos.CENTER_LEFT);
+        Label safety = new Label("Pelo túnel, qualquer pessoa com o endereço chega na tela de senha: use senha da mesa.");
+        safety.getStyleClass().add("label-muted");
+        safety.setWrapText(true);
+        VBox body = new VBox(8, steps, download, row, result, copy, safety);
+        body.setVisible(false);
+        body.setManaged(false);
+        Label toggle = new Label("▸  Jogar pela internet com playit.gg (sem abrir porta)");
+        toggle.getStyleClass().add("hint-toggle");
+        toggle.setCursor(javafx.scene.Cursor.HAND);
+        toggle.setOnMouseClicked(e -> {
+            boolean show = !body.isVisible();
+            body.setVisible(show);
+            body.setManaged(show);
+            toggle.setText((show ? "▾" : "▸") + "  Jogar pela internet com playit.gg (sem abrir porta)");
+        });
+        return new VBox(8, toggle, body);
+    }
+
+    /**
+     * Abre uma conexao pelo endereco publico do tunel e confere se quem atende e a mesa (o servidor manda o desafio
+     * de senha logo que alguem conecta). Devolve null se deu certo, ou o problema explicado.
+     */
+    static String testTunnel(String host, int port) {
+        try (java.net.Socket s = new java.net.Socket()) {
+            s.connect(new java.net.InetSocketAddress(host, port), 8000);
+            s.setSoTimeout(6000);
+            java.io.InputStream in = s.getInputStream();
+            byte[] buf = new byte[256];
+            int n = in.read(buf);
+            if (n <= 0) return "O túnel conectou, mas a mesa não respondeu. O playit está apontando pra porta 55055?";
+            String first = new String(buf, 0, n, java.nio.charset.StandardCharsets.UTF_8);
+            if (first.contains("\"type\"")) return null; // mensagem do servidor da mesa
+            return "Alguém respondeu nesse endereço, mas não parece a mesa (com TLS ligado isso é normal).";
+        } catch (java.net.UnknownHostException ex) {
+            return "Endereço não encontrado: " + host + ". Confira se copiou certo do playit.";
+        } catch (java.net.SocketTimeoutException ex) {
+            return "O túnel não respondeu a tempo. O playit está aberto e com o túnel ativo?";
+        } catch (java.io.IOException ex) {
+            return "Não deu pra conectar pelo túnel (" + ex.getMessage() + "). O playit está aberto e o túnel aponta "
+                    + "pra porta 55055?";
+        }
     }
 
     /** Abre a mesa hospedada aqui numa ponte (codigo fixo por mesa, guardado em ponte.properties). */

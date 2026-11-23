@@ -322,6 +322,23 @@ public class MesaSelectorView {
     }
 
     /** Pergunta endereco/codigo/senhas pra entrar numa mesa online (lembra o caminho, nunca as senhas). */
+    /**
+     * "algo.ply.gg:12345" (ou "tcp://algo.ply.gg:12345/") -> {"algo.ply.gg", "12345"}; null se nao tiver porta
+     * (ou for um IPv6 sem colchetes, que tem varios ":").
+     */
+    public static String[] splitHostPort(String text) {
+        if (text == null) return null;
+        String t = text.trim().replaceFirst("^[a-zA-Z]+://", "").replaceAll("/+$", "");
+        int colon = t.lastIndexOf(':');
+        if (colon <= 0 || colon == t.length() - 1 || t.indexOf(':') != colon) return null;
+        String host = t.substring(0, colon).trim();
+        String port = t.substring(colon + 1).trim();
+        if (host.isEmpty() || !port.matches("\\d{1,5}")) return null;
+        int p = Integer.parseInt(port);
+        if (p < 1 || p > 65535) return null;
+        return new String[]{host, port};
+    }
+
     public static Optional<JoinRequest> askJoin(javafx.stage.Window owner) {
         javafx.scene.control.Dialog<javafx.scene.control.ButtonType> dialog = new javafx.scene.control.Dialog<>();
         if (owner != null) dialog.initOwner(owner);
@@ -333,6 +350,17 @@ public class MesaSelectorView {
         host.setPromptText("ex.: 100.64.0.5 ou meuservidor.com");
         javafx.scene.control.TextField port = new javafx.scene.control.TextField(AppSettings.getString("online.porta", "55055"));
         port.setPrefColumnCount(6);
+        host.setPromptText("ex.: 100.64.0.5, meuservidor.com ou algo.ply.gg:12345");
+        // colou "endereco:porta" (o playit.gg mostra assim): separa sozinho
+        host.textProperty().addListener((o, a, b) -> {
+            String[] hp = splitHostPort(b);
+            if (hp != null) {
+                javafx.application.Platform.runLater(() -> {
+                    host.setText(hp[0]);
+                    port.setText(hp[1]);
+                });
+            }
+        });
         javafx.scene.control.TextField code = new javafx.scene.control.TextField(AppSettings.getString("online.codigo", ""));
         code.setPromptText("só se for pela ponte (ex.: K7P-Q2X)");
         code.textProperty().addListener((o, a, b) -> {
