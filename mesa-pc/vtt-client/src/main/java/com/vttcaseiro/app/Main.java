@@ -820,7 +820,7 @@ public class Main extends Application {
             FileChooser chooser = new FileChooser();
             chooser.setTitle("Escolher imagem de " + token.getName());
             chooser.getExtensionFilters().add(com.vttcaseiro.view.ImageFiles.filter());
-            File file = chooser.showOpenDialog(stage);
+            File file = com.vttcaseiro.view.ImagePicker.open(chooser, stage);
             if (file == null) return;
             importIntoAssetStoreOrWarn(file).ifPresent(assetId -> recorded("Imagem de " + token.getName(), token,
                     () -> table.setTokenImage(token, assetId, file.getAbsolutePath())));
@@ -1078,7 +1078,7 @@ public class Main extends Application {
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Imagem do objeto");
         chooser.getExtensionFilters().add(com.vttcaseiro.view.ImageFiles.filter());
-        List<File> files = chooser.showOpenMultipleDialog(stage);
+        List<File> files = com.vttcaseiro.view.ImagePicker.openMultiple(chooser, stage);
         if (files == null) return;
         for (File f : files) {
             Optional<String> asset = importIntoAssetStoreOrWarn(f);
@@ -1124,7 +1124,7 @@ public class Main extends Application {
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Imagem do efeito");
         chooser.getExtensionFilters().add(com.vttcaseiro.view.ImageFiles.filter());
-        File file = chooser.showOpenDialog(stage);
+        File file = com.vttcaseiro.view.ImagePicker.open(chooser, stage);
         if (file != null) importIntoAssetStoreOrWarn(file).ifPresent(place);
     }
 
@@ -1343,7 +1343,7 @@ public class Main extends Application {
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Imagem do mapa deste lugar");
         chooser.getExtensionFilters().add(com.vttcaseiro.view.ImageFiles.filter());
-        File file = chooser.showOpenDialog(stage);
+        File file = com.vttcaseiro.view.ImagePicker.open(chooser, stage);
         if (file == null) return null;
         Optional<String> name = askSceneName(suggestedName);
         if (name.isEmpty()) return null;
@@ -1426,6 +1426,17 @@ public class Main extends Application {
                 }
             });
             actions.getChildren().add(ed);
+            Button del = new Button("Apagar", com.vttcaseiro.view.Icons.icon("trash", 13));
+            del.setTooltip(new Tooltip("Apaga este pin (dá pra desfazer com Ctrl+Z). Pra mover, arraste o pin no mapa."));
+            del.setOnAction(e -> {
+                mapStack.getChildren().remove(pinCard);
+                pinCard = null;
+                table.removePin(pin);
+                if (sceneService.getScene().findPin(pin.getId()).isEmpty()) {
+                    pushUndo(new UndoAction("Apagar pin", () -> table.addPin(pin)));
+                }
+            });
+            actions.getChildren().add(del);
             if (pin.isHidden()) {
                 Button reveal = new Button("Mostrar aos jogadores");
                 reveal.setOnAction(e -> { pin.setHidden(false); table.updatePin(pin); showPinCard(pin); });
@@ -1495,7 +1506,8 @@ public class Main extends Application {
                     : "Esperando o mestre abrir um mapa. Enquanto isso, abra sua ficha na aba Fichas.");
             buttons.setVisible(gm);
             buttons.setManaged(gm);
-            card.setVisible(empty);
+            // cena escondida: o jogador ve o aviso "o mestre esta preparando" do proprio mapa, nao este cartao
+            card.setVisible(empty && !(sc.isHiddenFromPlayers() && !gm));
         };
         sceneService.addListener(new SceneService.SceneChangeListener() {
             @Override public void onSceneReplaced(SceneModel s) { Platform.runLater(refresh); }
@@ -1848,6 +1860,24 @@ public class Main extends Application {
                 }
             }
         });
+        if (networkService.isGm() && sceneService.getScene().isHiddenFromPlayers()) {
+            // cena escondida (preparando): faixa pro mestre lembrar e liberar num clique
+            Label hiddenNote = new Label("Cena escondida dos jogadores (eles veem só um aviso)",
+                    com.vttcaseiro.view.Icons.icon("hidden", 14));
+            Button show = new Button("Mostrar aos jogadores");
+            show.getStyleClass().add("button-primary");
+            show.setOnAction(e -> setSceneHidden(false));
+            HBox curtainBar = new HBox(10, hiddenNote, show);
+            curtainBar.setAlignment(Pos.CENTER);
+            curtainBar.getStyleClass().add("curtain-bar");
+            curtainBar.setStyle("-fx-background-color: -c-surface; -fx-border-color: -c-accent; -fx-border-radius: 8;"
+                    + " -fx-background-radius: 8; -fx-padding: 6 12 6 12;");
+            curtainBar.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+            curtainBar.setPickOnBounds(false);
+            stack.getChildren().add(curtainBar);
+            StackPane.setAlignment(curtainBar, Pos.TOP_CENTER);
+            StackPane.setMargin(curtainBar, new Insets(10, 0, 0, 0));
+        }
         if (!sceneTrail.isEmpty() && networkService.isGm()) {
             Button back = new Button("Voltar para " + sceneTrail.peek(), com.vttcaseiro.view.Icons.icon("back", 14));
             back.getStyleClass().addAll("button-primary", "map-back-button");
@@ -2541,6 +2571,20 @@ public class Main extends Application {
                 if (name != null) onOpenCharacterFromMesa(name);
             }
         });
+        characterListView.setOnContextMenuRequested(e -> {
+            String name = characterListView.getSelectionModel().getSelectedItem();
+            if (name == null) return;
+            characterMenu(name).show(characterListView, e.getScreenX(), e.getScreenY());
+            e.consume();
+        });
+        characterListView.setOnKeyPressed(e -> {
+            String name = characterListView.getSelectionModel().getSelectedItem();
+            if (name == null) return;
+            if (e.getCode() == javafx.scene.input.KeyCode.DELETE) onDeleteCharacter(name);
+            else if (e.getCode() == javafx.scene.input.KeyCode.F2) onRenameCharacter(name);
+            else if (e.getCode() == javafx.scene.input.KeyCode.ENTER) onOpenCharacterFromMesa(name);
+        });
+        characterListView.setTooltip(new Tooltip("Clique duplo abre. Botão direito: renomear, duplicar, apagar."));
         box.getChildren().add(characterListView);
 
         Button newCharButton = new Button("Nova ficha...", com.vttcaseiro.view.Icons.icon("add", 14));
@@ -2620,10 +2664,30 @@ public class Main extends Application {
                 if (name != null) onOpenMobFromMesa(name);
             }
         });
+        mobListView.setOnContextMenuRequested(e -> {
+            String name = mobListView.getSelectionModel().getSelectedItem();
+            if (name == null) return;
+            mobMenu(name).show(mobListView, e.getScreenX(), e.getScreenY());
+            e.consume();
+        });
+        mobListView.setOnKeyPressed(e -> {
+            String name = mobListView.getSelectionModel().getSelectedItem();
+            if (name == null) return;
+            if (e.getCode() == javafx.scene.input.KeyCode.DELETE) onDeleteMob(name);
+            else if (e.getCode() == javafx.scene.input.KeyCode.F2) onRenameMob(name);
+            else if (e.getCode() == javafx.scene.input.KeyCode.ENTER) onOpenMobFromMesa(name);
+        });
+        mobListView.setTooltip(new Tooltip("Clique duplo abre. Botão direito: editar, duplicar, renomear, apagar."));
+        Button newMobButton = new Button("Novo monstro / NPC...", com.vttcaseiro.view.Icons.icon("add", 14));
+        newMobButton.setTooltip(new Tooltip("Cria um monstro ou NPC do zero (CA, PV, atributos, ataques...)."));
+        newMobButton.setOnAction(e -> onNewMob());
         Button mobToMapButton = new Button("Colocar monstro selecionado no mapa");
         mobToMapButton.setOnAction(e -> onPlaceSelectedMob());
-        box.getChildren().add(mobToMapButton);
-        Label mobHint = new Label("Clique duplo num monstro da lista pra abrir a ficha dele. O token do monstro "
+        javafx.scene.layout.FlowPane mobButtons = new javafx.scene.layout.FlowPane(6, 6, newMobButton, mobToMapButton);
+        for (javafx.scene.control.Control c : List.of(newMobButton, mobToMapButton)) c.setMinWidth(Region.USE_PREF_SIZE);
+        box.getChildren().add(mobButtons);
+        Label mobHint = new Label("Clique duplo num monstro da lista pra abrir a ficha dele; botão direito pra "
+                + "editar, duplicar (ex.: \"Goblin chefe\"), renomear ou apagar. O token do monstro "
                 + "nasce com PV médio e bônus de iniciativa; o PV fica escondido dos jogadores.");
         mobHint.getStyleClass().add("label-muted");
         mobHint.setWrapText(true);
@@ -3258,7 +3322,7 @@ public class Main extends Application {
         chooseImage.setOnAction(e -> {
             javafx.stage.FileChooser chooser = new javafx.stage.FileChooser();
             chooser.getExtensionFilters().add(com.vttcaseiro.view.ImageFiles.filter());
-            java.io.File f = chooser.showOpenDialog(stage);
+            java.io.File f = com.vttcaseiro.view.ImagePicker.open(chooser, stage);
             if (f == null) return;
             try {
                 assetId[0] = imageAssetService.importFile(f.toPath());
@@ -3533,7 +3597,7 @@ public class Main extends Application {
             FileChooser chooser = new FileChooser();
             chooser.setTitle("Imagem para o chat");
             chooser.getExtensionFilters().add(com.vttcaseiro.view.ImageFiles.filter());
-            File file = chooser.showOpenDialog(stage);
+            File file = com.vttcaseiro.view.ImagePicker.open(chooser, stage);
             if (file == null) return;
             if (sendChatImage(file.toPath(), chatInput.getText())) chatInput.clear();
         });
@@ -3705,7 +3769,7 @@ public class Main extends Application {
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Escolher imagem da nova cena");
         chooser.getExtensionFilters().add(com.vttcaseiro.view.ImageFiles.filter());
-        File file = chooser.showOpenDialog(null);
+        File file = com.vttcaseiro.view.ImagePicker.open(chooser, null);
         if (file == null) {
             return;
         }
@@ -3744,22 +3808,54 @@ public class Main extends Application {
         String dungeon = "Watabou - masmorra (One Page Dungeon, .json): cena pronta com paredes e portas";
         String city = "Watabou - cidade, vila, caverna... (imagem .png/.jpg)";
         String world = "Azgaar - mapa do mundo (imagem .png/.jpg + .json opcional com as cidades)";
-        javafx.scene.control.ChoiceDialog<String> pick = new javafx.scene.control.ChoiceDialog<>(dungeon, dungeon, city, world);
+        String uvtt = "Dungeondraft / Universal VTT (.dd2vtt, .uvtt, .df2vtt): mapa com paredes, portas e luzes";
+        javafx.scene.control.ChoiceDialog<String> pick = new javafx.scene.control.ChoiceDialog<>(dungeon, dungeon, city, world, uvtt);
         pick.initOwner(stage);
         pick.setTitle("Importar mapa");
         pick.setHeaderText("De onde vem o mapa?\n"
                 + "No One Page Dungeon: botão direito no mapa > Export > JSON.\n"
                 + "No Azgaar: Menu > Export > PNG (e, se quiser as cidades, JSON > Full).\n"
-                + "Nos outros geradores do Watabou: exporte como PNG.");
+                + "Nos outros geradores do Watabou: exporte como PNG.\n"
+                + "No Dungeondraft: File > Export > Universal VTT (imagem em PNG).");
         pick.setContentText("Tipo:");
         Optional<String> choice = pick.showAndWait();
         if (choice.isEmpty()) return;
         try {
             if (choice.get().equals(dungeon)) importWatabouDungeon();
+            else if (choice.get().equals(uvtt)) importUniversalVtt();
             else importGeneratorImage(choice.get().equals(world));
         } catch (IOException | RuntimeException ex) {
             showError("Não foi possível importar o mapa: " + ex.getMessage());
         }
+    }
+
+    /** Mapa do Dungeondraft (ou outro editor) no formato Universal VTT: imagem + grade + paredes + portas + luzes. */
+    private void importUniversalVtt() throws IOException {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Mapa Universal VTT (Dungeondraft)");
+        chooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("Universal VTT", "*.dd2vtt", "*.uvtt", "*.df2vtt", "*.json"),
+                new FileChooser.ExtensionFilter("Todos", "*.*"));
+        File file = chooser.showOpenDialog(stage);
+        if (file == null) return;
+        if (file.length() > 200L * 1024 * 1024) throw new IOException("Arquivo grande demais (mais de 200 MB).");
+        com.vttcaseiro.importer.UniversalVtt.Result m =
+                com.vttcaseiro.importer.UniversalVtt.parse(java.nio.file.Files.readString(file.toPath()));
+        String base = file.getName().replaceFirst("\\.[^.]+$", "");
+        Optional<String> name = askSceneName(base);
+        if (name.isEmpty()) return;
+        SceneModel scene = new SceneModel();
+        scene.setBackgroundImageAssetId(mesaRepository.getImageAssetStore().store(m.image(), "mapa" + m.extension()));
+        scene.getGrid().setCellSize(m.cellPx());
+        scene.getGrid().setFeetPerCell(5);
+        scene.getGrid().setVisible(false); // o Dungeondraft ja desenha a grade (ou nao) na imagem
+        scene.setWalls(new java.util.ArrayList<>(m.walls()));
+        scene.setLights(new java.util.ArrayList<>(m.lights()));
+        scene.setVisionEnabled(!m.walls().isEmpty());
+        createImportedScene(scene, name.get(), null, null);
+        logEntries.add(LogEntry.system("Mapa Universal VTT importado: " + m.widthCells() + " × " + m.heightCells()
+                + " casas, " + (m.walls().size() - m.doors()) + " paredes, " + m.doors() + " portas, "
+                + m.lights().size() + " luzes." + (m.walls().isEmpty() ? "" : " Visão ligada.")));
     }
 
     private void importWatabouDungeon() throws IOException {
@@ -3790,7 +3886,7 @@ public class Main extends Application {
         FileChooser chooser = new FileChooser();
         chooser.setTitle(azgaar ? "Imagem do mundo (Azgaar)" : "Imagem do mapa (Watabou)");
         chooser.getExtensionFilters().add(com.vttcaseiro.view.ImageFiles.filter());
-        File file = chooser.showOpenDialog(stage);
+        File file = com.vttcaseiro.view.ImagePicker.open(chooser, stage);
         if (file == null) return;
         com.vttcaseiro.importer.MapImageFit.Fitted img = com.vttcaseiro.importer.MapImageFit.fit(
                 java.nio.file.Files.readAllBytes(file.toPath()), file.getName());
@@ -4106,7 +4202,7 @@ public class Main extends Application {
         choose.setOnAction(e -> {
             javafx.stage.FileChooser chooser = new javafx.stage.FileChooser();
             chooser.getExtensionFilters().add(com.vttcaseiro.view.ImageFiles.filter());
-            java.io.File f = chooser.showOpenDialog(stage);
+            java.io.File f = com.vttcaseiro.view.ImagePicker.open(chooser, stage);
             if (f == null) return;
             try {
                 portrait[0] = imageAssetService.importFile(f.toPath());
@@ -4176,9 +4272,41 @@ public class Main extends Application {
         }
     }
 
+    /** Esconde/mostra a cena atual dos jogadores (mestre preparando). Manda pra mesa e grava. */
+    private void setSceneHidden(boolean hidden) {
+        SceneModel scene = sceneService.getScene();
+        if (scene.isHiddenFromPlayers() == hidden) return;
+        scene.setHiddenFromPlayers(hidden);
+        if (networkService.isConnected()) networkService.sendSceneSwitch(scene);
+        if (currentMapName != null) {
+            try {
+                mesaService.saveMap(scene, currentMapName);
+            } catch (IOException | IllegalArgumentException ex) {
+                showError("Não deu pra salvar a cena: " + ex.getMessage());
+            }
+        }
+        mapHolder.getChildren().setAll(buildMapArea()); // faixa "escondida" aparece/some
+        logEntries.add(LogEntry.system(hidden ? "Cena escondida dos jogadores: eles veem só um aviso até você mostrar."
+                : "Cena liberada pros jogadores."));
+    }
+
+    /** Abre a cena so pro mestre preparar: os jogadores ficam com o aviso "o mestre esta preparando". */
+    private void onOpenMapHidden(String name) {
+        openMapFromMesa(name, true);
+    }
+
+    /** Abre a cena pra todos (tira a cortina, se a cena estava escondida). */
     private void onOpenMapFromMesa(String name) {
+        openMapFromMesa(name, false);
+    }
+
+    private void openMapFromMesa(String name, boolean hidden) {
         try {
             SceneModel loaded = mesaService.loadMap(name);
+            if (loaded.isHiddenFromPlayers() != hidden) {
+                loaded.setHiddenFromPlayers(hidden);
+                mesaService.saveMap(loaded, name);
+            }
             if (imageAssetService.migrateInlineImages(loaded)) {
                 // Cena salva no formato antigo (imagens em base64 dentro do
                 // .json): converte pra assets e regrava, menor e mais rapida.
@@ -4189,7 +4317,7 @@ public class Main extends Application {
             networkService.sendSceneSwitch(loaded);
             currentMapName = name;
             if (currentSceneLabel != null) currentSceneLabel.setText("Cena atual: " + name);
-            logEntries.add(LogEntry.system("Cena aberta: " + name));
+            logEntries.add(LogEntry.system(hidden ? "Cena aberta escondida (preparando): " + name : "Cena aberta: " + name));
         } catch (IOException ex) {
             showError("Não foi possível abrir: " + ex.getMessage());
         } catch (RuntimeException ex) {
@@ -4330,7 +4458,15 @@ public class Main extends Application {
         }
         if (!entry.folder()) {
             add.accept("Abrir pra todos", () -> onOpenMapFromMesa(entry.name()));
+            add.accept("Abrir escondida (preparar)", () -> onOpenMapHidden(entry.name()));
+            if (entry.name().equals(currentMapName)) {
+                boolean hiddenNow = sceneService.getScene().isHiddenFromPlayers();
+                add.accept(hiddenNow ? "Mostrar aos jogadores" : "Esconder dos jogadores", () -> setSceneHidden(!hiddenNow));
+            }
             add.accept("Mostrar rapidinho e voltar", () -> onPeekScene(entry.name()));
+            add.accept("Renomear...", () -> onRenameScene(entry.name()));
+            add.accept("Duplicar...", () -> onDuplicateScene(entry.name()));
+            add.accept("Apagar...", () -> onDeleteScene(entry.name()));
             javafx.scene.control.Menu move = new javafx.scene.control.Menu("Mover para");
             List<String> targets = new ArrayList<>();
             targets.add("");
@@ -4454,7 +4590,7 @@ public class Main extends Application {
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Escolher imagem do token (cancelar usa uma silhueta padrão)");
         chooser.getExtensionFilters().add(com.vttcaseiro.view.ImageFiles.filter());
-        File file = chooser.showOpenDialog(null);
+        File file = com.vttcaseiro.view.ImagePicker.open(chooser, null);
         String imagePath = file != null ? file.getAbsolutePath() : null;
 
         TokenModel token = new TokenModel(name.get().trim(), imagePath);
@@ -4665,6 +4801,303 @@ public class Main extends Application {
             networkService.sendCharacterSync(lastOpenedCharacter);
         } catch (IOException ex) {
             showError("Não foi possível salvar: " + ex.getMessage());
+        }
+    }
+
+    // ---------------- apagar / renomear / duplicar (fichas, monstros, cenas)
+
+    private Optional<String> askNewName(String title, String current) {
+        TextInputDialog d = new TextInputDialog(current);
+        d.initOwner(stage);
+        d.setTitle(title);
+        d.setHeaderText(null);
+        d.setContentText("Nome:");
+        return d.showAndWait().map(String::strip).filter(x -> !x.isEmpty());
+    }
+
+    private boolean confirmDelete(String text) {
+        Alert a = new Alert(Alert.AlertType.CONFIRMATION, text, javafx.scene.control.ButtonType.OK, javafx.scene.control.ButtonType.CANCEL);
+        a.initOwner(stage);
+        a.setTitle("Apagar");
+        a.setHeaderText(null);
+        return a.showAndWait().filter(b -> b == javafx.scene.control.ButtonType.OK).isPresent();
+    }
+
+    private javafx.scene.control.ContextMenu characterMenu(String name) {
+        javafx.scene.control.ContextMenu m = new javafx.scene.control.ContextMenu();
+        javafx.scene.control.MenuItem open = new javafx.scene.control.MenuItem("Abrir");
+        open.setOnAction(e -> onOpenCharacterFromMesa(name));
+        javafx.scene.control.MenuItem ren = new javafx.scene.control.MenuItem("Renomear... (F2)");
+        ren.setOnAction(e -> onRenameCharacter(name));
+        javafx.scene.control.MenuItem dup = new javafx.scene.control.MenuItem("Duplicar...");
+        dup.setOnAction(e -> onDuplicateCharacter(name));
+        javafx.scene.control.MenuItem del = new javafx.scene.control.MenuItem("Apagar... (Delete)");
+        del.setOnAction(e -> onDeleteCharacter(name));
+        m.getItems().addAll(open, ren, dup);
+        if (networkService.isGm() || !networkService.isConnected()) {
+            boolean hidden = false;
+            try {
+                CharacterSheetView v = openViewFor(name);
+                hidden = (v != null ? v.getSheet() : characterService.open(name)).isHiddenFromPlayers();
+            } catch (IOException | RuntimeException ignored) {
+                // ficha ilegivel: o item so aparece como "esconder"
+            }
+            boolean now = hidden;
+            javafx.scene.control.MenuItem vis = new javafx.scene.control.MenuItem(
+                    now ? "Mostrar aos jogadores" : "Esconder dos jogadores (só o mestre vê)");
+            vis.setOnAction(e -> onSetCharacterHidden(name, !now));
+            m.getItems().add(vis);
+        }
+        m.getItems().addAll(new javafx.scene.control.SeparatorMenuItem(), del);
+        return m;
+    }
+
+    private void onSetCharacterHidden(String name, boolean hidden) {
+        try {
+            CharacterSheetView v = openViewFor(name);
+            CharacterSheet sheet = v != null ? v.getSheet() : characterService.open(name);
+            sheet.setHiddenFromPlayers(hidden);
+            characterService.save(sheet);
+            networkService.sendCharacterSync(sheet);
+            logEntries.add(LogEntry.system(hidden
+                    ? "Ficha escondida: \"" + sheet.getName() + "\" não vai mais pros jogadores (só pro dono, se tiver)."
+                    : "Ficha visível aos jogadores: " + sheet.getName()));
+        } catch (IOException | RuntimeException ex) {
+            showError("Não deu pra mudar: " + ex.getMessage());
+        }
+    }
+
+    /** A ficha aberta numa janela com esse nome de arquivo (ou null). */
+    private CharacterSheetView openViewFor(String fileName) {
+        for (CharacterSheetView v : openSheetViews.values()) {
+            if (fileName.equals(com.vttcaseiro.repository.MesaRepository.fileNameOf(v.getSheet().getName()))) return v;
+        }
+        return null;
+    }
+
+    private void onRenameCharacter(String name) {
+        CharacterSheetView view = openViewFor(name);
+        String current = view != null ? view.getSheet().getName() : name;
+        askNewName("Renomear ficha", current).ifPresent(n -> {
+            try {
+                CharacterSheet sheet = characterService.rename(name, n, view != null ? view.getSheet() : null);
+                if (view != null) view.reload(sheet);
+                refreshCharacterList();
+                networkService.sendCharacterSync(sheet);
+                logEntries.add(LogEntry.system("Ficha renomeada: " + current + " → " + sheet.getName()));
+            } catch (IllegalArgumentException | IOException ex) {
+                showError("Não deu pra renomear: " + ex.getMessage());
+            }
+        });
+    }
+
+    private void onDuplicateCharacter(String name) {
+        askNewName("Duplicar ficha", name + " (cópia)").ifPresent(n -> {
+            try {
+                CharacterSheet copy = characterService.duplicate(name, n);
+                refreshCharacterList();
+                logEntries.add(LogEntry.system("Ficha duplicada: " + copy.getName()));
+            } catch (IllegalArgumentException | IOException ex) {
+                showError("Não deu pra duplicar: " + ex.getMessage());
+            }
+        });
+    }
+
+    private void onDeleteCharacter(String name) {
+        if (!confirmDelete("Apagar a ficha \"" + name + "\" desta mesa?\n\nNão dá pra desfazer (os backups "
+                + "automáticos da mesa ainda têm a ficha). Tokens dela continuam no mapa.")) return;
+        try {
+            CharacterSheetView view = openViewFor(name);
+            if (view != null) {
+                openSheetViews.values().remove(view);
+                view.close();
+            }
+            characterService.delete(name);
+            if (lastOpenedCharacter != null
+                    && name.equals(com.vttcaseiro.repository.MesaRepository.fileNameOf(lastOpenedCharacter.getName()))) {
+                lastOpenedCharacter = null;
+            }
+            refreshCharacterList();
+            logEntries.add(LogEntry.system("Ficha apagada: " + name));
+        } catch (IOException ex) {
+            showError("Não deu pra apagar: " + ex.getMessage());
+        }
+    }
+
+    private javafx.scene.control.ContextMenu mobMenu(String name) {
+        javafx.scene.control.ContextMenu m = new javafx.scene.control.ContextMenu();
+        javafx.scene.control.MenuItem open = new javafx.scene.control.MenuItem("Abrir ficha");
+        open.setOnAction(e -> onOpenMobFromMesa(name));
+        javafx.scene.control.MenuItem edit = new javafx.scene.control.MenuItem("Editar...");
+        edit.setOnAction(e -> onEditMob(name));
+        javafx.scene.control.MenuItem dup = new javafx.scene.control.MenuItem("Duplicar (clonar)...");
+        dup.setOnAction(e -> onDuplicateMob(name));
+        javafx.scene.control.MenuItem ren = new javafx.scene.control.MenuItem("Renomear... (F2)");
+        ren.setOnAction(e -> onRenameMob(name));
+        javafx.scene.control.MenuItem place = new javafx.scene.control.MenuItem("Colocar no mapa");
+        place.setOnAction(e -> onPlaceSelectedMob());
+        javafx.scene.control.MenuItem del = new javafx.scene.control.MenuItem("Apagar... (Delete)");
+        del.setOnAction(e -> onDeleteMob(name));
+        m.getItems().addAll(open, edit, dup, ren, place);
+        boolean hidden = false;
+        try {
+            hidden = mobService.open(name).isHiddenFromPlayers();
+        } catch (IOException | RuntimeException ignored) {
+            // arquivo ilegivel
+        }
+        boolean now = hidden;
+        javafx.scene.control.MenuItem vis = new javafx.scene.control.MenuItem(
+                now ? "Mostrar a ficha aos jogadores" : "Esconder a ficha dos jogadores (só o mestre vê)");
+        vis.setOnAction(e -> {
+            try {
+                MobSheet mob = mobService.open(name);
+                mob.setHiddenFromPlayers(!now);
+                mobService.save(mob);
+                networkService.sendMobSync(mob);
+                logEntries.add(LogEntry.system((!now ? "Ficha do monstro escondida dos jogadores: "
+                        : "Ficha do monstro visível aos jogadores: ") + mob.getName()));
+            } catch (IOException | RuntimeException ex) {
+                showError("Não deu pra mudar: " + ex.getMessage());
+            }
+        });
+        m.getItems().addAll(vis, new javafx.scene.control.SeparatorMenuItem(), del);
+        return m;
+    }
+
+    private void refreshMobCount() {
+        if (mobCountLabel != null) mobCountLabel.setText(mobService.list().size() + " monstro(s) nesta mesa.");
+    }
+
+    private void onNewMob() {
+        MobSheet mob = new MobSheet("Novo monstro");
+        if (!com.vttcaseiro.view.MobEditor.edit(stage, mob, "Novo monstro / NPC")) return;
+        if (mobService.list().contains(com.vttcaseiro.repository.MesaRepository.fileNameOf(mob.getName()))) {
+            mob.setName(mobService.freeCopyName(mob.getName()));
+        }
+        try {
+            mobService.save(mob);
+            refreshMobList();
+            refreshMobCount();
+            mobListView.getSelectionModel().select(com.vttcaseiro.repository.MesaRepository.fileNameOf(mob.getName()));
+            logEntries.add(LogEntry.system("Monstro criado: " + mob.getName()));
+            openMobView(mob, null);
+        } catch (IOException ex) {
+            showError("Não deu pra salvar: " + ex.getMessage());
+        }
+    }
+
+    private void onEditMob(String name) {
+        try {
+            MobSheet mob = mobService.open(name);
+            String before = mob.getName();
+            if (!com.vttcaseiro.view.MobEditor.edit(stage, mob, "Editar " + before)) return;
+            String target = com.vttcaseiro.repository.MesaRepository.fileNameOf(mob.getName());
+            if (!target.equals(name) && mobService.list().contains(target)) {
+                showError("Já existe um monstro chamado \"" + target + "\". Escolha outro nome.");
+                return;
+            }
+            mobService.save(mob);
+            if (!target.equals(name)) mesaService.getRepository().deleteMob(name);
+            refreshMobList();
+            refreshMobCount();
+            logEntries.add(LogEntry.system("Monstro editado: " + mob.getName()));
+        } catch (IOException | RuntimeException ex) {
+            showError("Não deu pra editar: " + ex.getMessage());
+        }
+    }
+
+    private void onDuplicateMob(String name) {
+        askNewName("Duplicar monstro", mobService.freeCopyName(name)).ifPresent(n -> {
+            try {
+                MobSheet copy = mobService.duplicate(name, n);
+                refreshMobList();
+                refreshMobCount();
+                mobListView.getSelectionModel().select(com.vttcaseiro.repository.MesaRepository.fileNameOf(copy.getName()));
+                logEntries.add(LogEntry.system("Monstro duplicado: " + copy.getName() + " (botão direito > Editar pra mudar)"));
+            } catch (IllegalArgumentException | IOException ex) {
+                showError("Não deu pra duplicar: " + ex.getMessage());
+            }
+        });
+    }
+
+    private void onRenameMob(String name) {
+        askNewName("Renomear monstro", name).ifPresent(n -> {
+            try {
+                MobSheet mob = mobService.rename(name, n);
+                refreshMobList();
+                logEntries.add(LogEntry.system("Monstro renomeado: " + name + " → " + mob.getName()));
+            } catch (IllegalArgumentException | IOException ex) {
+                showError("Não deu pra renomear: " + ex.getMessage());
+            }
+        });
+    }
+
+    private void onDeleteMob(String name) {
+        if (!confirmDelete("Apagar o monstro \"" + name + "\" desta mesa?\n\nNão dá pra desfazer. Tokens dele que já "
+                + "estão no mapa continuam.")) return;
+        try {
+            mobService.delete(name);
+            refreshMobList();
+            refreshMobCount();
+            logEntries.add(LogEntry.system("Monstro apagado: " + name));
+        } catch (IOException ex) {
+            showError("Não deu pra apagar: " + ex.getMessage());
+        }
+    }
+
+    private void onRenameScene(String name) {
+        askNewName("Renomear cena", name).ifPresent(n -> {
+            try {
+                String target = mesaService.renameMap(name, n);
+                sceneFolders.renameScene(name, target);
+                if (name.equals(currentMapName)) {
+                    currentMapName = target;
+                    sceneService.getScene().setName(n);
+                    if (currentSceneLabel != null) currentSceneLabel.setText("Cena atual: " + target);
+                }
+                if (name.equals(sceneToReturnTo)) sceneToReturnTo = target;
+                saveSceneFolders();
+                logEntries.add(LogEntry.system("Cena renomeada: " + name + " → " + target));
+            } catch (IllegalArgumentException | IOException ex) {
+                showError("Não deu pra renomear: " + ex.getMessage());
+            }
+        });
+    }
+
+    private void onDuplicateScene(String name) {
+        askNewName("Duplicar cena", name + " (cópia)").ifPresent(n -> {
+            try {
+                String target = mesaService.duplicateMap(name, n);
+                String folder = sceneFolders.folderOf(name);
+                if (!folder.isEmpty()) sceneFolders.moveScene(target, folder);
+                saveSceneFolders();
+                logEntries.add(LogEntry.system("Cena duplicada: " + target));
+            } catch (IllegalArgumentException | IOException ex) {
+                showError("Não deu pra duplicar: " + ex.getMessage());
+            }
+        });
+    }
+
+    private void onDeleteScene(String name) {
+        boolean current = name.equals(currentMapName);
+        if (!confirmDelete("Apagar a cena \"" + name + "\"?\n\nNão dá pra desfazer (os backups automáticos da mesa "
+                + "ainda têm ela)." + (current ? "\nEla é a cena aberta agora: continua na tela até você trocar, "
+                + "mas não fica mais salva." : ""))) return;
+        try {
+            mesaService.deleteMap(name);
+            sceneFolders.moveScene(name, ""); // tira da pasta
+            if (current) {
+                currentMapName = null;
+                if (currentSceneLabel != null) currentSceneLabel.setText("Cena atual: (não salva)");
+            }
+            if (name.equals(sceneToReturnTo)) {
+                sceneToReturnTo = null;
+                refreshReturnButton();
+            }
+            saveSceneFolders();
+            logEntries.add(LogEntry.system("Cena apagada: " + name));
+        } catch (IOException ex) {
+            showError("Não deu pra apagar: " + ex.getMessage());
         }
     }
 

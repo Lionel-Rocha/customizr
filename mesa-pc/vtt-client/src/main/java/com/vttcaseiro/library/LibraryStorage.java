@@ -149,6 +149,16 @@ public class LibraryStorage implements MesaRepository {
     }
 
     @Override
+    public void deleteMap(String name) throws IOException {
+        java.nio.file.Files.deleteIfExists(mapsDir.resolve(safeFileName(name) + ".json"));
+    }
+
+    @Override
+    public void deleteMob(String name) throws IOException {
+        java.nio.file.Files.deleteIfExists(mobsDir.resolve(safeFileName(name) + ".json"));
+    }
+
+    @Override
     public void deleteCharacter(String name) throws IOException {
         java.nio.file.Files.deleteIfExists(charactersDir.resolve(safeFileName(name) + ".json"));
     }
@@ -244,7 +254,7 @@ public class LibraryStorage implements MesaRepository {
     /** Troca qualquer caractere que nao seja letra/numero/traco por "_",
      * pra dar pra usar o nome do mapa/personagem direto como nome de
      * arquivo sem dar erro no sistema operacional. */
-    private static String safeFileName(String name) {
+    public static String safeFileName(String name) {
         String safe = name.trim().replaceAll("[^a-zA-Z0-9-_ ]", "_");
         return safe.isEmpty() ? "sem_nome" : safe;
     }

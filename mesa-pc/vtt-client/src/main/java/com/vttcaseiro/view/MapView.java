@@ -920,7 +920,23 @@ public class MapView extends Pane {
     private static final int BLANK_ROWS = 20;
 
     private void updateEmptyStateVisibility() {
-        emptyStateLabel.setVisible(false); // o cartao "Comece aqui" da tela principal faz esse papel agora
+        // o cartao "Comece aqui" da tela principal faz o papel de tabuleiro vazio; aqui so fica o aviso da
+        // cena escondida (jogador: o mestre esta preparando, o servidor nem mandou o que tem nela)
+        boolean gm = tokenActions == null || tokenActions.isGm();
+        boolean curtain = scene.isHiddenFromPlayers() && !gm;
+        if (curtain) {
+            emptyStateLabel.setText("O mestre está preparando a cena...\nEla aparece aqui assim que ele mostrar.");
+            emptyStateLabel.setStyle("-fx-text-fill: -c-text; -fx-font-size: 18px; -fx-text-alignment: center;"
+                    + " -fx-background-color: -c-surface; -fx-padding: 18 26 18 26; -fx-background-radius: 10;");
+            emptyStateLabel.toFront();
+        }
+        emptyStateLabel.setVisible(curtain);
+        centerEmptyState();
+    }
+
+    /** Reaplica o aviso de cena escondida (chame depois de trocar quem e mestre ou a cena). */
+    public void refreshCurtain() {
+        updateEmptyStateVisibility();
     }
 
     /**
@@ -1270,9 +1286,12 @@ public class MapView extends Pane {
 
         double[] press = new double[4];
         boolean[] dragging = {false};
+        node.setFocusTraversable(false);
         node.setOnMousePressed(e -> {
-            if (!noToolActive() && !pinTool) return; // deixa a ferramenta ativa trabalhar
+            // botao direito (menu do pin) funciona com qualquer ferramenta; o esquerdo so quando ela deixa
+            if (e.getButton() != MouseButton.SECONDARY && !pinDraggable()) return;
             if (e.getButton() == MouseButton.PRIMARY) {
+                if (gm) node.requestFocus(); // Delete apaga o pin em foco
                 Point2D p = content.sceneToLocal(e.getSceneX(), e.getSceneY());
                 press[0] = p.getX();
                 press[1] = p.getY();
@@ -1286,7 +1305,7 @@ public class MapView extends Pane {
                 open.setOnAction(a -> pinHandler.open(pin));
                 javafx.scene.control.MenuItem ed = new javafx.scene.control.MenuItem("Editar pin...");
                 ed.setOnAction(a -> pinHandler.edit(pin));
-                javafx.scene.control.MenuItem rm = new javafx.scene.control.MenuItem("Apagar pin");
+                javafx.scene.control.MenuItem rm = new javafx.scene.control.MenuItem("Apagar pin (Delete)");
                 rm.setOnAction(a -> pinHandler.remove(pin));
                 menu.getItems().addAll(open, ed, rm);
                 menu.show(node, e.getScreenX(), e.getScreenY());
@@ -1294,7 +1313,7 @@ public class MapView extends Pane {
             }
         });
         node.setOnMouseDragged(e -> {
-            if (e.getButton() != MouseButton.PRIMARY || !gm || (!noToolActive() && !pinTool)) return;
+            if (e.getButton() != MouseButton.PRIMARY || !gm || !pinDraggable()) return;
             Point2D p = content.sceneToLocal(e.getSceneX(), e.getSceneY());
             double dx = p.getX() - press[0], dy = p.getY() - press[1];
             if (!dragging[0] && Math.hypot(dx, dy) * zoom < 5) return;
@@ -1304,7 +1323,7 @@ public class MapView extends Pane {
             e.consume();
         });
         node.setOnMouseReleased(e -> {
-            if (e.getButton() != MouseButton.PRIMARY || (!noToolActive() && !pinTool) || pinHandler == null) return;
+            if (e.getButton() != MouseButton.PRIMARY || !pinDraggable() || pinHandler == null) return;
             if (dragging[0]) {
                 pinHandler.moved(pin, node.getLayoutX(), node.getLayoutY());
             } else if (pinTool && gm) {
@@ -1315,7 +1334,21 @@ public class MapView extends Pane {
             dragging[0] = false;
             e.consume();
         });
+        node.setOnKeyPressed(e -> {
+            if (!gm || pinHandler == null) return;
+            if (e.getCode() == javafx.scene.input.KeyCode.DELETE || e.getCode() == javafx.scene.input.KeyCode.BACK_SPACE) {
+                pinHandler.remove(pin);
+                e.consume();
+            }
+        });
+        node.focusedProperty().addListener((o, was, now) -> node.setStyle(now
+                ? "-fx-effect: dropshadow(gaussian, #FFCF7F, 10, 0.5, 0, 0);" : ""));
         return node;
+    }
+
+    /** Pin aceita clique/arraste com o esquerdo: sem ferramenta, com a de pin ou com a regua (que so mede). */
+    private boolean pinDraggable() {
+        return noToolActive() || pinTool || (measuring && wallTool == null && drawTool == null && !templating && fogTool == null);
     }
 
     /** Define quem e avisado quando uma ficha e arrastada pro mapa (ver
@@ -1738,6 +1771,7 @@ public class MapView extends Pane {
         this.tokenActions = actions;
         redrawWalls();
         rebuildTokens();
+        updateEmptyStateVisibility();
     }
 
     /** Ultimo token clicado (pra "aplicar dano no token selecionado" do chat). */

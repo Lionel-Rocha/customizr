@@ -339,7 +339,7 @@ public class GameServer {
                     }
                     scene.setObjects(msg.objects);
                     for (ClientHandler c : clients) {
-                        if (c != from && c.getSession() != null) c.send(NetMessage.objectsSync(scene.visibleObjects(c.isGm())));
+                        if (c != from && c.getSession() != null && !curtain(c)) c.send(NetMessage.objectsSync(scene.visibleObjects(c.isGm())));
                     }
                 }
                 case "pins_sync" -> {
@@ -349,7 +349,7 @@ public class GameServer {
                     }
                     scene.setPins(msg.pins);
                     for (ClientHandler c : clients) {
-                        if (c != from && c.getSession() != null) c.send(NetMessage.pinsSync(scene.visiblePins(c.isGm())));
+                        if (c != from && c.getSession() != null && !curtain(c)) c.send(NetMessage.pinsSync(scene.visiblePins(c.isGm())));
                     }
                 }
                 case "walls_sync" -> {
@@ -484,14 +484,20 @@ public class GameServer {
                         sharedCharacters.put(sheetId, msg.character);
                         // Nao devolve pra quem mandou: a janela dele ja tem
                         // essa versao (e pode ter mais edicoes por cima).
-                        broadcastExcept(msg, from);
+                        String line = NetCodec.encode(msg);
+                        for (ClientHandler c : clients) {
+                            if (c != from && c.getSession() != null && canSeeCharacter(c, msg.character)) c.sendEncoded(line);
+                        }
                         resyncAll(); // dono novo da ficha = olhos novos na visao dinamica
                     }
                 }
                 case "mob_sync" -> {
                     if (msg.mob != null && msg.mob.getId() != null) {
                         sharedMobs.put(msg.mob.getId(), msg.mob);
-                        broadcast(msg);
+                        String line = NetCodec.encode(msg);
+                        for (ClientHandler c : clients) {
+                            if (c.getSession() != null && (c.isGm() || !msg.mob.isHiddenFromPlayers())) c.sendEncoded(line);
+                        }
                     }
                 }
                 case "party_sync" -> {
@@ -578,8 +584,10 @@ public class GameServer {
                     // tudo que ja foi sincronizado antes dele chegar -- senao
                     // so veria fichas/monstros/party sincronizados DEPOIS da
                     // entrada dele.
-                    sharedCharacters.values().forEach(sheet -> from.send(NetMessage.characterSync(sheet)));
-                    sharedMobs.values().forEach(mob -> from.send(NetMessage.mobSync(mob)));
+                    sharedCharacters.values().stream().filter(sheet -> canSeeCharacter(from, sheet))
+                            .forEach(sheet -> from.send(NetMessage.characterSync(sheet)));
+                    sharedMobs.values().stream().filter(mob -> from.isGm() || !mob.isHiddenFromPlayers())
+                            .forEach(mob -> from.send(NetMessage.mobSync(mob)));
                     sharedHandouts.values().forEach(h -> from.send(NetMessage.handoutSync(h)));
                     playingAudio.values().forEach(a -> from.send(NetMessage.audio(a)));
                     if (sharedParty != null) {
@@ -605,20 +613,23 @@ public class GameServer {
             return;
         }
         Set<String> assetIds = new LinkedHashSet<>();
-        if (scene.getBackgroundImageAssetId() != null) {
+        boolean sceneVisible = !curtain(from); // cena escondida: nem a imagem do mapa vai
+        if (sceneVisible && scene.getBackgroundImageAssetId() != null) {
             assetIds.add(scene.getBackgroundImageAssetId());
         }
-        for (TokenModel token : scene.getTokens()) {
+        for (TokenModel token : sceneVisible ? scene.getTokens() : List.<TokenModel>of()) {
             if (token.getImageAssetId() != null) {
                 assetIds.add(token.getImageAssetId());
             }
         }
         for (CharacterSheet sheet : sharedCharacters.values()) {
+            if (!canSeeCharacter(from, sheet)) continue;
             if (sheet.getPortraitImageAssetId() != null) {
                 assetIds.add(sheet.getPortraitImageAssetId());
             }
         }
         for (MobSheet mob : sharedMobs.values()) {
+            if (mob.isHiddenFromPlayers() && !from.isGm()) continue;
             if (mob.getPortraitImageAssetId() != null) {
                 assetIds.add(mob.getPortraitImageAssetId());
             }
@@ -707,6 +718,13 @@ public class GameServer {
         java.util.Set<String> visible = visibleIds(c);
         c.knownTokens.clear();
         c.knownTokens.addAll(visible);
+        if (curtain(c)) {
+            // mestre preparando: o jogador so fica sabendo que tem uma cena escondida (nem o nome vai)
+            SceneModel blank = new SceneModel();
+            blank.setName("");
+            blank.setHiddenFromPlayers(true);
+            return blank;
+        }
         boolean hiddenPins = scene.getPins().stream().anyMatch(com.vttcaseiro.model.MapPin::isHidden)
                 || scene.getObjects().stream().anyMatch(com.vttcaseiro.model.MapObject::isHidden);
         if (c.isGm() || (visible.size() == scene.getTokens().size() && !hiddenPins)) return scene;
@@ -729,6 +747,7 @@ public class GameServer {
      */
     private java.util.Set<String> visibleIds(ClientHandler c) {
         java.util.Set<String> out = new java.util.HashSet<>();
+        if (curtain(c)) return out; // cena escondida: nenhum token sai pro jogador
         for (TokenModel t : scene.getTokens()) {
             if (c.isGm() || !t.isHiddenFromPlayers()) out.add(t.getId());
         }
@@ -779,8 +798,9 @@ public class GameServer {
 
     private void broadcastExcept(NetMessage msg, ClientHandler except) {
         String line = NetCodec.encode(msg);
+        boolean sceneMsg = SCENE_TYPES.contains(msg.type);
         for (ClientHandler client : clients) {
-            if (client != except) client.sendEncoded(line);
+            if (client != except && !(sceneMsg && curtain(client))) client.sendEncoded(line);
         }
     }
 
@@ -788,9 +808,28 @@ public class GameServer {
      * -- ver ClientHandler). */
     private void broadcast(NetMessage msg) {
         String line = NetCodec.encode(msg);
+        boolean sceneMsg = SCENE_TYPES.contains(msg.type);
         for (ClientHandler client : clients) {
-            client.sendEncoded(line);
+            if (!(sceneMsg && curtain(client))) client.sendEncoded(line);
         }
+    }
+
+    /** Mensagens que mostram o que tem na cena (nao vao pro jogador enquanto ela esta escondida). */
+    private static final java.util.Set<String> SCENE_TYPES = java.util.Set.of("move_token", "add_token", "update_token",
+            "remove_token", "objects_sync", "pins_sync", "walls_sync", "door_toggle", "drawing_add", "drawing_remove",
+            "drawing_clear", "fog_sync", "encounter_sync", "map_ping");
+
+    /** Este cliente esta atras da cortina (cena escondida e ele nao e o mestre)? */
+    private boolean curtain(ClientHandler c) {
+        return scene != null && scene.isHiddenFromPlayers() && !c.isGm();
+    }
+
+    /** Ficha escondida: so o mestre e o dono recebem. */
+    private boolean canSeeCharacter(ClientHandler c, CharacterSheet sheet) {
+        if (c.isGm() || !sheet.isHiddenFromPlayers()) return true;
+        String owner = characterOwners.get(sheet.getId());
+        if (owner == null) owner = sheet.getOwnerPlayerId();
+        return owner != null && c.getSession() != null && owner.equals(c.getSession().playerId());
     }
 
     public void stop() {

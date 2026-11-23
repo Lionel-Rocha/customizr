@@ -114,7 +114,7 @@ public final class TokenLink {
         String s = size.toLowerCase();
         if (s.startsWith("gr") || s.startsWith("la") || s.equals("l")) return 2;
         if (s.startsWith("en") || s.startsWith("hu") || s.equals("h")) return 3;
-        if (s.startsWith("im") || s.startsWith("ga") || s.equals("g")) return 4;
+        if (s.startsWith("im") || s.startsWith("ga") || s.startsWith("gi") || s.equals("g")) return 4;
         return 1;
     }
 

@@ -254,6 +254,12 @@ public class CharacterSheet {
     /** Ficha importada vira uma ficha NOVA (nao colide com a original se ela tambem estiver na mesa). */
     public void assignNewId() { this.id = UUID.randomUUID().toString(); }
 
+    /** So o mestre (e o dono, se tiver) recebe esta ficha pela rede. Bom pra NPC que os jogadores nao devem ler. */
+    private boolean hiddenFromPlayers;
+
+    public boolean isHiddenFromPlayers() { return hiddenFromPlayers; }
+    public void setHiddenFromPlayers(boolean hidden) { this.hiddenFromPlayers = hidden; }
+
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
 

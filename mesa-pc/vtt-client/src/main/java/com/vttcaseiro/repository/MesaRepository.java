@@ -53,6 +53,17 @@ public interface MesaRepository {
      * o nome antigo na lista de fichas da mesa. */
     void deleteCharacter(String name) throws IOException;
 
+    /** Apaga o arquivo da cena com esse nome (sem erro se nao existir). */
+    void deleteMap(String name) throws IOException;
+
+    /** Apaga o arquivo do monstro com esse nome (sem erro se nao existir). */
+    void deleteMob(String name) throws IOException;
+
+    /** Nome do arquivo que um nome de ficha/cena/monstro vira (acentos e simbolos viram "_"). As listas mostram isso. */
+    static String fileNameOf(String name) {
+        return com.vttcaseiro.library.LibraryStorage.safeFileName(name == null ? "" : name);
+    }
+
     /** Uma mesa tem no maximo uma Party (o suficiente pra maioria das
      * campanhas -- um grupo so). */
     void saveParty(Party party) throws IOException;

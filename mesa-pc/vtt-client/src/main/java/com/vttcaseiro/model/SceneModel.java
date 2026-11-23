@@ -116,6 +116,12 @@ public class SceneModel {
     }
 
     public boolean isVisionEnabled() { return visionEnabled; }
+
+    /** Cena escondida (mestre preparando): jogador recebe so uma cena vazia com o aviso, nada do que tem nela. */
+    private boolean hiddenFromPlayers;
+
+    public boolean isHiddenFromPlayers() { return hiddenFromPlayers; }
+    public void setHiddenFromPlayers(boolean hidden) { this.hiddenFromPlayers = hidden; }
     public void setVisionEnabled(boolean visionEnabled) { this.visionEnabled = visionEnabled; }
 
     public boolean isDark() { return dark; }

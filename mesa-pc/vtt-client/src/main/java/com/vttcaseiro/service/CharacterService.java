@@ -116,6 +116,53 @@ public class CharacterService {
         openCharacters.put(sheet.getId(), sheet);
     }
 
+    /** Apaga a ficha da mesa (o arquivo). Tokens ligados a ela ficam no mapa, so sem ficha. */
+    public void delete(String name) throws IOException {
+        if (name == null || !list().contains(name)) throw new IOException("Ficha não encontrada: " + name);
+        repository.deleteCharacter(name);
+        savedNames.entrySet().removeIf(e -> {
+            if (!name.equals(MesaRepository.fileNameOf(e.getValue()))) return false;
+            openCharacters.remove(e.getKey());
+            return true;
+        });
+        log.info("Ficha apagada: " + name);
+    }
+
+    /**
+     * Troca o nome do personagem (e do arquivo). Se a ficha estiver aberta, mude pela instancia aberta
+     * ({@code openInstance}) pra janela e a mesa nao divergirem.
+     *
+     * @throws IllegalArgumentException nome vazio
+     * @throws IOException              nome ja usado por outra ficha, ou erro ao salvar
+     */
+    public CharacterSheet rename(String name, String newName, CharacterSheet openInstance) throws IOException {
+        if (newName == null || newName.isBlank()) throw new IllegalArgumentException("O nome do personagem não pode ser vazio.");
+        CharacterSheet sheet = openInstance != null ? openInstance : open(name);
+        savedNames.putIfAbsent(sheet.getId(), name);
+        String before = sheet.getName();
+        sheet.setName(newName.trim());
+        try {
+            save(sheet);
+        } catch (IOException ex) {
+            sheet.setName(before);
+            throw ex;
+        }
+        return sheet;
+    }
+
+    /** Copia a ficha com outro nome (outro personagem: id novo). Bom pra NPCs parecidos. */
+    public CharacterSheet duplicate(String name, String newName) throws IOException {
+        if (newName == null || newName.isBlank()) throw new IllegalArgumentException("O nome do personagem não pode ser vazio.");
+        if (list().contains(MesaRepository.fileNameOf(newName.trim()))) {
+            throw new IOException("Já existe uma ficha chamada \"" + newName.trim() + "\" nesta mesa.");
+        }
+        CharacterSheet copy = repository.loadCharacter(name);
+        copy.assignNewId();
+        copy.setName(newName.trim());
+        save(copy);
+        return copy;
+    }
+
     public List<String> list() {
         try {
             return repository.listCharacters();

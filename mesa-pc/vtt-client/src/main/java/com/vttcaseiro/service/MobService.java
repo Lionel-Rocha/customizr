@@ -74,6 +74,55 @@ public class MobService {
         return Optional.empty();
     }
 
+    /** Apaga o monstro da mesa (o arquivo). Tokens que ja estao no mapa continuam. */
+    public void delete(String name) throws IOException {
+        if (name == null || !list().contains(name)) throw new IOException("Monstro não encontrado: " + name);
+        repository.deleteMob(name);
+        openMobs.values().removeIf(m -> name.equals(MesaRepository.fileNameOf(m.getName())));
+        log.info("Monstro apagado: " + name);
+    }
+
+    /**
+     * Troca o nome do monstro (e do arquivo).
+     *
+     * @throws IllegalArgumentException nome vazio ou ja usado
+     */
+    public MobSheet rename(String name, String newName) throws IOException {
+        if (newName == null || newName.isBlank()) throw new IllegalArgumentException("O nome do monstro não pode ser vazio.");
+        String target = MesaRepository.fileNameOf(newName.trim());
+        MobSheet mob = open(name);
+        if (target.equals(name)) {
+            mob.setName(newName.trim());
+            save(mob);
+            return mob;
+        }
+        if (list().contains(target)) throw new IllegalArgumentException("Já existe um monstro chamado \"" + target + "\".");
+        mob.setName(newName.trim());
+        save(mob);
+        repository.deleteMob(name);
+        return mob;
+    }
+
+    /** Copia o monstro com outro nome (ex.: "Goblin chefe" a partir do "Goblin"), com id novo, pra editar a copia. */
+    public MobSheet duplicate(String name, String newName) throws IOException {
+        if (newName == null || newName.isBlank()) throw new IllegalArgumentException("O nome do monstro não pode ser vazio.");
+        if (list().contains(MesaRepository.fileNameOf(newName.trim()))) {
+            throw new IllegalArgumentException("Já existe um monstro chamado \"" + newName.trim() + "\".");
+        }
+        MobSheet copy = repository.loadMob(name);
+        copy.assignNewId();
+        copy.setName(newName.trim());
+        save(copy);
+        return copy;
+    }
+
+    /** Sugestao de nome livre pra copia: "Goblin (2)", "Goblin (3)"... */
+    public String freeCopyName(String name) {
+        int n = 2;
+        while (list().contains(MesaRepository.fileNameOf(name + " (" + n + ")"))) n++;
+        return name + " (" + n + ")";
+    }
+
     public List<String> list() {
         try {
             return repository.listMobs();

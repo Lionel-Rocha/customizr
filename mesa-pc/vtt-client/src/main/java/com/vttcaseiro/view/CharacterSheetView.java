@@ -1924,7 +1924,7 @@ public class CharacterSheetView {
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Escolher retrato de " + sheet.getName());
         chooser.getExtensionFilters().add(com.vttcaseiro.view.ImageFiles.filter());
-        File file = chooser.showOpenDialog(stage);
+        File file = ImagePicker.open(chooser, stage);
         if (file == null) return;
         sheet.setPortraitImagePath(file.getAbsolutePath());
         if (imageAssetService != null) {
