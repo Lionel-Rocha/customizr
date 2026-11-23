@@ -230,6 +230,31 @@ Ao criar uma ficha ("Nova ficha..."), escolha o sistema: **D&D 5e (2024)**, **To
   conta 1). Verde = dentro do deslocamento da ficha/monstro; laranja = precisa de Disparada;
   vermelho = longe demais.
 
+### Campanha: o caderno do mestre
+
+Botao **Campanha** na barra de cima. Abas:
+
+- **Jogadores**: XP e ouro em lancamentos (data, valor, motivo), nivel do D&D 5e pela XP, presencas e
+  faltas. "+XP pra todos", "+PO pra todos", "Marcar presenca de todos" e "+ Jogadores conectados".
+- **Calendario**: data do mundo (meses, dias da semana, estacoes e lua configuraveis), "+1 / +7 / +30
+  dias" e clima do dia sorteado pela estacao (sempre o mesmo pra mesma data).
+- **PdMs**: nome, atitude com o grupo, onde esta, o que os jogadores sabem e os segredos (so o mestre).
+- **Aventuras**: numero, estado (ativa, pausada, completa, falhou), datas, objetivo, resultado e notas do mestre.
+- **Sessoes**: numero e data automaticos, resumo e link.
+- **Anotacoes do mestre**: nunca saem do PC do mestre.
+
+Cada item tem **"Visivel aos jogadores"**: so o que estiver marcado vai pra eles (o servidor nem manda
+o resto), e eles veem a mesma janela sem poder editar. Fica em `campanha.json` na pasta da mesa.
+
+### Esconder o que o mestre preparou
+
+- **Fichas**: botao direito na lista > "Esconder dos jogadores". So o mestre (e o dono, se tiver) recebe.
+  Se o jogador ja tinha recebido, a ficha some da lista dele.
+- **Monstros**: nascem escondidos (o jogador nao ve nem que o monstro existe); botao direito > "Mostrar
+  a ficha aos jogadores" libera.
+- **Cenas**: o jogador nunca recebe a lista de cenas, so a cena aberta. "Abrir escondida (preparar)"
+  deixa ele so com o aviso "o mestre esta preparando a cena" ate voce mostrar.
+
 ### Pins: pontos de informacao que abrem outros mapas
 
 Barra do mapa > **Pins** > **"Colocar pin"** e clique no mapa (so o mestre cria).

@@ -301,6 +301,8 @@ public class Main extends Application {
         this.compendiumImportService = new CompendiumImportService(compendiumService);
         this.sceneService = new SceneService(new SceneModel());
         this.classImportService = new ClassImportService(mesa);
+        this.campaign = com.vttcaseiro.model.Campaign.load(mesa.getRoot());
+        wireCampaign(); // a campanha vai pra mesa assim que o mestre hospedar, mesmo sem abrir a janela
         syncOfficialClasses();
         this.table = new TableService(sceneService, characterService, tablePort);
         this.table.setMobLookup(id -> mobService.findById(id).orElse(null));
@@ -1063,7 +1065,12 @@ public class Main extends Application {
         gear.setStyle("-fx-font-size: 15px;");
         gear.setTooltip(new Tooltip("Configurações: tema, backup e cópias automáticas"));
         gear.setOnAction(e -> showMesaSettings());
-        bar.getChildren().addAll(brand, sep, title, spacer, returnSceneButton, hint, gear, netStatusLabel);
+        Button campaignButton = new Button("Campanha", com.vttcaseiro.view.Icons.icon("journal", 14));
+        campaignButton.getStyleClass().add("button-flat");
+        campaignButton.setTooltip(new Tooltip("Gerenciador de campanha: jogadores (XP, ouro), calendário e clima, PdMs, "
+                + "aventuras, sessões e anotações. O que você marcar como visível os jogadores veem."));
+        campaignButton.setOnAction(e -> openCampaign());
+        bar.getChildren().addAll(brand, sep, title, spacer, returnSceneButton, hint, campaignButton, gear, netStatusLabel);
         return bar;
     }
 
@@ -2738,6 +2745,49 @@ public class Main extends Application {
     private Stage mesaSettingsWindow;
 
     /** Engrenagem do topo: backup e copias automaticas da mesa (saiu da aba Rede). */
+    // ---------------- gerenciador de campanha
+
+    private com.vttcaseiro.model.Campaign campaign = new com.vttcaseiro.model.Campaign();
+    private com.vttcaseiro.view.CampaignView campaignView;
+    private final javafx.animation.PauseTransition campaignSave = new javafx.animation.PauseTransition(javafx.util.Duration.millis(700));
+    private boolean campaignWired;
+
+    /** Mestre (ou offline): edita. Jogador conectado: ve a parte publica que o mestre mandou. */
+    private boolean editsCampaign() {
+        return !networkService.isConnected() || networkService.isGm();
+    }
+
+    private void openCampaign() {
+        wireCampaign();
+        if (campaignView != null && campaignView.isShowing()) {
+            campaignView.show();
+            return;
+        }
+        campaignView = new com.vttcaseiro.view.CampaignView(stage, campaign, editsCampaign(), c -> campaignSave.playFromStart())
+                .withOnlinePlayers(() -> new ArrayList<>(networkService.getOnlinePlayers()));
+        campaignView.show();
+    }
+
+    /** Uma vez: gravar/mandar depois de parar de digitar, e mandar a campanha quando o mestre entra na rede. */
+    private void wireCampaign() {
+        if (campaignWired) return;
+        campaignWired = true;
+        campaignSave.setOnFinished(e -> pushCampaign());
+        networkService.statusProperty().addListener((o, a, b) -> Platform.runLater(() -> {
+            if (networkService.isConnected() && networkService.isGm()) networkService.sendCampaign(campaign);
+        }));
+    }
+
+    private void pushCampaign() {
+        if (!editsCampaign()) return;
+        try {
+            campaign.save(mesaRepository.getRoot());
+        } catch (IOException ex) {
+            showError("Não deu pra salvar a campanha: " + ex.getMessage());
+        }
+        if (networkService.isConnected()) networkService.sendCampaign(campaign);
+    }
+
     private void showMesaSettings() {
         if (mesaSettingsWindow == null) {
             VBox settings = new VBox(8);
@@ -6469,6 +6519,44 @@ public class Main extends Application {
                 refreshJournal();
                 logEntries.add(LogEntry.system((isNew ? "Nova anotação no diário: " : "Anotação atualizada no diário: ")
                         + handout.getTitle() + " (aba Diário)"));
+            });
+        }
+
+        @Override
+        public void onCampaignSync(com.vttcaseiro.model.Campaign c) {
+            Platform.runLater(() -> {
+                if (networkService.isGm() && !networkService.isConnected()) return;
+                campaign = c;
+                if (campaignView != null && campaignView.isShowing()) campaignView.reload(c);
+            });
+        }
+
+        @Override
+        public void onCharacterRemoved(String id) {
+            Platform.runLater(() -> {
+                if (networkService.isGm()) return; // o mestre nunca perde ficha por isso
+                try {
+                    CharacterSheetView view = openSheetViews.remove(id);
+                    if (view != null) view.close();
+                    if (characterService.removeById(id) != null) refreshCharacterList();
+                } catch (IOException ex) {
+                    logEntries.add(LogEntry.error("Não deu pra tirar a ficha escondida: " + ex.getMessage()));
+                }
+            });
+        }
+
+        @Override
+        public void onMobRemoved(String id) {
+            Platform.runLater(() -> {
+                if (networkService.isGm()) return;
+                try {
+                    if (mobService.removeById(id) != null) {
+                        refreshMobList();
+                        refreshMobCount();
+                    }
+                } catch (IOException ex) {
+                    logEntries.add(LogEntry.error("Não deu pra tirar o monstro escondido: " + ex.getMessage()));
+                }
             });
         }
 

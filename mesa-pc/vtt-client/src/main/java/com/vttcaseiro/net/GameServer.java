@@ -65,6 +65,8 @@ public class GameServer {
      * MobSheet.getId()), nao o nome -- dois personagens podem ter o
      * mesmo nome, nunca o mesmo id. */
     private final Map<String, CharacterSheet> sharedCharacters = new ConcurrentHashMap<>();
+    /** Campanha completa (so o mestre manda); jogador recebe a publicCopy(). */
+    private volatile com.vttcaseiro.model.Campaign sharedCampaign;
     private final Map<String, MobSheet> sharedMobs = new ConcurrentHashMap<>();
     /** id da ficha -> playerId de quem a sincronizou primeiro. */
     private final Map<String, String> characterOwners = new ConcurrentHashMap<>();
@@ -485,8 +487,11 @@ public class GameServer {
                         // Nao devolve pra quem mandou: a janela dele ja tem
                         // essa versao (e pode ter mais edicoes por cima).
                         String line = NetCodec.encode(msg);
+                        String gone = NetCodec.encode(NetMessage.characterRemove(sheetId));
                         for (ClientHandler c : clients) {
-                            if (c != from && c.getSession() != null && canSeeCharacter(c, msg.character)) c.sendEncoded(line);
+                            if (c == from || c.getSession() == null) continue;
+                            // escondida agora: quem nao pode ver apaga a copia que ja tinha (some da lista dele)
+                            c.sendEncoded(canSeeCharacter(c, msg.character) ? line : gone);
                         }
                         resyncAll(); // dono novo da ficha = olhos novos na visao dinamica
                     }
@@ -495,8 +500,24 @@ public class GameServer {
                     if (msg.mob != null && msg.mob.getId() != null) {
                         sharedMobs.put(msg.mob.getId(), msg.mob);
                         String line = NetCodec.encode(msg);
+                        String gone = NetCodec.encode(NetMessage.mobRemove(msg.mob.getId()));
                         for (ClientHandler c : clients) {
-                            if (c.getSession() != null && (c.isGm() || !msg.mob.isHiddenFromPlayers())) c.sendEncoded(line);
+                            if (c.getSession() == null) continue;
+                            c.sendEncoded(c.isGm() || !msg.mob.isHiddenFromPlayers() ? line : gone);
+                        }
+                    }
+                }
+                case "campaign_sync" -> {
+                    if (!from.isGm()) {
+                        from.send(NetMessage.chat("servidor", "Só o mestre mexe na campanha."));
+                        break;
+                    }
+                    if (msg.campaign != null) {
+                        sharedCampaign = msg.campaign.sanitize();
+                        String full = NetCodec.encode(NetMessage.campaignSync(sharedCampaign));
+                        String pub = NetCodec.encode(NetMessage.campaignSync(sharedCampaign.publicCopy()));
+                        for (ClientHandler c : clients) {
+                            if (c != from && c.getSession() != null) c.sendEncoded(c.isGm() ? full : pub);
                         }
                     }
                 }
@@ -592,6 +613,8 @@ public class GameServer {
                     sharedMobs.values().stream().filter(mob -> from.isGm() || !mob.isHiddenFromPlayers())
                             .forEach(mob -> from.send(NetMessage.mobSync(mob)));
                     sharedHandouts.values().forEach(h -> from.send(NetMessage.handoutSync(h)));
+                    com.vttcaseiro.model.Campaign camp = sharedCampaign;
+                    if (camp != null) from.send(NetMessage.campaignSync(from.isGm() ? camp : camp.publicCopy()));
                     playingAudio.values().forEach(a -> from.send(NetMessage.audio(a)));
                     if (sharedParty != null) {
                         from.send(NetMessage.partySync(sharedParty));

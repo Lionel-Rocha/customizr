@@ -126,6 +126,15 @@ public class NetworkService {
         default void onMobSync(MobSheet mob) {
         }
 
+        default void onCampaignSync(com.vttcaseiro.model.Campaign campaign) {
+        }
+
+        default void onCharacterRemoved(String id) {
+        }
+
+        default void onMobRemoved(String id) {
+        }
+
         default void onPartySync(Party party) {
         }
 
@@ -511,6 +520,21 @@ public class NetworkService {
             }
 
             @Override
+            public void onCampaignSync(com.vttcaseiro.model.Campaign campaign) {
+                listener.onCampaignSync(campaign);
+            }
+
+            @Override
+            public void onCharacterRemoved(String id) {
+                listener.onCharacterRemoved(id);
+            }
+
+            @Override
+            public void onMobRemoved(String id) {
+                listener.onMobRemoved(id);
+            }
+
+            @Override
             public void onPlayers(List<com.vttcaseiro.net.NetMessage.PlayerInfo> players) {
                 java.util.Map<String, String> ids = new java.util.LinkedHashMap<>();
                 for (var p : players) {
@@ -745,6 +769,10 @@ public class NetworkService {
 
     public void sendCharacterSync(CharacterSheet character) {
         if (client != null) client.sendCharacterSync(character);
+    }
+
+    public void sendCampaign(com.vttcaseiro.model.Campaign c) {
+        if (client != null) client.sendCampaign(c);
     }
 
     public void sendMobSync(MobSheet mob) {

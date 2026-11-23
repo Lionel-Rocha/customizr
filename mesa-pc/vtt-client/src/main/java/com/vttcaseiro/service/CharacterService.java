@@ -163,6 +163,18 @@ public class CharacterService {
         return copy;
     }
 
+    /** Apaga a copia local da ficha com esse id (o mestre escondeu dos jogadores). Devolve o nome, ou null. */
+    public String removeById(String characterId) throws IOException {
+        Optional<CharacterSheet> s = findById(characterId);
+        if (s.isEmpty()) return null;
+        String saved = savedNames.get(characterId);
+        String name = saved != null ? saved : s.get().getName();
+        repository.deleteCharacter(name);
+        savedNames.remove(characterId);
+        openCharacters.remove(characterId);
+        return name;
+    }
+
     public List<String> list() {
         try {
             return repository.listCharacters();

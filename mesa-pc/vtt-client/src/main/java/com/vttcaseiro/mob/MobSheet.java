@@ -115,8 +115,11 @@ public class MobSheet {
     /** Id novo (copia de um monstro vira outro monstro, nao o mesmo). */
     public void assignNewId() { this.id = UUID.randomUUID().toString(); }
 
-    /** So o mestre recebe a ficha deste monstro pela rede (os jogadores nao veem CA, PV, ataques...). */
-    private boolean hiddenFromPlayers;
+    /**
+     * So o mestre recebe a ficha deste monstro pela rede (os jogadores nao veem CA, PV, ataques... nem que o
+     * monstro existe na lista). Padrao: escondido -- o mestre libera o que quiser mostrar.
+     */
+    private boolean hiddenFromPlayers = true;
 
     public boolean isHiddenFromPlayers() { return hiddenFromPlayers; }
     public void setHiddenFromPlayers(boolean hidden) { this.hiddenFromPlayers = hidden; }

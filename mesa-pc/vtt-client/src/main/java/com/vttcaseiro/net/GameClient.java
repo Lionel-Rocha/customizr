@@ -148,6 +148,18 @@ public class GameClient {
          * chegou/mudou -- inclui o loot dela. */
         void onMobSync(MobSheet mob);
 
+        /** Gerenciador de campanha chegou/mudou (jogador recebe so a parte publica). */
+        default void onCampaignSync(com.vttcaseiro.model.Campaign campaign) {
+        }
+
+        /** Ficha escondida pelo mestre depois de ja ter chegado: apagar a copia local. */
+        default void onCharacterRemoved(String id) {
+        }
+
+        /** Monstro escondido pelo mestre depois de ja ter chegado. */
+        default void onMobRemoved(String id) {
+        }
+
         /** A Party da mesa chegou/mudou -- inclui o inventario
          * COMPARTILHADO do grupo. */
         void onPartySync(Party party);
@@ -466,6 +478,15 @@ public class GameClient {
                 }
             }
             case "handout_remove" -> listener.onHandoutRemoved(msg.text);
+            case "campaign_sync" -> {
+                if (msg.campaign != null) listener.onCampaignSync(msg.campaign.sanitize());
+            }
+            case "character_remove" -> {
+                if (msg.text != null) listener.onCharacterRemoved(msg.text);
+            }
+            case "mob_remove" -> {
+                if (msg.text != null) listener.onMobRemoved(msg.text);
+            }
             case "gm_request" -> {
                 if (msg.gmRequest != null) listener.onGmRequest(msg.player, msg.gmRequest);
             }
@@ -645,6 +666,10 @@ public class GameClient {
         if (character != null) {
             pushImageAssetIfNew(character.getPortraitImageAssetId());
         }
+    }
+
+    public void sendCampaign(com.vttcaseiro.model.Campaign c) {
+        send(NetMessage.campaignSync(c));
     }
 
     public void sendMobSync(MobSheet mob) {

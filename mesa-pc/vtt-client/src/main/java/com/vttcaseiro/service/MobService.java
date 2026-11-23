@@ -123,6 +123,15 @@ public class MobService {
         return name + " (" + n + ")";
     }
 
+    /** Apaga a copia local do monstro com esse id (o mestre escondeu dos jogadores). Devolve o nome, ou null. */
+    public String removeById(String mobId) throws IOException {
+        Optional<MobSheet> m = findById(mobId);
+        if (m.isEmpty()) return null;
+        repository.deleteMob(m.get().getName());
+        openMobs.remove(mobId);
+        return m.get().getName();
+    }
+
     public List<String> list() {
         try {
             return repository.listMobs();

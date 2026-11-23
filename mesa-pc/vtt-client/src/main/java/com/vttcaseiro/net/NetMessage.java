@@ -153,6 +153,8 @@ public class NetMessage {
 
     // mob_sync -- ficha de monstro inteira (inclui o loot dela).
     public MobSheet mob;
+    /** Gerenciador de campanha (campaign_sync): o servidor manda pro jogador so a parte publica. */
+    public com.vttcaseiro.model.Campaign campaign;
 
     // party_sync -- a Party da mesa (inclui o inventario COMPARTILHADO do
     // grupo, ver Party.getSharedInventory()). So existe uma Party por
@@ -419,6 +421,29 @@ public class NetMessage {
         NetMessage m = new NetMessage();
         m.type = "character_sync";
         m.character = character;
+        return m;
+    }
+
+    public static NetMessage campaignSync(com.vttcaseiro.model.Campaign c) {
+        NetMessage m = new NetMessage();
+        m.type = "campaign_sync";
+        m.campaign = c;
+        return m;
+    }
+
+    /** A ficha (text = id) saiu da vista deste jogador: ele apaga a copia que tinha recebido. */
+    public static NetMessage characterRemove(String id) {
+        NetMessage m = new NetMessage();
+        m.type = "character_remove";
+        m.text = id;
+        return m;
+    }
+
+    /** O monstro (text = id) saiu da vista deste jogador. */
+    public static NetMessage mobRemove(String id) {
+        NetMessage m = new NetMessage();
+        m.type = "mob_remove";
+        m.text = id;
         return m;
     }
 

@@ -127,6 +127,7 @@ class HiddenFromPlayersNetTest {
             boss.setHiddenFromPlayers(true);
             gmC.sendMobSync(boss);
             MobSheet rat = new MobSheet("Rato");
+            rat.setHiddenFromPlayers(false); // monstro nasce escondido; este o mestre liberou
             gmC.sendMobSync(rat);
             gmC.sendChat("Mestre", "fim");
             waitFor(() -> ana.chats.stream().anyMatch(c -> c.contains("fim"))
