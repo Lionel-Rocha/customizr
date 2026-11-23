@@ -443,17 +443,49 @@ public final class CampaignView {
         Label weather = new Label();
         weather.setWrapText(true);
         Runnable refresh = () -> {
-            date.setText(c.dateText());
-            weather.setText(c.weather());
+            date.setText(c.dateText() + "  •  " + c.timeText());
+            weather.setText(c.weather() + "  Agora: " + c.lightPeriod() + ".");
         };
         refresh.run();
         box.getChildren().addAll(date, weather);
         if (gm) {
             HBox advance = new HBox(6);
             advance.setAlignment(Pos.CENTER_LEFT);
+            java.util.function.LongConsumer pass = minutes -> {
+                long from = c.absoluteMinute();
+                c.advanceMinutes(minutes);
+                refresh.run();
+                changed();
+                if (actions != null) actions.timeAdvanced(from, c.absoluteMinute());
+                reloadKeepingTab();
+            };
+            HBox clock = new HBox(6);
+            clock.setAlignment(Pos.CENTER_LEFT);
+            for (int[] step : new int[][]{{10, 0}, {60, 0}, {480, 0}}) {
+                String text = step[0] == 10 ? "+10 min" : step[0] == 60 ? "+1 h" : "+8 h (descanso longo)";
+                Button b = new Button(text);
+                b.setOnAction(e -> pass.accept(step[0]));
+                clock.getChildren().add(b);
+            }
+            Button setTime = new Button("Hora...");
+            setTime.setOnAction(e -> askText("Hora", "Hora do dia (ex.: 19:30):", c.timeText()).ifPresent(t -> {
+                String[] hm = t.split("[:h ]+");
+                try {
+                    int h = Integer.parseInt(hm[0].trim());
+                    int m = hm.length > 1 && !hm[1].isBlank() ? Integer.parseInt(hm[1].trim()) : 0;
+                    long target = Math.max(0, Math.min(23, h)) * 60L + Math.max(0, Math.min(59, m));
+                    long diff = target - c.minuteOfDay;
+                    if (diff < 0) diff += 1440; // hora que ja passou hoje = amanha
+                    pass.accept(diff);
+                } catch (RuntimeException ex) {
+                    // formato errado
+                }
+            }));
+            clock.getChildren().add(setTime);
+            box.getChildren().add(clock);
             for (int d : new int[]{1, 7, 30}) {
                 Button b = new Button("+" + d + (d == 1 ? " dia" : " dias"));
-                b.setOnAction(e -> { c.day += d; refresh.run(); changed(); });
+                b.setOnAction(e -> pass.accept(d * 1440L));
                 advance.getChildren().add(b);
             }
             Button back = new Button("−1 dia");
@@ -480,6 +512,16 @@ public final class CampaignView {
             advance.getChildren().addAll(back, set, reroll);
             box.getChildren().add(advance);
             box.getChildren().add(visibleBox(c.visible, v -> c.visible = v, () -> { }));
+            CheckBox light = new CheckBox("A luz do mapa acompanha a hora (dia claro, entardecer em penumbra, noite escura)");
+            light.setSelected(c.lightFollowsClock);
+            light.selectedProperty().addListener((o, a, b) -> {
+                c.lightFollowsClock = b;
+                changed();
+                if (b && actions != null) actions.timeAdvanced(c.absoluteMinute(), c.absoluteMinute());
+            });
+            box.getChildren().add(light);
+            box.getChildren().add(eventsBox(c, pass));
+            box.getChildren().add(travelBox(pass));
             GridPane g = grid();
             g.setHgap(8);
             g.setVgap(6);
@@ -509,6 +551,108 @@ public final class CampaignView {
             box.getChildren().add(area(c.notes, "ex.: dia 15 de Junho é o festival da colheita", 3, v -> c.notes = v));
         }
         return scroll(box);
+    }
+
+    /** Recarrega a tela sem perder a aba (o calendario mudou por fora do campo que esta sendo editado). */
+    private void reloadKeepingTab() {
+        javafx.application.Platform.runLater(() -> reload(data));
+    }
+
+    private Node eventsBox(Campaign.Calendar c, java.util.function.LongConsumer pass) {
+        ListView<Campaign.CalendarEvent> list = new ListView<>();
+        java.util.List<Campaign.CalendarEvent> sorted = new java.util.ArrayList<>(c.events);
+        sorted.sort(java.util.Comparator.comparingLong(Campaign.CalendarEvent::absoluteMinute));
+        list.getItems().setAll(sorted);
+        list.setPrefHeight(120);
+        list.setPlaceholder(new Label("Nenhum evento marcado."));
+        list.setCellFactory(l -> new ListCell<>() {
+            @Override
+            protected void updateItem(Campaign.CalendarEvent e, boolean empty) {
+                super.updateItem(e, empty);
+                setText(empty || e == null ? null : (e.done ? "✓ " : "") + eye(e.visible) + c.dateTextOf(e.day) + " "
+                        + String.format("%02d:%02d", e.minute / 60, e.minute % 60) + "  —  " + e.title);
+            }
+        });
+        Button add = new Button("Evento...", Icons.icon("add", 14));
+        add.setOnAction(e -> {
+            long[] d = c.date();
+            Optional<String> when = askText("Novo evento", "Data e hora (dia/mês/ano hh:mm):",
+                    d[2] + "/" + (d[1] + 1) + "/" + d[0] + " " + c.timeText());
+            if (when.isEmpty()) return;
+            String[] p = when.get().trim().split("[/\\s:.-]+");
+            try {
+                long day = c.dayOf(Integer.parseInt(p[0]), Integer.parseInt(p[1]), Long.parseLong(p[2]));
+                if (day < 0) return;
+                int minute = p.length > 3 ? Integer.parseInt(p[3]) * 60 + (p.length > 4 ? Integer.parseInt(p[4]) : 0) : 8 * 60;
+                Optional<String> title = askText("Novo evento", "O que acontece:", "");
+                if (title.isEmpty() || title.get().isBlank()) return;
+                Campaign.CalendarEvent ev = new Campaign.CalendarEvent();
+                ev.day = day;
+                ev.minute = Math.max(0, Math.min(1439, minute));
+                ev.title = title.get();
+                c.events.add(ev);
+                changed();
+                reloadKeepingTab();
+            } catch (RuntimeException ex) {
+                // formato errado: ignora
+            }
+        });
+        Button toggle = new Button("Mostrar/esconder dos jogadores");
+        toggle.setOnAction(e -> {
+            Campaign.CalendarEvent ev = list.getSelectionModel().getSelectedItem();
+            if (ev == null) return;
+            ev.visible = !ev.visible;
+            list.refresh();
+            changed();
+        });
+        Button del = new Button("Apagar");
+        del.setOnAction(e -> {
+            Campaign.CalendarEvent ev = list.getSelectionModel().getSelectedItem();
+            if (ev == null) return;
+            c.events.remove(ev);
+            list.getItems().remove(ev);
+            changed();
+        });
+        Button jump = new Button("Avançar até ele");
+        jump.setOnAction(e -> {
+            Campaign.CalendarEvent ev = list.getSelectionModel().getSelectedItem();
+            if (ev == null) return;
+            long diff = ev.absoluteMinute() - c.absoluteMinute();
+            if (diff > 0) pass.accept(diff);
+        });
+        return new VBox(6, title("Eventos (o programa avisa quando o tempo passar por eles)"), list,
+                new HBox(6, add, jump, toggle, del));
+    }
+
+    private Node travelBox(java.util.function.LongConsumer pass) {
+        TextField km = new TextField();
+        km.setPromptText("distância em km");
+        km.setPrefColumnCount(8);
+        ComboBox<String> pace = new ComboBox<>();
+        pace.getItems().addAll(Campaign.PACE_NAMES);
+        pace.getSelectionModel().select(1);
+        CheckBox hard = new CheckBox("terreno difícil (metade)");
+        Label result = new Label();
+        Runnable calc = () -> {
+            double d = parseDouble(km.getText());
+            double h = Campaign.travelHours(d, pace.getSelectionModel().getSelectedIndex(), hard.isSelected());
+            result.setText(d <= 0 ? "" : "Leva " + Campaign.travelText(h) + " de marcha (8 h por dia).");
+        };
+        km.textProperty().addListener((o, a, b) -> calc.run());
+        pace.valueProperty().addListener((o, a, b) -> calc.run());
+        hard.selectedProperty().addListener((o, a, b) -> calc.run());
+        Button go = new Button("Avançar esse tempo");
+        go.setTooltip(new javafx.scene.control.Tooltip("Passa o tempo da viagem no calendário (as noites de acampamento contam)."));
+        go.setOnAction(e -> {
+            double h = Campaign.travelHours(parseDouble(km.getText()), pace.getSelectionModel().getSelectedIndex(), hard.isSelected());
+            if (h <= 0) return;
+            int days = (int) (h / 8);
+            double rest = h - days * 8;
+            pass.accept(days * 1440L + Math.round(rest * 60));
+        });
+        HBox row = new HBox(6, km, pace, hard);
+        row.setAlignment(Pos.CENTER_LEFT);
+        return new VBox(6, title("Viagem"), row, new HBox(10, go, result));
     }
 
     static String monthsText(Campaign.Calendar c) {
@@ -702,6 +846,10 @@ public final class CampaignView {
 
         /** Coloca o encontro no mapa (no meio da tela). */
         void deploy(Campaign.PreparedEncounter encounter, boolean hidden, boolean rollInitiative);
+
+        /** O tempo do calendario andou (minutos absolutos): avisar eventos, ajustar a luz da cena. */
+        default void timeAdvanced(long fromMinute, long toMinute) {
+        }
     }
 
     private GmActions actions;

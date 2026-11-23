@@ -236,8 +236,11 @@ Botao **Campanha** na barra de cima. Abas:
 
 - **Jogadores**: XP e ouro em lancamentos (data, valor, motivo), nivel do D&D 5e pela XP, presencas e
   faltas. "+XP pra todos", "+PO pra todos", "Marcar presenca de todos" e "+ Jogadores conectados".
-- **Calendario**: data do mundo (meses, dias da semana, estacoes e lua configuraveis), "+1 / +7 / +30
-  dias" e clima do dia sorteado pela estacao (sempre o mesmo pra mesma data).
+- **Calendario**: data e hora do mundo (meses, dias da semana, estacoes e lua configuraveis), "+10 min /
+  +1 h / +8 h / +1 / +7 / +30 dias", clima do dia sorteado pela estacao (sempre o mesmo pra mesma data).
+  **Eventos** marcados em datas avisam quando o tempo passa por eles (os visiveis vao pro chat). **Viagem**:
+  distancia em km + ritmo (lento, normal, rapido) + terreno dificil = quanto tempo leva, e "Avancar esse
+  tempo". Opcao **"A luz do mapa acompanha a hora"**: dia claro, entardecer e amanhecer em penumbra, noite escura.
 - **PdMs**: nome, atitude com o grupo, onde esta, o que os jogadores sabem e os segredos (so o mestre).
 - **Aventuras**: numero, estado (ativa, pausada, completa, falhou), datas, objetivo, resultado e notas do mestre.
 - **Sessoes**: numero e data automaticos, resumo e link.
@@ -255,6 +258,30 @@ Botao **Campanha** na barra de cima. Abas:
 
 Cada item tem **"Visivel aos jogadores"**: so o que estiver marcado vai pra eles (o servidor nem manda
 o resto), e eles veem a mesma janela sem poder editar. Fica em `campanha.json` na pasta da mesa.
+
+### Auras
+
+Botao direito no token > **"Auras..."**: um efeito (no mesmo formato dos efeitos, ex.: `Aura de Protecao
+[salv+3]` ou `Bencao`), o raio em pes e pra quem vale (aliados, inimigos ou todos; "vale pra ele tambem").
+Quem entra no raio ganha o efeito sozinho (aparece como "... (aura de Fulano)" e conta nas rolagens); quem
+sai perde. O circulo tracejado mostra o alcance. Quem calcula e o programa do mestre.
+
+### Nomes sortidos pros monstros
+
+Colocar o mesmo monstro de novo no mapa da "Goblin Feroz", "Goblin de Olho Vermelho"... em vez de
+"Goblin 2". Da pra desligar na engrenagem (Monstros).
+
+### Modulos: levar conteudo pra outra mesa
+
+Engrenagem > **"Exportar modulo..."**: marque cenas, monstros, fichas, o diario e o conteudo do mestre da
+Campanha (PdMs, aventuras, tesouro, encontros). Gera um arquivo `.customizr-modulo` com as imagens.
+**"Importar modulo..."** junta tudo na mesa aberta sem apagar nada (nome repetido vira "Nome 2"; fichas
+chegam sem dono).
+
+### Temas
+
+Engrenagem > tema: Fogueira (padrao), Claro, Escuro, Ordem Paranormal, Starfinder, Cyberpunk RED,
+Apocalypse World, **D&D**, **Old Dragon** e **Tormenta 20** (so cores e fonte, nada de logo ou arte).
 
 ### Esconder o que o mestre preparou
 

@@ -258,6 +258,40 @@ public class TableService {
         }
     }
 
+    /**
+     * Recalcula as auras: quem entrou ganha o efeito, quem saiu perde. So o mestre (ou offline) calcula -- e quem
+     * manda nos tokens; o resultado vai pela rede como qualquer mudanca de efeito.
+     *
+     * @return quantos tokens mudaram
+     */
+    /** Troca as auras do token (manda pra mesa) e ja recalcula quem esta dentro. */
+    public void setAuras(TokenModel token, List<com.vttcaseiro.model.Aura> auras) {
+        if (token == null) return;
+        token.setAuras(auras);
+        publishTokenUpdate(token);
+        recomputeAuras();
+    }
+
+    public int recomputeAuras() {
+        if (port.isConnected() && !port.isGm()) return 0;
+        SceneModel scene = scene();
+        boolean any = scene.getTokens().stream().anyMatch(t -> !t.getAuras().isEmpty()
+                || t.getEffects().stream().anyMatch(AuraService::isAuraEffect));
+        if (!any) return 0;
+        java.util.Map<String, List<String>> want = AuraService.desired(scene);
+        int changed = 0;
+        for (TokenModel t : new ArrayList<>(scene.getTokens())) {
+            Optional<CharacterSheet> sheet = linkedSheet(t);
+            List<String> current = sheet.map(s -> (List<String>) new ArrayList<>(s.getEffects())).orElse(new ArrayList<>(t.getEffects()));
+            List<String> merged = AuraService.merge(current, want.getOrDefault(t.getId(), List.of()));
+            if (!merged.equals(current)) {
+                setEffects(t, merged);
+                changed++;
+            }
+        }
+        return changed;
+    }
+
     /** Efeito livre a mais (sem tirar os que ja tem). */
     public void addEffect(TokenModel token, String effect) {
         List<String> current = linkedSheet(token).map(TokenLink::tokenEffectsFor).orElse(new ArrayList<>(token.getEffects()));

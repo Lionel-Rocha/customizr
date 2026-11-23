@@ -418,12 +418,14 @@ public class Main extends Application {
                 mapView.rebuildTokens();
                 refreshInitiativeList();
                 scheduleSceneAutosave();
+                scheduleAuras();
             }
 
             @Override
             public void onTokenMoved(TokenModel token) {
                 mapView.rebuildTokens();
                 scheduleSceneAutosave();
+                scheduleAuras();
                 if (table != null) table.revealFogByVision();   // so faz algo no mestre, com a opcao ligada
             }
 
@@ -432,6 +434,7 @@ public class Main extends Application {
                 mapView.rebuildTokens();
                 refreshInitiativeList();
                 scheduleSceneAutosave();
+                scheduleAuras();
             }
 
             @Override
@@ -765,6 +768,10 @@ public class Main extends Application {
         @Override public void setConditions(TokenModel token, List<String> c) {
             recorded("Condições de " + token.getName(), token, () -> table.setConditions(token, c));
         }
+        @Override public void editAuras(TokenModel token) {
+            showAurasDialog(token);
+        }
+
         @Override public void setEffects(TokenModel token, List<String> e) {
             recorded("Efeitos de " + token.getName(), token, () -> table.setEffects(token, e));
         }
@@ -2745,6 +2752,159 @@ public class Main extends Application {
     private Stage mesaSettingsWindow;
 
     /** Engrenagem do topo: backup e copias automaticas da mesa (saiu da aba Rede). */
+    // ---------------- modulos
+
+    private void onExportModule() {
+        javafx.scene.control.Dialog<javafx.scene.control.ButtonType> d = new javafx.scene.control.Dialog<>();
+        d.initOwner(stage);
+        d.setTitle("Exportar módulo");
+        d.setHeaderText("Marque o que vai no módulo.");
+        javafx.scene.control.ButtonType ok = new javafx.scene.control.ButtonType("Exportar...",
+                javafx.scene.control.ButtonBar.ButtonData.OK_DONE);
+        d.getDialogPane().getButtonTypes().addAll(ok, javafx.scene.control.ButtonType.CANCEL);
+        TextField name = new TextField(mesaService.getName());
+        name.setPromptText("nome do módulo");
+        List<javafx.scene.control.CheckBox> scenes = checks(mesaService.listMaps());
+        List<javafx.scene.control.CheckBox> mobs = checks(mobService.list());
+        List<javafx.scene.control.CheckBox> chars = checks(characterService.list());
+        javafx.scene.control.CheckBox handouts = new javafx.scene.control.CheckBox("Diário (todos os textos e imagens)");
+        javafx.scene.control.CheckBox camp = new javafx.scene.control.CheckBox(
+                "Campanha: PdMs, aventuras, tesouro e encontros prontos (sem jogadores, sessões e anotações)");
+        VBox box = new VBox(8, new Label("Nome"), name,
+                group("Cenas", scenes), group("Monstros", mobs), group("Fichas (PdMs)", chars), handouts, camp);
+        box.setPadding(new Insets(4));
+        ScrollPane sp = new ScrollPane(box);
+        sp.setFitToWidth(true);
+        sp.setPrefSize(520, 520);
+        d.getDialogPane().setContent(sp);
+        if (d.showAndWait().filter(b -> b == ok).isEmpty()) return;
+        FileChooser fc = new FileChooser();
+        fc.setTitle("Salvar módulo");
+        fc.setInitialFileName(com.vttcaseiro.library.MesaBackup.safeName(name.getText().isBlank() ? "modulo" : name.getText())
+                + com.vttcaseiro.library.ModuleService.EXTENSION);
+        fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("Módulo do Customizr",
+                "*" + com.vttcaseiro.library.ModuleService.EXTENSION));
+        File file = fc.showSaveDialog(stage);
+        if (file == null) return;
+        try {
+            var sel = new com.vttcaseiro.library.ModuleService.Selection(selected(scenes), selected(mobs), selected(chars),
+                    handouts.isSelected(), camp.isSelected());
+            var r = com.vttcaseiro.library.ModuleService.export(mesaRepository, handoutStore, campaign, sel,
+                    name.getText().trim(), file.toPath());
+            logEntries.add(LogEntry.system("Módulo exportado (" + file.getName() + "): " + r.text() + "."));
+        } catch (IOException | RuntimeException ex) {
+            showError("Não deu pra exportar o módulo: " + ex.getMessage());
+        }
+    }
+
+    private void onImportModule() {
+        FileChooser fc = new FileChooser();
+        fc.setTitle("Importar módulo");
+        fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("Módulo do Customizr",
+                "*" + com.vttcaseiro.library.ModuleService.EXTENSION, "*.zip"));
+        File file = fc.showOpenDialog(stage);
+        if (file == null) return;
+        try {
+            var r = com.vttcaseiro.library.ModuleService.importInto(mesaRepository, handoutStore, campaign, file.toPath());
+            pushCampaign();
+            refreshMapList();
+            refreshMobList();
+            refreshMobCount();
+            refreshCharacterList();
+            refreshJournal();
+            if (campaignView != null && campaignView.isShowing()) campaignView.reload(campaign);
+            logEntries.add(LogEntry.system("Módulo importado: " + r.text() + "."));
+        } catch (IOException | RuntimeException ex) {
+            showError("Não deu pra importar o módulo: " + ex.getMessage());
+        }
+    }
+
+    private static List<javafx.scene.control.CheckBox> checks(List<String> names) {
+        List<javafx.scene.control.CheckBox> out = new ArrayList<>();
+        for (String n : names) out.add(new javafx.scene.control.CheckBox(n));
+        return out;
+    }
+
+    private static List<String> selected(List<javafx.scene.control.CheckBox> boxes) {
+        return boxes.stream().filter(javafx.scene.control.CheckBox::isSelected).map(javafx.scene.control.CheckBox::getText).toList();
+    }
+
+    /** Titulo + "marcar tudo" + as caixas. */
+    private static javafx.scene.Node group(String title, List<javafx.scene.control.CheckBox> boxes) {
+        javafx.scene.control.CheckBox all = new javafx.scene.control.CheckBox(title + " (" + boxes.size() + ") — marcar tudo");
+        all.setStyle("-fx-font-weight: bold;");
+        all.setDisable(boxes.isEmpty());
+        all.selectedProperty().addListener((o, a, b) -> boxes.forEach(c -> c.setSelected(b)));
+        VBox items = new VBox(3);
+        items.setPadding(new Insets(0, 0, 0, 22));
+        items.getChildren().addAll(boxes);
+        return new VBox(4, all, items);
+    }
+
+    // ---------------- auras
+
+    private boolean aurasPending;
+
+    /** Recalcula as auras uma vez depois da leva de movimentos (nao a cada evento). */
+    private void scheduleAuras() {
+        if (aurasPending || table == null) return;
+        aurasPending = true;
+        Platform.runLater(() -> {
+            aurasPending = false;
+            table.recomputeAuras();
+        });
+    }
+
+    private void showAurasDialog(TokenModel token) {
+        javafx.scene.control.Dialog<javafx.scene.control.ButtonType> d = new javafx.scene.control.Dialog<>();
+        d.initOwner(stage);
+        d.setTitle("Auras de " + token.getName());
+        d.setHeaderText("Efeito que vale pra quem estiver perto. Quem entra no raio ganha, quem sai perde.");
+        d.getDialogPane().getButtonTypes().addAll(javafx.scene.control.ButtonType.OK, javafx.scene.control.ButtonType.CANCEL);
+        ListView<com.vttcaseiro.model.Aura> list = new ListView<>();
+        for (com.vttcaseiro.model.Aura a : token.getAuras()) {
+            list.getItems().add(new com.vttcaseiro.model.Aura(a.getEffect(), a.getRadiusFeet(), a.getTarget(), a.isIncludeSelf()));
+        }
+        list.setPrefHeight(120);
+        list.setPlaceholder(new Label("Nenhuma aura."));
+        TextField effect = new TextField();
+        effect.setPromptText("ex.: Aura de Proteção [salv+3]  ou  Bênção");
+        javafx.scene.control.Spinner<Integer> radius = new javafx.scene.control.Spinner<>(0, com.vttcaseiro.model.Aura.MAX_RADIUS_FEET, 10, 5);
+        radius.setEditable(true);
+        radius.setPrefWidth(90);
+        ComboBox<String> target = new ComboBox<>();
+        target.getItems().addAll("aliados", "inimigos", "todos");
+        target.setValue("aliados");
+        javafx.scene.control.CheckBox self = new javafx.scene.control.CheckBox("vale pra ele também");
+        self.setSelected(true);
+        Button add = new Button("Adicionar", com.vttcaseiro.view.Icons.icon("add", 14));
+        add.setOnAction(e -> {
+            if (effect.getText().isBlank()) return;
+            list.getItems().add(new com.vttcaseiro.model.Aura(effect.getText(), radius.getValue(), target.getValue(), self.isSelected()));
+            effect.clear();
+        });
+        Button remove = new Button("Tirar a selecionada");
+        remove.setOnAction(e -> list.getItems().remove(list.getSelectionModel().getSelectedItem()));
+        javafx.scene.layout.GridPane g = new javafx.scene.layout.GridPane();
+        g.setHgap(8);
+        g.setVgap(6);
+        g.addRow(0, new Label("Efeito"), effect);
+        g.addRow(1, new Label("Raio (pés)"), radius);
+        g.addRow(2, new Label("Vale pra"), new HBox(8, target, self));
+        javafx.scene.layout.GridPane.setHgrow(effect, Priority.ALWAYS);
+        Label how = new Label("Aliados = mesmo lado (jogadores com jogadores, monstros com monstros). O efeito usa o "
+                + "mesmo formato dos efeitos: [ca+1], [salv+3], [ataque+1d4], [vant:salv]...");
+        how.setWrapText(true);
+        how.getStyleClass().add("label-muted");
+        VBox box = new VBox(8, list, remove, g, add, how);
+        box.setPrefWidth(480);
+        d.getDialogPane().setContent(box);
+        if (d.showAndWait().filter(b -> b == javafx.scene.control.ButtonType.OK).isEmpty()) return;
+        table.setAuras(token, new ArrayList<>(list.getItems()));
+        logEntries.add(LogEntry.system(list.getItems().isEmpty() ? "Auras de " + token.getName() + " desligadas."
+                : token.getName() + " agora tem " + list.getItems().size() + " aura(s)."));
+    }
+
     // ---------------- gerenciador de campanha
 
     private com.vttcaseiro.model.Campaign campaign = new com.vttcaseiro.model.Campaign();
@@ -2901,6 +3061,40 @@ public class Main extends Application {
         }
 
         @Override
+        public void timeAdvanced(long from, long to) {
+            var cal = campaign.getCalendar();
+            var due = cal.due(from, to);
+            if (!due.isEmpty()) {
+                StringBuilder sb = new StringBuilder();
+                for (var ev : due) {
+                    ev.done = true;
+                    String line = cal.dateTextOf(ev.day) + " " + String.format("%02d:%02d", ev.minute / 60, ev.minute % 60)
+                            + " — " + ev.title;
+                    sb.append(line).append(ev.notes.isBlank() ? "" : "\n   " + ev.notes).append('\n');
+                    if (ev.visible) announce("Calendário: " + line);
+                    else logEntries.add(LogEntry.system("Evento (só você vê): " + line));
+                }
+                pushCampaign();
+                Alert a = new Alert(Alert.AlertType.INFORMATION, sb.toString().trim());
+                a.initOwner(campaignView != null && campaignView.isShowing() ? campaignView.getStage() : stage);
+                a.setTitle("Eventos do calendário");
+                a.setHeaderText(due.size() == 1 ? "Chegou um evento marcado" : "Chegaram " + due.size() + " eventos marcados");
+                a.show();
+            }
+            if (cal.lightFollowsClock && table != null) {
+                SceneModel sc = sceneService.getScene();
+                String period = cal.lightPeriod();
+                boolean dark = period.equals("noite");
+                boolean dim = period.equals("penumbra");
+                if (sc.isDark() != dark || sc.isDim() != dim) {
+                    table.setVisionSettings(sc.isVisionEnabled(), dark, dim, sc.isFogByVision());
+                    logEntries.add(LogEntry.system("Luz da cena: " + (dark ? "noite (escuro)" : dim ? "penumbra" : "dia (claro)")
+                            + ", " + cal.timeText() + "."));
+                }
+            }
+        }
+
+        @Override
         public com.vttcaseiro.model.Campaign.PreparedEncounter captureSelection() {
             List<TokenModel> sel = mapView.getSelectedTokens();
             if (sel.isEmpty()) {
@@ -2973,7 +3167,22 @@ public class Main extends Application {
             exportButton.setOnAction(e -> onExportMesa());
             Label backupHint = new Label("Pra guardar a campanha ou levar pra outro computador.");
             backupHint.getStyleClass().add("label-muted");
+            javafx.scene.control.CheckBox flavor = new javafx.scene.control.CheckBox(
+                    "Nomes sortidos pros monstros (\"Goblin Feroz\" em vez de \"Goblin 2\")");
+            flavor.setSelected(AppSettings.getBool("monstros.nomesSortidos", true));
+            flavor.selectedProperty().addListener((o, a, b) -> AppSettings.setBool("monstros.nomesSortidos", b));
+            settings.getChildren().addAll(sectionLabel("Monstros"), flavor);
             settings.getChildren().addAll(sectionLabel("Backup da mesa"), exportButton, backupHint);
+            Button exportModule = new Button("Exportar módulo...", com.vttcaseiro.view.Icons.icon("download", 14));
+            exportModule.setOnAction(e -> onExportModule());
+            Button importModule = new Button("Importar módulo...", com.vttcaseiro.view.Icons.icon("upload", 14));
+            importModule.setOnAction(e -> onImportModule());
+            Label moduleHint = new Label("Módulo: só as partes que você escolher (cenas, monstros, fichas de PdM, diário, "
+                    + "PdMs/aventuras/tesouro/encontros da Campanha), com as imagens. Entra na mesa aberta sem apagar nada.");
+            moduleHint.setWrapText(true);
+            moduleHint.getStyleClass().add("label-muted");
+            settings.getChildren().addAll(sectionLabel("Módulos (levar conteúdo pra outra mesa)"),
+                    new HBox(6, exportModule, importModule), moduleHint);
 
             ComboBox<String> backupEvery = new ComboBox<>();
             for (int m : BACKUP_MINUTES) backupEvery.getItems().add(m == 0 ? "Desligado" : "A cada " + m + " min");
@@ -5039,6 +5248,13 @@ public class Main extends Application {
         return d.showAndWait().map(String::strip).filter(x -> !x.isEmpty());
     }
 
+    /** "Nome 2", "Nome 3"... o primeiro que nao esta na lista (parenteses e acentos viram "_" no arquivo). */
+    private static String freeName(String name, List<String> taken) {
+        int n = 2;
+        while (taken.contains(com.vttcaseiro.repository.MesaRepository.fileNameOf(name + " " + n))) n++;
+        return name + " " + n;
+    }
+
     private boolean confirmDelete(String text) {
         Alert a = new Alert(Alert.AlertType.CONFIRMATION, text, javafx.scene.control.ButtonType.OK, javafx.scene.control.ButtonType.CANCEL);
         a.initOwner(stage);
@@ -5116,7 +5332,7 @@ public class Main extends Application {
     }
 
     private void onDuplicateCharacter(String name) {
-        askNewName("Duplicar ficha", name + " (cópia)").ifPresent(n -> {
+        askNewName("Duplicar ficha", freeName(name, characterService.list())).ifPresent(n -> {
             try {
                 CharacterSheet copy = characterService.duplicate(name, n);
                 refreshCharacterList();
@@ -5289,7 +5505,7 @@ public class Main extends Application {
     }
 
     private void onDuplicateScene(String name) {
-        askNewName("Duplicar cena", name + " (cópia)").ifPresent(n -> {
+        askNewName("Duplicar cena", freeName(name, mesaService.listMaps())).ifPresent(n -> {
             try {
                 String target = mesaService.duplicateMap(name, n);
                 String folder = sceneFolders.folderOf(name);
@@ -5800,7 +6016,15 @@ public class Main extends Application {
             MobSheet mob = mobService.open(name);
             long same = sceneService.getScene().getTokens().stream()
                     .filter(t -> t.getName() != null && t.getName().startsWith(mob.getName())).count();
-            String displayName = same == 0 ? mob.getName() : mob.getName() + " " + (same + 1);
+            String displayName;
+            if (same == 0) {
+                displayName = mob.getName();
+            } else if (AppSettings.getBool("monstros.nomesSortidos", true)) {
+                displayName = com.vttcaseiro.service.FlavorNames.pick(mob.getName(),
+                        sceneService.getScene().getTokens().stream().map(TokenModel::getName).toList(), new java.util.Random());
+            } else {
+                displayName = mob.getName() + " " + (same + 1);
+            }
             TokenModel token = com.vttcaseiro.service.TokenLink.tokenFromMob(mob, displayName);
             if (token.getImageAssetId() == null && token.getImageData() != null) {
                 try {

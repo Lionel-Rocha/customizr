@@ -116,11 +116,11 @@ public class MobService {
         return copy;
     }
 
-    /** Sugestao de nome livre pra copia: "Goblin (2)", "Goblin (3)"... */
+    /** Sugestao de nome livre pra copia: "Goblin 2", "Goblin 3"... */
     public String freeCopyName(String name) {
         int n = 2;
-        while (list().contains(MesaRepository.fileNameOf(name + " (" + n + ")"))) n++;
-        return name + " (" + n + ")";
+        while (list().contains(MesaRepository.fileNameOf(name + " " + n))) n++;
+        return name + " " + n;
     }
 
     /** Apaga a copia local do monstro com esse id (o mestre escondeu dos jogadores). Devolve o nome, ou null. */

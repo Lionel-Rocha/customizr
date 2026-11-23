@@ -63,6 +63,33 @@ class CampaignViewUiTest {
         }
     }
 
+    /** Foto da janela em cada tema novo (so com -Dvtt.snap): style.css + theme-X.css direto na cena, sem mexer nas preferencias. */
+    @Test
+    void newThemesSnapshots() throws Exception {
+        Assumptions.assumeTrue(fxReady, "sem tela");
+        String dir = System.getProperty("vtt.snap");
+        Assumptions.assumeTrue(dir != null, "so com -Dvtt.snap");
+        Campaign c = new Campaign();
+        Campaign.PlayerRecord ana = new Campaign.PlayerRecord();
+        ana.player = "Ana";
+        ana.character = "Lyra";
+        c.getPlayers().add(ana);
+        c.giveXpToAll(450, "23/11/2026", "Sessão 1");
+        onFx(() -> {
+            for (String key : java.util.List.of("dnd", "olddragon", "tormenta")) {
+                CampaignView v = new CampaignView(null, c, true, x -> { });
+                var sheets = v.getStage().getScene().getStylesheets();
+                sheets.add(CampaignView.class.getResource("/style.css").toExternalForm());
+                sheets.add(CampaignView.class.getResource("/theme-" + key + ".css").toExternalForm());
+                v.show();
+                v.getStage().getScene().getRoot().applyCss();
+                v.getStage().getScene().getRoot().layout();
+                snap(v.getStage().getScene().getRoot(), dir + "/tema-" + key + ".png");
+                v.getStage().close();
+            }
+        });
+    }
+
     @Test
     void masterAndPlayerViews() throws Exception {
         Assumptions.assumeTrue(fxReady, "sem tela");

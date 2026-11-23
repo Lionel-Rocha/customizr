@@ -279,11 +279,26 @@ public class TokenModel {
         }
         setConditions(other.conditions == null ? null : new ArrayList<>(other.conditions));
         setEffects(other.effects);
+        setAuras(other.auras);
     }
 
     /** Condicao oficial presente? (nomes de {@link Condition}). */
     public boolean hasCondition(Condition condition) {
         return conditions != null && conditions.contains(condition.name());
+    }
+
+    /** Auras deste token (efeito que vale pra quem estiver perto, ver AuraService). */
+    private List<Aura> auras;
+
+    public List<Aura> getAuras() {
+        if (auras == null) auras = new ArrayList<>();
+        auras.removeIf(java.util.Objects::isNull);
+        while (auras.size() > 10) auras.remove(auras.size() - 1);
+        return auras;
+    }
+
+    public void setAuras(List<Aura> list) {
+        this.auras = list == null ? new ArrayList<>() : new ArrayList<>(list);
     }
 
     public List<String> getConditions() {

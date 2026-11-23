@@ -134,6 +134,46 @@ public class Campaign {
         }
     }
 
+    /** Evento marcado no calendario: avisa o mestre quando o tempo passar por ele. */
+    public static class CalendarEvent {
+        public String id = UUID.randomUUID().toString();
+        /** Dia (mesma contagem de Calendar.day) e minuto do dia em que acontece. */
+        public long day;
+        public int minute = 8 * 60;
+        public String title = "";
+        public String notes = "";
+        /** Visivel aos jogadores (aparece na lista deles; o aviso no chat tambem e publico). */
+        public boolean visible;
+        public boolean done;
+
+        public long absoluteMinute() {
+            return day * 1440L + Math.max(0, Math.min(1439, minute));
+        }
+    }
+
+    /** Ritmo de viagem por terra, em km por hora (8 horas de marcha por dia). */
+    public static final double[] PACE_KMH = {3.0, 4.5, 6.0};
+    public static final String[] PACE_NAMES = {"Lento (furtivo)", "Normal", "Rápido (-5 em Percepção passiva)"};
+
+    /** Quantas horas leva pra percorrer {@code km} no ritmo (indice de PACE_KMH), com terreno dificil (metade). */
+    public static double travelHours(double km, int pace, boolean difficult) {
+        double kmh = PACE_KMH[Math.max(0, Math.min(PACE_KMH.length - 1, pace))] * (difficult ? 0.5 : 1);
+        return km <= 0 ? 0 : km / kmh;
+    }
+
+    /** "2 dias e 3 h" considerando 8 h de marcha por dia (o resto e acampamento). */
+    public static String travelText(double hours) {
+        int days = (int) (hours / 8);
+        double rest = hours - days * 8;
+        StringBuilder sb = new StringBuilder();
+        if (days > 0) sb.append(days).append(days == 1 ? " dia" : " dias");
+        if (rest > 0.05) {
+            if (sb.length() > 0) sb.append(" e ");
+            sb.append(rest == Math.rint(rest) ? String.valueOf((int) rest) : String.format(java.util.Locale.ROOT, "%.1f", rest)).append(" h");
+        }
+        return sb.length() == 0 ? "0 h" : sb.toString();
+    }
+
     public static class Calendar {
         public List<Month> months = new ArrayList<>(List.of(
                 new Month("Janeiro", 30), new Month("Fevereiro", 30), new Month("Março", 30), new Month("Abril", 30),
@@ -152,6 +192,68 @@ public class Campaign {
         public long seed = new Random().nextLong();
         public boolean visible = true;
         public String notes = "";
+        /** Hora do dia em minutos (0 a 1439). */
+        public int minuteOfDay = 8 * 60;
+        /** A luz da cena acompanha a hora (dia claro, entardecer/amanhecer em penumbra, noite escura). */
+        public boolean lightFollowsClock;
+        public List<CalendarEvent> events = new ArrayList<>();
+
+        public String timeText() {
+            int m = Math.max(0, Math.min(1439, minuteOfDay));
+            return String.format("%02d:%02d", m / 60, m % 60);
+        }
+
+        public long absoluteMinute() {
+            return Math.max(0, day) * 1440L + Math.max(0, Math.min(1439, minuteOfDay));
+        }
+
+        /** Passa o tempo (minutos, pode virar o dia). */
+        public void advanceMinutes(long minutes) {
+            long abs = Math.max(0, absoluteMinute() + minutes);
+            day = abs / 1440;
+            minuteOfDay = (int) (abs % 1440);
+        }
+
+        /** "dia" (6h-18h), "penumbra" (5h-6h e 18h-19h) ou "noite". */
+        public String lightPeriod() {
+            int h = Math.max(0, Math.min(1439, minuteOfDay)) / 60;
+            if (h >= 6 && h < 18) return "dia";
+            if (h == 5 || h == 18) return "penumbra";
+            return "noite";
+        }
+
+        /** Eventos ainda nao avisados que caem entre {@code from} (exclusive) e {@code to} (inclusive). */
+        public List<CalendarEvent> due(long from, long to) {
+            List<CalendarEvent> out = new ArrayList<>();
+            if (events == null) return out;
+            for (CalendarEvent e : events) {
+                long t = e.absoluteMinute();
+                if (!e.done && t > from && t <= to) out.add(e);
+            }
+            out.sort(java.util.Comparator.comparingLong(CalendarEvent::absoluteMinute));
+            return out;
+        }
+
+        /** Data de um dia qualquer (mesma contagem de {@link #day}) no formato "12 de Março do ano 3". */
+        public String dateTextOf(long someDay) {
+            long saved = day;
+            day = someDay;
+            try {
+                long[] d = date();
+                return months.isEmpty() ? "Dia " + (someDay + 1) : d[2] + " de " + months.get((int) d[1]).name + " do ano " + d[0];
+            } finally {
+                day = saved;
+            }
+        }
+
+        /** Dia (contagem de {@link #day}) de uma data dia/mes/ano; -1 se invalida. */
+        public long dayOf(int dayOfMonth, int month, long year) {
+            if (month < 1 || month > months.size() || year < 1 || dayOfMonth < 1) return -1;
+            long total = (year - 1) * yearLength();
+            for (int i = 0; i < month - 1; i++) total += Math.max(1, months.get(i).days);
+            if (dayOfMonth > Math.max(1, months.get(month - 1).days)) return -1;
+            return total + dayOfMonth - 1;
+        }
 
         public int yearLength() {
             int n = 0;
@@ -364,6 +466,10 @@ public class Campaign {
             c.calendar = hidden;
         }
         c.getCalendar().notes = "";
+        if (c.getCalendar().events != null) {
+            c.getCalendar().events.removeIf(e -> !e.visible);
+            c.getCalendar().events.forEach(e -> e.notes = "");
+        }
         return c;
     }
 
@@ -420,6 +526,9 @@ public class Campaign {
         for (Month m : cal.months) m.days = Math.max(1, Math.min(1000, m.days));
         cal.moonCycle = Math.max(2, Math.min(1000, cal.moonCycle));
         cal.day = Math.max(0, Math.min(100_000_000L, cal.day));
+        cal.minuteOfDay = Math.max(0, Math.min(1439, cal.minuteOfDay));
+        if (cal.events == null) cal.events = new ArrayList<>();
+        trim(cal.events);
         gmNotes = clip(gmNotes);
         return this;
     }

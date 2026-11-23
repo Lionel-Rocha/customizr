@@ -176,7 +176,7 @@ public class MapView extends Pane {
         visionLayer.setMouseTransparent(true);
         // Desenhos ficam embaixo dos tokens e da neblina (nao revelam area escondida).
         // A mascara de visao fica por cima dos tokens (esconde o que o jogador nao ve).
-        content.getChildren().addAll(backgroundView, gridCanvas, objectLayer, drawingLayer, wallLayer, lightLayer, tokenLayer, visionLayer,
+        content.getChildren().addAll(backgroundView, gridCanvas, objectLayer, drawingLayer, wallLayer, lightLayer, auraLayer, tokenLayer, visionLayer,
                 fogCanvas, pinLayer, fogPreview, measureLine, measureLabel, templateGroup);
         getChildren().add(content);
         setStyle("-fx-background-color: -c-bg;");
@@ -1260,6 +1260,31 @@ public class MapView extends Pane {
         updatePinScale();
     }
 
+    /** Circulos das auras (por baixo dos tokens), so pra quem ve o token. */
+    private void drawAuras() {
+        auraLayer.getChildren().clear();
+        double cell = Math.max(1, scene.getGrid().getCellSize());
+        double fpc = scene.getGrid().getFeetPerCell() > 0 ? scene.getGrid().getFeetPerCell() : 5;
+        for (TokenModel t : scene.getTokens()) {
+            for (com.vttcaseiro.model.Aura a : t.getAuras()) {
+                if (a.getRadiusFeet() <= 0) continue;
+                double r = a.getRadiusFeet() / fpc * cell + cell * Math.max(t.getWidthCells(), t.getHeightCells()) / 2.0;
+                javafx.scene.shape.Circle c = new javafx.scene.shape.Circle(t.getX() + cell * t.getWidthCells() / 2.0,
+                        t.getY() + cell * t.getHeightCells() / 2.0, r);
+                Color tint = com.vttcaseiro.model.Aura.ENEMIES.equals(a.getTarget()) ? Color.web("#D9544C")
+                        : Color.web("#E8A23E");
+                c.setFill(tint.deriveColor(0, 1, 1, 0.06));
+                c.setStroke(tint.deriveColor(0, 1, 1, 0.55));
+                c.getStrokeDashArray().setAll(8.0, 6.0);
+                c.setStrokeWidth(2);
+                c.setMouseTransparent(true);
+                auraLayer.getChildren().add(c);
+            }
+        }
+    }
+
+    private final Group auraLayer = new Group();
+
     /** Pins ficam do mesmo tamanho na tela com qualquer zoom (senao somem no mapa-mundo). */
     private void updatePinScale() {
         double s = 1.0 / zoom;
@@ -1713,6 +1738,10 @@ public class MapView extends Pane {
 
         void setEffects(TokenModel token, java.util.List<String> effects);
 
+        /** Mestre: editar as auras do token. */
+        default void editAuras(TokenModel token) {
+        }
+
         void rollInitiative(TokenModel token);
 
         void remove(TokenModel token);
@@ -1822,6 +1851,7 @@ public class MapView extends Pane {
     /** Reconstroi a camada de tokens do zero a partir de scene.getTokens(). */
     public void rebuildTokens() {
         tokenLayer.getChildren().clear();
+        drawAuras();
         updateEmptyStateVisibility();
         redrawFog();
         for (TokenModel token : scene.getTokens()) {
@@ -1893,6 +1923,7 @@ public class MapView extends Pane {
                     menuItem("Condições...", () -> new ConditionsPickerView(token,
                             selected -> tokenActions.setConditions(token, selected)).show()),
                     menuItem("Efeitos (Abençoado, Fúria...)...", () -> askEffects(token)),
+                    menuItem("Auras (efeito pra quem estiver perto)...", () -> tokenActions.editAuras(token)),
                     menuItem("Efeito com duração (rodadas)...", () -> askTimedEffect(token)),
                     menuItem("Rolar iniciativa", () -> tokenActions.rollInitiative(token)),
                     sizeMenu(token),

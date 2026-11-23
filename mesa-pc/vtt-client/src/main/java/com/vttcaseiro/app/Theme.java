@@ -29,6 +29,9 @@ public final class Theme {
         THEMES.put("scifi", "Starfinder");
         THEMES.put("cyberpunk", "Cyberpunk RED");
         THEMES.put("apocalipse", "Apocalypse World");
+        THEMES.put("dnd", "D&D");
+        THEMES.put("olddragon", "Old Dragon");
+        THEMES.put("tormenta", "Tormenta 20");
     }
 
     private static boolean installed;

@@ -52,7 +52,7 @@ class ManageEntriesTest {
         goblin.setArmorClass(15);
         mobs.save(goblin);
 
-        assertEquals("Goblin (2)", mobs.freeCopyName("Goblin"));
+        assertEquals("Goblin 2", mobs.freeCopyName("Goblin"));
         MobSheet chief = mobs.duplicate("Goblin", "Goblin chefe");
         assertEquals(15, chief.getArmorClass(), "copia leva tudo");
         assertNotEquals(goblin.getId(), chief.getId());
