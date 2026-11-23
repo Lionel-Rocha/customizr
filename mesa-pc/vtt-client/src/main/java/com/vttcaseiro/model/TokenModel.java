@@ -99,8 +99,11 @@ public class TokenModel {
     public double getY() { return y; }
     public void setY(double y) { this.y = y; }
 
-    public int getWidthCells() { return widthCells; }
-    public void setWidthCells(int widthCells) { this.widthCells = Math.max(1, widthCells); }
+    /** Maior token aceito, em casas de lado (Imenso = 4; folga pra criaturas colossais). */
+    public static final int MAX_CELLS = 20;
+
+    public int getWidthCells() { return Math.max(1, Math.min(MAX_CELLS, widthCells)); }
+    public void setWidthCells(int widthCells) { this.widthCells = Math.max(1, Math.min(MAX_CELLS, widthCells)); }
 
     /** Giro do token em graus (0 = como a imagem veio), multiplos de qualquer angulo. */
     private double rotation;
@@ -111,8 +114,8 @@ public class TokenModel {
         this.rotation = r < 0 ? r + 360 : r;
     }
 
-    public int getHeightCells() { return heightCells; }
-    public void setHeightCells(int heightCells) { this.heightCells = Math.max(1, heightCells); }
+    public int getHeightCells() { return Math.max(1, Math.min(MAX_CELLS, heightCells)); }
+    public void setHeightCells(int heightCells) { this.heightCells = Math.max(1, Math.min(MAX_CELLS, heightCells)); }
 
     public Integer getCurrentHp() { return currentHp; }
     public void setCurrentHp(Integer currentHp) { this.currentHp = currentHp; }

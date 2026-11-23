@@ -49,6 +49,18 @@ public class MapView extends Pane {
     private final Pane tokenLayer = new Pane();
     /** Neblina de guerra: preta pro jogador, meio transparente pro mestre. */
     private final Canvas fogCanvas = new Canvas();
+    /** Tamanho do mapa em pixels "de mapa" (coordenadas dos tokens). Os Canvas podem ser menores (ver canvasScale). */
+    private double mapW;
+    private double mapH;
+    /** Escala dos Canvas de grade/neblina: 1 ate CANVAS_MAX_SIDE; acima disso desenha reduzido e estica na tela. */
+    private double canvasScale = 1.0;
+    /** Lado maximo de um Canvas: cada um vira uma textura na placa de video (4096 x 4096 = 64 MB). */
+    public static final double CANVAS_MAX_SIDE = 4096;
+    /** Lado maximo do mapa em pixels (500 casas de 120 px). Acima disso ninguem joga e a visao fica pesada. */
+    public static final double MAP_MAX_SIDE = 60000;
+    /** Tamanho original da imagem de fundo (ela pode ter sido carregada reduzida, ver SafeImage). */
+    private double bgNativeW;
+    private double bgNativeH;
     /** null = ferramenta desligada; true = revelar; false = cobrir. */
     private Boolean fogTool;
     private double fogStartX;
@@ -371,7 +383,7 @@ public class MapView extends Pane {
             // grade hexagonal: o explorado tambem e por hexagono
             com.vttcaseiro.model.GridSettings g = scene.getGrid();
             double s = g.hexRadius() + 0.5;
-            for (int[] h : g.hexesCovering(gridCanvas.getWidth(), gridCanvas.getHeight())) {
+            for (int[] h : g.hexesCovering(mapW, mapH)) {
                 if (!exploredCells.contains(hexKey(h[0], h[1]))) continue;
                 double[] c = g.hexCenter(h[0], h[1]);
                 for (int i = 0; i < 6; i++) {
@@ -620,7 +632,7 @@ public class MapView extends Pane {
 
     private javafx.scene.shape.Shape visionPolygon(double cx, double cy) {
         double[] pts = com.vttcaseiro.vision.Visibility.polygon(cx, cy, scene.getWalls(),
-                gridCanvas.getWidth(), gridCanvas.getHeight());
+                mapW, mapH);
         javafx.scene.shape.Polygon poly = new javafx.scene.shape.Polygon(pts);
         return poly;
     }
@@ -658,7 +670,7 @@ public class MapView extends Pane {
         // enxerga com visao no escuro / as cegas / verdadeira. Penumbra aparece mais escura; escuridao some.
         com.vttcaseiro.vision.Perception.Light ambient = com.vttcaseiro.vision.Perception.ambient(scene);
         boolean dark = ambient == com.vttcaseiro.vision.Perception.Light.DARK;
-        javafx.scene.shape.Rectangle all = new javafx.scene.shape.Rectangle(0, 0, gridCanvas.getWidth(), gridCanvas.getHeight());
+        javafx.scene.shape.Rectangle all = new javafx.scene.shape.Rectangle(0, 0, mapW, mapH);
         javafx.scene.shape.Shape brightLit = ambient == com.vttcaseiro.vision.Perception.Light.BRIGHT ? all : null;
         javafx.scene.shape.Shape dimLit = dark ? null : all;   // penumbra ou melhor
         if (ambient != com.vttcaseiro.vision.Perception.Light.BRIGHT) {
@@ -687,7 +699,7 @@ public class MapView extends Pane {
         for (TokenModel t : viewers) {
             double[] c = centerOf(t);
             javafx.scene.shape.Shape sightPoly = new javafx.scene.shape.Polygon(com.vttcaseiro.vision.Visibility.polygon(
-                    c[0], c[1], scene.getWalls(), gridCanvas.getWidth(), gridCanvas.getHeight()));
+                    c[0], c[1], scene.getWalls(), mapW, mapH));
             javafx.scene.shape.Shape darkvision = t.getVisionFeet() > 0
                     ? new javafx.scene.shape.Circle(c[0], c[1], feetToPx(t.getVisionFeet())) : null;
             int senseFeet = Math.max(t.getTruesightFeet(), t.getBlindsightFeet());
@@ -706,13 +718,19 @@ public class MapView extends Pane {
         int rows = gridRows();
         if (!gm && scene.getGrid().isHex()) {
             com.vttcaseiro.model.GridSettings g = scene.getGrid();
-            for (int[] h : g.hexesCovering(gridCanvas.getWidth(), gridCanvas.getHeight())) {
+            for (int[] h : g.hexesCovering(mapW, mapH)) {
                 double[] c = g.hexCenter(h[0], h[1]);
                 if (visibleArea.contains(c[0], c[1])) exploredCells.add(hexKey(h[0], h[1]));
             }
         } else if (!gm) {
-            for (int c = 0; c < cols; c++) {
-                for (int r = 0; r < rows; r++) {
+            // so as casas dentro do que esta visivel (mapa grande: nao percorre milhoes de casas a cada redesenho)
+            javafx.geometry.Bounds vb = visibleArea.getBoundsInLocal();
+            int c0 = Math.max(0, (int) Math.floor(vb.getMinX() / cellSize));
+            int c1 = Math.min(cols, (int) Math.ceil(vb.getMaxX() / cellSize) + 1);
+            int r0 = Math.max(0, (int) Math.floor(vb.getMinY() / cellSize));
+            int r1 = Math.min(rows, (int) Math.ceil(vb.getMaxY() / cellSize) + 1);
+            for (int c = c0; c < c1; c++) {
+                for (int r = r0; r < r1; r++) {
                     if (visibleArea.contains((c + 0.5) * cellSize, (r + 0.5) * cellSize)) exploredCells.add(((long) c << 32) | r);
                 }
             }
@@ -841,12 +859,12 @@ public class MapView extends Pane {
 
     public int gridCols() {
         double cell = Math.max(10, scene.getGrid().getCellSize());
-        return (int) Math.ceil(gridCanvas.getWidth() / cell);
+        return (int) Math.ceil(mapW / cell);
     }
 
     public int gridRows() {
         double cell = Math.max(10, scene.getGrid().getCellSize());
-        return (int) Math.ceil(gridCanvas.getHeight() / cell);
+        return (int) Math.ceil(mapH / cell);
     }
 
     /** Pinta a neblina por cima dos tokens (casa nao revelada = coberta). */
@@ -859,14 +877,14 @@ public class MapView extends Pane {
 
     /** Todos os hexagonos do mapa (pra "Revelar tudo"). */
     public java.util.List<int[]> allHexCells() {
-        return scene.getGrid().hexesCovering(gridCanvas.getWidth(), gridCanvas.getHeight());
+        return scene.getGrid().hexesCovering(mapW, mapH);
     }
 
     public void redrawFog() {
-        fogCanvas.setWidth(gridCanvas.getWidth());
-        fogCanvas.setHeight(gridCanvas.getHeight());
+        sizeCanvas(fogCanvas);
         GraphicsContext gc = fogCanvas.getGraphicsContext2D();
-        gc.clearRect(0, 0, fogCanvas.getWidth(), fogCanvas.getHeight());
+        gc.setTransform(canvasScale, 0, 0, canvasScale, 0, 0);
+        gc.clearRect(0, 0, mapW, mapH);
         com.vttcaseiro.model.Fog fog = scene.getFog();
         if (!fog.isEnabled()) return;
         boolean gm = tokenActions == null || tokenActions.isGm();
@@ -877,7 +895,7 @@ public class MapView extends Pane {
             double s = g.hexRadius() + 0.6; // um tiquinho maior: sem frestas entre os hexagonos
             double[] xs = new double[6];
             double[] ys = new double[6];
-            for (int[] h : g.hexesCovering(fogCanvas.getWidth(), fogCanvas.getHeight())) {
+            for (int[] h : g.hexesCovering(mapW, mapH)) {
                 if (fog.isRevealed(h[0], h[1])) continue;
                 double[] c = g.hexCenter(h[0], h[1]);
                 for (int i = 0; i < 6; i++) {
@@ -998,8 +1016,9 @@ public class MapView extends Pane {
         Image cached = objectImageCache.get(assetId);
         if (cached != null) return cached;
         try {
-            Image img = new Image(new java.io.ByteArrayInputStream(imageAssetService.readBytes(assetId)));
-            if (img.isError()) return null;
+            SafeImage.Loaded l = SafeImage.read(imageAssetService.readBytes(assetId), 2048, 2048L * 2048L);
+            if (l == null) return null;
+            Image img = l.image();
             objectImageCache.put(assetId, img);
             return img;
         } catch (java.io.IOException ex) {
@@ -1419,33 +1438,34 @@ public class MapView extends Pane {
      * verdade pra quem recebeu a cena pela rede, nao so pra quem criou o
      * arquivo. Chame depois de trocar a cena no modelo. */
     public void loadBackgroundImage() {
-        Image img = null;
+        SafeImage.Loaded loaded = null;
         // 1) asset por hash (formato atual), 2) base64 embutido (antigo), 3) caminho local.
         if (imageAssetService != null && scene.getBackgroundImageAssetId() != null) {
             try {
-                Image fromAsset = new Image(new java.io.ByteArrayInputStream(
-                        imageAssetService.readBytes(scene.getBackgroundImageAssetId())));
-                if (!fromAsset.isError()) img = fromAsset;
+                SafeImage.Loaded fromAsset = SafeImage.read(imageAssetService.readBytes(scene.getBackgroundImageAssetId()));
+                if (fromAsset != null) loaded = fromAsset;
             } catch (java.io.IOException ignored) {
                 // asset ainda nao chegou pela rede -- tenta os outros jeitos
             }
         }
-        if (img == null) img = ImageCodec.decode(scene.getBackgroundImageData());
-        if (img == null) {
+        if (loaded == null && scene.getBackgroundImageData() != null && !scene.getBackgroundImageData().isBlank()) {
+            try {
+                loaded = SafeImage.read(java.util.Base64.getDecoder().decode(scene.getBackgroundImageData()));
+            } catch (IllegalArgumentException ignored) {
+                // base64 quebrado: tenta o caminho
+            }
+        }
+        if (loaded == null) {
             String path = scene.getBackgroundImagePath();
             if (path != null && !path.isBlank()) {
-                try {
-                    Image candidate = new Image(new File(path).toURI().toString());
-                    if (!candidate.isError()) {
-                        img = candidate;
-                    }
-                } catch (Exception ex) {
-                    // sem imagem valida -- fica so o fundo cinza, sem travar o programa
-                }
+                // sem imagem valida -- fica so o tabuleiro, sem travar o programa
+                loaded = SafeImage.read(new File(path));
             }
         }
         // Sem imagem: um "tabuleiro em branco" com grade, pra ja dar pra jogar sem mapa.
-        backgroundView.setImage(img);
+        backgroundView.setImage(loaded == null ? null : loaded.image());
+        bgNativeW = loaded == null ? 0 : loaded.width();
+        bgNativeH = loaded == null ? 0 : loaded.height();
         applyMapSize();
         redrawGrid();
         updateEmptyStateVisibility();
@@ -1489,26 +1509,57 @@ public class MapView extends Pane {
             w = g.getMapWidthCells() * cell;
             h = g.getMapHeightCells() * cell;
         } else if (img != null) {
-            w = img.getWidth();
-            h = img.getHeight();
+            w = bgNativeW > 0 ? bgNativeW : img.getWidth();
+            h = bgNativeH > 0 ? bgNativeH : img.getHeight();
         } else {
             w = cell * BLANK_COLS;
             h = cell * BLANK_ROWS;
         }
+        // valores absurdos (NaN, infinito, gigantes) nao podem chegar na placa de video
+        if (!Double.isFinite(w) || w < 1) w = cell * BLANK_COLS;
+        if (!Double.isFinite(h) || h < 1) h = cell * BLANK_ROWS;
+        w = Math.min(w, MAP_MAX_SIDE);
+        h = Math.min(h, MAP_MAX_SIDE);
+        boolean stretch = img != null && (g.hasCustomMapSize() || img.getWidth() < w - 0.5 || img.getHeight() < h - 0.5);
         backgroundView.setPreserveRatio(false);
-        backgroundView.setFitWidth(img != null && g.hasCustomMapSize() ? w : 0);
-        backgroundView.setFitHeight(img != null && g.hasCustomMapSize() ? h : 0);
-        gridCanvas.setWidth(w);
-        gridCanvas.setHeight(h);
+        backgroundView.setFitWidth(stretch ? w : 0);
+        backgroundView.setFitHeight(stretch ? h : 0);
+        mapW = w;
+        mapH = h;
+        canvasScale = Math.min(1.0, CANVAS_MAX_SIDE / Math.max(w, h));
+        sizeCanvas(gridCanvas);
+    }
+
+    /** Ajusta o Canvas pro mapa: no maximo CANVAS_MAX_SIDE de lado, esticado na tela pra cobrir o mapa todo. */
+    private void sizeCanvas(Canvas c) {
+        double cw = Math.max(1, Math.ceil(mapW * canvasScale));
+        double ch = Math.max(1, Math.ceil(mapH * canvasScale));
+        if (c.getWidth() != cw) c.setWidth(cw);
+        if (c.getHeight() != ch) c.setHeight(ch);
+        if (canvasScale >= 1.0) {
+            c.getTransforms().clear();
+        } else {
+            c.getTransforms().setAll(new javafx.scene.transform.Scale(1 / canvasScale, 1 / canvasScale, 0, 0));
+        }
+    }
+
+    /** Escala atual dos Canvas (1 = tamanho real; menor = mapa grande desenhado reduzido). */
+    public double canvasScale() {
+        return canvasScale;
+    }
+
+    /** Maior lado (em pixels) do Canvas da grade: nunca passa de CANVAS_MAX_SIDE. */
+    public double gridCanvasSide() {
+        return Math.max(gridCanvas.getWidth(), gridCanvas.getHeight());
     }
 
     /** Largura/altura do mapa em pixels (o tamanho escolhido ou o da imagem). */
     public double mapWidth() {
-        return gridCanvas.getWidth();
+        return mapW;
     }
 
     public double mapHeight() {
-        return gridCanvas.getHeight();
+        return mapH;
     }
 
     /** Cor de fundo do tema atual (o -c-bg ja resolvido no proprio MapView). */
@@ -1521,13 +1572,14 @@ public class MapView extends Pane {
     public void redrawGrid() {
         applyMapSize();
         GraphicsContext gc = gridCanvas.getGraphicsContext2D();
-        gc.clearRect(0, 0, gridCanvas.getWidth(), gridCanvas.getHeight());
+        gc.setTransform(canvasScale, 0, 0, canvasScale, 0, 0);
+        gc.clearRect(0, 0, mapW, mapH);
         Color themeBg = themeBackground();
         boolean lightTheme = themeBg.getBrightness() > 0.6;
         if (backgroundView.getImage() == null) {
             // tabuleiro vazio: um tom acima do fundo do tema (no tema padrao da o mesmo #261D18 de antes)
             gc.setFill(lightTheme ? themeBg.deriveColor(0, 1, 0.97, 1) : themeBg.deriveColor(0, 1, 1.4, 1));
-            gc.fillRect(0, 0, gridCanvas.getWidth(), gridCanvas.getHeight());
+            gc.fillRect(0, 0, mapW, mapH);
         }
         if (!scene.getGrid().isVisible()) {
             return;
@@ -1536,11 +1588,11 @@ public class MapView extends Pane {
         if (size <= 1) {
             return;
         }
-        double w = gridCanvas.getWidth();
-        double h = gridCanvas.getHeight();
+        double w = mapW;
+        double h = mapH;
         // grade clara no tema escuro, escura no tema claro (sobre imagem de mapa continua clara)
         gc.setStroke(lightTheme && backgroundView.getImage() == null ? Color.rgb(0, 0, 0, 0.22) : Color.rgb(255, 255, 255, 0.35));
-        gc.setLineWidth(1);
+        gc.setLineWidth(1 / canvasScale); // 1 pixel do Canvas, mesmo reduzido
         if (scene.getGrid().isGridless()) return;
         if (scene.getGrid().isHex()) {
             drawHexGrid(gc, w, h);

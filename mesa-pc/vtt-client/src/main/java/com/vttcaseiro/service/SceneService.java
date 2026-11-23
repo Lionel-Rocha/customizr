@@ -213,8 +213,12 @@ public class SceneService {
     }
 
     public void setGridCellSize(double size) {
-        if (size <= 1) {
+        if (!(size > 1)) {
             throw new IllegalArgumentException("O tamanho da célula precisa ser maior que 1.");
+        }
+        if (size > com.vttcaseiro.model.GridSettings.MAX_CELL_SIZE) {
+            throw new IllegalArgumentException("O tamanho da célula pode ir até "
+                    + (int) com.vttcaseiro.model.GridSettings.MAX_CELL_SIZE + " px.");
         }
         scene.getGrid().setCellSize(size);
         for (SceneChangeListener l : listeners) {

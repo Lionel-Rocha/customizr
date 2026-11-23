@@ -410,6 +410,15 @@ public class TokenNode extends StackPane {
      * Devolve null (sem lancar excecao) se nenhum dos tres der certo --
      * quem chama decide o que mostrar no lugar (a silhueta padrao). */
     private Image tryLoadImage(double w, double h) {
+        // a imagem so precisa da resolucao da tela; token enorme (casa grande x muitas casas) nao vira textura gigante
+        double big = Math.max(w, h);
+        if (!Double.isFinite(big) || big <= 0) {
+            w = 64;
+            h = 64;
+        } else if (big > 1024) {
+            w = w * 1024 / big;
+            h = h * 1024 / big;
+        }
         if (imageAssetService != null && model.getImageAssetId() != null) {
             try {
                 byte[] bytes = imageAssetService.readBytes(model.getImageAssetId());

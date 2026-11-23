@@ -132,8 +132,14 @@ public class GridSettings {
         return Math.round(Math.max(Math.abs(x2 - x1), Math.abs(y2 - y1)) / cellSize);
     }
 
-    public double getCellSize() { return cellSize; }
-    public void setCellSize(double cellSize) { this.cellSize = cellSize; }
+    /** Maior casa aceita, em pixels (mapa salvo com valor absurdo nao derruba a tela). */
+    public static final double MAX_CELL_SIZE = 1000;
+
+    public double getCellSize() {
+        if (!Double.isFinite(cellSize)) return 70;
+        return Math.min(MAX_CELL_SIZE, cellSize);
+    }
+    public void setCellSize(double cellSize) { this.cellSize = Double.isFinite(cellSize) ? Math.min(MAX_CELL_SIZE, cellSize) : 70; }
 
     public double getFeetPerCell() { return feetPerCell; }
     public void setFeetPerCell(double feetPerCell) { this.feetPerCell = feetPerCell; }
