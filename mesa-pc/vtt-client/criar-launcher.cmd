@@ -58,7 +58,7 @@ if exist "%OUT%\Customizr\Customizr.exe" rmdir /s /q "%OUT%\Customizr"
     --icon "src\main\resources\icons\customizr.ico" --app-version 1.0.0 --vendor Customizr ^
     --description "Customizr - mesa virtual de RPG" ^
     --jlink-options "--strip-debug --no-man-pages --no-header-files" ^
-    --java-options "--enable-native-access=ALL-UNNAMED"
+    --java-options "--enable-native-access=ALL-UNNAMED" --java-options "-Dprism.maxvram=2G"
 if errorlevel 1 (
     echo [ERRO] O jpackage falhou. Veja as mensagens acima.
     pause

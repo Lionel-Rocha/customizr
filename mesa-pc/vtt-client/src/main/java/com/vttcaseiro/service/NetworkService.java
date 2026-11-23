@@ -186,6 +186,19 @@ public class NetworkService {
     }
     private String playerName = "Jogador";
 
+    /** A property e da tela: muda na thread do JavaFX (a conexao agora roda em segundo plano). */
+    private void setStatus(String text) {
+        if (javafx.application.Platform.isFxApplicationThread()) {
+            status.set(text);
+            return;
+        }
+        try {
+            javafx.application.Platform.runLater(() -> status.set(text));
+        } catch (IllegalStateException toolkitOff) {
+            status.set(text); // testes sem JavaFX
+        }
+    }
+
     public ReadOnlyStringProperty statusProperty() {
         return status;
     }
@@ -294,7 +307,7 @@ public class NetworkService {
             server = null;
             throw ex;
         }
-        status.set("Hospedando na porta " + server.getPort() + " como " + playerName);
+        setStatus("Hospedando na porta " + server.getPort() + " como " + playerName);
         log.info("Servidor aberto na porta " + server.getPort());
     }
 
@@ -357,7 +370,7 @@ public class NetworkService {
         this.connectedHost = host;
         this.connectedPort = port;
         this.connectedRelayCode = relayCodeUsed;
-        status.set("Conectado em " + host + ":" + port + (relayCodeUsed != null ? " (ponte, mesa " + relayCodeUsed + ")" : "")
+        setStatus("Conectado em " + host + ":" + port + (relayCodeUsed != null ? " (ponte, mesa " + relayCodeUsed + ")" : "")
                 + " como " + playerName);
         log.info("Conectado a " + host + ":" + port);
     }
@@ -539,7 +552,7 @@ public class NetworkService {
                     server.stop();
                     server = null;
                 }
-                status.set("Offline (conexão perdida)");
+                setStatus("Offline (conexão perdida)");
                 onlinePlayers.clear();
                 listener.onDisconnected(reason);
             }
@@ -766,7 +779,7 @@ public class NetworkService {
         tls = false;
         hostFingerprint = null;
         connectedRelayCode = null;
-        status.set("Offline (tudo local)");
+        setStatus("Offline (tudo local)");
         onlinePlayers.clear();
     }
 }

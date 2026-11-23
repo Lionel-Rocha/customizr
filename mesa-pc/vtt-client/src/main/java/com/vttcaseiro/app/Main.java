@@ -390,6 +390,7 @@ public class Main extends Application {
                 flushSceneAutosave(); // grava a cena que esta saindo, se tinha mudanca
                 undo.clear();         // desfazer de outra cena nao faz sentido
                 undoOrder.clear();
+                if (mapView != null) mapView.release(); // libera a memoria de video do mapa que sai
                 mapView = new MapView(newScene, imageAssetService);
                 wireTokenMoveListener();
                 wireCharacterDropHandler();
@@ -1178,9 +1179,9 @@ public class Main extends Application {
         double cell = Math.max(10, sceneService.getScene().getGrid().getCellSize());
         double w = 2 * cell, h = 2 * cell;
         try {
-            javafx.scene.image.Image img = new javafx.scene.image.Image(
-                    new java.io.ByteArrayInputStream(imageAssetService.readBytes(assetId)));
-            if (!img.isError() && img.getWidth() > 0 && img.getHeight() > 0) {
+            com.vttcaseiro.view.SafeImage.Loaded l = com.vttcaseiro.view.SafeImage.read(imageAssetService.readBytes(assetId), 2048, 2048L * 2048L);
+            javafx.scene.image.Image img = l == null ? null : l.image();
+            if (img != null && img.getWidth() > 0 && img.getHeight() > 0) {
                 double f = 2 * cell / Math.max(img.getWidth(), img.getHeight());
                 w = img.getWidth() * f;
                 h = img.getHeight() * f;
@@ -3245,9 +3246,10 @@ public class Main extends Application {
     private javafx.scene.image.Image handoutImage(com.vttcaseiro.model.Handout h) {
         if (h.getImageAssetId() == null || imageAssetService == null) return null;
         try {
-            javafx.scene.image.Image img = new javafx.scene.image.Image(
-                    new java.io.ByteArrayInputStream(imageAssetService.readBytes(h.getImageAssetId())));
-            return img.isError() ? null : img;
+            // imagem do diario: ate 4096 de lado (da pra ler um mapa de mao), sem estourar a placa de video
+            com.vttcaseiro.view.SafeImage.Loaded l = com.vttcaseiro.view.SafeImage.read(
+                    imageAssetService.readBytes(h.getImageAssetId()), 4096, 4096L * 4096L);
+            return l == null ? null : l.image();
         } catch (IOException ex) {
             return null; // ainda chegando pela rede
         }
@@ -3683,8 +3685,10 @@ public class Main extends Application {
         if (cached != null) return cached;
         if (assetId == null || !imageAssetService.exists(assetId)) return null;
         try {
-            javafx.scene.image.Image img = new javafx.scene.image.Image(
-                    new java.io.ByteArrayInputStream(imageAssetService.readBytes(assetId)));
+            com.vttcaseiro.view.SafeImage.Loaded l = com.vttcaseiro.view.SafeImage.read(
+                    imageAssetService.readBytes(assetId), 2048, 2048L * 2048L);
+            if (l == null) return null;
+            javafx.scene.image.Image img = l.image();
             chatImages.put(assetId, img);
             return img;
         } catch (IOException ex) {
@@ -6123,13 +6127,51 @@ public class Main extends Application {
             return;
         }
         String resolvedName = name.isBlank() ? "Jogador" : name.trim();
+        if (connecting) {
+            showError("Já estou tentando conectar; espere um pouco.");
+            return;
+        }
+        connecting = true;
+        logEntries.add(LogEntry.system("Conectando em " + host.trim() + ":" + port + "..."));
+        // Fora da thread da tela: endereco errado, firewall ou espera da ponte nao congelam mais o programa.
+        Thread t = new Thread(() -> {
+            String error = null;
+            try {
+                networkService.connect(host.trim(), port, resolvedName,
+                        mesaRepository.getImageAssetStore(), asGm, blankToNull(tablePassword),
+                        asGm ? blankToNull(masterPassword) : null, tls, this::confirmTableCodeFromAnyThread,
+                        new AppGameListener());
+            } catch (IllegalStateException | IOException ex) {
+                error = ex.getMessage();
+            } catch (RuntimeException ex) {
+                error = "erro inesperado: " + ex;
+            }
+            String failure = error;
+            Platform.runLater(() -> {
+                connecting = false;
+                if (failure == null) logEntries.add(LogEntry.system("Conectado ao servidor."));
+                else showError("Não foi possível conectar: " + failure);
+            });
+        }, "conectar-mesa");
+        t.setDaemon(true);
+        t.start();
+    }
+
+    private volatile boolean connecting;
+
+    /** A pergunta do codigo da mesa (TLS) e uma janela: roda na thread da tela e a conexao espera a resposta. */
+    private boolean confirmTableCodeFromAnyThread(String hostPort, String fingerprint, String previous) {
+        if (Platform.isFxApplicationThread()) return confirmTableCode(hostPort, fingerprint, previous);
+        java.util.concurrent.FutureTask<Boolean> ask = new java.util.concurrent.FutureTask<>(
+                () -> confirmTableCode(hostPort, fingerprint, previous));
+        Platform.runLater(ask);
         try {
-            networkService.connect(host.trim(), port, resolvedName,
-                    mesaRepository.getImageAssetStore(), asGm, blankToNull(tablePassword),
-                    asGm ? blankToNull(masterPassword) : null, tls, this::confirmTableCode, new AppGameListener());
-            logEntries.add(LogEntry.system("Conectado ao servidor."));
-        } catch (IllegalStateException | IOException ex) {
-            showError("Não foi possível conectar: " + ex.getMessage());
+            return ask.get();
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            return false;
+        } catch (java.util.concurrent.ExecutionException ex) {
+            return false;
         }
     }
 
@@ -6253,6 +6295,10 @@ public class Main extends Application {
                 }
                 SceneModel sc = sceneService.getScene();
                 if (sc.getObjects().stream().anyMatch(o -> assetId.equals(o.getAssetId()))) mapView.redrawObjects();
+                // a imagem do mapa e as dos tokens chegam DEPOIS da cena (quem entra na mesa recebe a cena primeiro):
+                // sem redesenhar aqui, o jogador ficava com o mapa vazio
+                if (assetId.equals(sc.getBackgroundImageAssetId())) mapView.backgroundArrived(assetId);
+                if (sc.getTokens().stream().anyMatch(t -> assetId.equals(t.getImageAssetId()))) mapView.rebuildTokens();
             });
         }
 
@@ -6752,6 +6798,9 @@ public class Main extends Application {
     }
 
     public static void main(String[] args) {
+        // O JavaFX reserva so 512 MB de memoria de video por padrao; mapa grande + tokens + troca de cena passavam
+        // disso e a tela congelava ("Texture ... is null"). E so um teto: a placa usa o que tiver.
+        if (System.getProperty("prism.maxvram") == null) System.setProperty("prism.maxvram", "2G");
         launch(args);
     }
 }

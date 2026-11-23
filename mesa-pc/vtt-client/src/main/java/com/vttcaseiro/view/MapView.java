@@ -58,6 +58,37 @@ public class MapView extends Pane {
     public static final double CANVAS_MAX_SIDE = 4096;
     /** Lado maximo do mapa em pixels (500 casas de 120 px). Acima disso ninguem joga e a visao fica pesada. */
     public static final double MAP_MAX_SIDE = 60000;
+    /** Ultima imagem de fundo lida (por asset): trocar/ressincronizar a mesma cena nao decodifica de novo. */
+    private static String lastBackgroundAsset;
+    private static SafeImage.Loaded lastBackground;
+
+    /**
+     * Solta as texturas deste mapa (imagem de fundo, Canvas, imagens de objetos) na hora, sem esperar o coletor de
+     * lixo: chame ao trocar de cena. Sem isso, o mapa velho e o novo ocupavam a memoria de video juntos e a placa
+     * ficava sem espaco ("Texture ... is null").
+     */
+    public void release() {
+        backgroundView.setImage(null);
+        gridCanvas.setWidth(1);
+        gridCanvas.setHeight(1);
+        fogCanvas.setWidth(1);
+        fogCanvas.setHeight(1);
+        objectImageCache.clear();
+        objectLayer.getChildren().clear();
+        tokenLayer.getChildren().clear();
+    }
+
+    /** A imagem de fundo desta cena acabou de chegar pela rede (ou mudou): redesenha o mapa com ela. */
+    public void backgroundArrived(String assetId) {
+        if (assetId == null || !assetId.equals(scene.getBackgroundImageAssetId())) return;
+        if (assetId.equals(lastBackgroundAsset)) {
+            lastBackgroundAsset = null; // a versao em cache pode ser de antes do arquivo existir
+            lastBackground = null;
+        }
+        loadBackgroundImage();
+        redrawFog();
+    }
+
     /** Tamanho original da imagem de fundo (ela pode ter sido carregada reduzida, ver SafeImage). */
     private double bgNativeW;
     private double bgNativeH;
@@ -1472,11 +1503,19 @@ public class MapView extends Pane {
      * arquivo. Chame depois de trocar a cena no modelo. */
     public void loadBackgroundImage() {
         SafeImage.Loaded loaded = null;
+        String bgAsset = scene.getBackgroundImageAssetId();
+        if (bgAsset != null && bgAsset.equals(lastBackgroundAsset) && lastBackground != null) {
+            loaded = lastBackground; // mesma cena de novo (troca/resync): reaproveita a imagem e a textura
+        }
         // 1) asset por hash (formato atual), 2) base64 embutido (antigo), 3) caminho local.
-        if (imageAssetService != null && scene.getBackgroundImageAssetId() != null) {
+        if (loaded == null && imageAssetService != null && bgAsset != null) {
             try {
-                SafeImage.Loaded fromAsset = SafeImage.read(imageAssetService.readBytes(scene.getBackgroundImageAssetId()));
-                if (fromAsset != null) loaded = fromAsset;
+                SafeImage.Loaded fromAsset = SafeImage.read(imageAssetService.readBytes(bgAsset));
+                if (fromAsset != null) {
+                    loaded = fromAsset;
+                    lastBackgroundAsset = bgAsset;
+                    lastBackground = fromAsset;
+                }
             } catch (java.io.IOException ignored) {
                 // asset ainda nao chegou pela rede -- tenta os outros jeitos
             }

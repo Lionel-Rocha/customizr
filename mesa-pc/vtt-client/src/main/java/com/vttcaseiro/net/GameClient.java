@@ -268,12 +268,15 @@ public class GameClient {
                 socket = raw;
             }
         } else if (tlsEnabled) {
+            Socket raw = openSocket(host, port);
             javax.net.ssl.SSLSocket s = (javax.net.ssl.SSLSocket) TlsSupport.trustAllClient().getSocketFactory()
-                    .createSocket(host, port);
+                    .createSocket(raw, host, port, true);
+            s.setSoTimeout(CONNECT_TIMEOUT_MS); // o aperto de mao TLS tambem nao pode travar pra sempre
             TlsSupport.verify(s, host + ":" + port, tlsPrompt); // confere o codigo ANTES de mandar a senha
+            s.setSoTimeout(0);
             socket = s;
         } else {
-            socket = new Socket(host, port);
+            socket = openSocket(host, port);
         }
         out = new PrintWriter(
                 new java.io.OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8), true);
@@ -283,6 +286,32 @@ public class GameClient {
         listenThread.setDaemon(true);
         listenThread.start();
         startHeartbeat();
+    }
+
+    /** Quanto espera o outro lado atender antes de desistir (IP errado, firewall, porta fechada). */
+    public static final int CONNECT_TIMEOUT_MS = 8000;
+
+    private static Socket openSocket(String host, int port) throws IOException {
+        Socket s = new Socket();
+        try {
+            s.connect(new java.net.InetSocketAddress(host, port), CONNECT_TIMEOUT_MS);
+        } catch (java.net.SocketTimeoutException ex) {
+            s.close();
+            throw new IOException("ninguém respondeu em " + host + ":" + port + " em " + CONNECT_TIMEOUT_MS / 1000
+                    + " s. Confira o endereço e a porta, se o mestre já clicou em \"Hospedar aqui\" e se o firewall"
+                    + " do Windows dele liberou o Customizr (ou use a ponte).");
+        } catch (java.net.ConnectException ex) {
+            s.close();
+            throw new IOException("a conexão foi recusada em " + host + ":" + port + ". O mestre está hospedando "
+                    + "nessa porta? (painel Rede > \"Hospedar aqui\")");
+        } catch (java.net.UnknownHostException ex) {
+            s.close();
+            throw new IOException("endereço não encontrado: " + host);
+        } catch (IOException | RuntimeException ex) {
+            s.close();
+            throw ex;
+        }
+        return s;
     }
 
     private void startHeartbeat() {
