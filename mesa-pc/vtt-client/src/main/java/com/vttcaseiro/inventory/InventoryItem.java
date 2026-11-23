@@ -12,6 +12,11 @@ public class InventoryItem {
     private int quantity;
     private double unitWeightLb;
     private long unitValueCopper;
+    /**
+     * Item nao identificado: o nome guardado aqui e o que o jogador ve ("espada de lamina avermelhada"); o nome
+     * verdadeiro fica so com o mestre (Campaign.secrets, por este id). null = item normal/identificado.
+     */
+    private String secretId;
 
     public InventoryItem() {
     }
@@ -24,6 +29,10 @@ public class InventoryItem {
     }
 
     public String getName() { return name; }
+
+    public String getSecretId() { return secretId == null || secretId.isBlank() ? null : secretId; }
+    public void setSecretId(String secretId) { this.secretId = secretId; }
+    public boolean isUnidentified() { return getSecretId() != null; }
     public void setName(String name) { this.name = name; }
 
     public int getQuantity() { return quantity; }

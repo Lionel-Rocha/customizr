@@ -2765,6 +2765,7 @@ public class Main extends Application {
         }
         campaignView = new com.vttcaseiro.view.CampaignView(stage, campaign, editsCampaign(), c -> campaignSave.playFromStart())
                 .withOnlinePlayers(() -> new ArrayList<>(networkService.getOnlinePlayers()));
+        if (editsCampaign()) campaignView.withGmActions(new CampaignActions());
         campaignView.show();
     }
 
@@ -2776,6 +2777,174 @@ public class Main extends Application {
         networkService.statusProperty().addListener((o, a, b) -> Platform.runLater(() -> {
             if (networkService.isConnected() && networkService.isGm()) networkService.sendCampaign(campaign);
         }));
+    }
+
+    /** Parcelas, itens nao identificados e encontros prontos: o que a Campanha pede pro resto do programa. */
+    private class CampaignActions implements com.vttcaseiro.view.CampaignView.GmActions {
+        private static final String GROUP = "Inventário do grupo";
+
+        /** A ficha (a aberta na janela, se estiver) pelo nome da lista. */
+        private CharacterSheet sheetNamed(String name) throws IOException {
+            CharacterSheetView v = openViewFor(name);
+            return v != null ? v.getSheet() : characterService.open(name);
+        }
+
+        private void saveSheet(CharacterSheet sheet) {
+            try {
+                characterService.save(sheet);
+                networkService.sendCharacterSync(sheet);
+                CharacterSheetView v = openSheetViews.get(sheet.getId());
+                if (v != null) v.reload(sheet);
+            } catch (IOException ex) {
+                showError("Não deu pra salvar a ficha " + sheet.getName() + ": " + ex.getMessage());
+            }
+        }
+
+        private void saveParty() {
+            try {
+                partyService.save();
+                networkService.sendPartySync(partyService.getParty());
+                refreshPartyInventoryList();
+            } catch (IOException ex) {
+                showError("Não deu pra salvar o grupo: " + ex.getMessage());
+            }
+        }
+
+        @Override
+        public void deliver(com.vttcaseiro.model.Campaign.Parcel parcel) {
+            List<String> names = characterService.list();
+            javafx.scene.control.Dialog<javafx.scene.control.ButtonType> d = new javafx.scene.control.Dialog<>();
+            d.initOwner(campaignView.getStage());
+            d.setTitle("Entregar tesouro");
+            d.setHeaderText(parcel.name.isBlank() ? null : parcel.name);
+            javafx.scene.control.ButtonType ok = new javafx.scene.control.ButtonType("Entregar",
+                    javafx.scene.control.ButtonBar.ButtonData.OK_DONE);
+            d.getDialogPane().getButtonTypes().addAll(ok, javafx.scene.control.ButtonType.CANCEL);
+            ComboBox<String> itemsTo = new ComboBox<>();
+            itemsTo.getItems().add(GROUP);
+            itemsTo.getItems().addAll(names);
+            itemsTo.setValue(GROUP);
+            VBox coinBoxes = new VBox(4);
+            List<javafx.scene.control.CheckBox> coinChecks = new ArrayList<>();
+            for (String n : names) {
+                javafx.scene.control.CheckBox c = new javafx.scene.control.CheckBox(n);
+                coinChecks.add(c);
+                coinBoxes.getChildren().add(c);
+            }
+            Label coinHint = new Label("Nenhum marcado: as moedas vão junto com os itens.");
+            coinHint.getStyleClass().add("label-muted");
+            long players = campaign.getPlayers().stream().filter(p -> p.visible).count();
+            javafx.scene.control.CheckBox xp = new javafx.scene.control.CheckBox(parcel.xp <= 0 ? "Sem XP nesta parcela"
+                    : "Dividir " + parcel.xp + " XP entre os " + players + " jogadores da Campanha");
+            xp.setSelected(parcel.xp > 0 && players > 0);
+            xp.setDisable(parcel.xp <= 0 || players == 0);
+            VBox box = new VBox(8, new Label("Itens vão para"), itemsTo, new Label("Dividir as moedas entre"),
+                    coinBoxes, coinHint, xp);
+            box.setPrefWidth(420);
+            d.getDialogPane().setContent(new ScrollPane(box));
+            if (d.showAndWait().filter(b -> b == ok).isEmpty()) return;
+            try {
+                java.util.Map<String, CharacterSheet> touched = new java.util.LinkedHashMap<>();
+                java.util.function.Function<String, com.vttcaseiro.service.TreasureService.Target> target = n -> {
+                    if (GROUP.equals(n)) return new com.vttcaseiro.service.TreasureService.Target("o grupo",
+                            partyService.getParty().getSharedInventory());
+                    try {
+                        CharacterSheet sh = touched.computeIfAbsent(n, k -> {
+                            try {
+                                return sheetNamed(k);
+                            } catch (IOException ex) {
+                                throw new java.io.UncheckedIOException(ex);
+                            }
+                        });
+                        return new com.vttcaseiro.service.TreasureService.Target(sh.getName(), sh.getInventory());
+                    } catch (java.io.UncheckedIOException ex) {
+                        throw ex;
+                    }
+                };
+                var to = target.apply(itemsTo.getValue());
+                List<com.vttcaseiro.service.TreasureService.Target> coins = new ArrayList<>();
+                for (javafx.scene.control.CheckBox c : coinChecks) if (c.isSelected()) coins.add(target.apply(c.getText()));
+                String summary = com.vttcaseiro.service.TreasureService.deliver(campaign, parcel, to, coins,
+                        xp.isSelected(), com.vttcaseiro.view.CampaignView.todayText());
+                touched.values().forEach(this::saveSheet);
+                if (GROUP.equals(itemsTo.getValue()) || coins.stream().anyMatch(t -> t.label().equals("o grupo"))) saveParty();
+                pushCampaign();
+                campaignView.reload(campaign);
+                announce(summary);
+            } catch (RuntimeException ex) {
+                showError("Não deu pra entregar: " + ex.getMessage());
+            }
+        }
+
+        @Override
+        public void identify(com.vttcaseiro.model.Campaign.Secret secret) {
+            int changed = 0;
+            List<com.vttcaseiro.inventory.Inventory> group = List.of(partyService.getParty().getSharedInventory());
+            if (com.vttcaseiro.service.TreasureService.holds(group.get(0), secret.id)) {
+                changed += com.vttcaseiro.service.TreasureService.identify(campaign, secret.id, group);
+                saveParty();
+            }
+            for (String n : characterService.list()) {
+                try {
+                    CharacterSheet sh = sheetNamed(n);
+                    if (!com.vttcaseiro.service.TreasureService.holds(sh.getInventory(), secret.id)) continue;
+                    changed += com.vttcaseiro.service.TreasureService.identify(campaign, secret.id, List.of(sh.getInventory()));
+                    saveSheet(sh);
+                } catch (IOException | RuntimeException ex) {
+                    // ficha ilegivel: pula
+                }
+            }
+            secret.identified = true;
+            pushCampaign();
+            announce("Item identificado: \"" + secret.publicName + "\" é " + secret.trueName + "."
+                    + (changed == 0 ? " (ninguém está com ele agora)" : ""));
+        }
+
+        @Override
+        public com.vttcaseiro.model.Campaign.PreparedEncounter captureSelection() {
+            List<TokenModel> sel = mapView.getSelectedTokens();
+            if (sel.isEmpty()) {
+                showError("Selecione os tokens do encontro no mapa primeiro (Shift+clique ou arraste uma caixa).");
+                return null;
+            }
+            double minX = sel.stream().mapToDouble(TokenModel::getX).min().orElse(0);
+            double minY = sel.stream().mapToDouble(TokenModel::getY).min().orElse(0);
+            var enc = new com.vttcaseiro.model.Campaign.PreparedEncounter();
+            enc.name = sel.size() == 1 ? sel.get(0).getName() : sel.get(0).getName() + " e outros";
+            com.google.gson.Gson gson = new com.google.gson.Gson();
+            for (TokenModel t : sel) {
+                TokenModel copy = gson.fromJson(gson.toJson(t), TokenModel.class);
+                copy.setX(t.getX() - minX); // posicao relativa ao canto do grupo
+                copy.setY(t.getY() - minY);
+                copy.setInitiative(null);
+                enc.tokens.add(copy);
+            }
+            logEntries.add(LogEntry.system("Encontro pronto salvo: " + sel.size() + " token(s)."));
+            return enc;
+        }
+
+        @Override
+        public void deploy(com.vttcaseiro.model.Campaign.PreparedEncounter enc, boolean hidden, boolean rollInitiative) {
+            javafx.geometry.Point2D anchor = mapView.suggestTokenPosition(0);
+            com.google.gson.Gson gson = new com.google.gson.Gson();
+            int n = 0;
+            for (TokenModel saved : enc.tokens) {
+                TokenModel t = gson.fromJson(gson.toJson(saved), TokenModel.class);
+                t.assignNewId();
+                t.setX(anchor.getX() + saved.getX());
+                t.setY(anchor.getY() + saved.getY());
+                t.setHiddenFromPlayers(hidden || saved.isHiddenFromPlayers());
+                t.setInitiative(null);
+                boolean online = networkService.isConnected();
+                // online, a iniciativa vai junto na mensagem de adicionar; offline, rola depois que o token existe
+                if (rollInitiative && online) table.rollInitiative(t, true);
+                addTokenToScene(t);
+                if (rollInitiative && !online) table.rollInitiative(t, true);
+                n++;
+            }
+            logEntries.add(LogEntry.system("Encontro \"" + enc.name + "\" no mapa: " + n + " token(s)"
+                    + (hidden ? ", escondidos dos jogadores" : "") + (rollInitiative ? ", iniciativa rolada" : "") + "."));
+        }
     }
 
     private void pushCampaign() {

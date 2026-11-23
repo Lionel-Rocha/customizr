@@ -36,12 +36,29 @@ public class Inventory {
                 .findFirst();
     }
 
+    /**
+     * Junta com um item igual (mesmo nome e mesmo codigo de nao identificado) ou entra como item novo. Item nao
+     * identificado nunca se junta com um item normal de mesmo nome.
+     */
+    public void addUnique(InventoryItem item) {
+        if (item == null || item.getQuantity() <= 0) return;
+        for (InventoryItem i : items) {
+            if (i.getName() != null && i.getName().equalsIgnoreCase(item.getName())
+                    && java.util.Objects.equals(i.getSecretId(), item.getSecretId())) {
+                i.setQuantity(i.getQuantity() + item.getQuantity());
+                return;
+            }
+        }
+        items.add(item);
+    }
+
     /** @throws IllegalArgumentException se a quantidade nao for positiva */
     public void addItem(String name, int quantity, double unitWeightLb, long unitValueCopper) {
         if (quantity <= 0) {
             throw new IllegalArgumentException("A quantidade precisa ser maior que zero.");
         }
-        Optional<InventoryItem> existing = findByName(name);
+        Optional<InventoryItem> existing = items.stream()
+                .filter(i -> name != null && name.equalsIgnoreCase(i.getName()) && !i.isUnidentified()).findFirst();
         if (existing.isPresent()) {
             InventoryItem item = existing.get();
             item.setQuantity(item.getQuantity() + quantity);
@@ -101,7 +118,14 @@ public class Inventory {
         }
         InventoryItem source = existing.get();
         removeItem(name, quantity);
-        destination.addItem(source.getName(), quantity, source.getUnitWeightLb(), source.getUnitValueCopper());
+        if (source.isUnidentified()) {
+            // item nao identificado leva o codigo junto (o mestre ainda consegue identificar onde ele estiver)
+            InventoryItem moved = new InventoryItem(source.getName(), quantity, source.getUnitWeightLb(), source.getUnitValueCopper());
+            moved.setSecretId(source.getSecretId());
+            destination.addUnique(moved);
+        } else {
+            destination.addItem(source.getName(), quantity, source.getUnitWeightLb(), source.getUnitValueCopper());
+        }
         return true;
     }
 }

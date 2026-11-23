@@ -242,6 +242,16 @@ Botao **Campanha** na barra de cima. Abas:
 - **Aventuras**: numero, estado (ativa, pausada, completa, falhou), datas, objetivo, resultado e notas do mestre.
 - **Sessoes**: numero e data automaticos, resumo e link.
 - **Anotacoes do mestre**: nunca saem do PC do mestre.
+- **Tesouro** (so o mestre): parcelas preparadas antes da sessao (itens, moedas e XP). "Entregar..."
+  escolhe pra quem vao os itens (uma ficha ou o inventario do grupo), divide as moedas entre as fichas
+  marcadas e a XP entre os jogadores da Campanha, e avisa no chat.
+  **Itens nao identificados**: no item, marque "Nao identificado" e escreva o nome que os jogadores
+  veem ("espada de lamina avermelhada"). Na ficha deles entra so esse nome, sem valor; o nome verdadeiro
+  fica so com o mestre. "Identificar" troca o nome na ficha de quem estiver com o item (mesmo que ele
+  tenha passado pro grupo).
+- **Encontros** (so o mestre): coloque os monstros no mapa como quer, selecione (Shift+clique ou caixa) e
+  "Salvar selecao do mapa como encontro". Na hora, "Colocar no mapa" poe todos no meio da tela com a mesma
+  formacao, escondidos (opcional) e com a iniciativa rolada.
 
 Cada item tem **"Visivel aos jogadores"**: so o que estiver marcado vai pra eles (o servidor nem manda
 o resto), e eles veem a mesma janela sem poder editar. Fica em `campanha.json` na pasta da mesa.

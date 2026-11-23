@@ -81,6 +81,9 @@ public class TokenModel {
 
     public String getId() { return id; }
 
+    /** Id novo (copia de um token salvo num encontro pronto vira outro token). */
+    public void assignNewId() { this.id = java.util.UUID.randomUUID().toString(); }
+
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
 

@@ -229,6 +229,56 @@ public class Campaign {
         }
     }
 
+    /** Um item dentro de uma parcela de tesouro. */
+    public static class ParcelItem {
+        public String name = "";
+        public int quantity = 1;
+        public double weightLb;
+        public long valueCopper;
+        /** Nao identificado: o jogador recebe {@link #publicName} e o mestre guarda o nome verdadeiro. */
+        public boolean unidentified;
+        public String publicName = "";
+        /** O que o item faz de verdade (so o mestre). */
+        public String notes = "";
+    }
+
+    /** Pacote de tesouro preparado pelo mestre: itens + moedas + XP, entregue num clique. */
+    public static class Parcel {
+        public String id = UUID.randomUUID().toString();
+        public String name = "";
+        public List<ParcelItem> items = new ArrayList<>();
+        public int pp;
+        public int gp;
+        public int ep;
+        public int sp;
+        public int cp;
+        /** XP total da parcela (dividido entre os jogadores na entrega, se o mestre quiser). */
+        public int xp;
+        public String notes = "";
+        public boolean delivered;
+        public String deliveredTo = "";
+    }
+
+    /** O nome verdadeiro de um item nao identificado (so o mestre tem). */
+    public static class Secret {
+        public String id = UUID.randomUUID().toString();
+        public String publicName = "";
+        public String trueName = "";
+        public String notes = "";
+        public long valueCopper;
+        /** Onde foi parar (pra lista do mestre): "Lyra", "Grupo"... */
+        public String holder = "";
+        public boolean identified;
+    }
+
+    /** Encontro pronto: os tokens (monstros) com as posicoes relativas, pra colocar no mapa num clique. */
+    public static class PreparedEncounter {
+        public String id = UUID.randomUUID().toString();
+        public String name = "";
+        public String notes = "";
+        public List<TokenModel> tokens = new ArrayList<>();
+    }
+
     // ---------------------------------------------------------------- dados
 
     private List<PlayerRecord> players = new ArrayList<>();
@@ -238,6 +288,19 @@ public class Campaign {
     private List<SessionLog> sessions = new ArrayList<>();
     /** Anotacoes do mestre: nunca saem do PC dele. */
     private String gmNotes = "";
+    /** So do mestre (nunca vao pros jogadores): tesouro preparado, nomes verdadeiros, encontros prontos. */
+    private List<Parcel> parcels = new ArrayList<>();
+    private List<Secret> secrets = new ArrayList<>();
+    private List<PreparedEncounter> encounters = new ArrayList<>();
+
+    public List<Parcel> getParcels() { return parcels == null ? parcels = new ArrayList<>() : parcels; }
+    public List<Secret> getSecrets() { return secrets == null ? secrets = new ArrayList<>() : secrets; }
+    public List<PreparedEncounter> getEncounters() { return encounters == null ? encounters = new ArrayList<>() : encounters; }
+
+    public java.util.Optional<Secret> findSecret(String id) {
+        if (id == null) return java.util.Optional.empty();
+        return getSecrets().stream().filter(s -> id.equals(s.id)).findFirst();
+    }
 
     public List<PlayerRecord> getPlayers() { return players == null ? players = new ArrayList<>() : players; }
     public Calendar getCalendar() { return calendar == null ? calendar = new Calendar() : calendar; }
@@ -282,6 +345,9 @@ public class Campaign {
         Campaign c = GSON.fromJson(GSON.toJson(this), Campaign.class);
         c.sanitize();
         c.gmNotes = "";
+        c.parcels = new ArrayList<>();
+        c.secrets = new ArrayList<>();
+        c.encounters = new ArrayList<>();
         c.getPlayers().removeIf(p -> !p.visible);
         c.getPlayers().forEach(p -> p.gmNotes = "");
         c.getNpcs().removeIf(n -> !n.visible);
@@ -324,6 +390,26 @@ public class Campaign {
             a.gmNotes = clip(a.gmNotes);
         }
         for (SessionLog s : getSessions()) s.summary = clip(s.summary);
+        trim(getParcels());
+        trim(getSecrets());
+        trim(getEncounters());
+        for (Parcel p : getParcels()) {
+            if (p.items == null) p.items = new ArrayList<>();
+            trim(p.items);
+            for (ParcelItem i : p.items) i.quantity = Math.max(1, Math.min(100_000, i.quantity));
+            p.pp = clampCoins(p.pp);
+            p.gp = clampCoins(p.gp);
+            p.ep = clampCoins(p.ep);
+            p.sp = clampCoins(p.sp);
+            p.cp = clampCoins(p.cp);
+            p.xp = Math.max(0, Math.min(10_000_000, p.xp));
+            p.notes = clip(p.notes);
+        }
+        for (PreparedEncounter e : getEncounters()) {
+            if (e.tokens == null) e.tokens = new ArrayList<>();
+            e.tokens.removeIf(java.util.Objects::isNull);
+            while (e.tokens.size() > 200) e.tokens.remove(e.tokens.size() - 1);
+        }
         Calendar cal = getCalendar();
         if (cal.months == null) cal.months = new ArrayList<>();
         if (cal.weekdays == null) cal.weekdays = new ArrayList<>();
@@ -336,6 +422,10 @@ public class Campaign {
         cal.day = Math.max(0, Math.min(100_000_000L, cal.day));
         gmNotes = clip(gmNotes);
         return this;
+    }
+
+    private static int clampCoins(int v) {
+        return Math.max(0, Math.min(100_000_000, v));
     }
 
     private static <T> void trim(List<T> list) {

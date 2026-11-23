@@ -76,13 +76,23 @@ class CampaignViewUiTest {
         npc.name = "Bento, o taverneiro";
         npc.visible = true;
         c.getNpcs().add(npc);
+        Campaign.Parcel loot = new Campaign.Parcel();
+        loot.name = "Baú do ogro";
+        loot.gp = 120;
+        loot.xp = 450;
+        Campaign.ParcelItem sword = new Campaign.ParcelItem();
+        sword.name = "Espada Longa +1 da Chama";
+        sword.unidentified = true;
+        sword.publicName = "espada de lâmina avermelhada";
+        loot.items.add(sword);
+        c.getParcels().add(loot);
         AtomicReference<Campaign> saved = new AtomicReference<>();
         onFx(() -> {
             CampaignView gm = new CampaignView(null, c, true, saved::set);
             gm.getStage().getScene().getStylesheets().add(CampaignView.class.getResource("/style.css").toExternalForm());
             gm.show();
-            assertEquals(6, gm.tabs().getTabs().size());
-            assertEquals("Anotações do mestre", gm.tabs().getTabs().get(5).getText());
+            assertEquals(8, gm.tabs().getTabs().size());
+            assertEquals("Anotações do mestre", gm.tabs().getTabs().get(7).getText());
             String dir = System.getProperty("vtt.snap");
             if (dir != null) {
                 snap(gm.getStage().getScene().getRoot(), dir + "/camp-jogadores.png");
@@ -90,6 +100,10 @@ class CampaignViewUiTest {
                 gm.getStage().getScene().getRoot().applyCss();
                 gm.getStage().getScene().getRoot().layout();
                 snap(gm.getStage().getScene().getRoot(), dir + "/camp-calendario.png");
+                gm.tabs().getSelectionModel().select(5);
+                gm.getStage().getScene().getRoot().applyCss();
+                gm.getStage().getScene().getRoot().layout();
+                snap(gm.getStage().getScene().getRoot(), dir + "/camp-tesouro.png");
             }
             gm.getStage().close();
 
