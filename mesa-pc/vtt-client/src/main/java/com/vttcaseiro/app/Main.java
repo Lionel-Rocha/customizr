@@ -5940,8 +5940,31 @@ public class Main extends Application {
             info.setVisible(true);
             info.setManaged(true);
         } catch (IOException | IllegalStateException ex) {
-            showError("Não foi possível abrir na ponte: " + ex.getMessage());
+            showError(relayErrorText(host, port, ex));
         }
+    }
+
+    /** Erro da ponte explicado (o "Connection refused" sozinho nao dizia o que fazer). */
+    static String relayErrorText(String host, int port, Exception ex) {
+        String where = host + ":" + port;
+        boolean local = host.equalsIgnoreCase("localhost") || host.startsWith("127.") || host.equals("::1");
+        if (ex instanceof java.net.ConnectException) {
+            return "Não tem ponte rodando em " + where + " (a conexão foi recusada).\n\n"
+                    + "A ponte é um programa separado (pasta Customizr-Ponte) que precisa estar ligado num servidor "
+                    + "com porta aberta pra internet — um VPS, por exemplo. Veja o LEIA-ME.md dessa pasta."
+                    + (local ? "\n\nVocê digitou este próprio computador: aí a ponte teria que estar rodando aqui "
+                    + "(rodar-ponte.cmd), e mesmo assim os jogadores de fora não alcançam sem porta aberta." : "")
+                    + "\n\nSem servidor? Dá pra jogar sem ponte: \"Hospedar aqui\" e passar seu IP e porta "
+                    + "(precisa liberar a porta 55055 no roteador) ou usar Tailscale/ZeroTier.";
+        }
+        if (ex instanceof java.net.SocketTimeoutException || ex instanceof java.net.NoRouteToHostException) {
+            return "A ponte em " + where + " não respondeu. Confira o endereço e se a porta " + port
+                    + " está liberada no firewall do servidor.";
+        }
+        if (ex instanceof java.net.UnknownHostException) {
+            return "Endereço da ponte não encontrado: " + host + ". Confira se digitou certo.";
+        }
+        return "Não foi possível abrir na ponte (" + where + "): " + ex.getMessage();
     }
 
     private static int autoBackupMinutes() {
