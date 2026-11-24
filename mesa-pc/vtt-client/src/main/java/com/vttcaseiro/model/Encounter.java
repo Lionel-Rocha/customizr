@@ -37,6 +37,11 @@ public class Encounter {
     }
 
     private boolean active;
+    /** Monstros iguais (mesma ficha de monstro) rolam uma iniciativa so e jogam no mesmo turno. */
+    private boolean groupMonsters;
+
+    public boolean isGroupMonsters() { return groupMonsters; }
+    public void setGroupMonsters(boolean group) { this.groupMonsters = group; }
     private int round;
     private String currentTokenId;
     private List<TimedEffect> timedEffects = new ArrayList<>();

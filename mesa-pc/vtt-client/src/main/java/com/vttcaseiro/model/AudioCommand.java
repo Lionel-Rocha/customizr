@@ -13,6 +13,8 @@ public class AudioCommand {
     private String action = "play";
     private String assetId;
     private String name;
+    /** Musica de uma lista: toca uma vez (o mestre manda a proxima quando acabar). */
+    private boolean once;
 
     public AudioCommand() {
     }
@@ -39,5 +41,14 @@ public class AudioCommand {
     public boolean isStop() { return "stop".equals(action); }
     public String getAssetId() { return assetId; }
     public String getName() { return name == null ? "" : name; }
-    public boolean loops() { return !SFX.equals(getChannel()); }
+    public boolean loops() { return !SFX.equals(getChannel()) && !once; }
+
+    public boolean isOnce() { return once; }
+
+    /** Musica que toca uma vez so (lista em sequencia). */
+    public static AudioCommand playOnce(String channel, String assetId, String name) {
+        AudioCommand c = play(channel, assetId, name);
+        c.once = true;
+        return c;
+    }
 }

@@ -63,14 +63,13 @@ public class SheetPdfService {
                 {"RELIGION", "Religião"}, {"SLEIGHT_OF_HAND", "Prestidigitação"}, {"STEALTH", "Furtividade"},
                 {"SURVIVAL", "Sobrevivência"}};
         for (String[] s : skills) SKILL.put(Skill.valueOf(s[0]), s[1]);
-        String[][] resources = {{"rage", "Fúria"}, {"bardic-inspiration", "Inspiração de Bardo"},
-                {"channel-divinity", "Canalizar Divindade"}, {"divine-intervention", "Intervenção Divina"},
-                {"wild-shape", "Forma Selvagem"}, {"second-wind", "Retomar o Fôlego"}, {"action-surge", "Surto de Ação"},
-                {"indomitable", "Indomável"}, {"focus-points", "Pontos de Foco"}, {"ki", "Pontos de Ki"},
-                {"uncanny-metabolism", "Metabolismo Sobrenatural"}, {"lay-on-hands", "Cura pelas Mãos"},
-                {"favored-enemy", "Inimigo Favorito"}, {"stroke-of-luck", "Golpe de Sorte"},
-                {"innate-sorcery", "Feitiçaria Inata"}, {"sorcery-points", "Pontos de Feitiçaria"},
-                {"magical-cunning", "Astúcia Mágica"}, {"arcane-recovery", "Recuperação Arcana"}};
+        // nomes de features de classe ficam no original em ingles (pedido do usuario)
+        String[][] resources = {{"rage", "Rage"}, {"bardic-inspiration", "Bardic Inspiration"}, {"channel-divinity", "Channel Divinity"},
+                {"divine-intervention", "Divine Intervention"}, {"wild-shape", "Wild Shape"}, {"second-wind", "Second Wind"},
+                {"action-surge", "Action Surge"}, {"indomitable", "Indomitable"}, {"focus-points", "Focus Points"},
+                {"ki", "Ki Points"}, {"uncanny-metabolism", "Uncanny Metabolism"}, {"lay-on-hands", "Lay on Hands"},
+                {"favored-enemy", "Favored Enemy"}, {"stroke-of-luck", "Stroke of Luck"}, {"innate-sorcery", "Innate Sorcery"},
+                {"sorcery-points", "Sorcery Points"}, {"magical-cunning", "Magical Cunning"}, {"arcane-recovery", "Arcane Recovery"}};
         for (String[] r : resources) RESOURCE.put(r[0], r[1]);
         String[][] conditions = {{"BLINDED", "Cego"}, {"CHARMED", "Enfeitiçado"}, {"DEAFENED", "Surdo"},
                 {"FRIGHTENED", "Amedrontado"}, {"GRAPPLED", "Agarrado"}, {"INCAPACITATED", "Incapacitado"},

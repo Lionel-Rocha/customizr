@@ -380,6 +380,35 @@ Escolha **um token seu** (clique nele) e aparece embaixo do mapa uma faixa com o
 - O mestre ve a barra dos monstros tambem (acoes com acerto ou dano do bloco do monstro; rolagem escondida, como
   na ficha do monstro).
 
+### Tamanho da interface
+
+Engrenagem > Aparencia > **Tamanho da interface**: 90% a 175% (letras, botoes e janelas juntos, em cima da escala do
+Windows). Vale na proxima vez que o programa abrir.
+
+### Resumo da sessao
+
+Botao **Resumo** embaixo do chat: junta o que aconteceu desde que a mesa abriu (cenas, combates e rodadas, criticos e
+falhas criticas, dano aplicado, quem caiu, tesouro/XP, cartas e tabelas, quem mais falou) num texto pra editar,
+**Copiar** ou **Guardar em Campanha > Sessoes** (mestre). Rolagem escondida e sussurro ficam de fora.
+
+### Grupos na iniciativa
+
+Combate > Mestre > **Agrupar monstros iguais**: monstros da mesma ficha ("4 Goblins") rolam uma iniciativa so,
+aparecem numa linha ("Goblin x4") na lista e na fila de turnos e jogam no mesmo turno. Vale na proxima
+"Rolar e comecar".
+
+### Musicas em sequencia
+
+Som > **Tocar em sequencia**: toca as musicas escolhidas (Ctrl+clique pra escolher varias; nenhuma ou uma = a
+biblioteca toda) uma atras da outra, pra todos; **Aleatorio** embaralha. Acabou a lista, recomeca. "Parar musica"
+encerra a lista.
+
+### Nomes do jogo em ingles
+
+Nomes de magias, feats e features de classe ficam no original em ingles (Rage, Bardic Inspiration, Channel Divinity,
+Fireball, Bless...), no programa, no PDF e na pagina do site. Fichas antigas com os recursos em portugues ("Furia")
+viram o nome oficial sozinhas ao aplicar a classe, sem perder os usos gastos.
+
 ### Reconectar sozinho
 
 Se a internet de alguem pisca, o programa (e a pagina do navegador) tenta voltar sozinho por uns 2 minutos, com o

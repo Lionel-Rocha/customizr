@@ -35,6 +35,31 @@ public final class EncounterService {
         return tokens;
     }
 
+    /** Grupo do token na iniciativa: monstros da mesma ficha (null = sozinho; personagens nunca agrupam). */
+    public static String groupKey(TokenModel t) {
+        return t.getMobSheetId() != null && t.getCharacterSheetId() == null ? "mob:" + t.getMobSheetId() : null;
+    }
+
+    /** Mesmo grupo e mesma iniciativa: jogam juntos. */
+    static boolean sameTurn(TokenModel a, TokenModel b) {
+        String ka = groupKey(a);
+        return ka != null && ka.equals(groupKey(b)) && java.util.Objects.equals(a.getInitiative(), b.getInitiative());
+    }
+
+    /**
+     * A ordem juntando os grupos (com "agrupar monstros" ligado): cada item e a lista de quem joga junto. Desligado,
+     * cada token e um item.
+     */
+    public static List<List<TokenModel>> groupedOrder(SceneModel scene) {
+        List<List<TokenModel>> out = new ArrayList<>();
+        boolean group = scene.getEncounter().isGroupMonsters();
+        for (TokenModel t : order(scene)) {
+            if (group && !out.isEmpty() && sameTurn(out.get(out.size() - 1).get(0), t)) out.get(out.size() - 1).add(t);
+            else out.add(new ArrayList<>(List.of(t)));
+        }
+        return out;
+    }
+
     /** Comeca o combate na rodada 1, no primeiro da ordem. */
     public static Optional<TokenModel> start(SceneModel scene) {
         List<TokenModel> order = order(scene);
@@ -65,6 +90,10 @@ public final class EncounterService {
         }
         int idx = indexOf(order, e.getCurrentTokenId());
         int nextIdx = idx + 1;
+        if (e.isGroupMonsters() && idx >= 0) {
+            // o grupo inteiro jogou: pula os outros do mesmo grupo
+            while (nextIdx < order.size() && sameTurn(order.get(idx), order.get(nextIdx))) nextIdx++;
+        }
         boolean newRound = idx < 0 ? false : nextIdx >= order.size();
         if (idx < 0) nextIdx = 0;
         if (nextIdx >= order.size()) nextIdx = 0;

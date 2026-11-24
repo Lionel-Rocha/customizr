@@ -856,7 +856,7 @@ public class CharacterSheetView {
         active.setStyle("-fx-text-fill: -c-accent-text; -fx-font-weight: bold;");
         active.setWrapText(true);
         Label hint = mutedLabel("Condições, exaustão e efeitos já mudam as rolagens e a CA desta ficha. Conhecidos: "
-                + "Bênção, Perdição, Escudo (+5 CA), Escudo da Fé, Orientação, Fúria, Velocidade, Esquiva. "
+                + "Bless, Bane, Shield (+5 CA), Shield of Faith, Guidance, Rage, Haste, Dodge. "
                 + "Outros com números entre colchetes: ca+1, ataque+1d4, salv+1, teste+1d4, dano+2, "
                 + "resist:fogo, vant:salv-des.");
         hint.setWrapText(true);

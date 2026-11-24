@@ -22,39 +22,39 @@ public final class ClassResources {
         return value;
     }
 
-    /** Os recursos da classe nesse nivel (nome em portugues, maximo, recarga). */
+    /** Os recursos da classe nesse nivel (nome oficial em ingles, maximo, recarga). */
     public static List<Resource> forClass(String className, int level, CharacterSheet sheet) {
         List<Resource> out = new ArrayList<>();
         if (className == null) return out;
         String c = className.toLowerCase(Locale.ROOT);
         int cha = Math.max(1, CharacterSheet.abilityModifier(sheet.getCharisma()));
         if (c.contains("barbar")) {
-            out.add(new Resource("Furia", byLevel(level, new int[][]{{1, 2}, {3, 3}, {6, 4}, {12, 5}, {17, 6}}), Resource.LONG));
+            out.add(new Resource("Rage", byLevel(level, new int[][]{{1, 2}, {3, 3}, {6, 4}, {12, 5}, {17, 6}}), Resource.LONG));
         } else if (c.contains("bard")) {
             // Fonte de Inspiracao (nivel 5): passa a voltar no descanso curto.
-            out.add(new Resource("Inspiracao Bardica", cha, level >= 5 ? Resource.SHORT : Resource.LONG));
+            out.add(new Resource("Bardic Inspiration", cha, level >= 5 ? Resource.SHORT : Resource.LONG));
         } else if (c.contains("cleric") || c.contains("cleri")) {
-            if (level >= 2) out.add(new Resource("Canalizar Divindade", byLevel(level, new int[][]{{2, 2}, {6, 3}, {18, 4}}), Resource.SHORT));
+            if (level >= 2) out.add(new Resource("Channel Divinity", byLevel(level, new int[][]{{2, 2}, {6, 3}, {18, 4}}), Resource.SHORT));
         } else if (c.contains("druid")) {
-            if (level >= 2) out.add(new Resource("Forma Selvagem", byLevel(level, new int[][]{{2, 2}, {6, 3}, {17, 4}}), Resource.SHORT));
+            if (level >= 2) out.add(new Resource("Wild Shape", byLevel(level, new int[][]{{2, 2}, {6, 3}, {17, 4}}), Resource.SHORT));
         } else if (c.contains("fighter") || c.contains("guerreir")) {
-            out.add(new Resource("Retomar o Folego", byLevel(level, new int[][]{{1, 2}, {4, 3}, {10, 4}}), Resource.SHORT));
-            if (level >= 2) out.add(new Resource("Surto de Acao", level >= 17 ? 2 : 1, Resource.SHORT));
+            out.add(new Resource("Second Wind", byLevel(level, new int[][]{{1, 2}, {4, 3}, {10, 4}}), Resource.SHORT));
+            if (level >= 2) out.add(new Resource("Action Surge", level >= 17 ? 2 : 1, Resource.SHORT));
         } else if (c.contains("monk") || c.contains("monge")) {
-            if (level >= 2) out.add(new Resource("Pontos de Foco", level, Resource.SHORT));
+            if (level >= 2) out.add(new Resource("Focus Points", level, Resource.SHORT));
         } else if (c.contains("paladin")) {
-            out.add(new Resource("Cura pelas Maos (PV)", 5 * level, Resource.LONG));
-            if (level >= 3) out.add(new Resource("Canalizar Divindade", level >= 11 ? 3 : 2, Resource.SHORT));
+            out.add(new Resource("Lay on Hands (PV)", 5 * level, Resource.LONG));
+            if (level >= 3) out.add(new Resource("Channel Divinity", level >= 11 ? 3 : 2, Resource.SHORT));
         } else if (c.contains("ranger") || c.contains("patrulheir")) {
-            out.add(new Resource("Inimigo Favorito (Marca do Cacador)",
+            out.add(new Resource("Favored Enemy (Hunter's Mark)",
                     byLevel(level, new int[][]{{1, 2}, {5, 3}, {9, 4}, {13, 5}, {17, 6}}), Resource.LONG));
         } else if (c.contains("sorcer") || c.contains("feiticeir")) {
-            if (level >= 2) out.add(new Resource("Pontos de Feiticaria", level, Resource.LONG));
+            if (level >= 2) out.add(new Resource("Sorcery Points", level, Resource.LONG));
         } else if (c.contains("warlock") || c.contains("bruxo")) {
-            out.add(new Resource("Espacos de Pacto",
+            out.add(new Resource("Pact Magic",
                     byLevel(level, new int[][]{{1, 1}, {2, 2}, {11, 3}, {17, 4}}), Resource.SHORT));
         } else if (c.contains("wizard") || c.contains("mago")) {
-            out.add(new Resource("Recuperacao Arcana", 1, Resource.LONG));
+            out.add(new Resource("Arcane Recovery", 1, Resource.LONG));
         }
         return out;
     }
@@ -65,6 +65,11 @@ public final class ClassResources {
      */
     public static List<String> apply(CharacterSheet sheet) {
         List<String> changes = new ArrayList<>();
+        // fichas antigas: os nomes em portugues viram os oficiais (mesmo recurso, usos mantidos)
+        for (com.vttcaseiro.character.Resource r : sheet.getResources()) {
+            String en = OLD_NAMES.get(r.getName());
+            if (en != null && sheet.findResource(en).isEmpty()) r.setName(en);
+        }
         for (Resource fresh : forClass(sheet.getClassName(), sheet.getLevel(), sheet)) {
             var existing = sheet.findResource(fresh.getName());
             if (existing.isPresent()) {
@@ -81,6 +86,16 @@ public final class ClassResources {
         }
         return changes;
     }
+
+    /** Nomes antigos (em portugues) dos recursos -> nome oficial. */
+    static final Map<String, String> OLD_NAMES = Map.ofEntries(
+            Map.entry("Furia", "Rage"), Map.entry("Inspiracao Bardica", "Bardic Inspiration"),
+            Map.entry("Canalizar Divindade", "Channel Divinity"), Map.entry("Forma Selvagem", "Wild Shape"),
+            Map.entry("Retomar o Folego", "Second Wind"), Map.entry("Surto de Acao", "Action Surge"),
+            Map.entry("Pontos de Foco", "Focus Points"), Map.entry("Cura pelas Maos (PV)", "Lay on Hands (PV)"),
+            Map.entry("Inimigo Favorito (Marca do Cacador)", "Favored Enemy (Hunter's Mark)"),
+            Map.entry("Pontos de Feiticaria", "Sorcery Points"), Map.entry("Espacos de Pacto", "Pact Magic"),
+            Map.entry("Recuperacao Arcana", "Arcane Recovery"));
 
     /** Magias conhecidas do catalogo de efeitos -> rodadas de duracao (1 min = 10 rodadas). */
     public static final Map<String, Integer> SPELL_ROUNDS = Map.ofEntries(

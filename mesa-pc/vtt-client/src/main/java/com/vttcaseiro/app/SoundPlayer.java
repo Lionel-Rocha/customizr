@@ -23,6 +23,13 @@ public class SoundPlayer {
     private boolean muted;
     private Runnable onChange = () -> { };
 
+    private java.util.function.Consumer<String> onTrackEnd = ch -> { };
+
+    /** Avisado quando uma faixa de lista (que toca uma vez) acaba sozinha. */
+    public void setOnTrackEnd(java.util.function.Consumer<String> r) {
+        this.onTrackEnd = r == null ? ch -> { } : r;
+    }
+
     public void setOnChange(Runnable r) {
         this.onChange = r == null ? () -> { } : r;
     }
@@ -43,6 +50,20 @@ public class SoundPlayer {
                 player.setCycleCount(MediaPlayer.INDEFINITE);
                 loops.put(ch, player);
                 nowPlaying.put(ch, cmd.getName());
+            } else if (cmd.isOnce()) {
+                // faixa de uma lista: ocupa o canal, mas acaba sozinha (e avisa, pro mestre mandar a proxima)
+                stop(ch);
+                loops.put(ch, player);
+                nowPlaying.put(ch, cmd.getName());
+                player.setOnEndOfMedia(() -> {
+                    if (loops.get(ch) == player) {
+                        loops.remove(ch);
+                        nowPlaying.remove(ch);
+                        player.dispose();
+                        onChange.run();
+                        onTrackEnd.accept(ch);
+                    }
+                });
             } else {
                 player.setOnEndOfMedia(player::dispose);
             }

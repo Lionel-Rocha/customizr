@@ -337,7 +337,7 @@
         <details>
           <summary class="muted" style="cursor:pointer">Novo recurso (cargas de item, usos de talento...)</summary>
           <div class="row" style="margin-top:6px">
-            <input id="resName" placeholder="Nome (ex.: Varinha de Mísseis Mágicos)">
+            <input id="resName" placeholder="Nome (ex.: Wand of Magic Missiles)">
             <input id="resMax" type="number" min="1" max="999" value="1" title="usos máximos" style="max-width:64px;flex:0 0 64px">
           </div>
           <div class="row">
@@ -1131,12 +1131,7 @@ $('sheetPdf').onclick = async () => {
 };
 
 // ------------------------------------------------------------------ recursos, Inspiracao Heroica e descanso
-const RESOURCE_PT = { 'rage': 'Fúria', 'bardic-inspiration': 'Inspiração de Bardo', 'channel-divinity': 'Canalizar Divindade',
-  'divine-intervention': 'Intervenção Divina', 'wild-shape': 'Forma Selvagem', 'second-wind': 'Retomar o Fôlego',
-  'action-surge': 'Surto de Ação', 'indomitable': 'Indomável', 'focus-points': 'Pontos de Foco', 'ki': 'Pontos de Ki',
-  'uncanny-metabolism': 'Metabolismo Sobrenatural', 'lay-on-hands': 'Cura pelas Mãos', 'favored-enemy': 'Inimigo Favorito (Marca do Caçador)',
-  'stroke-of-luck': 'Golpe de Sorte', 'innate-sorcery': 'Feitiçaria Inata', 'sorcery-points': 'Pontos de Feitiçaria',
-  'magical-cunning': 'Astúcia Mágica', 'arcane-recovery': 'Recuperação Arcana' };
+const RESOURCE_PT = { 'rage': 'Rage', 'bardic-inspiration': 'Bardic Inspiration', 'channel-divinity': 'Channel Divinity', 'divine-intervention': 'Divine Intervention', 'wild-shape': 'Wild Shape', 'second-wind': 'Second Wind', 'action-surge': 'Action Surge', 'indomitable': 'Indomitable', 'focus-points': 'Focus Points', 'ki': 'Ki Points', 'uncanny-metabolism': 'Uncanny Metabolism', 'lay-on-hands': 'Lay on Hands', 'favored-enemy': 'Favored Enemy', 'stroke-of-luck': 'Stroke of Luck', 'innate-sorcery': 'Innate Sorcery', 'sorcery-points': 'Sorcery Points', 'magical-cunning': 'Magical Cunning', 'arcane-recovery': 'Arcane Recovery' }; // nomes oficiais em ingles
 const RECHARGE_PT = { SHORT_REST: 'volta no descanso curto', SHORT_REST_ONE: '1 volta no curto, tudo no longo',
   LONG_REST: 'volta no descanso longo', MANUAL: 'não volta sozinho' };
 const resourceName = r => r.custom ? r.name : (RESOURCE_PT[r.id.split('.').pop()] || r.name);
@@ -1156,7 +1151,7 @@ function renderResources(id, sheet) {
   $('restDiceInfo').textContent = 'dados de vida (' + (d.hitDiceRemaining ?? 0) + '/' + (d.hitDiceTotal ?? 0) + ')';
   const box = $('sheetResources'); box.innerHTML = '';
   const list = d.resources || [];
-  if (!list.length) box.innerHTML = '<div class="muted" style="font-size:12px">Nenhum recurso: as classes dão os delas sozinhas (Fúria, Foco, Canalizar Divindade...). Itens e talentos você cria abaixo.</div>';
+  if (!list.length) box.innerHTML = '<div class="muted" style="font-size:12px">Nenhum recurso: as classes dão os delas sozinhas (Rage, Focus Points, Channel Divinity...). Itens e talentos você cria abaixo.</div>';
   for (const r of list) {
     const row = document.createElement('div'); row.className = 'res';
     const head = document.createElement('div'); head.className = 'head';

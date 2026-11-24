@@ -2672,7 +2672,7 @@ public class MapView extends Pane {
         javafx.scene.control.Dialog<javafx.scene.control.ButtonType> dialog = new javafx.scene.control.Dialog<>();
         dialog.setTitle("Efeito com duração em " + token.getName());
         javafx.scene.control.TextField name = new javafx.scene.control.TextField();
-        name.setPromptText("Bênção, Fúria, Escudo da Fé...");
+        name.setPromptText("Bless, Rage, Shield of Faith...");
         javafx.scene.control.Spinner<Integer> rounds = new javafx.scene.control.Spinner<>(1, 600, 10);
         rounds.setEditable(true);
         javafx.scene.layout.GridPane grid = new javafx.scene.layout.GridPane();
@@ -2691,7 +2691,7 @@ public class MapView extends Pane {
     private void askEffects(TokenModel token) {
         TextInputDialog dialog = new TextInputDialog(String.join(", ", token.getEffects()));
         dialog.setTitle("Efeitos de " + token.getName());
-        dialog.setHeaderText("Efeitos livres separados por vírgula (ex.: Abençoado, Fúria, Escudo da Fé).");
+        dialog.setHeaderText("Efeitos livres separados por vírgula (ex.: Bless, Rage, Shield of Faith).");
         dialog.setContentText("Efeitos:");
         dialog.showAndWait().ifPresent(text -> {
             // Virgula dentro de [ ] e termo do efeito ("Anel [ca+1, salv+1]").

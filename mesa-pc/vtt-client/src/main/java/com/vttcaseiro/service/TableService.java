@@ -483,10 +483,26 @@ public class TableService {
             port.error("Não há tokens nesta cena pra rolar iniciativa.");
             return;
         }
+        java.util.Map<String, Integer> groupRoll = new java.util.HashMap<>();
+        boolean group = scene().getEncounter().isGroupMonsters();
         for (TokenModel token : new ArrayList<>(scene().getTokens())) {
+            String key = group ? EncounterService.groupKey(token) : null;
+            if (key != null && groupRoll.containsKey(key)) {
+                token.setInitiative(groupRoll.get(key)); // monstros iguais: a mesma iniciativa
+                publishTokenUpdate(token);
+                continue;
+            }
             rollInitiative(token, false);
+            if (key != null && token.getInitiative() != null) groupRoll.put(key, token.getInitiative());
         }
         startEncounter();
+    }
+
+    /** Liga/desliga "agrupar monstros iguais" na iniciativa (vale na proxima rolagem de todos). */
+    public void setGroupMonsters(boolean group) {
+        if (!requireGm("agrupa a iniciativa")) return;
+        scene().getEncounter().setGroupMonsters(group);
+        publishEncounter();
     }
 
     public void startEncounter() {

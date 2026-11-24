@@ -374,6 +374,7 @@ public class Main extends Application {
                 if (change.wasAdded()) change.getAddedSubList().forEach(chatLog::append);
             }
         });
+        sessionStartIndex = logEntries.size(); // o resumo da sessao comeca aqui (o historico de antes fica fora)
         logEntries.add(LogEntry.system("Mesa \"" + mesaService.getName()
                 + "\" aberta. Crie uma cena ou uma ficha para começar."));
         if (compendiumService.getCompendium().getEntries().isEmpty() && history.isEmpty()) {
@@ -3285,7 +3286,7 @@ public class Main extends Application {
 
         compendium.getChildren().add(sectionLabel("Buscar e anexar na ficha aberta"));
         TextField compendiumSearchField = new TextField();
-        compendiumSearchField.setPromptText("Buscar por nome (ex.: \"Bola de Fogo\", \"Aasimar\")...");
+        compendiumSearchField.setPromptText("Buscar por nome (ex.: \"Fireball\", \"Aasimar\")...");
         compendiumSearchListView = new ListView<>();
         compendiumSearchListView.setPrefHeight(140);
         compendiumSearchListView.setCellFactory(lv -> new ListCell<>() {
@@ -4066,6 +4067,29 @@ public class Main extends Application {
             themeHint.getStyleClass().add("label-muted");
             themeHint.setWrapText(true);
             settings.getChildren().addAll(sectionLabel("Aparência"), themePicker, themeHint);
+            javafx.scene.control.ComboBox<String> scaleBox = new javafx.scene.control.ComboBox<>();
+            double uiScaleNow;
+            try {
+                uiScaleNow = Double.parseDouble(AppSettings.getString("ui.scale", "1"));
+            } catch (RuntimeException ex) {
+                uiScaleNow = 1;
+            }
+            for (double sc : UI_SCALES) {
+                scaleBox.getItems().add(Math.round(sc * 100) + "%" + (sc == 1.0 ? " (normal)" : ""));
+                if (Math.abs(sc - uiScaleNow) < 0.01) scaleBox.getSelectionModel().select(scaleBox.getItems().size() - 1);
+            }
+            Label scaleHint = new Label("Letra e botões maiores ou menores. Vale na próxima vez que o programa abrir.");
+            scaleHint.getStyleClass().add("label-muted");
+            scaleHint.setWrapText(true);
+            scaleBox.setOnAction(e -> {
+                int i = scaleBox.getSelectionModel().getSelectedIndex();
+                if (i < 0) return;
+                AppSettings.setString("ui.scale", String.valueOf(UI_SCALES[i]));
+                scaleHint.setText("Guardado: " + scaleBox.getValue() + ". Feche e abra o programa pra ver.");
+            });
+            HBox scaleRow = new HBox(8, new Label("Tamanho da interface"), scaleBox);
+            scaleRow.setAlignment(Pos.CENTER_LEFT);
+            settings.getChildren().addAll(scaleRow, scaleHint);
             Button keysButton = new Button("Atalhos do teclado...", com.vttcaseiro.view.Icons.icon("tune", 14));
             keysButton.setOnAction(e -> showKeybindings());
             settings.getChildren().addAll(sectionLabel("Teclado"), keysButton);
@@ -4450,7 +4474,7 @@ public class Main extends Application {
         box.getChildren().add(sectionLabel("Mestre: grupo inteiro"));
         Button groupSaveButton = new Button("Salvaguarda...");
         groupSaveButton.setTooltip(new Tooltip("Todos rolam contra uma CD; da pra aplicar o dano (cheio em quem"
-                + " falha, metade em quem passa) -- ex.: Bola de Fogo."));
+                + " falha, metade em quem passa) -- ex.: Fireball."));
         groupSaveButton.setOnAction(e -> onGroupSave());
         groupSaveButton.setGraphic(com.vttcaseiro.view.Icons.icon("spark", 14));
         Button shortRestButton = new Button("Descanso curto");
@@ -4473,6 +4497,16 @@ public class Main extends Application {
         groupSaveButton.setTooltip(new Tooltip("Salvaguarda em grupo: " + groupSaveButton.getTooltip().getText()));
         box.getChildren().add(buttonGrid(groupSaveButton, shortRestButton, longRestButton, calcButton));
         gmCombatCard = groupSaveButton;
+        CheckBox groupBox = new CheckBox("Agrupar monstros iguais");
+        groupBox.setTooltip(new Tooltip("Monstros da mesma ficha (4 Goblins) rolam uma iniciativa só, aparecem numa linha "
+                + "e jogam no mesmo turno. Vale na próxima \"Rolar e começar\"."));
+        groupBox.setSelected(sceneService.getScene().getEncounter().isGroupMonsters());
+        groupBox.setOnAction(e -> {
+            table.setGroupMonsters(groupBox.isSelected());
+            refreshInitiativeList();
+        });
+        groupMonstersBox = groupBox;
+        box.getChildren().add(groupBox);
         CheckBox approve = new CheckBox("Aprovar pedidos dos jogadores");
         approve.setTooltip(new Tooltip("Pedidos de dano, cura e efeitos. Desligado: o pedido de um jogador (ex.: dano no goblin que ele acertou) e aplicado"
                 + " direto. Ligado: aparece uma pergunta pra você aprovar ou recusar."));
@@ -5027,6 +5061,11 @@ public class Main extends Application {
 
         // macros na mesma linha de Vantagem/Desvantagem: uma linha a menos embaixo do chat
         quickRow.getChildren().add(macroRow);
+        Button summaryButton = new Button("Resumo", com.vttcaseiro.view.Icons.icon("journal", 13));
+        summaryButton.setTooltip(new Tooltip("Resumo da sessão: junta o que aconteceu no chat desde que a mesa abriu "
+                + "(cenas, combates, críticos, dano, quem caiu, tesouro) num texto pra copiar ou guardar em Campanha > Sessões."));
+        summaryButton.setOnAction(e -> showSessionSummary());
+        quickRow.getChildren().add(summaryButton);
         box.getChildren().addAll(chatList, diceRow, quickRow, inputRow); // o titulo "Mesa" da barra ja diz o que e
         return box;
     }
@@ -5461,6 +5500,91 @@ public class Main extends Application {
         soundPlayer.apply(cmd, uri);
     }
 
+    // ---------------- lista de musicas (uma atras da outra)
+
+    private final List<com.vttcaseiro.model.SoundEntry> playlist = new ArrayList<>();
+    private int playlistIndex;
+    private boolean playlistWired;
+
+    private HBox playlistRow(Button play, CheckBox shuffle) {
+        play.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(play, Priority.ALWAYS);
+        shuffle.setMinWidth(Region.USE_PREF_SIZE);
+        HBox row = new HBox(8, play, shuffle);
+        row.setAlignment(Pos.CENTER_LEFT);
+        return row;
+    }
+
+    /** Comeca a lista: toca a primeira; quando cada uma acaba (no programa do mestre), manda a proxima pra todos. */
+    void startPlaylist(List<com.vttcaseiro.model.SoundEntry> tracks, boolean shuffle) {
+        if (tracks.isEmpty()) {
+            showError("Nenhum som na biblioteca ainda.");
+            return;
+        }
+        if (!playlistWired) {
+            playlistWired = true;
+            soundPlayer.setOnTrackEnd(ch -> Platform.runLater(() -> {
+                if (com.vttcaseiro.model.AudioCommand.MUSIC.equals(ch) && !playlist.isEmpty()) playNextInPlaylist();
+            }));
+        }
+        playlist.clear();
+        playlist.addAll(tracks);
+        if (shuffle) java.util.Collections.shuffle(playlist);
+        playlistIndex = -1;
+        playNextInPlaylist();
+        logEntries.add(LogEntry.system("Lista de músicas: " + playlist.size() + " faixa(s)" + (shuffle ? ", em ordem aleatória" : "") + "."));
+    }
+
+    private void playNextInPlaylist() {
+        if (playlist.isEmpty()) return;
+        playlistIndex = (playlistIndex + 1) % playlist.size(); // acabou a lista: volta pra primeira
+        com.vttcaseiro.model.SoundEntry se = playlist.get(playlistIndex);
+        gmAudio(com.vttcaseiro.model.AudioCommand.playOnce(com.vttcaseiro.model.AudioCommand.MUSIC, se.getId(), se.getName()));
+    }
+
+    // ---------------- resumo da sessao
+
+    private int sessionStartIndex;
+
+    /** Junta o chat desta sessao num resumo e mostra pra copiar ou guardar em Campanha > Sessoes. */
+    void showSessionSummary() {
+        List<LogEntry> entries = new ArrayList<>(logEntries.subList(Math.min(sessionStartIndex, logEntries.size()), logEntries.size()));
+        String text = SessionSummary.build(entries, java.time.LocalDate.now(),
+                networkService.isGm() || !networkService.isConnected());
+        javafx.scene.control.TextArea area = new javafx.scene.control.TextArea(text);
+        area.setWrapText(true);
+        area.setPrefSize(560, 420);
+        javafx.scene.control.Dialog<javafx.scene.control.ButtonType> d = new javafx.scene.control.Dialog<>();
+        d.initOwner(stage);
+        d.setTitle("Resumo da sessão");
+        d.setHeaderText("Feito a partir do chat desde que a mesa abriu. Dá pra editar antes de copiar ou guardar.");
+        javafx.scene.control.ButtonType copy = new javafx.scene.control.ButtonType("Copiar", javafx.scene.control.ButtonBar.ButtonData.LEFT);
+        javafx.scene.control.ButtonType keep = new javafx.scene.control.ButtonType("Guardar em Campanha > Sessões",
+                javafx.scene.control.ButtonBar.ButtonData.OK_DONE);
+        d.getDialogPane().getButtonTypes().add(copy);
+        if (editsCampaign()) d.getDialogPane().getButtonTypes().add(keep);
+        d.getDialogPane().getButtonTypes().add(javafx.scene.control.ButtonType.CLOSE);
+        Button copyBtn = (Button) d.getDialogPane().lookupButton(copy);
+        copyBtn.addEventFilter(javafx.event.ActionEvent.ACTION, e -> {
+            e.consume(); // nao fecha
+            javafx.scene.input.ClipboardContent c = new javafx.scene.input.ClipboardContent();
+            c.putString(area.getText());
+            javafx.scene.input.Clipboard.getSystemClipboard().setContent(c);
+            copyBtn.setText("Copiado!");
+        });
+        d.getDialogPane().setContent(area);
+        d.showAndWait().filter(b -> b == keep).ifPresent(b -> {
+            com.vttcaseiro.model.Campaign.SessionLog s = new com.vttcaseiro.model.Campaign.SessionLog();
+            s.number = campaign.nextSessionNumber();
+            s.date = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+            s.summary = area.getText();
+            campaign.getSessions().add(s);
+            pushCampaign();
+            if (campaignView != null && campaignView.isShowing()) campaignView.reload(campaign);
+            logEntries.add(LogEntry.system("Resumo guardado como Sessão " + s.number + " em Campanha > Sessões."));
+        });
+    }
+
     private void gmAudio(com.vttcaseiro.model.AudioCommand cmd) {
         playAudio(cmd);
         networkService.sendAudio(cmd);
@@ -5496,6 +5620,16 @@ public class Main extends Application {
             soundIndex.save(all);
             reload.run();
         });
+        library.getSelectionModel().setSelectionMode(javafx.scene.control.SelectionMode.MULTIPLE);
+        Button playlistButton = new Button("Tocar em sequência", com.vttcaseiro.view.Icons.icon("next", 14));
+        playlistButton.setTooltip(new Tooltip("Toca as músicas escolhidas (Ctrl+clique pra escolher várias; nenhuma ou "
+                + "uma = a lista toda) uma atrás da outra, como música, pra todos. Parar música encerra a lista."));
+        CheckBox shuffleBox = new CheckBox("Aleatório");
+        playlistButton.setOnAction(e -> {
+            List<com.vttcaseiro.model.SoundEntry> chosen = new ArrayList<>(library.getSelectionModel().getSelectedItems());
+            if (chosen.size() < 2) chosen = new ArrayList<>(library.getItems());
+            startPlaylist(chosen, shuffleBox.isSelected());
+        });
         Button music = new Button("Música", com.vttcaseiro.view.Icons.icon("sound", 14));
         music.setTooltip(new Tooltip("Toca o escolhido como música (em loop, pra todos)"));
         Button ambient = new Button("Ambiente");
@@ -5512,7 +5646,10 @@ public class Main extends Application {
             });
         }
         Button stopMusic = new Button("Parar música");
-        stopMusic.setOnAction(e -> gmAudio(com.vttcaseiro.model.AudioCommand.stop(com.vttcaseiro.model.AudioCommand.MUSIC)));
+        stopMusic.setOnAction(e -> {
+            playlist.clear(); // parar a musica encerra a lista
+            gmAudio(com.vttcaseiro.model.AudioCommand.stop(com.vttcaseiro.model.AudioCommand.MUSIC));
+        });
         Button stopAmbient = new Button("Parar ambiente");
         stopAmbient.setOnAction(e -> gmAudio(com.vttcaseiro.model.AudioCommand.stop(com.vttcaseiro.model.AudioCommand.AMBIENT)));
         Button remove = new Button("Tirar o escolhido da lista", com.vttcaseiro.view.Icons.icon("trash", 14));
@@ -5531,7 +5668,7 @@ public class Main extends Application {
         Label playAs = new Label("Tocar o escolhido como");
         playAs.getStyleClass().add("label-muted");
         VBox gmBox = new VBox(8, sectionHeader("Sons da mesa", iconize(add), iconize(remove)), library, playAs,
-                buttonGrid(3, music, ambient, sfx), buttonGrid(stopMusic, stopAmbient), hint);
+                buttonGrid(3, music, ambient, sfx), buttonGrid(stopMusic, stopAmbient), playlistRow(playlistButton, shuffleBox), hint);
         gmBox.getStyleClass().add("panel-section");
         Runnable gmOnly = () -> {
             boolean gm = networkService.isGm();
@@ -7398,7 +7535,9 @@ public class Main extends Application {
         SceneModel sc = sceneService.getScene();
         com.vttcaseiro.model.Encounter enc = sc.getEncounter();
         turnQueue.getChildren().clear();
-        List<TokenModel> order = EncounterService.order(sc).stream().filter(t -> t.getInitiative() != null).toList();
+        // um cartao por grupo (agrupar monstros iguais): o primeiro do grupo representa os outros
+        List<TokenModel> order = EncounterService.groupedOrder(sc).stream().map(g -> g.get(0))
+                .filter(t -> t.getInitiative() != null).toList();
         boolean show = enc.isActive() && !order.isEmpty();
         turnQueue.setVisible(show);
         turnQueue.setManaged(show);
@@ -7427,6 +7566,12 @@ public class Main extends Application {
             next.setOnAction(e -> table.nextTurn());
             turnQueue.getChildren().add(next);
         }
+    }
+
+    /** "Goblin 3" -> "Goblin" (nome do grupo na iniciativa). */
+    static String groupName(TokenModel t) {
+        String n = t.getName() == null ? "" : t.getName();
+        return n.replaceAll("\\s*#?\\d+$", "").strip();
     }
 
     private javafx.scene.Node turnCard(TokenModel t, boolean current) {
@@ -7515,6 +7660,9 @@ public class Main extends Application {
 
     private Button startCombatButton;
     private Button nextTurnPanelButton;
+    private CheckBox groupMonstersBox;
+    /** Linha da iniciativa -> quantos jogam junto (so os grupos com mais de 1). */
+    private final java.util.Map<String, Integer> initiativeGroupSize = new java.util.HashMap<>();
     private List<Button> combatIdleButtons = List.of();
     private List<Button> combatActiveButtons = List.of();
     private List<Button> combatToolButtons = List.of();
@@ -7530,7 +7678,15 @@ public class Main extends Application {
         if (initiativeListView == null) {
             return; // ainda construindo a aba na primeira chamada
         }
-        initiativeListView.getItems().setAll(EncounterService.order(sceneService.getScene()));
+        // com "agrupar monstros", cada grupo vira uma linha (o primeiro do grupo, com "x4")
+        initiativeGroupSize.clear();
+        List<TokenModel> rows = new ArrayList<>();
+        for (List<TokenModel> g : EncounterService.groupedOrder(sceneService.getScene())) {
+            rows.add(g.get(0));
+            if (g.size() > 1) initiativeGroupSize.put(g.get(0).getId(), g.size());
+        }
+        initiativeListView.getItems().setAll(rows);
+        if (groupMonstersBox != null) groupMonstersBox.setSelected(sceneService.getScene().getEncounter().isGroupMonsters());
         initiativeListView.refresh();
         if (roundLabel != null) {
             var e = sceneService.getScene().getEncounter();
@@ -7603,7 +7759,9 @@ public class Main extends Application {
         Label init = new Label(token.getInitiative() == null ? "--" : String.valueOf(token.getInitiative()));
         init.setMinWidth(30);
         init.setStyle("-fx-font-weight: bold;");
-        Label name = new Label(token.getName());
+        Integer together = initiativeGroupSize.get(token.getId());
+        Label name = new Label(together == null ? token.getName() : groupName(token) + "  ×" + together);
+        if (together != null) Tooltip.install(name, new Tooltip(together + " monstros iguais jogando no mesmo turno"));
         name.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(name, Priority.ALWAYS);
         HBox row = new HBox(8, dot, init, name);
@@ -9742,10 +9900,38 @@ public class Main extends Application {
         alert.showAndWait();
     }
 
+    /** Tamanhos da interface oferecidos nas configuracoes (1 = o do Windows). */
+    static final double[] UI_SCALES = {0.9, 1.0, 1.1, 1.25, 1.5, 1.75};
+
+    /**
+     * Tamanho da letra e da interface escolhido nas configuracoes: multiplica a escala do Windows (precisa ser antes
+     * do JavaFX abrir, por isso vale na proxima vez que o programa abrir).
+     */
+    static void applyUiScale() {
+        double chosen;
+        try {
+            chosen = Double.parseDouble(AppSettings.getString("ui.scale", "1"));
+        } catch (RuntimeException ex) {
+            chosen = 1;
+        }
+        if (Math.abs(chosen - 1) < 0.01 || System.getProperty("glass.win.uiScale") != null) return;
+        double system = 1;
+        try {
+            system = java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice()
+                    .getDefaultConfiguration().getDefaultTransform().getScaleX();
+        } catch (Throwable ignored) {
+            // sem tela pra perguntar: usa 1
+        }
+        String v = String.valueOf(Math.round(system * chosen * 100) / 100.0);
+        System.setProperty("glass.win.uiScale", v);
+        System.setProperty("glass.gtk.uiScale", v);
+    }
+
     public static void main(String[] args) {
         // O JavaFX reserva so 512 MB de memoria de video por padrao; mapa grande + tokens + troca de cena passavam
         // disso e a tela congelava ("Texture ... is null"). E so um teto: a placa usa o que tiver.
         if (System.getProperty("prism.maxvram") == null) System.setProperty("prism.maxvram", "2G");
+        applyUiScale();
         launch(args);
     }
 }

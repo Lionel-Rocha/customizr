@@ -229,7 +229,7 @@
         <div class="card"><h3>DICAS</h3><div class="muted">
           Arraste o seu token para mover. Clique numa porta (laranja) para abrir/fechar.
           Alt+clique (ou o botão Ping) marca um ponto pra todos. Rolagens da ficha já contam
-          condições e efeitos (Bencao, Furia...).</div></div>
+          condições e efeitos (Bless, Rage...).</div></div>
       </div>
     </aside>
   </main>
@@ -435,7 +435,7 @@ function playAudio(c) {
   if (c.action === 'stop' || !c.assetId) { renderNowPlaying(); return; }
   const a = new Audio('/audio/' + c.assetId);
   a.volume = vol(ch);
-  if (ch !== 'sfx') { a.loop = true; AUDIO[ch] = a; AUDIO.names[ch] = c.name || 'som'; }
+  if (ch !== 'sfx') { a.loop = !c.once; AUDIO[ch] = a; AUDIO.names[ch] = c.name || 'som'; }
   startAudio(a); renderNowPlaying();
 }
 for (const [id, ch] of [['volMusic', 'music'], ['volAmbient', 'ambient'], ['volSfx', 'sfx']]) {
@@ -1437,7 +1437,7 @@ function renderSheet() {
       } }, 'Conjurar'));
       sp.append(row);
     }
-    sp.append(el('div', { class: 'muted' }, 'Mire os alvos no mapa antes: Bola de Fogo faz eles rolarem a salvaguarda; Bencao entra neles.'));
+    sp.append(el('div', { class: 'muted' }, 'Mire os alvos no mapa antes: Fireball faz eles rolarem a salvaguarda; Bless entra neles.'));
     panel.append(sp);
   }
 }

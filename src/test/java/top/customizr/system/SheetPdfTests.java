@@ -79,7 +79,7 @@ class SheetPdfTests {
             assertTrue(doc.getNumberOfPages() >= 2, "historia longa vira mais paginas");
             String text = new PDFTextStripper().getText(doc);
             for (String expected : List.of("Aria Ventoleste", "Fighter 4", "Caótica e Boa", "TENDÊNCIA", "FORÇA", "Salvaguarda", "Atletismo", "PV ATUAL", "TESTES CONTRA A MORTE", "d10 4/4",
-                    "Espada longa", "Retomar o Fôlego", "Varinha", "Idiomas: Common, Elvish", "37 pp",
+                    "Espada longa", "Second Wind", "Varinha", "Idiomas: Common, Elvish", "37 pp",
                     "Cicatriz no olho ? esquerdo -> capa verde", "Criada por lobos.", "página 2")) {
                 assertTrue(text.contains(expected), "faltou \"" + expected + "\"");
             }

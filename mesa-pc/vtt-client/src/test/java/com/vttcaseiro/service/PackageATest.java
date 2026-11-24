@@ -55,26 +55,35 @@ class PackageATest {
         CharacterSheet brok = new CharacterSheet("Brok");
         brok.setClassName("Barbarian");
         brok.setLevel(1);
-        assertEquals(List.of("Furia 2/2"), ClassResources.apply(brok));
-        brok.findResource("Furia").orElseThrow().use();
+        assertEquals(List.of("Rage 2/2"), ClassResources.apply(brok));
+        brok.findResource("Rage").orElseThrow().use();
         brok.setLevel(6);
         ClassResources.apply(brok);
-        assertEquals("3/4", brok.findResource("Furia").orElseThrow().usesText(), "subiu de nivel, gasto continua gasto");
+        assertEquals("3/4", brok.findResource("Rage").orElseThrow().usesText(), "subiu de nivel, gasto continua gasto");
+        // ficha antiga com o nome em portugues: vira o oficial, com os usos gastos
+        com.vttcaseiro.character.CharacterSheet old = new com.vttcaseiro.character.CharacterSheet("Velha");
+        old.setClassName("Barbaro");
+        old.setLevel(1);
+        old.getResources().add(new com.vttcaseiro.character.Resource("Furia", 2, com.vttcaseiro.character.Resource.LONG));
+        old.findResource("Furia").orElseThrow().use();
+        ClassResources.apply(old);
+        assertTrue(old.findResource("Furia").isEmpty(), "nome antigo some");
+        assertEquals("1/2", old.findResource("Rage").orElseThrow().usesText(), "mesmo recurso, gasto mantido");
         assertEquals(1, brok.getResources().size(), "nao duplica");
 
         CharacterSheet kael = new CharacterSheet("Kael");
         kael.setClassName("Guerreiro");
         kael.setLevel(2);
         ClassResources.apply(kael);
-        assertTrue(kael.findResource("Surto de Acao").isPresent());
-        assertEquals(2, kael.findResource("Retomar o Folego").orElseThrow().getMax());
+        assertTrue(kael.findResource("Action Surge").isPresent());
+        assertEquals(2, kael.findResource("Second Wind").orElseThrow().getMax());
 
         CharacterSheet lira = new CharacterSheet("Lira");
         lira.setClassName("Bard");
         lira.setCharisma(16);
         lira.setLevel(5);
         ClassResources.apply(lira);
-        var insp = lira.findResource("Inspiracao Bardica").orElseThrow();
+        var insp = lira.findResource("Bardic Inspiration").orElseThrow();
         assertEquals(3, insp.getMax(), "CAR +3");
         assertEquals("curto", insp.getRecharge(), "Fonte de Inspiracao no nivel 5");
         assertTrue(ClassResources.forClass("Rogue", 5, lira).isEmpty());
