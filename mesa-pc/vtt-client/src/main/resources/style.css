@@ -1651,3 +1651,14 @@
     -fx-background-color: -c-raised;
     -fx-background-radius: 6;
 }
+
+/* grupo dividido: jogador em outra cena e o mestre olhando uma cena separada */
+.player-dot-away {
+    -fx-border-color: -c-accent;
+    -fx-border-style: segments(3, 3);
+    -fx-opacity: 0.75;
+}
+.scene-chip-side {
+    -fx-border-color: -c-accent;
+    -fx-border-style: segments(4, 3);
+}

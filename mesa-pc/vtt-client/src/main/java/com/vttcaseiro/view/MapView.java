@@ -176,7 +176,7 @@ public class MapView extends Pane {
         visionLayer.setMouseTransparent(true);
         // Desenhos ficam embaixo dos tokens e da neblina (nao revelam area escondida).
         // A mascara de visao fica por cima dos tokens (esconde o que o jogador nao ve).
-        content.getChildren().addAll(backgroundView, gridCanvas, objectLayer, drawingLayer, wallLayer, lightLayer, auraLayer, tokenLayer, visionLayer,
+        content.getChildren().addAll(backgroundView, gridCanvas, objectLayer, drawingLayer, zoneLayer, wallLayer, lightLayer, auraLayer, tokenLayer, visionLayer,
                 fogCanvas, pinLayer, fogPreview, measureLine, measureLabel, templateGroup);
         getChildren().add(content);
         setStyle("-fx-background-color: -c-bg;");
@@ -388,6 +388,17 @@ public class MapView extends Pane {
 
         default void removeLight(com.vttcaseiro.model.MapLight light) {
         }
+
+        /** Retangulo arrastado com a ferramenta Zona. */
+        default void addZone(double x, double y, double w, double h) {
+        }
+
+        /** Clique numa zona com a ferramenta Zona (ou botao direito nela). */
+        default void editZone(com.vttcaseiro.model.MapZone zone) {
+        }
+
+        default void removeZone(com.vttcaseiro.model.MapZone zone) {
+        }
     }
 
     public static final String TOOL_WALL = "wall";
@@ -395,6 +406,73 @@ public class MapView extends Pane {
     public static final String TOOL_WINDOW = "window";
     public static final String TOOL_LIGHT = "light";
     public static final String TOOL_WALL_ERASE = "wall-erase";
+    public static final String TOOL_ZONE = "zone";
+
+    /** Zonas (armadilha, portal, dano, terreno, aviso): o mestre ve todas; o jogador so as visiveis. */
+    private final javafx.scene.Group zoneLayer = new javafx.scene.Group();
+    private javafx.scene.shape.Rectangle zonePreview;
+
+    static String zoneColor(String kind) {
+        return switch (kind) {
+            case com.vttcaseiro.model.MapZone.PORTAL -> "#5B9BEF";
+            case com.vttcaseiro.model.MapZone.DAMAGE -> "#E5534B";
+            case com.vttcaseiro.model.MapZone.TERRAIN -> "#B08850";
+            case com.vttcaseiro.model.MapZone.NOTE -> "#3FB968";
+            default -> "#E8A23E";
+        };
+    }
+
+    /** Desenha as zonas (chamado junto com as paredes). */
+    public void redrawZones() {
+        zoneLayer.getChildren().clear();
+        boolean gm = tokenActions == null || tokenActions.isGm();
+        boolean editing = TOOL_ZONE.equals(wallTool);
+        for (com.vttcaseiro.model.MapZone z : scene.getZones()) {
+            if (!gm && !z.isVisibleToPlayers()) continue;
+            Color c = Color.web(zoneColor(z.getKind()));
+            javafx.scene.shape.Rectangle r = new javafx.scene.shape.Rectangle(z.getX(), z.getY(), z.getWidth(), z.getHeight());
+            boolean spent = z.isOnce() && z.isTriggered();
+            r.setFill(Color.color(c.getRed(), c.getGreen(), c.getBlue(), spent ? 0.06 : 0.16));
+            r.setStroke(c);
+            r.setStrokeWidth(2);
+            r.getStrokeDashArray().addAll(com.vttcaseiro.model.MapZone.TERRAIN.equals(z.getKind())
+                    ? java.util.List.of(2.0, 5.0) : java.util.List.of(8.0, 5.0));
+            javafx.scene.Group g = new javafx.scene.Group(r);
+            if (gm) {
+                Label name = new Label(z.label() + (spent ? " (desarmada)" : ""));
+                name.setStyle("-fx-background-color: " + zoneColor(z.getKind()) + "CC; -fx-text-fill: white; "
+                        + "-fx-font-size: 11px; -fx-font-weight: bold; -fx-padding: 1 6 1 6; -fx-background-radius: 4;");
+                name.setLayoutX(z.getX() + 4);
+                name.setLayoutY(z.getY() + 4);
+                name.setMouseTransparent(true);
+                g.getChildren().add(name);
+            }
+            if (gm && editing && wallHandler != null) {
+                r.setCursor(Cursor.HAND);
+                javafx.scene.control.Tooltip.install(r, new javafx.scene.control.Tooltip(
+                        z.label() + " -- clique: editar · botão direito: apagar"));
+                r.setOnMousePressed(e -> {
+                    if (e.getButton() == MouseButton.PRIMARY) {
+                        wallHandler.editZone(z);
+                        e.consume();
+                    }
+                });
+                r.setOnContextMenuRequested(e -> {
+                    javafx.scene.control.ContextMenu m = new javafx.scene.control.ContextMenu();
+                    javafx.scene.control.MenuItem ed = new javafx.scene.control.MenuItem("Editar zona...");
+                    ed.setOnAction(a -> wallHandler.editZone(z));
+                    javafx.scene.control.MenuItem rm = new javafx.scene.control.MenuItem("Apagar zona");
+                    rm.setOnAction(a -> wallHandler.removeZone(z));
+                    m.getItems().addAll(ed, rm);
+                    m.show(r, e.getScreenX(), e.getScreenY());
+                    e.consume();
+                });
+            } else {
+                g.setMouseTransparent(true); // fora da ferramenta Zona, nao atrapalha clicar nos tokens
+            }
+            zoneLayer.getChildren().add(g);
+        }
+    }
 
     /** Icones das luzes fixas (so o mestre ve; o jogador ve a luz). */
     private final javafx.scene.Group lightLayer = new javafx.scene.Group();
@@ -459,7 +537,14 @@ public class MapView extends Pane {
 
     /** TOOL_WALL, TOOL_DOOR, TOOL_WALL_ERASE ou null. */
     public void setWallTool(String tool) {
+        boolean zoneChanged = TOOL_ZONE.equals(tool) != TOOL_ZONE.equals(wallTool);
         this.wallTool = tool;
+        if (zoneChanged) redrawZones();
+        if (zonePreview != null && !TOOL_ZONE.equals(tool)) {
+            content.getChildren().remove(zonePreview);
+            zonePreview = null;
+            wallStart = null;
+        }
         if (tool == null && wallPreview != null) {
             content.getChildren().remove(wallPreview);
             wallPreview = null;
@@ -526,6 +611,7 @@ public class MapView extends Pane {
             wallLayer.getChildren().add(line);
         }
         redrawLights(gm);
+        redrawZones();
         updateVision();
     }
 
@@ -629,6 +715,17 @@ public class MapView extends Pane {
     }
 
     private void startWall(Point2D p) {
+        if (TOOL_ZONE.equals(wallTool)) {
+            wallStart = snapWallPoint(p.getX(), p.getY());
+            zonePreview = new javafx.scene.shape.Rectangle(wallStart[0], wallStart[1], 0, 0);
+            zonePreview.setFill(Color.web("#E8A23E", 0.15));
+            zonePreview.setStroke(Color.web("#E8A23E"));
+            zonePreview.setStrokeWidth(2);
+            zonePreview.getStrokeDashArray().addAll(8.0, 5.0);
+            zonePreview.setMouseTransparent(true);
+            content.getChildren().add(zonePreview);
+            return;
+        }
         if (TOOL_LIGHT.equals(wallTool)) {
             if (wallHandler != null) wallHandler.placeLight(p.getX(), p.getY());
             return;
@@ -657,6 +754,17 @@ public class MapView extends Pane {
 
     private void finishWall(Point2D p) {
         if (wallStart == null) return;
+        if (zonePreview != null) {
+            double[] end = snapWallPoint(p.getX(), p.getY());
+            content.getChildren().remove(zonePreview);
+            zonePreview = null;
+            double[] start = wallStart;
+            wallStart = null;
+            double w = end[0] - start[0];
+            double h = end[1] - start[1];
+            if (Math.abs(w) >= 10 && Math.abs(h) >= 10 && wallHandler != null) wallHandler.addZone(start[0], start[1], w, h);
+            return;
+        }
         double[] end = snapWallPoint(p.getX(), p.getY());
         content.getChildren().remove(wallPreview);
         wallPreview = null;
@@ -2240,7 +2348,9 @@ public class MapView extends Pane {
         moveRulerLine.setStartY(p[1] + half);
         moveRulerLine.setEndX(p[2] + half);
         moveRulerLine.setEndY(p[3] + half);
-        long cells = cellsBetween(p[0] + half, p[1] + half, p[2] + half, p[3] + half);
+        long straight = cellsBetween(p[0] + half, p[1] + half, p[2] + half, p[3] + half);
+        long extra = com.vttcaseiro.service.ZoneRules.terrainExtra(scene, p[0] + half, p[1] + half, p[2] + half, p[3] + half, straight);
+        long cells = straight + extra;
         long feet = Math.round(cells * scene.getGrid().getFeetPerCell());
         int speed = speedProvider == null ? 0 : speedProvider.applyAsInt(token);
         boolean over = speed > 0 && feet > speed;
@@ -2248,6 +2358,7 @@ public class MapView extends Pane {
         String color = !over ? "#3FBE6E" : dash ? "#E8A23E" : "#D9544C";
         moveRulerLine.setStroke(Color.web(color));
         moveRulerLabel.setText(Distances.feetAndMeters(feet) + " · " + cells + " casa" + (cells == 1 ? "" : "s")
+                + (extra > 0 ? " (terreno difícil)" : "")
                 + (speed > 0 ? "  /  " + Distances.feetAndMeters(speed) + (over ? (dash ? "  - precisa de Disparada" : "  - longe demais") : "") : ""));
         moveRulerLabel.setStyle("-fx-background-color: #1B1411E6; -fx-background-radius: 6; -fx-padding: 2 8 2 8;"
                 + " -fx-font-weight: bold; -fx-font-size: 13px; -fx-text-fill: " + color + ";");
@@ -2615,6 +2726,15 @@ public class MapView extends Pane {
             selectionBox.setY(Math.min(selStartY, p.getY()));
             selectionBox.setWidth(Math.abs(p.getX() - selStartX));
             selectionBox.setHeight(Math.abs(p.getY() - selStartY));
+            e.consume();
+            return;
+        }
+        if (wallStart != null && zonePreview != null) {
+            Point2D p = content.sceneToLocal(e.getSceneX(), e.getSceneY());
+            zonePreview.setX(Math.min(wallStart[0], p.getX()));
+            zonePreview.setY(Math.min(wallStart[1], p.getY()));
+            zonePreview.setWidth(Math.abs(p.getX() - wallStart[0]));
+            zonePreview.setHeight(Math.abs(p.getY() - wallStart[1]));
             e.consume();
             return;
         }

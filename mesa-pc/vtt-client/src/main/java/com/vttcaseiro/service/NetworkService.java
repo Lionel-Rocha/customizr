@@ -39,6 +39,24 @@ public class NetworkService {
     public interface GameListener {
         void onSceneSync(SceneModel scene);
 
+        /** So pro mestre: nome da cena que chegou e se e uma cena separada do grupo. */
+        default void onSceneView(String sceneKey, boolean side) {
+        }
+
+        /** So pro mestre: cena separada que ficou vazia (o jogador voltou ou saiu), pra gravar. */
+        default void onSideSceneClosed(String sceneKey, SceneModel scene) {
+        }
+
+        /** Lista de jogadores mudou (quem esta onde). */
+        default void onPlayersChanged() {
+        }
+
+        default void onZonesSync(java.util.List<com.vttcaseiro.model.MapZone> zones) {
+        }
+
+        default void onZoneEvent(com.vttcaseiro.model.MapZone zone, TokenModel token, String sceneKey, String ownerName) {
+        }
+
         void onTokenMoved(String tokenId, double x, double y);
 
         void onTokenAdded(TokenModel token);
@@ -399,6 +417,26 @@ public class NetworkService {
             }
 
             @Override
+            public void onSceneView(String sceneKey, boolean side) {
+                listener.onSceneView(sceneKey, side);
+            }
+
+            @Override
+            public void onSideSceneClosed(String sceneKey, SceneModel scene) {
+                listener.onSideSceneClosed(sceneKey, scene);
+            }
+
+            @Override
+            public void onZonesSync(java.util.List<com.vttcaseiro.model.MapZone> zones) {
+                listener.onZonesSync(zones);
+            }
+
+            @Override
+            public void onZoneEvent(com.vttcaseiro.model.MapZone zone, TokenModel token, String sceneKey, String ownerName) {
+                listener.onZoneEvent(zone, token, sceneKey, ownerName);
+            }
+
+            @Override
             public void onTokenMoved(String tokenId, double x, double y) {
                 listener.onTokenMoved(tokenId, x, y);
             }
@@ -537,10 +575,14 @@ public class NetworkService {
             @Override
             public void onPlayers(List<com.vttcaseiro.net.NetMessage.PlayerInfo> players) {
                 java.util.Map<String, String> ids = new java.util.LinkedHashMap<>();
+                java.util.Map<String, String> where = new java.util.LinkedHashMap<>();
                 for (var p : players) {
                     if (p.playerId != null && !p.gm) ids.put(p.name, p.playerId);
+                    if (p.sceneKey != null && !p.gm) where.put(p.name, p.sceneKey);
                 }
                 playerIdsByName = ids;
+                playerSceneByName = where;
+                listener.onPlayersChanged();
             }
 
             @Override
@@ -801,6 +843,42 @@ public class NetworkService {
     public void sendSceneSwitch(SceneModel scene) {
         if (client != null) client.sendSceneSwitch(scene);
     }
+
+    /** Mestre abre a cena {@code name} pro grupo. */
+    public void sendSceneOpen(SceneModel scene, String name) {
+        if (client != null) client.sendSceneOpen(scene, name);
+    }
+
+    /** Grupo dividido: leva o jogador (pelo nome) pra cena (null = volta pro grupo). */
+    public void sendSplitScene(String playerName, String sceneKey, SceneModel scene) {
+        sendSplitScene(playerName, sceneKey, scene, null);
+    }
+
+    /** Igual, levando um token junto (portal). */
+    public void sendSplitScene(String playerName, String sceneKey, SceneModel scene, TokenModel token) {
+        String id = playerIdsByName.get(playerName);
+        if (client != null && id != null) client.sendSplitScene(id, sceneKey, scene, token);
+    }
+
+    public void sendZonesSync(java.util.List<com.vttcaseiro.model.MapZone> zones) {
+        if (client != null) client.sendZonesSync(zones);
+    }
+
+    public void sendGmView(String sceneKey) {
+        if (client != null) client.sendGmView(sceneKey);
+    }
+
+    /** Cena separada que o mestre esta olhando (null = a do grupo). */
+    public String getSideViewKey() {
+        return client == null ? null : client.getSideViewKey();
+    }
+
+    /** Jogadores fora da cena do grupo: nome -> cena (so o mestre sabe). */
+    public java.util.Map<String, String> getPlayerScenes() {
+        return playerSceneByName;
+    }
+
+    private volatile java.util.Map<String, String> playerSceneByName = java.util.Map.of();
 
     /** Desconexao pedida pelo jogador -- nao dispara onDisconnected (isso
      * e so pra falha inesperada), entao quem chamou isto e que decide o

@@ -189,6 +189,20 @@ class LayoutUiTest {
                     cur.set(null, before);
                     Theme.apply(stage.getScene());
                     open.invoke(main, "Mapa");
+                    // zonas no mapa (o mestre ve todas, com o nome)
+                    com.vttcaseiro.service.SceneService ss = (com.vttcaseiro.service.SceneService) field(main, "sceneService");
+                    com.vttcaseiro.view.MapView mv = (com.vttcaseiro.view.MapView) field(main, "mapView");
+                    String[][] zs = {{"armadilha", "Fosso com estacas"}, {"portal", "Escada pro porão"},
+                            {"dano", "Lava"}, {"terreno", ""}, {"aviso", "Inscrição na parede"}};
+                    for (int i = 0; i < zs.length; i++) {
+                        com.vttcaseiro.model.MapZone z = new com.vttcaseiro.model.MapZone(80 + i * 170, 120 + (i % 2) * 160, 150, 120, zs[i][0]);
+                        z.setName(zs[i][1]);
+                        ss.getScene().getZones().add(z);
+                    }
+                    mv.redrawZones();
+                    snapStage(stage, "tela-zonas.png");
+                    ss.getScene().getZones().clear();
+                    mv.redrawZones();
                 }
                 Method cfg = Main.class.getDeclaredMethod("showSceneConfig");
                 cfg.setAccessible(true);

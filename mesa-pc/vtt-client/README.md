@@ -349,6 +349,36 @@ e **Noir**.
   (faixa embaixo da barra de cima, aba escolhida, mesa escolhida e a lateral da tela de escolher mesa).
 - **Noir**: filme policial em preto e branco, tons de cinza e um unico vermelho pra perigo.
 
+### Grupo dividido: cada jogador numa cena
+
+Online, o mestre clica na **bolinha de um jogador** (barra de cima) > **"Levar <nome> pra cena..."** e escolhe a
+cena. So aquele jogador vai pra la; o resto do grupo continua na cena aberta e nao ve nada do que acontece na outra
+(nem tokens, nem rolagens de mapa, nem pings). A bolinha de quem esta separado fica tracejada.
+
+- **"Ver a cena de <nome>"** (na mesma bolinha): o mestre passa a olhar a cena separada e mexe nela normalmente. Uma
+  faixa no alto avisa "Cena separada" com o botao **"Voltar pro grupo"**.
+- **"Trazer <nome> de volta pro grupo"**: o jogador volta pra cena do grupo. A cena separada que ficou vazia volta
+  pro programa do mestre e e salva sozinha, com tudo que mudou nela.
+- Abrir pra todos (Mundo > Cenas) a cena onde alguem ja estava sozinho junta o grupo la, com o que ja mudou.
+
+### Zonas no mapa
+
+Barra do mapa > **Paredes > Zona** (so o mestre): arraste um retangulo e escolha o tipo. Com a ferramenta ligada,
+clique numa zona pra editar (botao direito: apagar).
+
+- **Armadilha**: quando um token entra, o mestre recebe o aviso com a salvaguarda (atributo, CD, dano e tipo) e o
+  botao **"Rolar salvaguarda"**, que rola e ja aplica o dano (metade se passar, se marcado). Pode disparar uma vez so
+  (depois fica desarmada; "Armar de novo" na janela da zona).
+- **Portal / escada**: o jogador dono do token vai sozinho pra cena de destino (grupo dividido), e o token vai junto.
+  Ele aparece logo fora do portal que volta pra cena de onde veio (se tiver um la).
+- **Area de dano**: quem comeca o turno dentro (lava, fogo, acido) leva o dano e aparece no chat.
+- **Terreno dificil**: a regua de movimento conta cada casa dentro em dobro. Nasce visivel pros jogadores.
+- **Aviso**: um texto pro mestre quando alguem entra (e, se marcado, pro jogador por sussurro).
+
+So o mestre ve as zonas; o servidor nem manda as escondidas pros jogadores. O aviso chega pro mestre mesmo que ele
+esteja olhando outra cena. Jogando sozinho (sem conexao), o proprio programa confere as zonas quando o token e
+arrastado.
+
 ### Esconder o que o mestre preparou
 
 - **Fichas**: botao direito na lista > "Esconder dos jogadores". So o mestre (e o dono, se tiver) recebe.

@@ -69,6 +69,18 @@ public class NetMessage {
     /** "pins_sync": pins da cena (o servidor tira os ocultos pra quem nao e mestre). */
     public java.util.List<com.vttcaseiro.model.MapPin> pins;
 
+    /**
+     * Grupo dividido. "scene_sync": nome (arquivo) da cena e se e uma cena separada do grupo (so pro mestre).
+     * "split_scene": o mestre leva o jogador {@link #playerId} pra cena {@code sceneKey} (null = volta pro grupo).
+     * "gm_view": o mestre olha uma cena separada (null = a do grupo). "side_scene_closed": cena separada que ficou
+     * vazia (vai com a cena, pro mestre gravar).
+     */
+    public String sceneKey;
+    public Boolean sideView;
+
+    /** "zones_sync": zonas da cena (o servidor tira as escondidas pra quem nao e mestre). */
+    public java.util.List<com.vttcaseiro.model.MapZone> zones;
+
     /** "walls_sync": paredes + visao da cena. */
     public java.util.List<com.vttcaseiro.model.Wall> walls;
     public Boolean visionOn;
@@ -138,6 +150,9 @@ public class NetMessage {
 
         public PlayerInfo() {
         }
+
+        /** So pro mestre: em que cena separada o jogador esta (null = com o grupo). */
+        public String sceneKey;
 
         public PlayerInfo(String playerId, String name, boolean gm) {
             this.playerId = playerId;
@@ -479,6 +494,48 @@ public class NetMessage {
         m.type = "image_data";
         m.assetId = assetId;
         m.assetBase64 = base64;
+        return m;
+    }
+
+    public static NetMessage splitScene(String playerId, String sceneKey, SceneModel scene) {
+        NetMessage m = new NetMessage();
+        m.type = "split_scene";
+        m.playerId = playerId;
+        m.sceneKey = sceneKey;
+        m.scene = scene;
+        return m;
+    }
+
+    public static NetMessage zonesSync(java.util.List<com.vttcaseiro.model.MapZone> zones) {
+        NetMessage m = new NetMessage();
+        m.type = "zones_sync";
+        m.zones = zones;
+        return m;
+    }
+
+    /** Pro mestre: o token {@code tokenId} entrou na zona {@code text} (na cena {@code sceneKey}; null = do grupo). */
+    public static NetMessage zoneEvent(com.vttcaseiro.model.MapZone zone, TokenModel token, String sceneKey, String ownerName) {
+        NetMessage m = new NetMessage();
+        m.type = "zone_event";
+        m.zones = java.util.List.of(zone);
+        m.token = token;
+        m.sceneKey = sceneKey;
+        m.player = ownerName;
+        return m;
+    }
+
+    public static NetMessage gmView(String sceneKey) {
+        NetMessage m = new NetMessage();
+        m.type = "gm_view";
+        m.sceneKey = sceneKey;
+        return m;
+    }
+
+    public static NetMessage sideSceneClosed(String sceneKey, SceneModel scene) {
+        NetMessage m = new NetMessage();
+        m.type = "side_scene_closed";
+        m.sceneKey = sceneKey;
+        m.scene = scene;
         return m;
     }
 

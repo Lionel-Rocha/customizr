@@ -47,6 +47,22 @@ public class GameClient {
     public interface Listener {
         void onSceneSync(SceneModel scene);
 
+        /** So pro mestre: qual cena (nome) chegou e se e uma cena separada do grupo. */
+        default void onSceneView(String sceneKey, boolean side) {
+        }
+
+        /** So pro mestre: cena separada que ficou vazia, pra gravar. */
+        default void onSideSceneClosed(String sceneKey, SceneModel scene) {
+        }
+
+        /** Zonas da cena mudaram. */
+        default void onZonesSync(java.util.List<com.vttcaseiro.model.MapZone> zones) {
+        }
+
+        /** So pro mestre: um token entrou numa zona. */
+        default void onZoneEvent(com.vttcaseiro.model.MapZone zone, TokenModel token, String sceneKey, String ownerName) {
+        }
+
         void onTokenMoved(String tokenId, double x, double y);
 
         void onTokenAdded(TokenModel token);
@@ -398,6 +414,11 @@ public class GameClient {
         if (msg == null || msg.type == null) return;
         switch (msg.type) {
             case "scene_sync" -> {
+                if (msg.sceneKey != null || msg.sideView != null) {
+                    currentSceneKey = msg.sceneKey;
+                    sideViewKey = Boolean.TRUE.equals(msg.sideView) ? msg.sceneKey : null;
+                    listener.onSceneView(msg.sceneKey, Boolean.TRUE.equals(msg.sideView));
+                }
                 listener.onSceneSync(msg.scene);
                 if (msg.scene != null) {
                     requestImageIfMissing(msg.scene.getBackgroundImageAssetId());
@@ -408,6 +429,12 @@ public class GameClient {
                         requestImageIfMissing(o.getAssetId());
                     }
                 }
+            }
+            case "side_scene_closed" -> listener.onSideSceneClosed(msg.sceneKey, msg.scene);
+            case "zones_sync" -> listener.onZonesSync(msg.zones != null ? msg.zones : java.util.List.of());
+            case "zone_event" -> {
+                if (msg.zones != null && !msg.zones.isEmpty() && msg.token != null)
+                    listener.onZoneEvent(msg.zones.get(0), msg.token, msg.sceneKey, msg.player);
             }
             case "move_token" -> listener.onTokenMoved(msg.tokenId, msg.x, msg.y);
             case "add_token" -> {
@@ -715,8 +742,52 @@ public class GameClient {
      * novo do lado dele (ver GameServer.handleIncoming, caso
      * "scene_sync"), entao mandar isso sem ser mestre simplesmente nao
      * tem efeito nenhum, nao precisa checar aqui tambem. */
+    /** Nome (arquivo) da cena aberta e, se o mestre esta olhando uma cena separada, o nome dela. */
+    private volatile String currentSceneKey;
+    private volatile String sideViewKey;
+
+    public String getSideViewKey() {
+        return sideViewKey;
+    }
+
+    /** Mestre abre uma cena pro grupo (sai da cena separada que estava olhando). */
+    public void sendSceneOpen(SceneModel scene, String sceneKey) {
+        currentSceneKey = sceneKey;
+        sideViewKey = null;
+        sendSceneSwitch(scene);
+    }
+
+    /** Mestre leva um jogador pra uma cena (null = volta pro grupo). */
+    public void sendZonesSync(java.util.List<com.vttcaseiro.model.MapZone> zones) {
+        send(NetMessage.zonesSync(zones));
+    }
+
+    public void sendSplitScene(String playerId, String sceneKey, SceneModel scene) {
+        sendSplitScene(playerId, sceneKey, scene, null);
+    }
+
+    /** Com {@code token}: o token vai junto (sai da cena onde estava e aparece na nova). */
+    public void sendSplitScene(String playerId, String sceneKey, SceneModel scene, TokenModel token) {
+        NetMessage split = NetMessage.splitScene(playerId, sceneKey, scene == null ? null : withoutInlineImages(scene));
+        split.token = token;
+        send(split);
+        if (scene != null) {
+            pushImageAssetIfNew(scene.getBackgroundImageAssetId());
+            for (TokenModel t : scene.getTokens()) pushImageAssetIfNew(t.getImageAssetId());
+            for (com.vttcaseiro.model.MapObject o : scene.getObjects()) pushImageAssetIfNew(o.getAssetId());
+        }
+    }
+
+    /** Mestre passa a olhar a cena separada {@code sceneKey} (null = a do grupo). */
+    public void sendGmView(String sceneKey) {
+        send(NetMessage.gmView(sceneKey));
+    }
+
     public void sendSceneSwitch(SceneModel scene) {
-        send(NetMessage.sceneSwitch(withoutInlineImages(scene)));
+        NetMessage sw = NetMessage.sceneSwitch(withoutInlineImages(scene));
+        sw.sceneKey = currentSceneKey;
+        sw.sideView = sideViewKey != null ? Boolean.TRUE : null;
+        send(sw);
         if (scene != null) {
             pushImageAssetIfNew(scene.getBackgroundImageAssetId());
             for (TokenModel token : scene.getTokens()) {

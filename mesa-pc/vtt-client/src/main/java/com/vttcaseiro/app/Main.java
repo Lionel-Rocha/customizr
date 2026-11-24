@@ -534,6 +534,12 @@ public class Main extends Application {
             scheduleSceneAutosave();
         });
         mapView.setTokenMovedFromListener((token, old) -> {
+            if (!undoing && !networkService.isConnected()) {
+                for (com.vttcaseiro.model.MapZone z : com.vttcaseiro.service.ZoneRules.entered(sceneService.getScene(), token, old[0], old[1])) {
+                    if (z.isOnce()) z.setTriggered(true);
+                    onZoneEntered(z, token, null, null);
+                }
+            }
             if (undoing) return;
             TokenModel before = com.vttcaseiro.service.UndoService.copy(token);
             before.setX(old[0]);
@@ -711,6 +717,7 @@ public class Main extends Application {
         @Override public void announce(String text) { Main.this.announce(text); }
         @Override public void sendDrawingAdd(com.vttcaseiro.model.Drawing d) { networkService.sendDrawingAdd(d); }
         @Override public void sendWalls(SceneModel s) { networkService.sendWalls(s); }
+        @Override public void sendZones(SceneModel s) { networkService.sendZonesSync(s.getZones()); }
         @Override public void sendPins(SceneModel s) { networkService.sendPins(s); }
         @Override public void sendObjects(SceneModel s) { networkService.sendObjects(s); }
         @Override public void sendDoorToggle(String id) { networkService.sendDoorToggle(id); }
@@ -1946,6 +1953,30 @@ public class Main extends Application {
         mapView.setPingHandler(p -> networkService.sendMapPing(p.getX(), p.getY()));
         mapView.setWallHandler(new MapView.WallHandler() {
             @Override
+            public void addZone(double x, double y, double w, double h) {
+                com.vttcaseiro.model.MapZone z = new com.vttcaseiro.model.MapZone(x, y, w, h, com.vttcaseiro.model.MapZone.TRAP);
+                if (!editZoneDialog(z, true)) return;
+                table.addZone(z);
+                pushUndo(new UndoAction("Zona", () -> table.removeZone(z)));
+                scheduleSceneAutosave();
+            }
+
+            @Override
+            public void editZone(com.vttcaseiro.model.MapZone z) {
+                if (editZoneDialog(z, false)) {
+                    table.zoneChanged();
+                    scheduleSceneAutosave();
+                }
+            }
+
+            @Override
+            public void removeZone(com.vttcaseiro.model.MapZone z) {
+                table.removeZone(z);
+                pushUndo(new UndoAction("Apagar zona", () -> table.addZone(z)));
+                scheduleSceneAutosave();
+            }
+
+            @Override
             public void add(com.vttcaseiro.model.Wall w) {
                 table.addWall(w);
                 if (sceneService.getScene().findWall(w.getId()).isPresent()) {
@@ -2311,6 +2342,8 @@ public class Main extends Application {
         windowBtn.getStyleClass().add("tool-button");
         ToggleButton lightBtn = new ToggleButton("Luz");
         lightBtn.getStyleClass().add("tool-button");
+        ToggleButton zoneBtn = new ToggleButton("Zona");
+        zoneBtn.getStyleClass().add("tool-button");
         CheckBox visionOn = new CheckBox("Visão");
         CheckBox darkOn = new CheckBox("Escuro");
         CheckBox dimOn = new CheckBox("Penumbra");
@@ -2320,6 +2353,8 @@ public class Main extends Application {
         tip(doorBtn, "Arraste para desenhar uma porta. Qualquer um clica nela para abrir/fechar.");
         tip(wallEraseBtn, "Clique perto de uma parede/porta para apagar");
         tip(windowBtn, "Arraste para desenhar uma janela: deixa ver, não deixa passar.");
+        tip(zoneBtn, "Arraste um retângulo: armadilha, portal pra outra cena, área de dano, terreno difícil ou aviso. "
+                + "Com a ferramenta ligada, clique numa zona pra editar (botão direito: apagar).");
         tip(lightBtn, "Clique no mapa pra pôr uma luz fixa (tocha na parede, fogueira, lustre). Botão direito nela: "
                 + "acender/apagar, editar, tirar. Botão direito numa porta: trancar ou tornar secreta.");
         tip(visionOn, "Visão dinâmica: cada jogador vê só o que os tokens dele enxergam");
@@ -2356,12 +2391,13 @@ public class Main extends Application {
         Runnable applyWall = () -> {
             mapView.setWallTool(wallBtn.isSelected() ? MapView.TOOL_WALL
                     : doorBtn.isSelected() ? MapView.TOOL_DOOR : windowBtn.isSelected() ? MapView.TOOL_WINDOW
-                    : lightBtn.isSelected() ? MapView.TOOL_LIGHT : wallEraseBtn.isSelected() ? MapView.TOOL_WALL_ERASE : null);
+                    : lightBtn.isSelected() ? MapView.TOOL_LIGHT : wallEraseBtn.isSelected() ? MapView.TOOL_WALL_ERASE
+                    : zoneBtn.isSelected() ? MapView.TOOL_ZONE : null);
             mapView.setPinTool(pinBtn.isSelected());
         };
         // Todas as ferramentas de arrastar no mapa vazio sao exclusivas entre si.
         List<ToggleButton> allTools = List.of(measureBtn, templateBtn, fogRevealBtn, fogCoverBtn,
-                penBtn, textBtn, eraserBtn, wallBtn, doorBtn, windowBtn, lightBtn, wallEraseBtn, pinBtn);
+                penBtn, textBtn, eraserBtn, wallBtn, doorBtn, windowBtn, lightBtn, wallEraseBtn, zoneBtn, pinBtn);
         for (ToggleButton t : allTools) {
             t.addEventHandler(javafx.event.ActionEvent.ACTION, e -> {
                 if (t.isSelected()) for (ToggleButton o : allTools) if (o != t) o.setSelected(false);
@@ -2380,7 +2416,7 @@ public class Main extends Application {
             cb.getStyleClass().add("menu-check");
             visionMenu.getItems().add(item);
         }
-        HBox wallBox = toolGroup(wallLabel, wallBtn, doorBtn, windowBtn, lightBtn, wallEraseBtn, visionMenu);
+        HBox wallBox = toolGroup(wallLabel, wallBtn, doorBtn, windowBtn, lightBtn, zoneBtn, wallEraseBtn, visionMenu);
         toolHotkeys = List.of(measureBtn, templateBtn, penBtn, textBtn, eraserBtn, fogRevealBtn, fogCoverBtn, wallBtn, doorBtn);
         toolsOff = () -> {
             allTools.forEach(t -> t.setSelected(false));
@@ -2391,7 +2427,7 @@ public class Main extends Application {
         Runnable wallGmOnly = () -> {
             boolean gm = networkService.isGm(); // (a categoria "Paredes" some pra jogador)
             if (!gm) {
-                for (ToggleButton t : List.of(wallBtn, doorBtn, windowBtn, lightBtn, wallEraseBtn)) t.setSelected(false);
+                for (ToggleButton t : List.of(wallBtn, doorBtn, windowBtn, lightBtn, wallEraseBtn, zoneBtn)) t.setSelected(false);
                 applyWall.run();
             }
         };
@@ -5010,7 +5046,7 @@ public class Main extends Application {
         try {
             mesaService.saveMap(newScene, name.get());
             sceneService.replaceScene(newScene);
-            networkService.sendSceneSwitch(newScene);
+            networkService.sendSceneOpen(newScene, name.get());
             currentMapName = name.get();
             refreshMapList();
             logEntries.add(LogEntry.system("Cena criada: " + newScene.getName()));
@@ -5160,7 +5196,7 @@ public class Main extends Application {
         }
         mesaService.saveMap(scene, name);
         sceneService.replaceScene(scene);
-        networkService.sendSceneSwitch(scene);
+        networkService.sendSceneOpen(scene, name);
         currentMapName = name;
         refreshMapList();
         logEntries.add(LogEntry.system("Cena criada: " + scene.getName()));
@@ -5548,9 +5584,12 @@ public class Main extends Application {
                 mesaService.saveMap(loaded, name);
                 logEntries.add(LogEntry.system("Cena \"" + name + "\" convertida pro formato novo de imagens (arquivo menor)."));
             }
+            flushSceneAutosave(); // o que mudou na cena de antes vai pro disco antes de trocar
             sceneService.replaceScene(loaded);
-            networkService.sendSceneSwitch(loaded);
+            networkService.sendSceneOpen(loaded, name);
             currentMapName = name;
+            groupMapName = name;
+            sideViewing = false;
             if (currentSceneLabel != null) currentSceneLabel.setText("Cena atual: " + name);
             logEntries.add(LogEntry.system(hidden ? "Cena aberta escondida (preparando): " + name : "Cena aberta: " + name));
         } catch (IOException ex) {
@@ -6515,6 +6554,23 @@ public class Main extends Application {
         String currentName = currentMapName != null ? currentMapName
                 : (sceneService.getScene().getName() == null || sceneService.getScene().getName().isBlank()
                 ? "Cena sem nome" : sceneService.getScene().getName());
+        if (sideViewing && networkService.isConnected()) {
+            // olhando a cena de um jogador separado: deixa claro e da o caminho de volta
+            List<String> there = new ArrayList<>();
+            networkService.getPlayerScenes().forEach((p, k) -> { if (k.equals(currentMapName)) there.add(p); });
+            Label side = new Label("Cena separada: " + currentName + (there.isEmpty() ? "" : " (" + String.join(", ", there) + ")"),
+                    com.vttcaseiro.view.Icons.icon("party", 13));
+            side.getStyleClass().addAll("scene-chip", "scene-chip-current", "scene-chip-side");
+            side.setTooltip(new Tooltip("Você está vendo a cena de quem foi separado do grupo. O grupo continua na outra cena."));
+            Button back = new Button("Voltar pro grupo");
+            back.getStyleClass().add("button-flat");
+            back.setOnAction(e -> {
+                flushSceneAutosave();
+                networkService.sendGmView(null);
+            });
+            sceneStrip.getChildren().addAll(side, back);
+            return;
+        }
         Label current = new Label(currentName, com.vttcaseiro.view.Icons.icon(hidden ? "hidden" : "eye", 13));
         current.getStyleClass().addAll("scene-chip", "scene-chip-current");
         if (hidden) current.getStyleClass().add("scene-chip-hidden");
@@ -6606,8 +6662,254 @@ public class Main extends Application {
             initial.getStyleClass().add("player-dot-initial");
             dot.getChildren().add(initial);
             if (gm) dot.getStyleClass().add("player-dot-gm");
-            Tooltip.install(dot, new Tooltip(who));
+            String away = gm ? null : networkService.getPlayerScenes().get(name);
+            if (away != null) dot.getStyleClass().add("player-dot-away");
+            Tooltip.install(dot, new Tooltip(away == null ? who : who + " -- separado, em: " + away));
+            if (!gm && networkService.isGm()) {
+                dot.setCursor(javafx.scene.Cursor.HAND);
+                dot.setOnMouseClicked(e -> splitMenu(name, away).show(dot, javafx.geometry.Side.BOTTOM, 0, 4));
+            }
             playersStrip.getChildren().add(dot);
+        }
+    }
+
+    /** Mestre esta olhando uma cena separada (de um jogador sozinho), nao a do grupo. */
+    private boolean sideViewing;
+    /** Nome da cena do grupo (pra saber de onde um portal sai mesmo olhando uma cena separada). */
+    private String groupMapName;
+
+    /** Estou olhando a cena onde a zona disparou? (null = a do grupo) */
+    private boolean viewingScene(String sceneKey) {
+        return sceneKey == null ? !sideViewing : sideViewing && sceneKey.equals(currentMapName);
+    }
+
+    /**
+     * Um token entrou numa zona (o servidor avisa; offline, o proprio programa). Armadilha: aviso com o botao de
+     * rolar a salvaguarda. Portal: leva o jogador dono do token pra cena de destino, com o token. Aviso: o texto pro
+     * mestre (e pro jogador, se marcado).
+     */
+    void onZoneEntered(com.vttcaseiro.model.MapZone zone, TokenModel token, String sceneKey, String owner) {
+        if (!networkService.isGm()) return;
+        boolean here = viewingScene(sceneKey);
+        com.vttcaseiro.model.MapZone local = here ? sceneService.getScene().findZone(zone.getId()).orElse(null) : null;
+        if (local != null && zone.isOnce()) {
+            local.setTriggered(true);
+            mapView.redrawZones();
+            scheduleSceneAutosave();
+        }
+        TokenModel live = here ? sceneService.getScene().findToken(token.getId()).orElse(token) : token;
+        String where = sceneKey == null ? "" : " (cena separada \"" + sceneKey + "\")";
+        String who = live.getName() + (owner == null ? "" : " (" + owner + ")");
+        if (zone.isTellPlayer() && owner != null && !zone.getText().isBlank()) {
+            onChatInput("/w \"" + owner + "\" " + zone.getText());
+        }
+        switch (zone.getKind()) {
+            case com.vttcaseiro.model.MapZone.PORTAL -> {
+                String target = zone.getTargetScene();
+                if (target == null) {
+                    logEntries.add(LogEntry.system(who + " entrou no portal \"" + zone.label() + "\", que não leva a lugar nenhum (edite a zona)."));
+                } else if (!networkService.isConnected()) {
+                    logEntries.add(LogEntry.system(who + " entrou no portal pra \"" + target + "\". (Jogando sozinho: abra a cena quando quiser.)"));
+                } else if (owner == null) {
+                    logEntries.add(LogEntry.system(live.getName() + " entrou no portal pra \"" + target + "\" (token sem jogador: fica onde está)."));
+                } else {
+                    String from = sceneKey != null ? sceneKey : groupMapName;
+                    sendPlayerThroughPortal(owner, target, live, from);
+                }
+            }
+            case com.vttcaseiro.model.MapZone.NOTE -> logEntries.add(LogEntry.system("Aviso \"" + zone.label() + "\"" + where
+                    + ": " + who + " entrou. " + zone.getText()));
+            default -> {
+                // armadilha
+                String detail = "Salvaguarda de " + zone.getAbility() + " CD " + zone.getDc()
+                        + (zone.getDamage().isBlank() ? "" : ", " + zone.getDamage()
+                        + (zone.getDamageType().isBlank() ? "" : " de " + zone.getDamageType())
+                        + (zone.isHalfOnSave() ? " (metade se passar)" : ""));
+                logEntries.add(LogEntry.system("Armadilha \"" + zone.label() + "\"" + where + ": " + who + " entrou. " + detail));
+                Alert a = new Alert(Alert.AlertType.WARNING);
+                a.initOwner(stage);
+                a.setTitle("Armadilha");
+                a.setHeaderText(who + " entrou em \"" + zone.label() + "\"" + where);
+                a.setContentText(detail + (zone.getText().isBlank() ? "" : "\n\n" + zone.getText())
+                        + (here ? "" : "\n\nAbra essa cena pra rolar a salvaguarda pelo programa."));
+                javafx.scene.control.ButtonType roll = new javafx.scene.control.ButtonType("Rolar salvaguarda",
+                        javafx.scene.control.ButtonBar.ButtonData.OK_DONE);
+                javafx.scene.control.ButtonType ok = new javafx.scene.control.ButtonType("Só avisar",
+                        javafx.scene.control.ButtonBar.ButtonData.CANCEL_CLOSE);
+                if (here) a.getButtonTypes().setAll(roll, ok);
+                else a.getButtonTypes().setAll(ok);
+                a.setOnHidden(e -> {
+                    if (a.getResult() == roll) table.trapSave(zone, live);
+                });
+                a.show(); // nao trava a mesa
+            }
+        }
+    }
+
+    /** Portal: o jogador vai pra cena de destino e o token dele vai junto (aparece perto do portal de volta). */
+    private void sendPlayerThroughPortal(String owner, String target, TokenModel token, String fromScene) {
+        try {
+            SceneModel scene = !sideViewing && target.equals(currentMapName) ? sceneService.getScene() : mesaService.loadMap(target);
+            imageAssetService.migrateInlineImages(scene);
+            TokenModel moving = com.vttcaseiro.service.UndoService.copy(token);
+            double[] at = com.vttcaseiro.service.ZoneRules.arrivalPoint(scene, fromScene, moving);
+            if (at != null) {
+                moving.setX(at[0]);
+                moving.setY(at[1]);
+            }
+            networkService.sendSplitScene(owner, target, scene, moving);
+            logEntries.add(LogEntry.system(owner + " passou pelo portal pra \"" + target + "\"."));
+        } catch (IOException | RuntimeException ex) {
+            showError("O portal leva pra \"" + target + "\", mas não deu pra abrir essa cena: " + ex.getMessage());
+        }
+    }
+
+    /** Janela de criar/editar uma zona. Devolve true se confirmou (a zona ja vem alterada). */
+    boolean editZoneDialog(com.vttcaseiro.model.MapZone z, boolean creating) {
+        javafx.scene.control.Dialog<javafx.scene.control.ButtonType> d = new javafx.scene.control.Dialog<>();
+        d.initOwner(stage);
+        d.setTitle(creating ? "Nova zona" : "Editar zona");
+        d.setHeaderText(null);
+        String[] labels = {"Armadilha", "Portal / escada pra outra cena", "Área de dano (começo do turno)",
+                "Terreno difícil", "Aviso"};
+        javafx.scene.control.ComboBox<String> kind = new javafx.scene.control.ComboBox<>(
+                javafx.collections.FXCollections.observableArrayList(labels));
+        int k = java.util.Arrays.asList(com.vttcaseiro.model.MapZone.KINDS).indexOf(z.getKind());
+        kind.getSelectionModel().select(Math.max(0, k));
+        TextField name = new TextField(z.getName());
+        name.setPromptText("Ex.: Fosso com estacas");
+        javafx.scene.control.ComboBox<String> ability = new javafx.scene.control.ComboBox<>(
+                javafx.collections.FXCollections.observableArrayList("FOR", "DES", "CON", "INT", "SAB", "CAR"));
+        ability.getSelectionModel().select(z.getAbility());
+        javafx.scene.control.Spinner<Integer> dc = new javafx.scene.control.Spinner<>(1, 40, z.getDc());
+        dc.setEditable(true);
+        dc.setPrefWidth(80);
+        TextField damage = new TextField(z.getDamage());
+        damage.setPromptText("2d6");
+        damage.setPrefWidth(90);
+        TextField damageType = new TextField(z.getDamageType());
+        damageType.setPromptText("perfurante");
+        CheckBox half = new CheckBox("Metade do dano se passar");
+        half.setSelected(z.isHalfOnSave());
+        javafx.scene.control.ComboBox<String> target = new javafx.scene.control.ComboBox<>(
+                javafx.collections.FXCollections.observableArrayList(mesaService.listMaps()));
+        target.setEditable(false);
+        if (z.getTargetScene() != null) target.getSelectionModel().select(z.getTargetScene());
+        javafx.scene.control.TextArea text = new javafx.scene.control.TextArea(z.getText());
+        text.setPrefRowCount(3);
+        text.setWrapText(true);
+        text.setPromptText("O que acontece (só o mestre vê, a não ser que marque abaixo)");
+        CheckBox tell = new CheckBox("Mandar esse texto pro jogador que entrar");
+        tell.setSelected(z.isTellPlayer());
+        CheckBox once = new CheckBox("Dispara uma vez só (depois fica desarmada)");
+        once.setSelected(z.isOnce());
+        CheckBox rearm = new CheckBox("Armar de novo");
+        rearm.setVisible(z.isTriggered());
+        rearm.setManaged(z.isTriggered());
+        CheckBox visible = new CheckBox("Jogadores veem a zona no mapa");
+        visible.setSelected(z.isVisibleToPlayers());
+
+        javafx.scene.layout.GridPane g = new javafx.scene.layout.GridPane();
+        g.setHgap(8);
+        g.setVgap(8);
+        g.setPadding(new Insets(10));
+        int row = 0;
+        g.addRow(row++, new Label("Tipo"), kind);
+        g.addRow(row++, new Label("Nome"), name);
+        HBox save = new HBox(6, ability, new Label("CD"), dc);
+        save.setAlignment(Pos.CENTER_LEFT);
+        Label saveL = new Label("Salvaguarda");
+        g.addRow(row++, saveL, save);
+        HBox dmg = new HBox(6, damage, damageType);
+        Label dmgL = new Label("Dano");
+        g.addRow(row++, dmgL, dmg);
+        g.add(half, 1, row++);
+        Label targetL = new Label("Leva pra");
+        g.addRow(row++, targetL, target);
+        g.addRow(row++, new Label("Texto"), text);
+        g.add(tell, 1, row++);
+        g.add(once, 1, row++);
+        g.add(rearm, 1, row++);
+        g.add(visible, 1, row++);
+        Runnable byKind = () -> {
+            String kk = com.vttcaseiro.model.MapZone.KINDS[Math.max(0, kind.getSelectionModel().getSelectedIndex())];
+            boolean trap = kk.equals(com.vttcaseiro.model.MapZone.TRAP);
+            boolean portal = kk.equals(com.vttcaseiro.model.MapZone.PORTAL);
+            boolean dmgZone = kk.equals(com.vttcaseiro.model.MapZone.DAMAGE);
+            boolean terrain = kk.equals(com.vttcaseiro.model.MapZone.TERRAIN);
+            for (javafx.scene.Node n : List.of(saveL, save, half)) { n.setVisible(trap); n.setManaged(trap); }
+            for (javafx.scene.Node n : List.of(dmgL, dmg)) { n.setVisible(trap || dmgZone); n.setManaged(trap || dmgZone); }
+            for (javafx.scene.Node n : List.of(targetL, target)) { n.setVisible(portal); n.setManaged(portal); }
+            once.setVisible(!terrain && !dmgZone);
+            once.setManaged(!terrain && !dmgZone);
+            if (creating) {
+                visible.setSelected(terrain);
+                once.setSelected(trap);
+            }
+            d.getDialogPane().getScene().getWindow().sizeToScene();
+        };
+        kind.setOnAction(e -> byKind.run());
+        d.getDialogPane().setContent(g);
+        d.getDialogPane().getButtonTypes().addAll(javafx.scene.control.ButtonType.OK, javafx.scene.control.ButtonType.CANCEL);
+        d.setOnShown(e -> byKind.run());
+        if (d.showAndWait().filter(b -> b == javafx.scene.control.ButtonType.OK).isEmpty()) return false;
+        z.setKind(com.vttcaseiro.model.MapZone.KINDS[Math.max(0, kind.getSelectionModel().getSelectedIndex())]);
+        z.setName(name.getText());
+        z.setAbility(ability.getValue());
+        z.setDc(dc.getValue());
+        z.setDamage(damage.getText());
+        z.setDamageType(damageType.getText());
+        z.setHalfOnSave(half.isSelected());
+        z.setTargetScene(target.getValue());
+        z.setText(text.getText());
+        z.setTellPlayer(tell.isSelected());
+        z.setOnce(once.isSelected());
+        if (rearm.isSelected()) z.setTriggered(false);
+        z.setVisibleToPlayers(visible.isSelected());
+        return true;
+    }
+
+    /** Menu da bolinha de um jogador (mestre): levar pra outra cena, trazer de volta, ver a cena dele. */
+    javafx.scene.control.ContextMenu splitMenu(String player, String away) {
+        javafx.scene.control.ContextMenu m = new javafx.scene.control.ContextMenu();
+        javafx.scene.control.Menu send = new javafx.scene.control.Menu("Levar " + player + " pra cena...");
+        List<String> maps;
+        try {
+            maps = mesaService.listMaps();
+        } catch (RuntimeException ex) {
+            maps = List.of();
+        }
+        for (String map : maps) {
+            if (map.equals(away)) continue;
+            javafx.scene.control.MenuItem it = new javafx.scene.control.MenuItem(map);
+            it.setOnAction(e -> sendPlayerToScene(player, map));
+            send.getItems().add(it);
+        }
+        if (send.getItems().isEmpty()) send.setDisable(true);
+        m.getItems().add(send);
+        if (away != null) {
+            javafx.scene.control.MenuItem back = new javafx.scene.control.MenuItem("Trazer " + player + " de volta pro grupo");
+            back.setOnAction(e -> networkService.sendSplitScene(player, null, null));
+            javafx.scene.control.MenuItem look = new javafx.scene.control.MenuItem("Ver a cena de " + player + " (" + away + ")");
+            look.setOnAction(e -> {
+                flushSceneAutosave();
+                networkService.sendGmView(away);
+            });
+            m.getItems().addAll(back, look);
+        }
+        return m;
+    }
+
+    /** Grupo dividido: o jogador vai sozinho pra cena {@code map} (a cena aberta segue com o resto do grupo). */
+    void sendPlayerToScene(String player, String map) {
+        try {
+            SceneModel scene = map.equals(currentMapName) ? sceneService.getScene() : mesaService.loadMap(map);
+            if (map.equals(currentMapName)) flushSceneAutosave();
+            imageAssetService.migrateInlineImages(scene);
+            networkService.sendSplitScene(player, map, scene);
+            logEntries.add(LogEntry.system(player + " foi pra cena \"" + map + "\" (o resto do grupo continua aqui)."));
+        } catch (IOException | RuntimeException ex) {
+            showError("Não deu pra abrir a cena \"" + map + "\": " + ex.getMessage());
         }
     }
 
@@ -7857,6 +8159,52 @@ public class Main extends Application {
             Platform.runLater(() -> {
                 sceneService.replaceScene(scene);
                 logEntries.add(LogEntry.system("Mapa sincronizado com o servidor."));
+            });
+        }
+
+        @Override
+        public void onSceneView(String sceneKey, boolean side) {
+            Platform.runLater(() -> {
+                flushSceneAutosave();
+                if (sceneKey != null) currentMapName = sceneKey;
+                sideViewing = side;
+                if (!side) groupMapName = sceneKey;
+                if (currentSceneLabel != null && currentMapName != null) currentSceneLabel.setText("Cena atual: " + currentMapName);
+                refreshSceneStrip();
+            });
+        }
+
+        @Override
+        public void onSideSceneClosed(String sceneKey, SceneModel scene) {
+            if (sceneKey == null || scene == null) return;
+            Platform.runLater(() -> {
+                try {
+                    mesaService.saveMap(scene, sceneKey);
+                    logEntries.add(LogEntry.system("Cena separada \"" + sceneKey + "\" ficou vazia e foi salva."));
+                } catch (IOException | RuntimeException ex) {
+                    logEntries.add(LogEntry.error("Não deu pra salvar a cena \"" + sceneKey + "\": " + ex.getMessage()));
+                }
+            });
+        }
+
+        @Override
+        public void onZonesSync(List<com.vttcaseiro.model.MapZone> zones) {
+            Platform.runLater(() -> {
+                sceneService.getScene().setZones(zones);
+                mapView.redrawZones();
+            });
+        }
+
+        @Override
+        public void onZoneEvent(com.vttcaseiro.model.MapZone zone, TokenModel token, String sceneKey, String ownerName) {
+            Platform.runLater(() -> onZoneEntered(zone, token, sceneKey, ownerName));
+        }
+
+        @Override
+        public void onPlayersChanged() {
+            Platform.runLater(() -> {
+                refreshPlayersStrip();
+                refreshSceneStrip();
             });
         }
 

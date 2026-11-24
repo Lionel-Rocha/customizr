@@ -50,6 +50,14 @@ public class GameServer {
      * todo mundo ja conectado precisa ficar sabendo -- nao so quem entra
      * depois. */
     private SceneModel scene;
+    /**
+     * Grupo dividido: {@link #scene} e a cena da mensagem que esta sendo tratada agora (ver {@link #enter}); a do
+     * grupo fica em {@code groupScene} e as separadas (um jogador sozinho no porao) em {@code sideScenes}, pelo nome.
+     */
+    private SceneModel groupScene;
+    private String groupKey;
+    private final Map<String, SceneModel> sideScenes = new java.util.LinkedHashMap<>();
+    private String ctxKey;
     private final List<ClientHandler> clients = new CopyOnWriteArrayList<>();
     /** Musica e ambiente tocando agora (quem entra depois ouve o mesmo). */
     private final java.util.Map<String, com.vttcaseiro.model.AudioCommand> playingAudio = new java.util.LinkedHashMap<>();
@@ -114,6 +122,7 @@ public class GameServer {
         // servidor, outra quando o broadcast volta) e as duas threads
         // mexeriam na mesma ArrayList ao mesmo tempo.
         this.scene = scene == null ? new SceneModel() : NetCodec.deepCopy(scene, SceneModel.class);
+        this.groupScene = this.scene;
         this.imageAssetStore = imageAssetStore;
         this.tablePassword = tablePassword;
         this.masterPassword = masterPassword;
@@ -213,7 +222,49 @@ public class GameServer {
     void removeClient(ClientHandler handler) {
         clients.remove(handler);
         if (handler.getSession() != null) {
+            synchronized (lock) {
+                pruneSides(); // jogador que estava sozinho numa cena saiu: a cena volta pro mestre gravar
+            }
             broadcastPresence();
+        }
+    }
+
+    /** Passa a tratar a cena {@code key} (null = a do grupo). */
+    private void enter(String key) {
+        SceneModel side = key == null ? null : sideScenes.get(key);
+        ctxKey = side == null ? null : key;
+        scene = side == null ? groupScene : side;
+    }
+
+    /** O cliente esta na cena que esta sendo tratada agora? */
+    private boolean inScene(ClientHandler c) {
+        return java.util.Objects.equals(c.sideScene, ctxKey);
+    }
+
+    /** Cena separada sem ninguem: sai do servidor e vai pros mestres gravarem no disco. */
+    private void pruneSides() {
+        for (String key : new java.util.ArrayList<>(sideScenes.keySet())) {
+            boolean used = clients.stream().anyMatch(c -> key.equals(c.sideScene));
+            if (used) continue;
+            SceneModel s = sideScenes.remove(key);
+            NetMessage m = NetMessage.sideSceneClosed(key, s);
+            for (ClientHandler c : clients) if (c.isGm()) c.send(m);
+        }
+        enter(null);
+    }
+
+    /** Lista de cenas separadas agora: nome da cena -> quem esta nela (pro teste e pro mestre). */
+    public Map<String, List<String>> splitState() {
+        synchronized (lock) {
+            Map<String, List<String>> out = new java.util.LinkedHashMap<>();
+            for (String key : sideScenes.keySet()) {
+                List<String> who = new java.util.ArrayList<>();
+                for (ClientHandler c : clients) {
+                    if (key.equals(c.sideScene) && c.getSession() != null) who.add(c.getSession().playerName());
+                }
+                out.put(key, who);
+            }
+            return out;
         }
     }
 
@@ -236,6 +287,9 @@ public class GameServer {
                     || "map_ping".equals(msg.type) || "gm_request".equals(msg.type))) {
                 msg.player = from.getSession().playerName();
             }
+            if (from.sideScene != null && !sideScenes.containsKey(from.sideScene)) from.sideScene = null;
+            enter(from.sideScene);
+            try {
             switch (msg.type) {
                 case "move_token" -> {
                     Optional<TokenModel> token = findToken(msg.tokenId);
@@ -249,9 +303,12 @@ public class GameServer {
                     } else if (msg.x == null || msg.y == null) {
                         log.warn("move_token sem posição");
                     } else {
+                        double oldX = token.get().getX();
+                        double oldY = token.get().getY();
                         token.get().setX(msg.x);
                         token.get().setY(msg.y);
                         routeTokenChange(msg, token.get().getId());
+                        zoneEvents(token.get(), oldX, oldY);
                     }
                 }
                 case "add_token" -> {
@@ -349,7 +406,7 @@ public class GameServer {
                     }
                     scene.setObjects(msg.objects);
                     for (ClientHandler c : clients) {
-                        if (c != from && c.getSession() != null && !curtain(c)) c.send(NetMessage.objectsSync(scene.visibleObjects(c.isGm())));
+                        if (c != from && c.getSession() != null && inScene(c) && !curtain(c)) c.send(NetMessage.objectsSync(scene.visibleObjects(c.isGm())));
                     }
                 }
                 case "pins_sync" -> {
@@ -359,7 +416,17 @@ public class GameServer {
                     }
                     scene.setPins(msg.pins);
                     for (ClientHandler c : clients) {
-                        if (c != from && c.getSession() != null && !curtain(c)) c.send(NetMessage.pinsSync(scene.visiblePins(c.isGm())));
+                        if (c != from && c.getSession() != null && inScene(c) && !curtain(c)) c.send(NetMessage.pinsSync(scene.visiblePins(c.isGm())));
+                    }
+                }
+                case "zones_sync" -> {
+                    if (!from.isGm()) {
+                        from.send(NetMessage.chat("servidor", "Só o mestre mexe nas zonas."));
+                        break;
+                    }
+                    scene.setZones(msg.zones);
+                    for (ClientHandler c : clients) {
+                        if (c != from && c.getSession() != null && inScene(c) && !curtain(c)) c.send(NetMessage.zonesSync(scene.visibleZones(c.isGm())));
                     }
                 }
                 case "walls_sync" -> {
@@ -573,12 +640,41 @@ public class GameServer {
                     // trocou de mapa/cena e esta avisando todo mundo. So o
                     // mestre pode fazer isso -- um jogador comum trocando a
                     // cena de todo mundo seria bagunca.
-                    if (msg.scene != null && from.isGm()) {
-                        this.scene = msg.scene;
+                    if (msg.scene == null || !from.isGm()) break;
+                    if (Boolean.TRUE.equals(msg.sideView) && from.sideScene != null) {
+                        // mestre mexeu na cena separada que esta olhando (grade, tamanho...): so quem esta nela recebe
+                        msg.scene.setHiddenFromPlayers(false);
+                        sideScenes.put(from.sideScene, msg.scene);
+                        enter(from.sideScene);
                         for (ClientHandler c : clients) {
-                            if (c.getSession() != null) c.send(NetMessage.sceneSwitch(sceneFor(c)));
+                            if (c != from && c.getSession() != null && inScene(c)) c.send(NetMessage.sceneSwitch(sceneFor(c)));
                         }
+                        break;
                     }
+                    SceneModel next = msg.scene;
+                    boolean merged = false;
+                    if (msg.sceneKey != null && sideScenes.containsKey(msg.sceneKey)) {
+                        // abriu pro grupo a cena onde alguem ja estava sozinho: o grupo vai pra la (com o que mudou nela)
+                        next = sideScenes.remove(msg.sceneKey);
+                        merged = true;
+                        for (ClientHandler c : clients) if (msg.sceneKey.equals(c.sideScene)) c.sideScene = null;
+                    }
+                    if (merged) next.setHiddenFromPlayers(msg.scene.isHiddenFromPlayers());
+                    from.sideScene = null;
+                    groupScene = next;
+                    groupKey = msg.sceneKey;
+                    enter(null);
+                    for (ClientHandler c : clients) {
+                        if (c.getSession() == null || c.sideScene != null) continue;
+                        NetMessage m = NetMessage.sceneSwitch(sceneFor(c));
+                        if (c.isGm()) {
+                            m.sceneKey = groupKey;
+                            m.sideView = false;
+                        }
+                        c.send(m);
+                    }
+                    pruneSides();
+                    if (merged) broadcastPresence();
                 }
                 case "hello" -> {
                     if (from.getSession() != null) {
@@ -641,7 +737,23 @@ public class GameServer {
                             + (session.gm() ? " como mestre." : ".")));
                     broadcastPresence();
                 }
+                case "split_scene" -> splitScene(msg, from);
+                case "gm_view" -> {
+                    if (!from.isGm()) break;
+                    String key = msg.sceneKey != null && sideScenes.containsKey(msg.sceneKey) ? msg.sceneKey : null;
+                    from.sideScene = key;
+                    enter(key);
+                    NetMessage m = NetMessage.sceneSwitch(sceneFor(from));
+                    m.sceneKey = key == null ? groupKey : key;
+                    m.sideView = key != null;
+                    from.send(m);
+                    pruneSides();
+                    broadcastPresence();
+                }
                 default -> log.warn("Tipo de mensagem desconhecido: " + msg.type);
+            }
+            } finally {
+                enter(null);
             }
         }
     }
@@ -706,12 +818,93 @@ public class GameServer {
         presence.players = getConnectedSessions().stream()
                 .map(s -> new NetMessage.PlayerInfo(s.playerId(), s.playerName(), s.gm()))
                 .collect(Collectors.toList());
-        broadcast(presence);
+        NetMessage forGm = NetMessage.presence(names);
+        forGm.players = new java.util.ArrayList<>();
+        for (ClientHandler c : clients) {
+            PlayerSession s = c.getSession();
+            if (s == null) continue;
+            NetMessage.PlayerInfo info = new NetMessage.PlayerInfo(s.playerId(), s.playerName(), s.gm());
+            info.sceneKey = c.sideScene;
+            forGm.players.add(info);
+        }
+        String pub = NetCodec.encode(presence);
+        String gm = NetCodec.encode(forGm);
+        for (ClientHandler c : clients) c.sendEncoded(c.isGm() ? gm : pub);
     }
 
     private Optional<TokenModel> findToken(String id) {
         if (id == null) return Optional.empty();
         return scene.getTokens().stream().filter(t -> id.equals(t.getId())).findFirst();
+    }
+
+    /** Token entrou em zonas da cena atual: cada mestre conectado fica sabendo (esteja olhando qual cena for). */
+    private void zoneEvents(TokenModel token, double oldX, double oldY) {
+        List<com.vttcaseiro.model.MapZone> hit = com.vttcaseiro.service.ZoneRules.entered(scene, token, oldX, oldY);
+        if (hit.isEmpty()) return;
+        String owner = null;
+        for (ClientHandler c : clients) {
+            if (c.getSession() != null && !c.isGm() && controls(c, token)) owner = c.getSession().playerName();
+        }
+        for (com.vttcaseiro.model.MapZone z : hit) {
+            if (z.isOnce()) z.setTriggered(true);
+            NetMessage ev = NetMessage.zoneEvent(z, token, ctxKey, owner);
+            for (ClientHandler c : clients) if (c.isGm()) c.send(ev);
+        }
+    }
+
+    /** Mestre leva um jogador pra outra cena (ou de volta pro grupo). */
+    private void splitScene(NetMessage msg, ClientHandler from) {
+        if (!from.isGm()) {
+            from.send(NetMessage.chat("servidor", "Só o mestre separa o grupo."));
+            return;
+        }
+        ClientHandler target = null;
+        for (ClientHandler c : clients) {
+            if (c.getSession() != null && !c.isGm() && java.util.Objects.equals(c.getSession().playerId(), msg.playerId)) target = c;
+        }
+        if (target == null) {
+            from.send(NetMessage.chat("servidor", "Esse jogador não está conectado."));
+            return;
+        }
+        String key = msg.sceneKey;
+        if (key != null && key.equals(groupKey)) key = null; // "levar pra cena do grupo" = voltar pro grupo
+        if (key != null && !sideScenes.containsKey(key)) {
+            if (msg.scene == null) {
+                from.send(NetMessage.chat("servidor", "Cena não encontrada."));
+                return;
+            }
+            msg.scene.setHiddenFromPlayers(false);
+            sideScenes.put(key, msg.scene);
+        }
+        TokenModel carried = msg.token;
+        if (carried != null) {
+            // portal: o token sai da cena onde estava...
+            enter(target.sideScene);
+            findToken(carried.getId()).ifPresent(t -> {
+                scene.removeToken(t);
+                NetMessage gone = NetMessage.removeToken(t.getId());
+                for (ClientHandler c : clients) {
+                    if (c.getSession() != null && inScene(c) && (c.isGm() || c.knownTokens.remove(t.getId()))) c.send(gone);
+                }
+            });
+        }
+        target.sideScene = key;
+        enter(key);
+        if (carried != null && findToken(carried.getId()).isEmpty()) {
+            // ...e chega na de destino (quem ja estava la ve chegar)
+            scene.addToken(carried);
+            NetMessage arrived = NetMessage.addToken(carried);
+            for (ClientHandler c : clients) {
+                if (c == target || c.getSession() == null || !inScene(c)) continue;
+                if (c.isGm()) c.send(arrived);
+                else resync(c);
+            }
+        }
+        target.send(NetMessage.sceneSwitch(sceneFor(target)));
+        target.send(NetMessage.chat("servidor", key == null ? "Você voltou pra cena do grupo."
+                : "O mestre levou você pra outra cena (o resto do grupo não vê o que acontece aqui)."));
+        pruneSides();
+        broadcastPresence();
     }
 
     /** "mestre"/"gm"/"dm" = todos os mestres conectados. */
@@ -761,7 +954,7 @@ public class GameServer {
         }
         String line = NetCodec.encode(msg);
         for (ClientHandler c : clients) {
-            if (c.isGm()) c.sendEncoded(line);
+            if (c.isGm() && inScene(c)) c.sendEncoded(line);
         }
     }
 
@@ -779,12 +972,14 @@ public class GameServer {
             return blank;
         }
         boolean hiddenPins = scene.getPins().stream().anyMatch(com.vttcaseiro.model.MapPin::isHidden)
-                || scene.getObjects().stream().anyMatch(com.vttcaseiro.model.MapObject::isHidden);
+                || scene.getObjects().stream().anyMatch(com.vttcaseiro.model.MapObject::isHidden)
+                || scene.getZones().stream().anyMatch(z -> !z.isVisibleToPlayers());
         if (c.isGm() || (visible.size() == scene.getTokens().size() && !hiddenPins)) return scene;
         SceneModel copy = NetCodec.deepCopy(scene, SceneModel.class);
         copy.getTokens().removeIf(t -> !visible.contains(t.getId()));
         copy.getPins().removeIf(com.vttcaseiro.model.MapPin::isHidden); // pin secreto nem sai do servidor
         copy.getObjects().removeIf(com.vttcaseiro.model.MapObject::isHidden);
+        copy.getZones().removeIf(z -> !z.isVisibleToPlayers()); // armadilha secreta nem sai do servidor
         return copy;
     }
 
@@ -838,7 +1033,7 @@ public class GameServer {
     }
 
     private void resyncAll() {
-        for (ClientHandler c : clients) resync(c);
+        for (ClientHandler c : clients) if (inScene(c)) resync(c);
     }
 
     /**
@@ -849,7 +1044,7 @@ public class GameServer {
     private void routeTokenChange(NetMessage msg, String tokenId) {
         String encoded = NetCodec.encode(msg);
         for (ClientHandler c : clients) {
-            if (c.getSession() == null) continue;
+            if (c.getSession() == null || !inScene(c)) continue;
             if (c.isGm()) {
                 c.sendEncoded(encoded);
                 continue;
@@ -864,7 +1059,7 @@ public class GameServer {
         String line = NetCodec.encode(msg);
         boolean sceneMsg = SCENE_TYPES.contains(msg.type);
         for (ClientHandler client : clients) {
-            if (client != except && !(sceneMsg && curtain(client))) client.sendEncoded(line);
+            if (client != except && !(sceneMsg && (curtain(client) || !inScene(client)))) client.sendEncoded(line);
         }
     }
 
@@ -874,7 +1069,7 @@ public class GameServer {
         String line = NetCodec.encode(msg);
         boolean sceneMsg = SCENE_TYPES.contains(msg.type);
         for (ClientHandler client : clients) {
-            if (!(sceneMsg && curtain(client))) client.sendEncoded(line);
+            if (!(sceneMsg && (curtain(client) || !inScene(client)))) client.sendEncoded(line);
         }
     }
 

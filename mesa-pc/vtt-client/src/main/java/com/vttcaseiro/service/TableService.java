@@ -62,6 +62,10 @@ public class TableService {
         default void sendWalls(SceneModel scene) {
         }
 
+        /** Zonas da cena (mestre). */
+        default void sendZones(SceneModel scene) {
+        }
+
         /** Mestre mandando a lista inteira de objetos da cena. */
         default void sendObjects(SceneModel scene) {
         }
@@ -532,6 +536,7 @@ public class TableService {
         } else {
             port.announce("Turno de: " + r.current().getName());
         }
+        zoneDamageAtTurnStart(r.current());
         publishEncounter();
     }
 
@@ -1103,6 +1108,61 @@ public class TableService {
     private void publishWalls() {
         scenes.wallsChanged();
         if (port.isConnected()) port.sendWalls(scene());
+    }
+
+    // --- Zonas (armadilha, portal, dano, terreno, aviso) ---
+
+    private void publishZones() {
+        scenes.wallsChanged();
+        if (port.isConnected()) port.sendZones(scene());
+    }
+
+    public void addZone(com.vttcaseiro.model.MapZone zone) {
+        if (zone == null || !requireGm("cria zonas")) return;
+        if (scene().getZones().size() >= SceneModel.MAX_ZONES) {
+            port.error("Zonas demais nesta cena.");
+            return;
+        }
+        scene().getZones().add(zone);
+        publishZones();
+    }
+
+    /** A zona ja foi alterada (janela de editar): so redesenha e manda. */
+    public void zoneChanged() {
+        if (!requireGm("edita zonas")) return;
+        publishZones();
+    }
+
+    public void removeZone(com.vttcaseiro.model.MapZone zone) {
+        if (zone == null || !requireGm("apaga zonas")) return;
+        if (scene().getZones().removeIf(z -> z.getId().equals(zone.getId()))) publishZones();
+    }
+
+    /** Armadilha: o token rola a salvaguarda da zona; o dano (se tiver) ja e aplicado. */
+    public List<SaveResult> trapSave(com.vttcaseiro.model.MapZone zone, TokenModel token) {
+        Ability ability = Ability.DEXTERITY;
+        for (Ability a : Ability.values()) if (a.abbreviationPt().equalsIgnoreCase(zone.getAbility())) ability = a;
+        String dmg = zone.getDamage().isBlank() ? null : zone.getDamage();
+        String type = zone.getDamageType().isBlank() ? null : zone.getDamageType();
+        return groupSave(ability, zone.getDc(), List.of(token), dmg, zone.isHalfOnSave(), type);
+    }
+
+    /** Comeco do turno dentro de zona de dano (lava, fogo...): rola e aplica. */
+    void zoneDamageAtTurnStart(TokenModel token) {
+        for (com.vttcaseiro.model.MapZone z : ZoneRules.damageAt(scene(), token)) {
+            try {
+                String expr = z.getDamage().trim();
+                RollResult r = expr.matches("\\d+") ? new RollResult(Integer.parseInt(expr), expr) : DiceRoller.roll(expr);
+                String type = z.getDamageType().isBlank() ? null : z.getDamageType();
+                String line = token.getName() + " começa o turno em " + z.label() + ": " + r.detail() + " = " + r.total()
+                        + " de dano" + (type == null ? "" : " (" + type + ")") + ".";
+                if (token.isHiddenFromPlayers()) port.announceGm(line);
+                else port.announce(line);
+                applyTypedDamage(token, r.total(), type);
+            } catch (DiceException ex) {
+                port.error("Dano da zona \"" + z.label() + "\" inválido: " + ex.getMessage());
+            }
+        }
     }
 
     public void addWall(com.vttcaseiro.model.Wall wall) {

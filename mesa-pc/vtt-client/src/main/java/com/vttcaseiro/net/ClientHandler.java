@@ -86,6 +86,8 @@ class ClientHandler implements Runnable {
 
     /** Tokens que ESTE cliente tem na tela agora (o servidor manda so os que ele ve). */
     final java.util.Set<String> knownTokens = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    /** Grupo dividido: cena separada em que este cliente esta (null = a do grupo). Pro mestre: a que ele olha. */
+    volatile String sideScene;
 
     boolean ownsToken(String tokenOwnerId) {
         return session != null && session.owns(tokenOwnerId);

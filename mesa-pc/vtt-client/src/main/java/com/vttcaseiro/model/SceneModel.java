@@ -73,6 +73,33 @@ public class SceneModel {
     /** Pins (pontos de informacao / atalhos pra outras cenas). */
     private List<MapPin> pins = new ArrayList<>();
     public static final int MAX_PINS = 500;
+    public static final int MAX_ZONES = 300;
+
+    /** Zonas (armadilha, portal, dano, terreno dificil, aviso). So o mestre ve as que nao sao visiveis. */
+    private List<MapZone> zones = new ArrayList<>();
+
+    public List<MapZone> getZones() {
+        if (zones == null) zones = new ArrayList<>();
+        return zones;
+    }
+
+    public void setZones(List<MapZone> list) {
+        zones = new ArrayList<>(list == null ? List.of() : list);
+        zones.removeIf(java.util.Objects::isNull);
+        if (zones.size() > MAX_ZONES) zones = new ArrayList<>(zones.subList(0, MAX_ZONES));
+    }
+
+    public java.util.Optional<MapZone> findZone(String id) {
+        return getZones().stream().filter(z -> z.getId().equals(id)).findFirst();
+    }
+
+    /** As zonas que um jogador pode ver (so as marcadas como visiveis). */
+    public List<MapZone> visibleZones(boolean gm) {
+        if (gm) return new ArrayList<>(getZones());
+        List<MapZone> out = new ArrayList<>();
+        for (MapZone z : getZones()) if (z.isVisibleToPlayers()) out.add(z);
+        return out;
+    }
 
     public List<MapPin> getPins() {
         if (pins == null) pins = new ArrayList<>();
