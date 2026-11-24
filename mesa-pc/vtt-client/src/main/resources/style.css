@@ -1547,3 +1547,58 @@
     -fx-border-color: transparent transparent transparent -c-accent;
     -fx-border-width: 0 0 0 3;
 }
+
+/* ---- Escolher mesa: cartoes com miniatura ---- */
+.mesa-card {
+    -fx-background-color: -c-surface-1;
+    -fx-background-radius: 12;
+    -fx-border-color: -c-border;
+    -fx-border-radius: 12;
+    -fx-padding: 8 8 10 8;
+}
+.mesa-card:hover {
+    -fx-background-color: -c-raised;
+    -fx-border-color: -c-border-2;
+}
+.mesa-card-selected, .mesa-card-selected:hover {
+    -fx-background-color: -c-accent-deep;
+    -fx-border-color: -c-accent;
+    -fx-border-width: 1.5;
+}
+.mesa-thumb {
+    -fx-background-color: -c-bg-deep;
+    -fx-background-radius: 8;
+}
+.mesa-thumb .icon {
+    -fx-fill: -c-muted;
+}
+.mesa-card .mesa-name {
+    -fx-font-size: 14px;
+    -fx-padding: 2 2 0 2;
+}
+.mesa-info {
+    -fx-text-fill: -c-muted;
+    -fx-font-size: 11px;
+    -fx-padding: 0 2 0 2;
+}
+.mesa-card-selected .mesa-info {
+    -fx-text-fill: -c-accent-text-3;
+}
+.mesa-empty {
+    -fx-background-color: -c-surface-1;
+    -fx-background-radius: 12;
+    -fx-border-color: -c-border;
+    -fx-border-style: segments(6, 4);
+    -fx-border-radius: 12;
+    -fx-padding: 26;
+    -fx-pref-width: 420;
+}
+.hero-footer {
+    -fx-background-color: rgba(0, 0, 0, 0.18);
+    -fx-background-radius: 10;
+    -fx-padding: 10 12 10 12;
+}
+.hero-footer-text {
+    -fx-text-fill: -c-muted;
+    -fx-font-size: 12px;
+}
