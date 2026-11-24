@@ -78,6 +78,25 @@ class LayoutUiTest {
         return f.get(o);
     }
 
+    /** Foto da janela inteira (so com -Dvtt.snap=pasta). */
+    private static void snapStage(Stage stage, String file) {
+        String dir = System.getProperty("vtt.snap");
+        if (dir == null) return;
+        javafx.scene.Parent root = stage.getScene().getRoot();
+        root.applyCss();
+        root.layout();
+        javafx.scene.image.WritableImage img = root.snapshot(null, null);
+        java.awt.image.BufferedImage out = new java.awt.image.BufferedImage((int) img.getWidth(), (int) img.getHeight(),
+                java.awt.image.BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < out.getHeight(); y++)
+            for (int x = 0; x < out.getWidth(); x++) out.setRGB(x, y, img.getPixelReader().getArgb(x, y));
+        try {
+            javax.imageio.ImageIO.write(out, "png", new java.io.File(dir, file));
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+    }
+
     @Test
     void railOpensAndClosesPanels(@TempDir Path dir) throws Exception {
         Assumptions.assumeTrue(fxReady, "sem tela");
@@ -92,27 +111,58 @@ class LayoutUiTest {
                 Method m = Main.class.getDeclaredMethod("onMesaChosen", MesaRepository.class);
                 m.setAccessible(true);
                 m.invoke(main, new LibraryStorage(mesa));
+                stage.setWidth(1440);
+                stage.setHeight(880);
                 stage.show();
+                snapStage(stage, "tela-mapa.png");
 
                 @SuppressWarnings("unchecked")
                 Map<String, ToggleButton> rail = (Map<String, ToggleButton>) field(main, "railButtons");
-                assertEquals(List.of("Mapa", "Fichas", "Party", "Combate", "Diário", "Som", "Rede"), new ArrayList<>(rail.keySet()));
-                assertEquals("Grupo", rail.get("Party").getText(), "nome em portugues na barra");
+                assertEquals(List.of("Mesa", "Combate", "Personagens", "Mundo", "Som", "Rede"), new ArrayList<>(rail.keySet()),
+                        "uma barra so, com abas agrupadas");
                 SplitPane split = (SplitPane) field(main, "mainSplit");
                 Node panel = (Node) field(main, "sidePanel");
-                assertTrue(split.getItems().contains(panel) && rail.get("Mapa").isSelected(), "abre no Mapa");
+                assertEquals(2, split.getItems().size(), "mapa e a barra da direita (sem painel separado do chat)");
+                assertTrue(split.getItems().contains(panel) && rail.get("Mesa").isSelected(), "abre no chat");
 
                 rail.get("Combate").fire();
+                snapStage(stage, "tela-combate.png");
                 @SuppressWarnings("unchecked")
                 Map<String, Node> contents = (Map<String, Node>) field(main, "panelContents");
-                assertTrue(contents.get("Combate").isVisible() && !contents.get("Mapa").isVisible(), "so um painel por vez");
+                assertTrue(contents.get("Combate").isVisible() && !contents.get("Chat").isVisible(), "so uma secao por vez");
                 assertEquals("Combate", ((Label) field(main, "sidePanelTitle")).getText());
 
                 rail.get("Combate").fire();
-                assertFalse(split.getItems().contains(panel), "clicar de novo fecha: mapa maior");
-                assertEquals(2, split.getItems().size(), "mapa e chat");
+                assertFalse(split.getItems().contains(panel), "clicar de novo recolhe: mapa maior");
+                assertEquals(2, split.getItems().size(), "mapa e a faixa fina de icones");
+                snapStage(stage, "tela-recolhida.png");
                 rail.get("Rede").fire();
                 assertTrue(split.getItems().contains(panel) && contents.get("Rede").isVisible(), "reabre");
+
+                // aba com duas secoes: seletor pequeno
+                rail.get("Personagens").fire();
+                assertTrue(contents.get("Fichas").isVisible());
+                Method open = Main.class.getDeclaredMethod("openPanel", String.class);
+                open.setAccessible(true);
+                open.invoke(main, "Party");
+                assertTrue(contents.get("Party").isVisible() && rail.get("Personagens").isSelected());
+                open.invoke(main, "Mapa");
+                assertTrue(rail.get("Mundo").isSelected(), "cenas ficam na aba Mundo");
+                snapStage(stage, "tela-mundo.png");
+
+                // modo Preparar (mestre): o token colocado nasce escondido dos jogadores
+                Field mode = Main.class.getDeclaredField("gmMode");
+                mode.setAccessible(true);
+                mode.set(main, "preparar");
+                Method add = Main.class.getDeclaredMethod("addTokenToScene", com.vttcaseiro.model.TokenModel.class);
+                add.setAccessible(true);
+                com.vttcaseiro.model.TokenModel prepared = new com.vttcaseiro.model.TokenModel("Emboscada", null);
+                add.invoke(main, prepared);
+                assertTrue(prepared.isHiddenFromPlayers(), "preparando: nasce escondido");
+                mode.set(main, "jogar");
+                com.vttcaseiro.model.TokenModel normal = new com.vttcaseiro.model.TokenModel("Lyra", null);
+                add.invoke(main, normal);
+                assertFalse(normal.isHiddenFromPlayers(), "jogando: aparece normal");
 
                 List<Label> toggles = all(contents.get("Combate"), Label.class).stream()
                         .filter(l -> l.getStyleClass().contains("hint-toggle")).toList();

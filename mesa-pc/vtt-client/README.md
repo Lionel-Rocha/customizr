@@ -47,9 +47,21 @@ No PowerShell, comandos da pasta atual precisam de `.\` na frente:
 `.\rodar.cmd` (ou `.\rodar.cmd test`). Tem um `rodar.cmd` tambem na pasta
 de cima (`vtt-caseiro-classes`), que so chama o de `vtt-client`.
 
+### A tela
+
+- **Mapa** no centro, com quase a tela toda.
+- **Ferramentas do mapa** numa faixa na borda esquerda do mapa (tokens, medir, desenho, pins, objetos, neblina,
+  paredes; desfazer e ver tudo). O nome de cada uma aparece ao passar o mouse.
+- **Modos do mestre**, no pe dessa faixa: **Jogar** (conduzir a cena), **Preparar** (o que voce colocar, tokens e
+  pins, nasce escondido dos jogadores; objetos ficam editaveis) e **Construir** (paredes, portas, luz, neblina).
+  Um aviso no alto do mapa mostra quando voce esta preparando ou construindo.
+- **Barra da direita**, uma so, com abas: **Mesa** (chat e rolagens), **Combate**, **Personagens** (fichas e
+  grupo), **Mundo** (cenas e diario), **Som** e **Rede**. Clicar de novo na aba aberta (ou em "»") recolhe a
+  barra numa faixa de icones; o mapa fica com a tela toda.
+
 ### Hospedar e entrar numa mesa
 
-- **Mestre:** painel **Rede** (barra da esquerda, embaixo) > "Hospedar aqui". Senha da mesa, senha
+- **Mestre:** aba **Rede** (último ícone da barra da direita) > "Hospedar aqui". Senha da mesa, senha
   de mestre, criptografia (TLS) e ponte ficam em **"▸ Senhas, criptografia e ponte"**, logo abaixo.
 - **Jogador:** na tela inicial, **"Entrar numa mesa online"** (nao precisa criar mesa antes: o
   programa guarda o que vier daquela mesa numa pasta escondida, `.online`, dentro da pasta das

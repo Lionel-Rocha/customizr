@@ -265,7 +265,7 @@ public class Main extends Application {
     private final java.util.Map<String, javafx.scene.Node> panelContents = new java.util.LinkedHashMap<>();
     private final java.util.Map<String, ToggleButton> railButtons = new java.util.LinkedHashMap<>();
     private String openPanelName;
-    private double sidePanelDivider = 0.25;
+    private double sidePanelDivider = 0.72;
     private VBox chatColumn;
     /** "Escondida" ao lado dos botoes rapidos de dado do chat. */
     private CheckBox hiddenQuickRolls;
@@ -336,7 +336,6 @@ public class Main extends Application {
         root = new BorderPane();
         root.setTop(buildTopBar());
         root.setCenter(buildMainSplit());
-        root.setLeft(buildNavRail());
 
         Scene scene = new Scene(root, 1366, 860);
         scene.getStylesheets().add(getClass().getResource("/style.css").toExternalForm());
@@ -1227,6 +1226,7 @@ public class Main extends Application {
 
     private void onCreatePin(double x, double y) {
         com.vttcaseiro.model.MapPin pin = new com.vttcaseiro.model.MapPin(x, y, "", "cidade");
+        if (preparing()) pin.setHidden(true);
         if (!editPinDialog(pin, true)) return;
         if (table.addPin(pin)) {
             pushUndo(new UndoAction("Pin", () -> table.removePin(pin)));
@@ -1548,121 +1548,200 @@ public class Main extends Application {
     private SplitPane buildMainSplit() {
         mapHolder.getChildren().setAll(buildMapArea());
         buildSidePanel();
-        chatColumn = buildChatPanel();
-        chatColumn.setMinWidth(260);
-        chatColumn.setPrefWidth(330);
         mainSplit = new SplitPane();
         mainSplit.getStyleClass().add("main-split");
-        mainSplit.getItems().addAll(sidePanel, mapHolder, chatColumn);
+        mainSplit.getItems().addAll(mapHolder, sidePanel);
         SplitPane.setResizableWithParent(sidePanel, false);
-        SplitPane.setResizableWithParent(chatColumn, false);
-        mainSplit.setDividerPositions(sidePanelDivider, 0.76);
-        openPanel("Mapa");
+        SplitPane.setResizableWithParent(collapsedSidebar, false);
+        mainSplit.setDividerPositions(sidePanelDivider);
+        openPanel("Chat");
         return mainSplit;
     }
 
-    /** Painel da esquerda: titulo + conteudo de uma secao por vez (as outras ficam escondidas, nao destruidas). */
+    /**
+     * Barra da direita: UMA so, com abas agrupadas (Mesa, Combate, Personagens, Mundo, Som, Rede). Cada aba mostra
+     * uma secao por vez; as com mais de uma (Personagens: Fichas e Grupo; Mundo: Cenas e Diario) tem um seletor
+     * pequeno em cima. Recolhe numa faixa fina de icones e o mapa fica com quase a tela toda.
+     */
     private void buildSidePanel() {
-        String[] icons = {"map", "sheet", "party", "combat", "journal", "sound", "network"};
+        String[] names = {"Mapa", "Fichas", "Party", "Combate", "Diário", "Som", "Rede"};
         Tab[] tabs = {buildMapTab(), buildCharacterTab(), buildPartyTab(), buildInitiativeTab(), buildJournalTab(),
                 buildSoundTab(), buildNetworkTab()};
-        for (Tab t : tabs) {
-            javafx.scene.Node content = t.getContent();
-            t.setContent(null);
+        for (int i = 0; i < tabs.length; i++) {
+            javafx.scene.Node content = tabs[i].getContent();
+            tabs[i].setContent(null);
             compactHints(content);
-            groupIntoCards(content, t.getText());
+            groupIntoCards(content, tabs[i].getText());
             content.setVisible(false);
-            panelContents.put(t.getText(), content);
+            panelContents.put(names[i], content);
             sidePanelBody.getChildren().add(content);
         }
+        chatColumn = buildChatPanel();
+        chatColumn.setMinWidth(260); // a fileira de dados pedia 421 px e empurrava a barra pra fora da tela
+        chatColumn.setVisible(false);
+        panelContents.put("Chat", chatColumn);
+        sidePanelBody.getChildren().add(chatColumn);
+
         sidePanelTitle = new Label();
         sidePanelTitle.getStyleClass().add("side-panel-title");
-        Button close = new Button("✕");
-        close.getStyleClass().addAll("button-flat", "side-panel-close");
-        close.setTooltip(new Tooltip("Fechar o painel (o mapa fica maior)"));
-        close.setOnAction(e -> closePanel());
+        sectionSwitch.getStyleClass().add("section-switch");
+        sectionSwitch.setAlignment(Pos.CENTER_LEFT);
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
-        HBox header = new HBox(8, sidePanelTitle, spacer, close);
-        header.setAlignment(Pos.CENTER_LEFT);
-        header.getStyleClass().add("side-panel-header");
+        HBox titleRow = new HBox(8, sidePanelTitle, spacer, sectionSwitch);
+        titleRow.setAlignment(Pos.CENTER_LEFT);
+        titleRow.getStyleClass().add("side-panel-header");
+
+        HBox tabsBar = new HBox(2);
+        tabsBar.getStyleClass().add("sidebar-tabs");
+        tabsBar.setAlignment(Pos.CENTER_LEFT);
+        VBox collapsedIcons = new VBox(4);
+        collapsedIcons.getStyleClass().add("sidebar-tabs-collapsed");
+        collapsedIcons.setAlignment(Pos.TOP_CENTER);
+        for (var g : SIDEBAR_GROUPS.entrySet()) {
+            String group = g.getKey();
+            ToggleButton b = new ToggleButton(null, com.vttcaseiro.view.Icons.icon(SIDEBAR_ICONS.get(group), 18));
+            b.getStyleClass().add("sidebar-tab");
+            b.setTooltip(new Tooltip(group + ": " + SIDEBAR_TIPS.get(group)));
+            b.setOnAction(e -> togglePanel(group));
+            railButtons.put(group, b);
+            tabsBar.getChildren().add(b);
+            Button c = new Button(null, com.vttcaseiro.view.Icons.icon(SIDEBAR_ICONS.get(group), 18));
+            c.getStyleClass().addAll("button-flat", "sidebar-tab");
+            c.setTooltip(new Tooltip(group));
+            c.setOnAction(e -> openPanel(lastSection.getOrDefault(group, SIDEBAR_GROUPS.get(group)[0])));
+            collapsedIcons.getChildren().add(c);
+        }
+        Region grow = new Region();
+        HBox.setHgrow(grow, Priority.ALWAYS);
+        Button collapse = new Button("»");
+        collapse.getStyleClass().addAll("button-flat", "sidebar-collapse");
+        collapse.setTooltip(new Tooltip("Recolher a barra (o mapa fica maior)"));
+        collapse.setOnAction(e -> closePanel());
+        tabsBar.getChildren().addAll(grow, collapse);
+        Button expand = new Button("«");
+        expand.getStyleClass().addAll("button-flat", "sidebar-collapse");
+        expand.setTooltip(new Tooltip("Abrir a barra"));
+        expand.setOnAction(e -> openPanel(openPanelName != null ? openPanelName : "Chat"));
+        collapsedIcons.getChildren().add(0, expand);
+
         VBox.setVgrow(sidePanelBody, Priority.ALWAYS);
-        sidePanel = new VBox(header, sidePanelBody);
+        sidePanelBody.setMinWidth(0);
+        sidePanel = new VBox(tabsBar, titleRow, sidePanelBody);
         sidePanel.getStyleClass().add("side-panel");
         sidePanel.setMinWidth(300);
-        sidePanel.setPrefWidth(360);
-        railIcons = icons;
+        sidePanel.setPrefWidth(380);
+        collapsedSidebar = collapsedIcons;
+        collapsedSidebar.setMinWidth(46);
+        collapsedSidebar.setMaxWidth(46);
         // ja com os cartoes montados: esconde o que e so do mestre, e de novo quando mudar o papel (conectou/hospedou)
         refreshInitiativeList();
         networkService.statusProperty().addListener((o, a, b) -> Platform.runLater(this::refreshInitiativeList));
     }
 
-    private String[] railIcons;
+    /** Abas da barra da direita e as secoes de cada uma (a primeira abre por padrao). */
+    static final java.util.Map<String, String[]> SIDEBAR_GROUPS = new java.util.LinkedHashMap<>();
+    static final java.util.Map<String, String> SIDEBAR_ICONS = new java.util.HashMap<>();
+    static final java.util.Map<String, String> SIDEBAR_TIPS = new java.util.HashMap<>();
 
-    /** Barra de navegacao da esquerda: um botao grande (icone + nome) por secao; clicar de novo fecha o painel. */
-    private VBox buildNavRail() {
-        VBox rail = new VBox(2);
-        rail.getStyleClass().add("nav-rail");
-        String[] tips = {"Cenas, mapas importados e grade", "Fichas de personagem, compêndio e monstros",
-                "O grupo: PV, CA/Defesa e percepção de cada um", "Iniciativa, testes em grupo e descanso",
-                "Textos e imagens pros jogadores, tabelas aleatórias", "Música e sons ambiente",
-                "Hospedar ou entrar numa mesa, backup"};
-        int i = 0;
-        for (String name : panelContents.keySet()) {
-            String label = "Party".equals(name) ? "Grupo" : name;
-            ToggleButton b = new ToggleButton(label, com.vttcaseiro.view.Icons.icon(railIcons[i], 20));
-            b.setContentDisplay(javafx.scene.control.ContentDisplay.TOP);
-            b.getStyleClass().add("nav-rail-button");
-            b.setTooltip(new Tooltip(tips[i]));
-            b.setMaxWidth(Double.MAX_VALUE);
-            b.setOnAction(e -> togglePanel(name));
-            railButtons.put(name, b);
-            if ("Rede".equals(name)) {
-                Region spacer = new Region();
-                VBox.setVgrow(spacer, Priority.ALWAYS);
-                rail.getChildren().add(spacer);
-            }
-            rail.getChildren().add(b);
-            i++;
+    static {
+        SIDEBAR_GROUPS.put("Mesa", new String[]{"Chat"});
+        SIDEBAR_GROUPS.put("Combate", new String[]{"Combate"});
+        SIDEBAR_GROUPS.put("Personagens", new String[]{"Fichas", "Party"});
+        SIDEBAR_GROUPS.put("Mundo", new String[]{"Mapa", "Diário"});
+        SIDEBAR_GROUPS.put("Som", new String[]{"Som"});
+        SIDEBAR_GROUPS.put("Rede", new String[]{"Rede"});
+        SIDEBAR_ICONS.put("Mesa", "send");
+        SIDEBAR_ICONS.put("Combate", "combat");
+        SIDEBAR_ICONS.put("Personagens", "party");
+        SIDEBAR_ICONS.put("Mundo", "map");
+        SIDEBAR_ICONS.put("Som", "sound");
+        SIDEBAR_ICONS.put("Rede", "network");
+        SIDEBAR_TIPS.put("Mesa", "chat e rolagens");
+        SIDEBAR_TIPS.put("Combate", "iniciativa, testes em grupo e descanso");
+        SIDEBAR_TIPS.put("Personagens", "fichas, monstros, compêndio e o grupo");
+        SIDEBAR_TIPS.put("Mundo", "cenas, grade e o diário");
+        SIDEBAR_TIPS.put("Som", "música e sons ambiente");
+        SIDEBAR_TIPS.put("Rede", "hospedar ou entrar numa mesa");
+    }
+
+    /** Nome que aparece pra cada secao. */
+    static String sectionTitle(String section) {
+        return switch (section) {
+            case "Party" -> "Grupo";
+            case "Mapa" -> "Cenas";
+            default -> section;
+        };
+    }
+
+    static String groupOf(String section) {
+        for (var g : SIDEBAR_GROUPS.entrySet()) {
+            for (String s : g.getValue()) if (s.equals(section)) return g.getKey();
         }
-        refreshRail();
-        return rail;
+        return null;
     }
 
-    private void togglePanel(String name) {
-        if (name.equals(openPanelName) && mainSplit.getItems().contains(sidePanel)) closePanel();
-        else openPanel(name);
+    private VBox collapsedSidebar;
+    private final HBox sectionSwitch = new HBox(2);
+    private final java.util.Map<String, String> lastSection = new java.util.HashMap<>();
+
+    private void togglePanel(String group) {
+        String current = openPanelName == null ? null : groupOf(openPanelName);
+        if (group.equals(current) && mainSplit.getItems().contains(sidePanel)) closePanel();
+        else openPanel(lastSection.getOrDefault(group, SIDEBAR_GROUPS.get(group)[0]));
     }
 
-    /** Mostra a secao no painel da esquerda (abre o painel se estava fechado). */
+    /** Mostra a secao (abre a barra se estava recolhida). */
     void openPanel(String name) {
         if (!panelContents.containsKey(name)) return;
+        String group = groupOf(name);
         openPanelName = name;
+        if (group != null) lastSection.put(group, name);
         panelContents.forEach((k, v) -> v.setVisible(k.equals(name)));
-        sidePanelTitle.setText("Party".equals(name) ? "Grupo" : name);
+        sidePanelTitle.setText(group == null ? sectionTitle(name) : group);
+        // secoes da mesma aba: seletor pequeno
+        sectionSwitch.getChildren().clear();
+        String[] sections = group == null ? new String[0] : SIDEBAR_GROUPS.get(group);
+        sectionSwitch.setVisible(sections.length > 1);
+        sectionSwitch.setManaged(sections.length > 1);
+        if (sections.length > 1) {
+            javafx.scene.control.ToggleGroup tg = new javafx.scene.control.ToggleGroup();
+            for (String sec : sections) {
+                ToggleButton t = new ToggleButton(sectionTitle(sec));
+                t.getStyleClass().add("section-switch-button");
+                t.setToggleGroup(tg);
+                t.setSelected(sec.equals(name));
+                t.setOnAction(e -> openPanel(sec));
+                sectionSwitch.getChildren().add(t);
+            }
+        }
         if (!mainSplit.getItems().contains(sidePanel)) {
-            double[] pos = mainSplit.getDividerPositions();
-            double chatPos = pos.length > 0 ? pos[pos.length - 1] : 0.76;
-            mainSplit.getItems().add(0, sidePanel);
-            mainSplit.setDividerPositions(sidePanelDivider, chatPos);
+            mainSplit.getItems().remove(collapsedSidebar);
+            mainSplit.getItems().add(sidePanel);
+            mainSplit.setDividerPositions(sidePanelDivider);
         }
         refreshRail();
     }
 
+    /** Recolhe a barra numa faixa de icones (o mapa fica com quase a tela toda). */
     private void closePanel() {
         if (mainSplit.getItems().contains(sidePanel)) {
             double[] pos = mainSplit.getDividerPositions();
-            if (pos.length > 1) sidePanelDivider = pos[0];
-            double chatPos = pos.length > 1 ? pos[1] : 0.76;
+            if (pos.length > 0) sidePanelDivider = pos[0];
             mainSplit.getItems().remove(sidePanel);
-            mainSplit.setDividerPositions(chatPos);
+            mainSplit.getItems().add(collapsedSidebar);
+            Platform.runLater(() -> {
+                double w = mainSplit.getWidth();
+                if (w > 0) mainSplit.setDividerPositions(1 - 48 / w);
+            });
         }
-        openPanelName = null;
         refreshRail();
     }
 
     private void refreshRail() {
-        railButtons.forEach((k, b) -> b.setSelected(k.equals(openPanelName)));
+        boolean open = mainSplit != null && mainSplit.getItems().contains(sidePanel);
+        String group = openPanelName == null ? null : groupOf(openPanelName);
+        railButtons.forEach((k, b) -> b.setSelected(open && k.equals(group)));
     }
 
     /** Altura de uma linha das listas dos paineis (pra calcular quanto a lista ocupa). */
@@ -1839,13 +1918,18 @@ public class Main extends Application {
         });
         StackPane stack = new StackPane(mapView);
         VBox toolbar = buildFloatingToolbar();
-        // Quebra em mais linhas so quando o mapa fica estreito.
-        ((javafx.scene.layout.FlowPane) toolbar.getChildren().get(0)).prefWrapLengthProperty()
-                .bind(stack.widthProperty().subtract(60));
         toolbar.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+        toolbar.setPickOnBounds(false);
         stack.getChildren().add(toolbar);
         StackPane.setAlignment(toolbar, Pos.TOP_LEFT);
-        StackPane.setMargin(toolbar, new Insets(14));
+        StackPane.setMargin(toolbar, new Insets(10));
+        // aviso discreto do modo do mestre (Preparar / Construir), no alto do mapa
+        modeChip.getStyleClass().add("mode-chip");
+        modeChip.setMouseTransparent(true);
+        stack.getChildren().add(modeChip);
+        StackPane.setAlignment(modeChip, Pos.TOP_CENTER);
+        StackPane.setMargin(modeChip, new Insets(10, 0, 0, 0));
+        refreshModeChip();
         diceAnimator = new com.vttcaseiro.view.DiceAnimator();
         stack.getChildren().add(diceAnimator);
         StackPane.setAlignment(diceAnimator, Pos.BOTTOM_CENTER);
@@ -2358,8 +2442,8 @@ public class Main extends Application {
         centerBtn.setOnAction(e -> mapView.fitToView());
         tip(centerBtn, "Mostra o mapa inteiro na tela");
         targetsLabel.setGraphic(com.vttcaseiro.view.Icons.icon("target", 13));
-        HBox catRow = new HBox(4, catButtons);
-        catRow.getStyleClass().add("tool-group");
+        VBox catRow = new VBox(4, catButtons);
+        catRow.getStyleClass().addAll("tool-group", "tool-column");
         HBox targetsGroup = toolGroup(targetsLabel, clearTargetsBtn);
         // alvos so aparecem quando tem alvo marcado (menos coisa na tela)
         Runnable showTargets = () -> {
@@ -2369,24 +2453,107 @@ public class Main extends Application {
         };
         targetsLabel.textProperty().addListener((o, a, b) -> showTargets.run());
         showTargets.run();
-        box.getChildren().addAll(catRow, toolGroup(undoBtn, centerBtn), targetsGroup);
-        // mapa estreito (painel e chat abertos): so os icones, o nome fica na dica
-        java.util.List<javafx.scene.control.Labeled> squeezable = new java.util.ArrayList<>(List.of(catButtons));
-        squeezable.add(undoBtn);
-        squeezable.add(centerBtn);
-        mapHolder.widthProperty().addListener((o, a, w) -> {
-            boolean narrow = w.doubleValue() < 1000;
-            for (javafx.scene.control.Labeled l : squeezable) {
-                l.setContentDisplay(narrow ? javafx.scene.control.ContentDisplay.GRAPHIC_ONLY
-                        : javafx.scene.control.ContentDisplay.LEFT);
-                if (l.getTooltip() == null) l.setTooltip(new Tooltip(l.getText()));
+        // faixa vertical na borda do mapa: so icones; o nome (e a tecla) fica na dica
+        VBox editGroup = new VBox(4, undoBtn, centerBtn);
+        editGroup.getStyleClass().addAll("tool-group", "tool-column");
+        java.util.List<javafx.scene.control.Labeled> iconOnly = new java.util.ArrayList<>(List.of(catButtons));
+        iconOnly.add(undoBtn);
+        iconOnly.add(centerBtn);
+        for (javafx.scene.control.Labeled l : iconOnly) {
+            if (l.getTooltip() == null) l.setTooltip(new Tooltip(l.getText()));
+            else if (!l.getTooltip().getText().startsWith(l.getText())) {
+                l.getTooltip().setText(l.getText() + ": " + l.getTooltip().getText());
             }
+            l.setContentDisplay(javafx.scene.control.ContentDisplay.GRAPHIC_ONLY);
+        }
+        // modos do mestre: o jeito de trabalhar (e nao "camadas"): jogar, preparar, construir
+        javafx.scene.control.ToggleGroup modes = new javafx.scene.control.ToggleGroup();
+        ToggleButton play = modeButton("dice", "Jogar: mexer tokens, rolar, conduzir a cena", modes);
+        ToggleButton prepare = modeButton("objects", "Preparar: o que você colocar (tokens, pins) nasce escondido "
+                + "dos jogadores; objetos ficam editáveis", modes);
+        ToggleButton build = modeButton("wall", "Construir: paredes, portas, luzes e neblina", modes);
+        play.setOnAction(e -> {
+            play.setSelected(true);
+            gmMode = "jogar";
+            objectEditMode = false;
+            mapView.setObjectEditing(false);
+            toolsOff.run();
+            for (ToggleButton c : catButtons) c.setSelected(false);
+            showCat.accept(-1);
+            refreshModeChip();
         });
-        VBox toolbar = new VBox(6, box, panelHolder);
+        prepare.setOnAction(e -> {
+            prepare.setSelected(true);
+            gmMode = "preparar";
+            objectEditMode = true;
+            mapView.setObjectEditing(true);
+            refreshModeChip();
+        });
+        build.setOnAction(e -> {
+            build.setSelected(true);
+            gmMode = "construir";
+            objectEditMode = false;
+            mapView.setObjectEditing(false);
+            toolsOff.run();
+            catButtons[6].setSelected(true);
+            showCat.accept(6);
+            refreshModeChip();
+        });
+        (switch (gmMode) {
+            case "preparar" -> prepare;
+            case "construir" -> build;
+            default -> play;
+        }).setSelected(true);
+        VBox modeGroup = new VBox(4, play, prepare, build);
+        modeGroup.getStyleClass().addAll("tool-group", "tool-column", "mode-group");
+        Runnable modesGmOnly = () -> {
+            boolean gm = networkService.isGm();
+            modeGroup.setVisible(gm);
+            modeGroup.setManaged(gm);
+            if (!gm) gmMode = "jogar";
+            refreshModeChip();
+        };
+        networkService.statusProperty().addListener((o, a, b) -> Platform.runLater(modesGmOnly));
+        modesGmOnly.run();
+        VBox column = new VBox(8, catRow, editGroup, modeGroup);
+        column.setFillWidth(false);
+        VBox side = new VBox(6, panelHolder, targetsGroup);
+        side.setFillWidth(false);
+        side.setPickOnBounds(false);
+        HBox row = new HBox(8, column, side);
+        row.setPickOnBounds(false);
+        VBox toolbar = new VBox(6, row);
         toolbar.getStyleClass().add("map-toolbar");
         toolbar.setFillWidth(false);
         // os "gmOnly" antigos escondiam fogBox/wallBox direto; agora so a categoria aparece/some
         return toolbar;
+    }
+
+    /** Modo do mestre: "jogar", "preparar" ou "construir" (fica entre trocas de cena). */
+    private String gmMode = "jogar";
+    private final Label modeChip = new Label();
+
+    private ToggleButton modeButton(String icon, String tip, javafx.scene.control.ToggleGroup group) {
+        ToggleButton b = new ToggleButton(null, com.vttcaseiro.view.Icons.icon(icon, 16));
+        b.getStyleClass().addAll("tool-button", "mode-button");
+        b.setToggleGroup(group);
+        b.setTooltip(new Tooltip(tip));
+        return b;
+    }
+
+    /** No modo Preparar, o que o mestre coloca nasce escondido dos jogadores. */
+    boolean preparing() {
+        return "preparar".equals(gmMode) && networkService.isGm();
+    }
+
+    private void refreshModeChip() {
+        String text = !networkService.isGm() ? "" : switch (gmMode) {
+            case "preparar" -> "Preparando: o que você colocar nasce escondido";
+            case "construir" -> "Construindo: paredes, portas, luz e neblina";
+            default -> "";
+        };
+        modeChip.setText(text);
+        modeChip.setVisible(!text.isEmpty());
     }
 
     /** "ⓘ" pequeno com a dica no passar do mouse (no lugar de uma frase comprida na barra). */
@@ -4426,7 +4593,7 @@ public class Main extends Application {
 
         // macros na mesma linha de Vantagem/Desvantagem: uma linha a menos embaixo do chat
         quickRow.getChildren().add(macroRow);
-        box.getChildren().addAll(label, chatList, diceRow, quickRow, inputRow);
+        box.getChildren().addAll(chatList, diceRow, quickRow, inputRow); // o titulo "Mesa" da barra ja diz o que e
         return box;
     }
 
@@ -5412,6 +5579,7 @@ public class Main extends Application {
     }
 
     private void addTokenToScene(TokenModel token) {
+        if (preparing() && !undoing) token.setHiddenFromPlayers(true);
         if (!undoing) undo.record("Adicionar " + token.getName(), null, token);
         if (networkService.isConnected()) {
             networkService.sendAddToken(token);

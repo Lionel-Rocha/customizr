@@ -1229,3 +1229,82 @@
 .template-field .check-box:selected .mark {
     -fx-background-color: #111111;
 }
+
+/* ---- Barra unica da direita (abas agrupadas) ---- */
+.sidebar-tabs {
+    -fx-background-color: -c-bg-deep;
+    -fx-padding: 6 6 6 8;
+    -fx-border-color: transparent transparent -c-border transparent;
+    -fx-border-width: 0 0 1 0;
+}
+.sidebar-tabs-collapsed {
+    -fx-background-color: -c-bg-deep;
+    -fx-padding: 6 4 6 4;
+    -fx-border-color: transparent transparent transparent -c-border;
+    -fx-border-width: 0 0 0 1;
+}
+.sidebar-tab {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-background-radius: 7;
+    -fx-padding: 7 9 7 9;
+    -fx-cursor: hand;
+}
+.sidebar-tab:hover {
+    -fx-background-color: -c-surface-2;
+}
+.sidebar-tab:selected {
+    -fx-background-color: -c-raised-2b;
+    -fx-border-color: transparent transparent -c-accent transparent;
+    -fx-border-width: 0 0 2 0;
+}
+.sidebar-tab .icon {
+    -fx-fill: -c-muted;
+}
+.sidebar-tab:selected .icon, .sidebar-tab:hover .icon {
+    -fx-fill: -c-accent-text;
+}
+.sidebar-collapse {
+    -fx-text-fill: -c-muted;
+    -fx-font-size: 14px;
+    -fx-padding: 4 8 4 8;
+}
+.section-switch {
+    -fx-background-color: -c-surface-1b;
+    -fx-background-radius: 7;
+    -fx-padding: 2;
+}
+.section-switch-button {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent;
+    -fx-background-radius: 5;
+    -fx-padding: 3 10 3 10;
+    -fx-text-fill: -c-muted;
+    -fx-font-size: 12px;
+}
+.section-switch-button:selected {
+    -fx-background-color: -c-accent-deep;
+    -fx-text-fill: -c-accent-text;
+}
+
+/* ---- Faixa de ferramentas na borda do mapa ---- */
+.tool-column {
+    -fx-alignment: top-center;
+}
+.tool-column .tool-button {
+    -fx-padding: 7;
+}
+.mode-group {
+    -fx-border-color: -c-border transparent transparent transparent;
+    -fx-border-width: 1 0 0 0;
+    -fx-padding: 6 3 3 3;
+}
+.mode-chip {
+    -fx-background-color: -c-surface;
+    -fx-background-radius: 14;
+    -fx-border-color: -c-accent;
+    -fx-border-radius: 14;
+    -fx-padding: 4 14 4 14;
+    -fx-text-fill: -c-accent-text;
+    -fx-font-size: 12px;
+}

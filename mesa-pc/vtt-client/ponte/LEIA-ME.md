@@ -74,7 +74,7 @@ Customizr pedindo o código da mesa.
 
 ## 4. Usar
 
-**Mestre:** painel **Rede** (barra da esquerda, embaixo) > "Hospedar aqui" > abra
+**Mestre:** aba **Rede** (último ícone da barra da direita) > "Hospedar aqui" > abra
 **"▸ Senhas, criptografia e ponte"** > no campo da ponte, digite `ENDERECO-DO-SERVIDOR:55070` >
 **Abrir mesa na ponte**. Aparece o **código da mesa** (ex.: `K7P-Q2X`), que é sempre o mesmo para
 essa mesa.
