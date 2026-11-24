@@ -1398,3 +1398,58 @@
     -fx-text-fill: -c-text;
     -fx-font-size: 12px;
 }
+
+/* ---- Barra de cima: fila de cenas e jogadores ---- */
+.scene-strip {
+    -fx-padding: 0 0 0 10;
+}
+.scene-chip {
+    -fx-background-color: -c-surface-1b;
+    -fx-background-radius: 7;
+    -fx-padding: 3 10 3 10;
+    -fx-text-fill: -c-muted;
+    -fx-font-size: 12px;
+    -fx-cursor: hand;
+}
+.scene-chip:hover {
+    -fx-background-color: -c-raised;
+    -fx-text-fill: -c-text;
+}
+.scene-chip-current {
+    -fx-background-color: -c-accent-deep;
+    -fx-text-fill: -c-accent-text;
+    -fx-border-color: -c-accent;
+    -fx-border-radius: 7;
+}
+.scene-chip-current .icon {
+    -fx-fill: -c-accent-text;
+}
+.scene-chip-hidden {
+    -fx-border-style: segments(4, 3);
+    -fx-opacity: 0.85;
+}
+.scene-more {
+    -fx-text-fill: -c-muted;
+    -fx-font-size: 12px;
+}
+.scene-next {
+    -fx-padding: 3 6 3 6;
+}
+.player-dot {
+    -fx-background-radius: 13;
+    -fx-min-width: 26px;
+    -fx-min-height: 26px;
+    -fx-max-width: 26px;
+    -fx-max-height: 26px;
+    -fx-border-color: -c-bg-deep;
+    -fx-border-width: 2;
+    -fx-border-radius: 13;
+}
+.player-dot-gm {
+    -fx-border-color: -c-accent;
+}
+.player-dot-initial {
+    -fx-text-fill: white;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+}

@@ -393,6 +393,7 @@ public class Main extends Application {
                 undo.clear();         // desfazer de outra cena nao faz sentido
                 undoOrder.clear();
                 if (mapView != null) mapView.release(); // libera a memoria de video do mapa que sai
+                Platform.runLater(Main.this::refreshSceneStrip);
                 mapView = new MapView(newScene, imageAssetService);
                 wireTokenMoveListener();
                 wireCharacterDropHandler();
@@ -1041,6 +1042,18 @@ public class Main extends Application {
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
+        sceneStrip.getStyleClass().add("scene-strip");
+        sceneStrip.setAlignment(Pos.CENTER_LEFT);
+        playersStrip.getStyleClass().add("players-strip");
+        playersStrip.setAlignment(Pos.CENTER);
+        refreshSceneStrip();
+        refreshPlayersStrip();
+        networkService.getOnlinePlayers().addListener((javafx.collections.ListChangeListener<String>) c ->
+                Platform.runLater(this::refreshPlayersStrip));
+        networkService.statusProperty().addListener((o, a, b) -> Platform.runLater(() -> {
+            refreshSceneStrip();
+            refreshPlayersStrip();
+        }));
 
         Button hint = new Button("Atalhos (F1)");
         hint.getStyleClass().add("button-flat");
@@ -1085,7 +1098,8 @@ public class Main extends Application {
         campaignButton.setTooltip(new Tooltip("Gerenciador de campanha: jogadores (XP, ouro), calendário e clima, PdMs, "
                 + "aventuras, sessões e anotações. O que você marcar como visível os jogadores veem."));
         campaignButton.setOnAction(e -> openCampaign());
-        bar.getChildren().addAll(brand, sep, title, spacer, returnSceneButton, hint, campaignButton, gear, netStatusLabel);
+        bar.getChildren().addAll(brand, sep, title, sceneStrip, spacer, returnSceneButton, playersStrip, hint, campaignButton, gear,
+                netStatusLabel);
         return bar;
     }
 
@@ -4917,6 +4931,7 @@ public class Main extends Application {
         queue.setPlaceholder(new Label("Fila vazia: selecione uma cena acima e \"Por na fila\"."));
         Runnable reload = () -> {
             queue.getItems().setAll(sceneQueueStore.load());
+            refreshSceneStrip();
             currentSceneLabel.setText("Cena atual: " + (currentMapName != null ? currentMapName
                     : sceneService.getScene().getName()));
         };
@@ -5238,6 +5253,7 @@ public class Main extends Application {
             }
         }
         mapHolder.getChildren().setAll(buildMapArea()); // faixa "escondida" aparece/some
+        refreshSceneStrip();
         logEntries.add(LogEntry.system(hidden ? "Cena escondida dos jogadores: eles veem só um aviso até você mostrar."
                 : "Cena liberada pros jogadores."));
     }
@@ -6211,6 +6227,128 @@ public class Main extends Application {
 
     /** Ordem = iniciativa atual dos tokens (EncounterService.order); quem esta
      * na vez vem do Encounter da cena (sincronizado pela rede). */
+    // ---------------- barra de cima: fila de cenas e jogadores
+
+    private final HBox sceneStrip = new HBox(4);
+    private final HBox playersStrip = new HBox(-6);
+    /** Quantas cenas da fila aparecem na barra (depois da atual). */
+    static final int SCENE_STRIP_MAX = 4;
+
+    /**
+     * A fila de cenas da sessao na barra de cima (so o mestre): a atual (com o olho: os jogadores veem ou nao) e as
+     * proximas da fila. Clicar abre pra todos; botao direito: abrir escondida, tirar da fila. "▶" passa pra proxima.
+     */
+    void refreshSceneStrip() {
+        sceneStrip.getChildren().clear();
+        boolean gm = networkService.isGm();
+        sceneStrip.setVisible(gm);
+        sceneStrip.setManaged(gm);
+        if (!gm || sceneService == null || sceneQueueStore == null) return;
+        boolean hidden = sceneService.getScene().isHiddenFromPlayers();
+        String currentName = currentMapName != null ? currentMapName
+                : (sceneService.getScene().getName() == null || sceneService.getScene().getName().isBlank()
+                ? "Cena sem nome" : sceneService.getScene().getName());
+        Label current = new Label(currentName, com.vttcaseiro.view.Icons.icon(hidden ? "hidden" : "eye", 13));
+        current.getStyleClass().addAll("scene-chip", "scene-chip-current");
+        if (hidden) current.getStyleClass().add("scene-chip-hidden");
+        current.setTooltip(new Tooltip(hidden ? "Cena atual, escondida dos jogadores (eles veem o aviso)"
+                : "Cena atual: é a que os jogadores estão vendo"));
+        current.setOnMouseClicked(e -> {
+            javafx.scene.control.ContextMenu m = new javafx.scene.control.ContextMenu();
+            javafx.scene.control.MenuItem toggle = new javafx.scene.control.MenuItem(hidden ? "Mostrar aos jogadores" : "Esconder dos jogadores");
+            toggle.setOnAction(a -> setSceneHidden(!hidden));
+            javafx.scene.control.MenuItem config = new javafx.scene.control.MenuItem("Ver em Mundo > Cenas");
+            config.setOnAction(a -> openPanel("Mapa"));
+            m.getItems().addAll(toggle, config);
+            m.show(current, javafx.geometry.Side.BOTTOM, 0, 4);
+        });
+        sceneStrip.getChildren().add(current);
+        List<String> queue = sceneQueueStore.load();
+        int at = currentMapName == null ? -1 : queue.indexOf(currentMapName);
+        List<String> upcoming = new ArrayList<>();
+        for (int i = at + 1; i < queue.size() && upcoming.size() < SCENE_STRIP_MAX; i++) upcoming.add(queue.get(i));
+        for (String name : upcoming) {
+            Label chip = new Label(name);
+            chip.getStyleClass().add("scene-chip");
+            chip.setTooltip(new Tooltip("Próxima na fila. Clique: abrir pra todos. Botão direito: mais opções."));
+            chip.setOnMouseClicked(e -> {
+                if (e.getButton() == javafx.scene.input.MouseButton.SECONDARY) {
+                    javafx.scene.control.ContextMenu m = new javafx.scene.control.ContextMenu();
+                    javafx.scene.control.MenuItem open = new javafx.scene.control.MenuItem("Abrir pra todos");
+                    open.setOnAction(a -> { onOpenMapFromMesa(name); refreshSceneStrip(); });
+                    javafx.scene.control.MenuItem prep = new javafx.scene.control.MenuItem("Abrir escondida (preparar)");
+                    prep.setOnAction(a -> { onOpenMapHidden(name); refreshSceneStrip(); });
+                    javafx.scene.control.MenuItem drop = new javafx.scene.control.MenuItem("Tirar da fila");
+                    drop.setOnAction(a -> {
+                        List<String> q = sceneQueueStore.load();
+                        q.remove(name);
+                        sceneQueueStore.save(q);
+                        refreshSceneStrip();
+                    });
+                    m.getItems().addAll(open, prep, drop);
+                    m.show(chip, e.getScreenX(), e.getScreenY());
+                } else {
+                    onOpenMapFromMesa(name);
+                    refreshSceneStrip();
+                }
+            });
+            sceneStrip.getChildren().add(chip);
+        }
+        int rest = queue.size() - (at + 1) - upcoming.size();
+        if (rest > 0) {
+            Label more = new Label("+" + rest);
+            more.getStyleClass().add("scene-more");
+            sceneStrip.getChildren().add(more);
+        }
+        if (!upcoming.isEmpty()) {
+            Button next = new Button(null, com.vttcaseiro.view.Icons.icon("next", 13));
+            next.getStyleClass().addAll("button-flat", "scene-next");
+            next.setTooltip(new Tooltip("Próxima cena: abre pra todos a seguinte da fila"));
+            next.setOnAction(e -> {
+                java.util.Optional<String> n = com.vttcaseiro.service.SceneQueue.next(sceneQueueStore.load(), currentMapName);
+                n.ifPresent(this::onOpenMapFromMesa);
+                refreshSceneStrip();
+            });
+            sceneStrip.getChildren().add(next);
+        }
+        Button add = new Button(null, com.vttcaseiro.view.Icons.icon("add", 13));
+        add.getStyleClass().addAll("button-flat", "scene-next");
+        add.setTooltip(new Tooltip(queue.isEmpty() ? "Montar a fila de cenas da sessão (Mundo > Cenas)"
+                : "Pôr mais cenas na fila (Mundo > Cenas)"));
+        add.setOnAction(e -> openPanel("Mapa"));
+        sceneStrip.getChildren().add(add);
+    }
+
+    /** Bolinhas dos conectados, cada um com a sua cor (a mesma sempre pro mesmo nome). */
+    void refreshPlayersStrip() {
+        playersStrip.getChildren().clear();
+        List<String> online = new ArrayList<>(networkService.getOnlinePlayers());
+        boolean show = networkService.isConnected() && !online.isEmpty();
+        playersStrip.setVisible(show);
+        playersStrip.setManaged(show);
+        if (!show) return;
+        for (String who : online) {
+            boolean gm = who.endsWith("(mestre)");
+            String name = who.replaceAll("\\s*\\(mestre\\)$", "").trim();
+            StackPane dot = new StackPane();
+            dot.getStyleClass().add("player-dot");
+            dot.setStyle("-fx-background-color: " + playerColor(name) + ";");
+            Label initial = new Label(name.isEmpty() ? "?" : name.substring(0, 1).toUpperCase());
+            initial.getStyleClass().add("player-dot-initial");
+            dot.getChildren().add(initial);
+            if (gm) dot.getStyleClass().add("player-dot-gm");
+            Tooltip.install(dot, new Tooltip(who));
+            playersStrip.getChildren().add(dot);
+        }
+    }
+
+    static final String[] PLAYER_COLORS = {"#7F77DD", "#1D9E75", "#D85A30", "#D4537E", "#378ADD", "#639922", "#BA7517",
+            "#E24B4A", "#5DCAA5", "#AFA9EC"};
+
+    static String playerColor(String name) {
+        return PLAYER_COLORS[Math.floorMod(name == null ? 0 : name.toLowerCase().hashCode(), PLAYER_COLORS.length)];
+    }
+
     // ---------------- fila de turnos (cartoes sobre o mapa)
 
     private final HBox turnQueue = new HBox(6);

@@ -99,6 +99,7 @@ class LayoutUiTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     void railOpensAndClosesPanels(@TempDir Path dir) throws Exception {
         Assumptions.assumeTrue(fxReady, "sem tela");
         Path mesa = Files.createDirectories(dir.resolve("Campanha"));
@@ -164,6 +165,18 @@ class LayoutUiTest {
                 com.vttcaseiro.model.TokenModel normal = new com.vttcaseiro.model.TokenModel("Lyra", null);
                 add.invoke(main, normal);
                 assertFalse(normal.isHiddenFromPlayers(), "jogando: aparece normal");
+
+                // fila de cenas na barra de cima: a atual e as proximas da fila
+                com.vttcaseiro.library.JsonListStore<String> q = (com.vttcaseiro.library.JsonListStore<String>) field(main, "sceneQueueStore");
+                q.save(new ArrayList<>(List.of("Arena", "Mapa da cidade")));
+                Method strip = Main.class.getDeclaredMethod("refreshSceneStrip");
+                strip.setAccessible(true);
+                strip.invoke(main);
+                HBox scenes = (HBox) field(main, "sceneStrip");
+                List<String> chips = scenes.getChildren().stream().filter(n -> n instanceof Label)
+                        .map(n -> ((Label) n).getText()).toList();
+                assertEquals(List.of("Novo mapa", "Arena", "Mapa da cidade"), chips, "atual + fila na barra");
+                assertEquals(Main.playerColor("Ana"), Main.playerColor("ana"), "mesma cor sempre pro mesmo nome");
 
                 // fila de turnos: aparece com o combate, o da vez primeiro e maior
                 HBox queue = (HBox) field(main, "turnQueue");

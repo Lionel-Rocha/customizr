@@ -49,6 +49,10 @@ de cima (`vtt-caseiro-classes`), que so chama o de `vtt-client`.
 
 ### A tela
 
+- **Barra de cima** (mestre): a **fila de cenas da sessao**: a cena atual (olho aberto = os jogadores veem; fechado =
+  escondida) e as proximas da fila. Clicar numa abre pra todos; botao direito: abrir escondida ou tirar da fila;
+  "▶" passa pra proxima e "+" leva pra Mundo > Cenas pra montar a fila. Online, as **bolinhas coloridas** mostram
+  quem esta conectado (borda dourada = mestre).
 - **Mapa** no centro, com quase a tela toda.
 - **Ferramentas do mapa** numa faixa na borda esquerda do mapa (tokens, medir, desenho, pins, objetos, neblina,
   paredes; desfazer e ver tudo). O nome de cada uma aparece ao passar o mouse.
