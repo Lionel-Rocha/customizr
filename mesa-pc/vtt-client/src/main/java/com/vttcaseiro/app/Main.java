@@ -267,8 +267,6 @@ public class Main extends Application {
     private String openPanelName;
     private double sidePanelDivider = 0.72;
     private VBox chatColumn;
-    /** "Escondida" ao lado dos botoes rapidos de dado do chat. */
-    private CheckBox hiddenQuickRolls;
     /** Janelas de ficha abertas agora, por id da ficha -- abrir de novo so
      * traz a janela pra frente, e mudancas de fora (dano no token, ficha
      * vinda da rede) atualizam a janela certa. */
@@ -973,9 +971,9 @@ public class Main extends Application {
             case DISADVANTAGE -> "disadvantage";
             case NORMAL -> "normal";
         };
-        if (networkService.isConnected()) {
+        if (rollsOverNetwork()) {
             expectRoll(title, after);
-            networkService.sendRoll(title, d20Expression(finalMod), mode, finalMod, hidden);
+            sendModeRoll(title, d20Expression(finalMod), mode, finalMod, hidden);
             return;
         }
         RollResult result = switch (adj.mode()) {
@@ -4599,12 +4597,18 @@ public class Main extends Application {
         Button disButton = new Button("Desvantagem");
         disButton.getStyleClass().add("chip");
         disButton.setOnAction(e -> onRollDisadvantage());
-        hiddenQuickRolls = new CheckBox("Escondida");
-        hiddenQuickRolls.setTooltip(new Tooltip("Rolagens daqui e do /r ficam só pra você e o mestre."));
+        // um seletor so: com que nome falo e quem ve as minhas rolagens
+        chatModeButton = new javafx.scene.control.MenuButton();
+        chatModeButton.getStyleClass().addAll("chip", "chat-mode");
+        chatModeButton.setTooltip(new Tooltip("Falar como (você, seu personagem ou um PdM) e quem vê as suas rolagens "
+                + "(vale pra todas: chat, ficha, ataques)"));
+        chatModeButton.setOnShowing(e -> fillChatModeMenu());
+        fillChatModeMenu();
+        refreshChatModeButton();
         // FlowPane quebra linha quando o painel do chat e estreito, em vez de
         // espremer os botoes ate virarem "...".
         javafx.scene.layout.FlowPane quickRow = new javafx.scene.layout.FlowPane(6, 4,
-                advButton, disButton, hiddenQuickRolls);
+                advButton, disButton, chatModeButton);
         quickRow.setAlignment(Pos.CENTER_LEFT);
         for (javafx.scene.Node n : quickRow.getChildren()) {
             if (n instanceof javafx.scene.control.Control c) c.setMinWidth(Region.USE_PREF_SIZE);
@@ -6890,9 +6894,9 @@ public class Main extends Application {
 
     private void rollLabeled(String label, String expression, boolean hidden,
                              java.util.function.Consumer<RollResult> after) {
-        if (networkService.isConnected()) {
+        if (rollsOverNetwork()) {
             expectRoll(label, after);
-            networkService.sendRoll(label, expression, "normal", 0, hidden);
+            sendModeRoll(label, expression, "normal", 0, hidden);
             return;
         }
         try {
@@ -6935,6 +6939,10 @@ public class Main extends Application {
     }
 
     private void addLocalRoll(String label, RollResult result, boolean hidden) {
+        if (networkService.isConnected() && "eu".equals(rollMode)) {
+            label = (label == null || label.isBlank() ? "" : label + " ") + "(só você)";
+        }
+        hidden = hidden || !"publica".equals(rollMode);
         animateDice(result.detail());
         String text = (label == null || label.isBlank() ? "" : label + ": ") + result.detail();
         logEntries.add(hidden
@@ -7883,8 +7891,8 @@ public class Main extends Application {
                             com.vttcaseiro.dice.InlineRolls.expand(cmd.text())));
                 }
             }
-            case TEXT, EMOTE -> announce(cmd.text());
-            case TABLE -> rollRandomTable(cmd.text(), hiddenQuickRolls != null && hiddenQuickRolls.isSelected());
+            case TEXT, EMOTE -> say(cmd.text());
+            case TABLE -> rollRandomTable(cmd.text(), gmOnlyMode());
         }
     }
 
@@ -8172,25 +8180,130 @@ public class Main extends Application {
     }
 
     private void onRollDice(String expression) {
-        rollLabeled(null, expression, hiddenQuickRolls != null && hiddenQuickRolls.isSelected());
+        rollLabeled(null, expression, false);
     }
 
     private void onRollAdvantage() {
-        boolean hidden = hiddenQuickRolls != null && hiddenQuickRolls.isSelected();
-        if (networkService.isConnected()) {
-            networkService.sendRoll("Vantagem", "1d20", "advantage", 0, hidden);
+        if (rollsOverNetwork()) {
+            sendModeRoll("Vantagem", "1d20", "advantage", 0, false);
             return;
         }
-        addLocalRoll("Vantagem", DiceRoller.rollWithAdvantage(0), hidden);
+        addLocalRoll("Vantagem", DiceRoller.rollWithAdvantage(0), false);
     }
 
     private void onRollDisadvantage() {
-        boolean hidden = hiddenQuickRolls != null && hiddenQuickRolls.isSelected();
-        if (networkService.isConnected()) {
-            networkService.sendRoll("Desvantagem", "1d20", "disadvantage", 0, hidden);
+        if (rollsOverNetwork()) {
+            sendModeRoll("Desvantagem", "1d20", "disadvantage", 0, false);
             return;
         }
-        addLocalRoll("Desvantagem", DiceRoller.rollWithDisadvantage(0), hidden);
+        addLocalRoll("Desvantagem", DiceRoller.rollWithDisadvantage(0), false);
+    }
+
+    // ---------------- modo de rolagem e "falar como" (seletor do chat)
+
+    /** "publica", "mestre" (so voce e o mestre), "eu" (so voce: rola aqui), "cegas" (so o mestre ve). */
+    private String rollMode = "publica";
+    /** Nome com que as mensagens digitadas saem (null = o seu). */
+    private String speakAs;
+    private javafx.scene.control.MenuButton chatModeButton;
+
+    /** Rola pela rede? (offline ou "so eu": rola aqui mesmo) */
+    private boolean rollsOverNetwork() {
+        return networkService.isConnected() && !"eu".equals(rollMode);
+    }
+
+    private void sendModeRoll(String label, String expression, String advMode, int modifier, boolean hidden) {
+        networkService.sendRoll(label, expression, advMode, modifier, hidden || "mestre".equals(rollMode),
+                "cegas".equals(rollMode));
+    }
+
+    /** Rolagem que so o mestre (e quem rolou) deve ver, pelo modo escolhido. */
+    private boolean gmOnlyMode() {
+        return "mestre".equals(rollMode) || "cegas".equals(rollMode) || "eu".equals(rollMode);
+    }
+
+    static String rollModeLabel(String mode) {
+        return switch (mode) {
+            case "mestre" -> "só pro mestre";
+            case "eu" -> "só eu";
+            case "cegas" -> "às cegas";
+            default -> "pública";
+        };
+    }
+
+    /** Texto do botao: "Lyra · pública". */
+    private void refreshChatModeButton() {
+        if (chatModeButton == null) return;
+        String who = speakAs == null ? "Você" : speakAs;
+        chatModeButton.setText(who + " · " + rollModeLabel(rollMode));
+        chatModeButton.getStyleClass().remove("chat-mode-secret");
+        if (!"publica".equals(rollMode)) chatModeButton.getStyleClass().add("chat-mode-secret");
+    }
+
+    /** Monta o menu na hora de abrir (os personagens e PdMs mudam durante o jogo). */
+    private void fillChatModeMenu() {
+        chatModeButton.getItems().clear();
+        javafx.scene.control.ToggleGroup who = new javafx.scene.control.ToggleGroup();
+        javafx.scene.control.MenuItem whoTitle = new javafx.scene.control.MenuItem("Falar como");
+        whoTitle.setDisable(true);
+        chatModeButton.getItems().add(whoTitle);
+        List<String> names = new ArrayList<>();
+        names.add(null);
+        boolean gm = !networkService.isConnected() || networkService.isGm();
+        for (String n : characterService.list()) {
+            try {
+                CharacterSheet s = characterService.open(n);
+                if (gm || java.util.Objects.equals(s.getOwnerPlayerId(), networkService.getPlayerId())) names.add(s.getName());
+            } catch (IOException | RuntimeException ignored) {
+                // ficha ilegivel
+            }
+        }
+        if (gm) {
+            for (TokenModel t : sceneService.getScene().getTokens()) {
+                if (t.getMobSheetId() != null && !names.contains(t.getName())) names.add(t.getName());
+            }
+        }
+        for (String n : names) {
+            javafx.scene.control.RadioMenuItem it = new javafx.scene.control.RadioMenuItem(
+                    n == null ? "Você (" + networkService.getPlayerName() + ")" : n);
+            it.setToggleGroup(who);
+            it.setSelected(java.util.Objects.equals(n, speakAs));
+            it.setOnAction(e -> {
+                speakAs = n;
+                refreshChatModeButton();
+            });
+            chatModeButton.getItems().add(it);
+        }
+        chatModeButton.getItems().add(new javafx.scene.control.SeparatorMenuItem());
+        javafx.scene.control.MenuItem rollTitle = new javafx.scene.control.MenuItem("Rolagens");
+        rollTitle.setDisable(true);
+        chatModeButton.getItems().add(rollTitle);
+        javafx.scene.control.ToggleGroup modes = new javafx.scene.control.ToggleGroup();
+        String[][] opts = {{"publica", "Pública (todos veem)"}, {"mestre", "Só pro mestre (você e o mestre)"},
+                {"eu", "Só eu (rola aqui, ninguém mais vê)"}, {"cegas", "Às cegas (só o mestre vê o resultado)"}};
+        for (String[] o : opts) {
+            javafx.scene.control.RadioMenuItem it = new javafx.scene.control.RadioMenuItem(o[1]);
+            it.setToggleGroup(modes);
+            it.setSelected(o[0].equals(rollMode));
+            it.setOnAction(e -> {
+                rollMode = o[0];
+                refreshChatModeButton();
+            });
+            chatModeButton.getItems().add(it);
+        }
+    }
+
+    /** Mensagem digitada no chat: sai com o nome escolhido em "falar como". */
+    private void say(String text) {
+        if (speakAs == null) {
+            announce(text);
+            return;
+        }
+        if (networkService.isConnected()) {
+            networkService.sendChatAs(speakAs, text);
+        } else {
+            logEntries.add(LogEntry.chat(speakAs, com.vttcaseiro.dice.InlineRolls.expand(text)));
+        }
     }
 
     /** Codifica um arquivo de imagem pra viajar pela rede dentro da

@@ -626,6 +626,19 @@ public class GameClient {
     }
 
     /** Igual sendLabeledRoll, com a opcao de rolar escondido. */
+    public void sendRoll(String player, String label, String expression, String mode, int modifier, boolean hidden,
+                         boolean blind) {
+        NetMessage m = NetMessage.roll(player, expression);
+        m.label = label;
+        if (mode != null && !"normal".equals(mode)) {
+            m.rollMode = mode;
+            m.modifier = modifier;
+        }
+        if (hidden || blind) m.hidden = true;
+        if (blind) m.blind = true;
+        send(m);
+    }
+
     public void sendRoll(String player, String label, String expression, String mode, int modifier, boolean hidden) {
         NetMessage m = NetMessage.roll(player, expression);
         m.label = label;
@@ -655,6 +668,13 @@ public class GameClient {
 
     public void sendChat(String player, String text) {
         send(NetMessage.chat(player, text));
+    }
+
+    /** Chat falando como um personagem/PdM (o servidor so aceita se puder). */
+    public void sendChatAs(String player, String speakAs, String text) {
+        NetMessage m = NetMessage.chat(player, text);
+        m.speakAs = speakAs;
+        send(m);
     }
 
     /** Manda os bytes (se ainda nao foram nesta conexao) e depois a mensagem com o id. */

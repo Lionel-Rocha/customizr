@@ -65,6 +65,11 @@ de cima (`vtt-caseiro-classes`), que so chama o de `vtt-client`.
 - **Anel do token**: botao direito no token abre botoes em volta dele: dano, cura, condicoes, mirar, ficha,
   iniciativa e (mestre) esconder/revelar. "..." abre o menu completo. Com varios tokens selecionados, o botao
   direito abre direto o menu com as acoes em grupo.
+- **Chat: "Você · pública"** (ao lado de Vantagem/Desvantagem) junta duas escolhas:
+  - **Falar como**: voce, um personagem seu ou (mestre) qualquer PdM/monstro do mapa. A fala do jogador sai como
+    "Lyra (Ana)"; o servidor so aceita personagem que e mesmo do jogador.
+  - **Rolagens**: publica, so pro mestre, so eu (rola aqui, ninguem mais ve) ou as cegas (so o mestre ve o
+    resultado; quem rolou recebe o aviso). Vale pra todas as rolagens: chat, ficha, ataques.
 - **Barra da direita**, uma so, com abas: **Mesa** (chat e rolagens), **Combate**, **Personagens** (fichas e
   grupo), **Mundo** (cenas e diario), **Som** e **Rede**. Clicar de novo na aba aberta (ou em "»") recolhe a
   barra numa faixa de icones; o mapa fica com a tela toda.

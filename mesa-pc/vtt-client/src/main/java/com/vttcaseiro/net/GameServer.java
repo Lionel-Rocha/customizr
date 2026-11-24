@@ -312,7 +312,15 @@ public class GameServer {
                         NetMessage out = NetMessage.rollResult(msg.player, result.detail(), result.total());
                         out.label = msg.label;
                         out.naturalD20 = result.naturalD20();
-                        if (Boolean.TRUE.equals(msg.hidden)) {
+                        if (Boolean.TRUE.equals(msg.blind)) {
+                            // As cegas: so os mestres veem o resultado; quem rolou fica sabendo que rolou.
+                            out.hidden = true;
+                            for (ClientHandler c : clients) if (c.isGm()) c.send(out);
+                            if (!from.isGm()) {
+                                from.send(NetMessage.chat("servidor", "Você rolou às cegas" + (msg.label == null ? "" : " ("
+                                        + msg.label + ")") + ": só o mestre vê o resultado."));
+                            }
+                        } else if (Boolean.TRUE.equals(msg.hidden)) {
                             // Rolagem escondida: quem rolou + mestres.
                             out.hidden = true;
                             sendToGmsAnd(out, from);
@@ -459,6 +467,15 @@ public class GameServer {
                     }
                     msg.assetBase64 = null;
                     if (msg.text == null) msg.text = "";
+                    // "falar como": mestre fala como qualquer PdM; jogador so como personagem dele, e todo mundo ve
+                    // quem esta falando ("Lyra (Ana)"). Nome que nao e dele: sai com o nome da conta.
+                    if (msg.speakAs != null && !msg.speakAs.isBlank()) {
+                        String as = msg.speakAs.strip();
+                        if (as.length() > 40) as = as.substring(0, 40);
+                        if (from.isGm()) msg.player = as;
+                        else if (ownsCharacterNamed(from, as)) msg.player = as + " (" + from.getSession().playerName() + ")";
+                    }
+                    msg.speakAs = null;
                     // [[1d20+5]] no texto: quem rola e o servidor (e ninguem forja o resultado).
                     msg.text = com.vttcaseiro.dice.InlineRolls.expand(msg.text);
                     if (msg.whisperTo == null || msg.whisperTo.isBlank()) {
@@ -869,6 +886,19 @@ public class GameServer {
     /** Este cliente esta atras da cortina (cena escondida e ele nao e o mestre)? */
     private boolean curtain(ClientHandler c) {
         return scene != null && scene.isHiddenFromPlayers() && !c.isGm();
+    }
+
+    /** O jogador tem uma ficha com esse nome? (pra falar como ela no chat) */
+    private boolean ownsCharacterNamed(ClientHandler c, String name) {
+        if (c.getSession() == null) return false;
+        String me = c.getSession().playerId();
+        for (CharacterSheet s : sharedCharacters.values()) {
+            if (s.getName() == null || !s.getName().strip().equalsIgnoreCase(name)) continue;
+            String owner = characterOwners.get(s.getId());
+            if (owner == null) owner = s.getOwnerPlayerId();
+            if (me.equals(owner)) return true;
+        }
+        return false;
     }
 
     /** Ficha escondida: so o mestre e o dono recebem. */

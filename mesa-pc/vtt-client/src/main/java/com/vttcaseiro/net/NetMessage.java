@@ -116,6 +116,10 @@ public class NetMessage {
     //  hidden    = rolagem escondida: so quem rolou e os mestres veem.
     public String whisperTo;
     public Boolean hidden;
+    /** Chat "falando como" (personagem do jogador, ou qualquer PdM pro mestre). O servidor confere. */
+    public String speakAs;
+    /** Rolagem as cegas: o resultado vai so pros mestres (quem rolou recebe so o aviso). */
+    public Boolean blind;
 
     // encounter_sync -- rodada/turno/efeitos com duracao (so o mestre manda).
     public com.vttcaseiro.model.Encounter encounter;

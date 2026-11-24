@@ -611,6 +611,18 @@ public class NetworkService {
         if (client != null) client.sendRoll(playerName, label, expression, mode, modifier, hidden);
     }
 
+    /** Igual, com "as cegas" (so os mestres veem o resultado). */
+    public void sendRoll(String label, String expression, String mode, int modifier, boolean hidden, boolean blind) {
+        if (client != null) client.sendRoll(playerName, label, expression, mode, modifier, hidden, blind);
+    }
+
+    /** Mensagem do chat com outro nome ("falar como" um personagem ou PdM). */
+    public void sendChatAs(String name, String text) {
+        if (client == null) return;
+        if (name == null || name.isBlank()) client.sendChat(playerName, text);
+        else client.sendChatAs(playerName, name, text);
+    }
+
     public void sendEncounter(com.vttcaseiro.model.Encounter encounter) {
         if (client != null) client.sendEncounter(encounter);
     }

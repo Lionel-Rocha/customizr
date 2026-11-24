@@ -1453,3 +1453,13 @@
     -fx-font-size: 11px;
     -fx-font-weight: bold;
 }
+
+/* ---- Chat: falar como + modo de rolagem ---- */
+.chat-mode {
+    -fx-padding: 2 8 2 8;
+}
+.chat-mode-secret {
+    -fx-background-color: -c-accent-deep;
+    -fx-text-fill: -c-accent-text;
+    -fx-border-color: -c-accent;
+}
