@@ -9,6 +9,7 @@ import javafx.scene.Parent;
 import javafx.scene.control.Label;
 import javafx.scene.control.SplitPane;
 import javafx.scene.control.ToggleButton;
+import javafx.scene.layout.HBox;
 import javafx.stage.Stage;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
@@ -163,6 +164,44 @@ class LayoutUiTest {
                 com.vttcaseiro.model.TokenModel normal = new com.vttcaseiro.model.TokenModel("Lyra", null);
                 add.invoke(main, normal);
                 assertFalse(normal.isHiddenFromPlayers(), "jogando: aparece normal");
+
+                // fila de turnos: aparece com o combate, o da vez primeiro e maior
+                HBox queue = (HBox) field(main, "turnQueue");
+                assertFalse(queue.isVisible(), "sem combate: sem fila");
+                normal.setX(300);
+                normal.setY(210);
+                normal.setMaxHp(20);
+                normal.setCurrentHp(9);
+                com.vttcaseiro.service.TableService table = (com.vttcaseiro.service.TableService) field(main, "table");
+                table.rollInitiativeForAllAndStart();
+                assertTrue(queue.isVisible(), "combate: fila no alto do mapa");
+                List<Node> cards = queue.getChildren().stream()
+                        .filter(n -> n.getStyleClass().contains("turn-card") || n.getStyleClass().contains("turn-card-current")).toList();
+                assertEquals(2, cards.size());
+                assertTrue(cards.get(0).getStyleClass().contains("turn-card-current"), "o da vez vem primeiro");
+                snapStage(stage, "tela-fila.png");
+                table.nextTurn();
+                List<Node> after = queue.getChildren().stream()
+                        .filter(n -> n.getStyleClass().contains("turn-card-current")).toList();
+                assertNotEquals(cards.get(0).getUserData(), after.get(0).getUserData(), "a vez passou");
+
+                // anel de acoes: botao direito no token
+                com.vttcaseiro.view.MapView mv = (com.vttcaseiro.view.MapView) field(main, "mapView");
+                Field tl = com.vttcaseiro.view.MapView.class.getDeclaredField("tokenLayer");
+                tl.setAccessible(true);
+                javafx.scene.layout.Pane layer = (javafx.scene.layout.Pane) tl.get(mv);
+                Node lyraNode = layer.getChildren().stream()
+                        .filter(n -> n instanceof com.vttcaseiro.view.TokenNode tn && tn.getModel() == normal).findFirst().orElseThrow();
+                javafx.geometry.Bounds lb = lyraNode.localToScene(lyraNode.getBoundsInLocal());
+                javafx.event.Event.fireEvent(lyraNode, new javafx.scene.input.ContextMenuEvent(
+                        javafx.scene.input.ContextMenuEvent.CONTEXT_MENU_REQUESTED, 10, 10, lb.getCenterX(), lb.getCenterY(), false, null));
+                assertSame(normal, mv.ringToken(), "anel aberto no token");
+                assertTrue(mv.ringActions().containsAll(List.of("Dano", "Cura", "Condições", "Mirar", "Mais opções")), mv.ringActions().toString());
+                assertTrue(mv.ringActions().contains("Esconder dos jogadores"), "mestre pode esconder pelo anel");
+                snapStage(stage, "tela-anel.png");
+                mv.pressRing("Mirar");
+                assertTrue(mv.isTargeted(normal), "mirou pelo anel");
+                assertNull(mv.ringToken(), "o anel fecha depois da acao");
 
                 List<Label> toggles = all(contents.get("Combate"), Label.class).stream()
                         .filter(l -> l.getStyleClass().contains("hint-toggle")).toList();

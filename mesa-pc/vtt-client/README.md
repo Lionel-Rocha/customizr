@@ -55,6 +55,12 @@ de cima (`vtt-caseiro-classes`), que so chama o de `vtt-client`.
 - **Modos do mestre**, no pe dessa faixa: **Jogar** (conduzir a cena), **Preparar** (o que voce colocar, tokens e
   pins, nasce escondido dos jogadores; objetos ficam editaveis) e **Construir** (paredes, portas, luz, neblina).
   Um aviso no alto do mapa mostra quando voce esta preparando ou construindo.
+- **Fila de turnos**: durante o combate, cartoes no alto do mapa com retrato, iniciativa, PV (quando voce pode ver)
+  e condicoes; o da vez maior. Clicar no cartao mostra o token no mapa; o botao no fim passa a vez (mestre ou
+  dono de quem esta na vez).
+- **Anel do token**: botao direito no token abre botoes em volta dele: dano, cura, condicoes, mirar, ficha,
+  iniciativa e (mestre) esconder/revelar. "..." abre o menu completo. Com varios tokens selecionados, o botao
+  direito abre direto o menu com as acoes em grupo.
 - **Barra da direita**, uma so, com abas: **Mesa** (chat e rolagens), **Combate**, **Personagens** (fichas e
   grupo), **Mundo** (cenas e diario), **Som** e **Rede**. Clicar de novo na aba aberta (ou em "»") recolhe a
   barra numa faixa de icones; o mapa fica com a tela toda.

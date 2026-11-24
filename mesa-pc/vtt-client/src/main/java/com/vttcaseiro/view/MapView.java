@@ -202,6 +202,18 @@ public class MapView extends Pane {
 
         setOnScroll(this::onScroll);
         // Alt+clique em qualquer lugar (ate em cima de token) = ping.
+        getChildren().add(ringLayer);
+        ringLayer.setManaged(false);
+        addEventFilter(MouseEvent.MOUSE_PRESSED, e -> {
+            if (ringToken != null && !(e.getTarget() instanceof javafx.scene.Node t && isInRing(t))) closeActionRing();
+        });
+        addEventFilter(ScrollEvent.SCROLL, e -> closeActionRing());
+        addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, e -> {
+            if (e.getCode() == javafx.scene.input.KeyCode.ESCAPE && ringToken != null) {
+                closeActionRing();
+                e.consume();
+            }
+        });
         addEventFilter(MouseEvent.MOUSE_PRESSED, e -> {
             if (e.isAltDown() && e.getButton() == MouseButton.PRIMARY) {
                 Point2D p = content.sceneToLocal(e.getSceneX(), e.getSceneY());
@@ -1285,6 +1297,11 @@ public class MapView extends Pane {
 
     private final Group auraLayer = new Group();
 
+    private boolean isInRing(javafx.scene.Node n) {
+        for (javafx.scene.Node p = n; p != null; p = p.getParent()) if (p == ringLayer) return true;
+        return false;
+    }
+
     /** Pins ficam do mesmo tamanho na tela com qualquer zoom (senao somem no mapa-mundo). */
     private void updatePinScale() {
         double s = 1.0 / zoom;
@@ -1811,6 +1828,116 @@ public class MapView extends Pane {
         return out;
     }
 
+    // ------------------------------------------------------------------
+    // Anel de acoes em volta do token (botao direito)
+    // ------------------------------------------------------------------
+
+    private final Group ringLayer = new Group();
+    private TokenModel ringToken;
+
+    /** O anel aberto agora (pros testes): null se nenhum. */
+    public TokenModel ringToken() {
+        return ringToken;
+    }
+
+    /** Botoes do anel aberto, em ordem (pros testes). */
+    public java.util.List<String> ringActions() {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        for (javafx.scene.Node n : ringLayer.getChildren()) {
+            if (n.getUserData() instanceof String s) out.add(s);
+        }
+        return out;
+    }
+
+    /** Aperta um botao do anel pelo nome (pros testes). */
+    public void pressRing(String action) {
+        for (javafx.scene.Node n : new java.util.ArrayList<>(ringLayer.getChildren())) {
+            if (action.equals(n.getUserData()) && n instanceof javafx.scene.control.Button b) b.fire();
+        }
+    }
+
+    public void closeActionRing() {
+        ringLayer.getChildren().clear();
+        ringToken = null;
+    }
+
+    /**
+     * Botoes redondos em volta do token: o que mais se usa na mesa a um clique (dano, cura, condicoes, mirar,
+     * ficha, esconder). "..." abre o menu completo de antes.
+     */
+    void showActionRing(TokenModel token, javafx.scene.Node node, boolean canControl) {
+        closeActionRing();
+        if (tokenActions == null) return;
+        ringToken = token;
+        java.util.List<Object[]> items = new java.util.ArrayList<>();
+        if (canControl) {
+            items.add(new Object[]{"damage", "Dano", (Runnable) () -> askAmount(token, true)});
+            items.add(new Object[]{"heal", "Cura", (Runnable) () -> askAmount(token, false)});
+            items.add(new Object[]{"spark", "Condições", (Runnable) () -> new ConditionsPickerView(token,
+                    selected -> tokenActions.setConditions(token, selected)).show()});
+        }
+        items.add(new Object[]{"target", isTargeted(token) ? "Tirar a mira" : "Mirar", (Runnable) () -> toggleTarget(token)});
+        if (token.getCharacterSheetId() != null || (token.getMobSheetId() != null && tokenActions.isGm())) {
+            items.add(new Object[]{"sheet", "Ficha", (Runnable) () -> tokenActions.openSheet(token)});
+        }
+        if (canControl) {
+            items.add(new Object[]{"combat", "Iniciativa", (Runnable) () -> tokenActions.rollInitiative(token)});
+        }
+        if (tokenActions.isGm()) {
+            boolean hidden = token.isHiddenFromPlayers();
+            items.add(new Object[]{hidden ? "eye" : "hidden", hidden ? "Revelar aos jogadores" : "Esconder dos jogadores",
+                    (Runnable) () -> tokenActions.setHidden(token, !hidden)});
+        }
+        javafx.geometry.Bounds b = node.localToScene(node.getBoundsInLocal());
+        javafx.geometry.Point2D c = sceneToLocal((b.getMinX() + b.getMaxX()) / 2, (b.getMinY() + b.getMaxY()) / 2);
+        double radius = Math.max(66, Math.max(b.getWidth(), b.getHeight()) / 2 + 40);
+        items.add(new Object[]{"more", "Mais opções", null});
+        int n = items.size();
+        for (int i = 0; i < n; i++) {
+            Object[] it = items.get(i);
+            double ang = Math.toRadians(-90 + 360.0 * i / n);
+            javafx.scene.control.Button btn = new javafx.scene.control.Button(null, Icons.icon((String) it[0], 16));
+            btn.getStyleClass().add("ring-button");
+            btn.setUserData(it[1]);
+            btn.setTooltip(new javafx.scene.control.Tooltip((String) it[1]));
+            Runnable action = (Runnable) it[2];
+            double bx = c.getX() + radius * Math.cos(ang) - 17;
+            double by = c.getY() + radius * Math.sin(ang) - 17;
+            btn.setLayoutX(bx);
+            btn.setLayoutY(by);
+            btn.setOnAction(ev -> {
+                closeActionRing();
+                if (action != null) {
+                    action.run();
+                } else {
+                    javafx.scene.control.ContextMenu menu = buildTokenMenu(token, canControl);
+                    javafx.geometry.Point2D s = localToScreen(c.getX(), c.getY());
+                    if (s != null) menu.show(this, s.getX(), s.getY());
+                }
+            });
+            ringLayer.getChildren().add(btn);
+        }
+        javafx.scene.control.Label name = new javafx.scene.control.Label(token.getName());
+        name.getStyleClass().add("ring-name");
+        name.setMouseTransparent(true);
+        name.applyCss();
+        name.setLayoutX(c.getX() - name.prefWidth(-1) / 2);
+        name.setLayoutY(c.getY() + radius + 20);
+        ringLayer.getChildren().add(name);
+        ringLayer.toFront();
+    }
+
+    /** Centraliza a vista no token (fila de turnos: clicar no cartao). */
+    public void centerOnToken(TokenModel token) {
+        double cell = Math.max(10, scene.getGrid().getCellSize());
+        double x = token.getX() + cell * token.getWidthCells() / 2.0;
+        double y = token.getY() + cell * token.getHeightCells() / 2.0;
+        javafx.geometry.Point2D p = content.localToParent(x, y);
+        content.setTranslateX(content.getTranslateX() + getWidth() / 2 - p.getX());
+        content.setTranslateY(content.getTranslateY() + getHeight() / 2 - p.getY());
+        selectTokens(java.util.List.of(token));
+    }
+
     public boolean isTargeted(TokenModel token) {
         return token != null && targetIds.contains(token.getId());
     }
@@ -1850,6 +1977,7 @@ public class MapView extends Pane {
 
     /** Reconstroi a camada de tokens do zero a partir de scene.getTokens(). */
     public void rebuildTokens() {
+        closeActionRing(); // o token pode ter mudado de lugar
         tokenLayer.getChildren().clear();
         drawAuras();
         updateEmptyStateVisibility();
@@ -1893,10 +2021,15 @@ public class MapView extends Pane {
                 }
             });
             node.setOnContextMenuRequested(e -> {
-                javafx.scene.control.ContextMenu menu = buildTokenMenu(token, canControl);
                 java.util.List<TokenModel> group = getSelectedTokens();
-                if (group.size() > 1 && group.contains(token)) menu.getItems().add(0, groupMenu(group));
-                menu.show(node, e.getScreenX(), e.getScreenY());
+                if (group.size() > 1 && group.contains(token)) {
+                    // varios selecionados: direto o menu completo (com as acoes em grupo)
+                    javafx.scene.control.ContextMenu menu = buildTokenMenu(token, canControl);
+                    if (group.size() > 1 && group.contains(token)) menu.getItems().add(0, groupMenu(group));
+                    menu.show(node, e.getScreenX(), e.getScreenY());
+                } else {
+                    showActionRing(token, node, canControl);
+                }
                 e.consume();
             });
             tokenLayer.getChildren().add(node);

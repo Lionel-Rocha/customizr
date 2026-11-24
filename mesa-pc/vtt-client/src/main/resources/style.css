@@ -1308,3 +1308,93 @@
     -fx-text-fill: -c-accent-text;
     -fx-font-size: 12px;
 }
+
+/* ---- Fila de turnos (cartoes no alto do mapa) ---- */
+.turn-queue {
+    -fx-background-color: -c-surface;
+    -fx-background-radius: 12;
+    -fx-border-color: -c-border;
+    -fx-border-radius: 12;
+    -fx-padding: 6 8 6 10;
+    -fx-effect: dropshadow(gaussian, #00000088, 12, 0.15, 0, 3);
+}
+.turn-round {
+    -fx-text-fill: -c-muted;
+    -fx-font-size: 11px;
+    -fx-padding: 0 4 0 0;
+}
+.turn-card, .turn-card-current {
+    -fx-background-radius: 9;
+    -fx-padding: 4 8 4 4;
+}
+.turn-card:hover {
+    -fx-background-color: -c-raised;
+}
+.turn-card-current {
+    -fx-background-color: -c-accent-deep;
+    -fx-border-color: -c-accent;
+    -fx-border-radius: 9;
+}
+.turn-face {
+    -fx-fill: -c-raised-2;
+}
+.turn-initial {
+    -fx-text-fill: -c-text;
+    -fx-font-weight: bold;
+}
+.turn-name {
+    -fx-text-fill: -c-text;
+    -fx-font-size: 12px;
+}
+.turn-card-current .turn-name {
+    -fx-text-fill: -c-accent-text;
+    -fx-font-weight: bold;
+    -fx-font-size: 13px;
+}
+.turn-hp {
+    -fx-background-color: -c-bg-deep;
+    -fx-background-radius: 3;
+}
+.turn-hp-ok { -fx-background-color: -c-success; -fx-background-radius: 3; }
+.turn-hp-mid { -fx-background-color: -c-accent; -fx-background-radius: 3; }
+.turn-hp-low { -fx-background-color: -c-danger; -fx-background-radius: 3; }
+.turn-cond {
+    -fx-text-fill: -c-muted;
+    -fx-font-size: 10px;
+}
+.turn-more {
+    -fx-text-fill: -c-muted;
+    -fx-font-size: 12px;
+}
+.turn-next {
+    -fx-padding: 6 10 6 10;
+    -fx-background-radius: 8;
+}
+
+/* ---- Anel de acoes em volta do token ---- */
+.ring-button {
+    -fx-background-color: -c-surface;
+    -fx-background-radius: 17;
+    -fx-border-color: -c-accent;
+    -fx-border-radius: 17;
+    -fx-min-width: 34px;
+    -fx-min-height: 34px;
+    -fx-pref-width: 34px;
+    -fx-pref-height: 34px;
+    -fx-padding: 0;
+    -fx-effect: dropshadow(gaussian, #000000AA, 8, 0.2, 0, 2);
+    -fx-cursor: hand;
+}
+.ring-button:hover {
+    -fx-background-color: -c-accent-deep;
+}
+.ring-button .icon {
+    -fx-fill: -c-accent-text;
+}
+.ring-name {
+    -fx-background-color: -c-surface;
+    -fx-background-radius: 8;
+    -fx-padding: 2 8 2 8;
+    -fx-text-fill: -c-text;
+    -fx-font-size: 12px;
+}

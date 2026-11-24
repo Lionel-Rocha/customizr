@@ -1927,9 +1927,18 @@ public class Main extends Application {
         modeChip.getStyleClass().add("mode-chip");
         modeChip.setMouseTransparent(true);
         stack.getChildren().add(modeChip);
-        StackPane.setAlignment(modeChip, Pos.TOP_CENTER);
-        StackPane.setMargin(modeChip, new Insets(10, 0, 0, 0));
+        StackPane.setAlignment(modeChip, Pos.BOTTOM_CENTER);
+        StackPane.setMargin(modeChip, new Insets(0, 0, 14, 0));
         refreshModeChip();
+        // fila de turnos: cartoes no alto do mapa, so durante o combate
+        turnQueue.getStyleClass().add("turn-queue");
+        turnQueue.setAlignment(Pos.CENTER);
+        turnQueue.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+        turnQueue.setPickOnBounds(false);
+        stack.getChildren().add(turnQueue);
+        StackPane.setAlignment(turnQueue, Pos.TOP_CENTER);
+        StackPane.setMargin(turnQueue, new Insets(10, 70, 0, 70));
+        refreshTurnQueue();
         diceAnimator = new com.vttcaseiro.view.DiceAnimator();
         stack.getChildren().add(diceAnimator);
         StackPane.setAlignment(diceAnimator, Pos.BOTTOM_CENTER);
@@ -6202,7 +6211,138 @@ public class Main extends Application {
 
     /** Ordem = iniciativa atual dos tokens (EncounterService.order); quem esta
      * na vez vem do Encounter da cena (sincronizado pela rede). */
+    // ---------------- fila de turnos (cartoes sobre o mapa)
+
+    private final HBox turnQueue = new HBox(6);
+    /** Quantos cartoes mostrar no maximo (o resto vira "+N"). */
+    static final int TURN_QUEUE_MAX = 10;
+
+    /**
+     * A ordem do combate como fila de cartoes no alto do mapa: retrato, nome, PV (se pode ver) e condicoes; o da
+     * vez maior. Clicar centraliza o token. "Proximo turno" fica no fim (mestre ou dono de quem esta na vez).
+     */
+    void refreshTurnQueue() {
+        if (sceneService == null) return;
+        SceneModel sc = sceneService.getScene();
+        com.vttcaseiro.model.Encounter enc = sc.getEncounter();
+        turnQueue.getChildren().clear();
+        List<TokenModel> order = EncounterService.order(sc).stream().filter(t -> t.getInitiative() != null).toList();
+        boolean show = enc.isActive() && !order.isEmpty();
+        turnQueue.setVisible(show);
+        turnQueue.setManaged(show);
+        if (!show) return;
+        Label round = new Label("Rodada " + enc.getRound());
+        round.getStyleClass().add("turn-round");
+        turnQueue.getChildren().add(round);
+        // comeca em quem esta na vez, e da a volta
+        int cur = 0;
+        for (int i = 0; i < order.size(); i++) if (order.get(i).getId().equals(enc.getCurrentTokenId())) cur = i;
+        int shown = Math.min(order.size(), TURN_QUEUE_MAX);
+        for (int k = 0; k < shown; k++) {
+            TokenModel t = order.get((cur + k) % order.size());
+            turnQueue.getChildren().add(turnCard(t, k == 0));
+        }
+        if (order.size() > shown) {
+            Label more = new Label("+" + (order.size() - shown));
+            more.getStyleClass().add("turn-more");
+            turnQueue.getChildren().add(more);
+        }
+        TokenModel current = order.get(cur);
+        if (networkService.isGm() || table.canControl(current)) {
+            Button next = new Button(null, com.vttcaseiro.view.Icons.icon("next", 16));
+            next.getStyleClass().addAll("button-primary", "turn-next");
+            next.setTooltip(new Tooltip("Próximo turno"));
+            next.setOnAction(e -> table.nextTurn());
+            turnQueue.getChildren().add(next);
+        }
+    }
+
+    private javafx.scene.Node turnCard(TokenModel t, boolean current) {
+        double size = current ? 46 : 34;
+        StackPane face = new StackPane();
+        face.setMinSize(size, size);
+        face.setMaxSize(size, size);
+        javafx.scene.shape.Circle bg = new javafx.scene.shape.Circle(size / 2);
+        bg.getStyleClass().add("turn-face");
+        face.getChildren().add(bg);
+        javafx.scene.image.Image img = turnFaceImage(t);
+        if (img != null) {
+            javafx.scene.image.ImageView iv = new javafx.scene.image.ImageView(img);
+            iv.setFitWidth(size);
+            iv.setFitHeight(size);
+            iv.setClip(new javafx.scene.shape.Circle(size / 2, size / 2, size / 2));
+            face.getChildren().add(iv);
+        } else {
+            String n = t.getName() == null || t.getName().isBlank() ? "?" : t.getName().trim();
+            Label initial = new Label(n.substring(0, 1).toUpperCase());
+            initial.getStyleClass().add("turn-initial");
+            face.getChildren().add(initial);
+        }
+        Label name = new Label(t.getName() + "  " + t.getInitiative());
+        name.getStyleClass().add("turn-name");
+        name.setMaxWidth(current ? 130 : 96);
+        VBox info = new VBox(3, name);
+        if (table.canSeeHp(t) && t.getMaxHp() != null && t.getMaxHp() > 0) {
+            int hp = t.getCurrentHp() == null ? t.getMaxHp() : t.getCurrentHp();
+            double frac = Math.max(0, Math.min(1, hp / (double) t.getMaxHp()));
+            javafx.scene.layout.StackPane bar = new javafx.scene.layout.StackPane();
+            bar.getStyleClass().add("turn-hp");
+            bar.setMinSize(current ? 110 : 80, 5);
+            bar.setMaxSize(current ? 110 : 80, 5);
+            Region fill = new Region();
+            fill.getStyleClass().add(frac > 0.5 ? "turn-hp-ok" : frac > 0.25 ? "turn-hp-mid" : "turn-hp-low");
+            fill.setMaxWidth((current ? 110 : 80) * frac);
+            StackPane.setAlignment(fill, Pos.CENTER_LEFT);
+            bar.getChildren().add(fill);
+            info.getChildren().add(bar);
+        }
+        if (!t.getConditions().isEmpty() || !t.getEffects().isEmpty()) {
+            Label cond = new Label(String.join(", ", conditionNames(t)));
+            cond.getStyleClass().add("turn-cond");
+            cond.setMaxWidth(current ? 130 : 96);
+            info.getChildren().add(cond);
+        }
+        if (t.isHiddenFromPlayers()) face.setOpacity(0.55); // escondido: so o mestre ve, meio apagado
+        HBox card = new HBox(6, face, info);
+        card.setAlignment(Pos.CENTER_LEFT);
+        card.getStyleClass().add(current ? "turn-card-current" : "turn-card");
+        card.setUserData(t.getId());
+        card.setCursor(javafx.scene.Cursor.HAND);
+        Tooltip.install(card, new Tooltip(t.getName() + (current ? " — na vez" : "") + "\nClique pra ver no mapa"));
+        card.setOnMouseClicked(e -> mapView.centerOnToken(t));
+        return card;
+    }
+
+    private List<String> conditionNames(TokenModel t) {
+        List<String> out = new ArrayList<>();
+        for (String c : t.getConditions()) {
+            try {
+                out.add(com.vttcaseiro.model.Condition.valueOf(c).label());
+            } catch (IllegalArgumentException ex) {
+                out.add(c);
+            }
+        }
+        for (String e : t.getEffects()) out.add(com.vttcaseiro.character.EffectModifiers.nameOf(e));
+        return out;
+    }
+
+    private final java.util.Map<String, javafx.scene.image.Image> turnFaces = new java.util.HashMap<>();
+
+    private javafx.scene.image.Image turnFaceImage(TokenModel t) {
+        String id = t.getImageAssetId();
+        if (id == null || imageAssetService == null || !imageAssetService.exists(id)) return null;
+        return turnFaces.computeIfAbsent(id, k -> {
+            try {
+                var l = com.vttcaseiro.view.SafeImage.read(imageAssetService.readBytes(k), 128, 128L * 128L);
+                return l == null ? null : l.image();
+            } catch (IOException ex) {
+                return null;
+            }
+        });
+    }
+
     private void refreshInitiativeList() {
+        refreshTurnQueue();
         if (initiativeListView == null) {
             return; // ainda construindo a aba na primeira chamada
         }
