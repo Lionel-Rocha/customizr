@@ -167,6 +167,7 @@ public class Main extends Application {
     private com.vttcaseiro.library.MacroStore macroStore;
     private com.vttcaseiro.library.HandoutStore handoutStore;
     private com.vttcaseiro.library.JsonListStore<com.vttcaseiro.model.RandomTable> tableStore;
+    private com.vttcaseiro.library.JsonListStore<com.vttcaseiro.model.CardDeck> deckStore;
     private com.vttcaseiro.library.JsonListStore<String> sceneQueueStore;
     private com.vttcaseiro.library.AudioAssetStore audioStore;
     private com.vttcaseiro.library.JsonListStore<com.vttcaseiro.model.SoundEntry> soundIndex;
@@ -309,6 +310,8 @@ public class Main extends Application {
         this.tableStore = new com.vttcaseiro.library.JsonListStore<>(mesa.getRoot(), "tabelas.json",
                 new com.google.gson.reflect.TypeToken<List<com.vttcaseiro.model.RandomTable>>() { }.getType());
         if (!tableStore.exists()) tableStore.save(new java.util.ArrayList<>(com.vttcaseiro.model.RandomTable.samples()));
+        this.deckStore = new com.vttcaseiro.library.JsonListStore<>(mesa.getRoot(), "baralhos.json",
+                new com.google.gson.reflect.TypeToken<List<com.vttcaseiro.model.CardDeck>>() { }.getType());
         try {
             this.audioStore = new com.vttcaseiro.library.AudioAssetStore(mesa.getRoot());
         } catch (IOException ex) {
@@ -589,6 +592,38 @@ public class Main extends Application {
         }
     }
 
+    /** Linhas do chat "Dano aplicado: ..." que ainda dao pra desfazer (pela linha, nao pelo texto). */
+    private final java.util.Map<LogEntry, Runnable> hpUndos = new java.util.IdentityHashMap<>();
+
+    /**
+     * Depois de aplicar dano/cura nos alvos: uma linha no chat (so nesta tela) com o antes e depois de cada token e o
+     * botao "Desfazer" (tambem no Ctrl+Z).
+     */
+    private void registerHpUndo(java.util.Map<TokenModel, Integer[]> before, String what) {
+        List<String> parts = new ArrayList<>();
+        java.util.Map<TokenModel, Integer[]> changed = new java.util.LinkedHashMap<>();
+        before.forEach((t, hp) -> {
+            if (java.util.Objects.equals(hp[0], t.getCurrentHp()) && java.util.Objects.equals(hp[2], t.getTempHp())) return;
+            changed.put(t, hp);
+            parts.add(t.getName() + " " + (hp[0] == null ? "?" : hp[0]) + " → " + (t.getCurrentHp() == null ? "?" : t.getCurrentHp()));
+        });
+        if (changed.isEmpty()) return;
+        LogEntry line = LogEntry.system(what + " aplicado: " + String.join(", ", parts) + " PV.");
+        Runnable[] undoRef = new Runnable[1];
+        undoRef[0] = () -> {
+            if (hpUndos.remove(line) == null) return; // ja desfeito
+            undoOrder.removeIf(u -> u.undo() == undoRef[0]);
+            changed.forEach((t, hp) -> sceneService.getScene().findToken(t.getId())
+                    .ifPresent(live -> table.setHp(live, hp[0], hp[1], hp[2])));
+            logEntries.add(LogEntry.system(what + " desfeito: " + String.join(", ", changed.keySet().stream()
+                    .map(TokenModel::getName).toList()) + " voltou aos PV de antes."));
+            if (chatListView != null) chatListView.refresh();
+        };
+        hpUndos.put(line, undoRef[0]);
+        pushUndo(new UndoAction(what + " nos alvos", undoRef[0]));
+        logEntries.add(line);
+    }
+
     /** Desfazer de cena (parede, desenho): o que fazer pra voltar. undo == null = entrada de token. */
     private record UndoAction(String label, Runnable undo) {
     }
@@ -747,6 +782,11 @@ public class Main extends Application {
 
     /** Menu do token no mapa -> TableService. */
     private final MapView.TokenActions tokenActions = new MapView.TokenActions() {
+        @Override
+        public void viewAs(TokenModel token) {
+            Main.this.viewAs(java.util.Set.of(token.getId()), token.getName());
+        }
+
         @Override
         public void openSheet(TokenModel token) {
             if (token.getCharacterSheetId() == null && token.getMobSheetId() != null) {
@@ -2094,6 +2134,14 @@ public class Main extends Application {
         StackPane.setAlignment(actionBar, Pos.BOTTOM_CENTER);
         StackPane.setMargin(actionBar, new Insets(0, 120, 52, 120));
         mapView.setSelectionListener(this::refreshActionBar);
+        perspectiveBar.getStyleClass().add("perspective-bar");
+        perspectiveBar.setAlignment(Pos.CENTER);
+        perspectiveBar.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+        perspectiveBar.setVisible(false);
+        perspectiveBar.setManaged(false);
+        stack.getChildren().add(perspectiveBar);
+        StackPane.setAlignment(perspectiveBar, Pos.TOP_CENTER);
+        StackPane.setMargin(perspectiveBar, new Insets(10, 0, 0, 0));
         cameraBanner.getStyleClass().add("camera-banner");
         cameraBanner.setMouseTransparent(true);
         cameraBanner.setVisible(false);
@@ -2583,12 +2631,18 @@ public class Main extends Application {
             catButtons[i] = cb;
         }
         tip(catButtons[0], "Criar tokens: imagem do computador, da galeria ou NPC rápido");
-        tip(catButtons[1], "Régua e áreas de efeito (teclas 1 e 2)");
-        tip(catButtons[2], "Lápis, texto e borracha, todos podem (teclas 3, 4 e 5)");
+        refreshToolKeyTips = () -> {
+            java.util.function.Function<String, String> k = a -> Keybindings.label(Keybindings.keyFor(a));
+            tip(catButtons[1], "Régua e áreas de efeito (teclas " + k.apply("tool.1") + " e " + k.apply("tool.2") + ")");
+            tip(catButtons[2], "Lápis, texto e borracha, todos podem (teclas " + k.apply("tool.3") + ", " + k.apply("tool.4")
+                    + " e " + k.apply("tool.5") + ")");
+            tip(catButtons[5], "Neblina de guerra, mestre (teclas " + k.apply("tool.6") + " e " + k.apply("tool.7") + ")");
+            tip(catButtons[6], "Paredes, portas e visão, mestre (teclas " + k.apply("tool.8") + " e " + k.apply("tool.9")
+                    + "). Esc desliga a ferramenta");
+        };
         tip(catButtons[3], "Pins: pontos de informação que podem abrir outro mapa");
         tip(catButtons[4], "Objetos soltos no mapa: móveis, árvores, baús (mestre)");
-        tip(catButtons[5], "Neblina de guerra, mestre (teclas 6 e 7)");
-        tip(catButtons[6], "Paredes, portas e visão, mestre (teclas 8 e 9). Esc ou 0 desliga a ferramenta");
+        refreshToolKeyTips.run();
         // Atalho de teclado (1-9) liga uma ferramenta: abre a categoria dela tambem.
         java.util.Map<ToggleButton, Integer> catOf = new java.util.HashMap<>();
         for (ToggleButton t : List.of(measureBtn, templateBtn)) catOf.put(t, 1);
@@ -3128,7 +3182,15 @@ public class Main extends Application {
         saveItem.setOnAction(e -> onSaveLastCharacter());
         javafx.scene.control.MenuItem templatesItem = new javafx.scene.control.MenuItem("Modelos de ficha (PDF editável)...");
         templatesItem.setOnAction(e -> showTemplateManager());
-        moreChar.getItems().addAll(exportItem, saveItem, templatesItem);
+        javafx.scene.control.MenuItem toVaultItem = new javafx.scene.control.MenuItem("Guardar ficha aberta no meu cofre");
+        toVaultItem.setOnAction(e -> {
+            if (lastOpenedCharacter == null) showError("Abra uma ficha primeiro (clique duplo na lista).");
+            else saveToVault(lastOpenedCharacter);
+        });
+        javafx.scene.control.MenuItem fromVaultItem = new javafx.scene.control.MenuItem("Trazer do meu cofre...");
+        fromVaultItem.setOnAction(e -> onBringFromVault());
+        moreChar.getItems().addAll(exportItem, saveItem, templatesItem, new javafx.scene.control.SeparatorMenuItem(),
+                toVaultItem, fromVaultItem);
         moreChar.setGraphic(com.vttcaseiro.view.Icons.icon("more", 14));
         moreChar.setTooltip(new Tooltip("Exportar, salvar agora, modelos de ficha"));
         importCharButton.setText("Importar ficha (PDF ou JSON)...");
@@ -3999,6 +4061,9 @@ public class Main extends Application {
             themeHint.getStyleClass().add("label-muted");
             themeHint.setWrapText(true);
             settings.getChildren().addAll(sectionLabel("Aparência"), themePicker, themeHint);
+            Button keysButton = new Button("Atalhos do teclado...", com.vttcaseiro.view.Icons.icon("tune", 14));
+            keysButton.setOnAction(e -> showKeybindings());
+            settings.getChildren().addAll(sectionLabel("Teclado"), keysButton);
         // --- Backup da mesa inteira ---
             Button exportButton = new Button("Exportar mesa inteira (backup)...");
             exportButton.setTooltip(new Tooltip("Um .zip com fichas, cenas, monstros, imagens, sons, diário e tabelas."
@@ -4506,7 +4571,7 @@ public class Main extends Application {
         }));
         byRole.run();
         box.getChildren().addAll(sectionHeader("Diário da mesa", gmButtons), journalList, journalViewer, hint,
-                buildTablesSection());
+                buildTablesSection(), buildDecksSection());
         return new Tab("Diário", wrapInScroll(box));
     }
 
@@ -4849,8 +4914,21 @@ public class Main extends Application {
                     return;
                 }
                 int amount = (int) Math.floor(total * multiplier);
+                // PV de antes de quem eu mexo aqui (os outros viram pedido pro mestre): da pra desfazer
+                java.util.Map<TokenModel, Integer[]> before = new java.util.LinkedHashMap<>();
+                for (TokenModel t : targets) {
+                    if (networkService.isGm() || table.canControl(t)) {
+                        before.put(t, new Integer[]{t.getCurrentHp(), t.getMaxHp(), t.getTempHp()});
+                    }
+                }
                 if (heal) table.healTargets(targets, amount, null);
                 else table.damageTargets(targets, amount, damageTypeIn(rollText), null);
+                registerHpUndo(before, heal ? "Cura" : "Dano");
+            }
+
+            @Override
+            public Runnable undoFor(LogEntry entry) {
+                return hpUndos.get(entry);
             }
         }));
         VBox.setVgrow(chatList, Priority.ALWAYS);
@@ -5627,6 +5705,7 @@ public class Main extends Application {
                 logEntries.add(LogEntry.system("Cena \"" + name + "\" convertida pro formato novo de imagens (arquivo menor)."));
             }
             flushSceneAutosave(); // o que mudou na cena de antes vai pro disco antes de trocar
+            if (mapView.hasPerspective()) endViewAs();
             sceneService.replaceScene(loaded);
             networkService.sendSceneOpen(loaded, name);
             currentMapName = name;
@@ -6064,6 +6143,110 @@ public class Main extends Application {
         }
     }
 
+    // ---------------- cofre de personagens (fichas do jogador, fora das mesas)
+
+    private final com.vttcaseiro.library.CharacterVault vault = com.vttcaseiro.library.CharacterVault.mine();
+
+    /** Guarda a ficha no cofre deste computador (com retrato e imagens do modelo). */
+    void saveToVault(CharacterSheet sheet) {
+        try {
+            boolean had = vault.contains(sheet.getId());
+            vault.save(sheet, imageAssetService::readBytes);
+            logEntries.add(LogEntry.system(sheet.getName() + (had ? " atualizada" : " guardada") + " no seu cofre. "
+                    + "Em outra mesa: Fichas > Mais > Trazer do meu cofre."));
+        } catch (IOException | RuntimeException ex) {
+            showError("Não deu pra guardar no cofre: " + ex.getMessage());
+        }
+    }
+
+    /** A ficha que ja esta no cofre acompanha cada salvamento (o personagem evolui junto em todas as mesas). */
+    private void updateVaultCopy(CharacterSheet sheet) {
+        try {
+            if (vault.contains(sheet.getId())) vault.save(sheet, imageAssetService::readBytes);
+        } catch (IOException | RuntimeException ignored) {
+            // cofre e um extra: falhar aqui nao atrapalha salvar na mesa
+        }
+    }
+
+    /** Lista do cofre: trazer uma ficha pra esta mesa (online, como ficha sua) ou apagar do cofre. */
+    void onBringFromVault() {
+        List<com.vttcaseiro.library.CharacterVault.Entry> entries = vault.list();
+        if (entries.isEmpty()) {
+            Alert a = new Alert(Alert.AlertType.INFORMATION, "Seu cofre está vazio.\n\nAbra uma ficha e use Fichas > Mais > "
+                    + "\"Guardar ficha aberta no meu cofre\" (ou botão direito na ficha > Guardar no meu cofre).");
+            a.initOwner(stage);
+            a.setHeaderText(null);
+            a.showAndWait();
+            return;
+        }
+        ListView<com.vttcaseiro.library.CharacterVault.Entry> list = new ListView<>(
+                javafx.collections.FXCollections.observableArrayList(entries));
+        list.setCellFactory(lv -> new ListCell<>() {
+            @Override
+            protected void updateItem(com.vttcaseiro.library.CharacterVault.Entry e, boolean empty) {
+                super.updateItem(e, empty);
+                setText(empty || e == null ? null : e.name() + "  ·  " + e.summary());
+            }
+        });
+        list.setPrefSize(380, 260);
+        list.getSelectionModel().selectFirst();
+        javafx.scene.control.Dialog<javafx.scene.control.ButtonType> d = new javafx.scene.control.Dialog<>();
+        d.initOwner(stage);
+        d.setTitle("Meu cofre de personagens");
+        d.setHeaderText("Suas fichas guardadas neste computador. Trazer copia a ficha pra esta mesa.");
+        javafx.scene.control.ButtonType bring = new javafx.scene.control.ButtonType("Trazer pra esta mesa",
+                javafx.scene.control.ButtonBar.ButtonData.OK_DONE);
+        javafx.scene.control.ButtonType remove = new javafx.scene.control.ButtonType("Apagar do cofre",
+                javafx.scene.control.ButtonBar.ButtonData.LEFT);
+        d.getDialogPane().getButtonTypes().addAll(bring, remove, javafx.scene.control.ButtonType.CANCEL);
+        d.getDialogPane().setContent(list);
+        Optional<javafx.scene.control.ButtonType> r = d.showAndWait();
+        com.vttcaseiro.library.CharacterVault.Entry chosen = list.getSelectionModel().getSelectedItem();
+        if (r.isEmpty() || chosen == null) return;
+        if (r.get() == remove) {
+            Alert c = new Alert(Alert.AlertType.CONFIRMATION, "Apagar \"" + chosen.name() + "\" do seu cofre? As mesas "
+                    + "onde ela já está continuam com a ficha.");
+            c.initOwner(stage);
+            c.setHeaderText(null);
+            if (c.showAndWait().filter(b -> b == javafx.scene.control.ButtonType.OK).isEmpty()) return;
+            try {
+                vault.delete(chosen);
+            } catch (IOException ex) {
+                showError("Não deu pra apagar: " + ex.getMessage());
+            }
+            return;
+        }
+        if (r.get() == bring) bringFromVault(chosen);
+    }
+
+    void bringFromVault(com.vttcaseiro.library.CharacterVault.Entry chosen) {
+        try {
+            java.util.Map<String, byte[]> images = new java.util.LinkedHashMap<>();
+            CharacterSheet sheet = vault.load(chosen, images);
+            for (var img : images.entrySet()) imageAssetService.storeBytes(img.getValue(), img.getKey());
+            if (characterService.findById(sheet.getId()).isPresent()) {
+                Alert c = new Alert(Alert.AlertType.CONFIRMATION, sheet.getName() + " já está nesta mesa. Trocar pela "
+                        + "versão do cofre?");
+                c.initOwner(stage);
+                c.setHeaderText(null);
+                if (c.showAndWait().filter(b -> b == javafx.scene.control.ButtonType.OK).isEmpty()) return;
+            }
+            if (networkService.isConnected() && !networkService.isGm()) {
+                sheet.setOwnerPlayerId(networkService.getPlayerId()); // na mesa dos outros, a ficha e sua
+                if (sheet.getPlayerName() == null || sheet.getPlayerName().isBlank()) sheet.setPlayerName(networkService.getPlayerName());
+            }
+            characterService.save(sheet);
+            if (networkService.isConnected()) networkService.sendCharacterSync(sheet);
+            refreshCharacterList();
+            CharacterSheetView open = openSheetViews.get(sheet.getId());
+            if (open != null) open.reload(sheet);
+            else openSheetView(sheet);
+            logEntries.add(LogEntry.system(sheet.getName() + " chegou do seu cofre."));
+        } catch (IOException | RuntimeException ex) {
+            showError("Não deu pra trazer do cofre: " + ex.getMessage());
+        }
+    }
+
     private void onExportCharacter() {
         if (lastOpenedCharacter == null) {
             showError("Abra uma ficha primeiro (clique duplo na lista).");
@@ -6154,7 +6337,16 @@ public class Main extends Application {
         dup.setOnAction(e -> onDuplicateCharacter(name));
         javafx.scene.control.MenuItem del = new javafx.scene.control.MenuItem("Apagar... (Delete)");
         del.setOnAction(e -> onDeleteCharacter(name));
-        m.getItems().addAll(open, ren, dup);
+        javafx.scene.control.MenuItem vaultItem = new javafx.scene.control.MenuItem("Guardar no meu cofre");
+        vaultItem.setOnAction(e -> {
+            try {
+                CharacterSheet loaded = characterService.open(name);
+                saveToVault(openSheetViews.containsKey(loaded.getId()) ? openSheetViews.get(loaded.getId()).getSheet() : loaded);
+            } catch (IOException | RuntimeException ex) {
+                showError("Não deu pra abrir a ficha: " + ex.getMessage());
+            }
+        });
+        m.getItems().addAll(open, ren, dup, vaultItem);
         if (networkService.isGm() || !networkService.isConnected()) {
             boolean hidden = false;
             try {
@@ -7088,6 +7280,10 @@ public class Main extends Application {
         }
         if (send.getItems().isEmpty()) send.setDisable(true);
         m.getItems().add(send);
+        javafx.scene.control.MenuItem asHim = new javafx.scene.control.MenuItem("Ver o mapa como " + player);
+        asHim.setDisable(away != null && !away.equals(currentMapName));
+        asHim.setOnAction(e -> viewAsPlayer(player));
+        m.getItems().add(asHim);
         if (away != null) {
             javafx.scene.control.MenuItem back = new javafx.scene.control.MenuItem("Trazer " + player + " de volta pro grupo");
             back.setOnAction(e -> networkService.sendSplitScene(player, null, null));
@@ -7099,6 +7295,47 @@ public class Main extends Application {
             m.getItems().addAll(back, look);
         }
         return m;
+    }
+
+    // ---------------- ver como um jogador
+
+    private final HBox perspectiveBar = new HBox(8);
+
+    /** Mestre ve o mapa (visao, escuro, neblina, ocultos) como o jogador ve, pelos tokens dele. */
+    void viewAsPlayer(String player) {
+        String id = networkService.getPlayerIdsByName().get(player);
+        java.util.Set<String> ids = new java.util.HashSet<>();
+        for (TokenModel t : sceneService.getScene().getTokens()) {
+            if (id != null && id.equals(t.getOwnerId())) ids.add(t.getId());
+            else if (id != null && t.getCharacterSheetId() != null && characterService.findById(t.getCharacterSheetId())
+                    .map(s -> id.equals(s.getOwnerPlayerId())).orElse(false)) ids.add(t.getId());
+        }
+        if (ids.isEmpty()) {
+            showError(player + " não tem token nesta cena.");
+            return;
+        }
+        viewAs(ids, player);
+    }
+
+    /** Ver como estes tokens (ex.: "Ver como" no menu do token). */
+    void viewAs(java.util.Set<String> tokenIds, String label) {
+        mapView.setPerspective(tokenIds);
+        perspectiveBar.getChildren().clear();
+        Label l = new Label("Vendo como " + label + (sceneService.getScene().isVisionEnabled() ? ""
+                : " (cena sem visão dinâmica: só some o que está oculto)"), com.vttcaseiro.view.Icons.icon("eye", 13));
+        l.getStyleClass().add("perspective-label");
+        Button back = new Button("Voltar à visão do mestre");
+        back.getStyleClass().add("button-primary");
+        back.setOnAction(e -> endViewAs());
+        perspectiveBar.getChildren().addAll(l, back);
+        perspectiveBar.setVisible(true);
+        perspectiveBar.setManaged(true);
+    }
+
+    void endViewAs() {
+        mapView.setPerspective(null);
+        perspectiveBar.setVisible(false);
+        perspectiveBar.setManaged(false);
     }
 
     /** Grupo dividido: o jogador vai sozinho pra cena {@code map} (a cena aberta segue com o resto do grupo). */
@@ -7861,6 +8098,7 @@ public class Main extends Application {
             lastOpenedCharacter = sheet;
             refreshCharacterList();
             networkService.sendCharacterSync(sheet);
+            updateVaultCopy(sheet);
             table.pushSheetToTokens(sheet);
         }
 
@@ -8358,6 +8596,7 @@ public class Main extends Application {
         @Override
         public void onSceneSync(SceneModel scene) {
             Platform.runLater(() -> {
+                if (mapView.hasPerspective()) endViewAs();
                 sceneService.replaceScene(scene);
                 logEntries.add(LogEntry.system("Mapa sincronizado com o servidor."));
             });
@@ -8785,6 +9024,184 @@ public class Main extends Application {
         if (hidden) tablePort.announceGm(text); else announce(text);
     }
 
+    // ---------------- baralhos de cartas (mestre)
+
+    /** Secao "Baralhos" no Diario: criar (comum, taro, de imagens, de texto), comprar, dar a um jogador, embaralhar. */
+    private javafx.scene.Node buildDecksSection() {
+        ListView<com.vttcaseiro.model.CardDeck> list = new ListView<>();
+        list.setPrefHeight(110);
+        list.setPlaceholder(emptyHint("Nenhum baralho.\nUse + pra criar um (comum, tarô, de imagens ou de texto)."));
+        list.setCellFactory(lv -> new ListCell<>() {
+            @Override
+            protected void updateItem(com.vttcaseiro.model.CardDeck d, boolean empty) {
+                super.updateItem(d, empty);
+                setText(empty || d == null ? null : d.getName() + "  ·  " + d.remaining() + " de " + d.getCards().size() + " no monte");
+            }
+        });
+        Runnable reload = () -> {
+            int sel = list.getSelectionModel().getSelectedIndex();
+            list.getItems().setAll(deckStore.load());
+            if (!list.getItems().isEmpty()) list.getSelectionModel().select(Math.max(0, Math.min(sel, list.getItems().size() - 1)));
+        };
+        reload.run();
+        java.util.function.Consumer<com.vttcaseiro.model.CardDeck> persist = changed -> {
+            List<com.vttcaseiro.model.CardDeck> all = deckStore.load();
+            all.removeIf(d -> d.getId().equals(changed.getId()));
+            all.add(Math.min(Math.max(0, list.getSelectionModel().getSelectedIndex()), all.size()), changed);
+            deckStore.save(all);
+            reload.run();
+        };
+        javafx.scene.control.MenuButton add = new javafx.scene.control.MenuButton("Novo baralho", com.vttcaseiro.view.Icons.icon("add", 14));
+        javafx.scene.control.MenuItem std = new javafx.scene.control.MenuItem("Baralho comum (52 + coringas)");
+        std.setOnAction(e -> addDeck(com.vttcaseiro.model.CardDeck.standard(), reload));
+        javafx.scene.control.MenuItem tarot = new javafx.scene.control.MenuItem("Tarô (22 arcanos maiores)");
+        tarot.setOnAction(e -> addDeck(com.vttcaseiro.model.CardDeck.tarot(), reload));
+        javafx.scene.control.MenuItem fromImages = new javafx.scene.control.MenuItem("De imagens (uma carta por imagem)...");
+        fromImages.setOnAction(e -> {
+            FileChooser chooser = new FileChooser();
+            chooser.setTitle("Imagens das cartas");
+            chooser.getExtensionFilters().add(com.vttcaseiro.view.ImageFiles.filter());
+            List<File> files = chooser.showOpenMultipleDialog(stage);
+            if (files == null || files.isEmpty()) return;
+            List<com.vttcaseiro.model.CardDeck.Card> cards = new ArrayList<>();
+            for (File f : files) {
+                try {
+                    String id = imageAssetService.importFile(f.toPath());
+                    cards.add(new com.vttcaseiro.model.CardDeck.Card(f.getName().replaceAll("\\.[^.]+$", ""), "", id));
+                } catch (IOException ex) {
+                    showError(f.getName() + ": " + ex.getMessage());
+                }
+            }
+            if (cards.isEmpty()) return;
+            TextInputDialog name = new TextInputDialog("Cartas");
+            name.initOwner(stage);
+            name.setHeaderText(null);
+            name.setContentText("Nome do baralho:");
+            addDeck(new com.vttcaseiro.model.CardDeck(name.showAndWait().orElse("Cartas"), cards), reload);
+        });
+        javafx.scene.control.MenuItem fromText = new javafx.scene.control.MenuItem("De texto (uma carta por linha)...");
+        fromText.setOnAction(e -> {
+            javafx.scene.control.Dialog<javafx.scene.control.ButtonType> d = new javafx.scene.control.Dialog<>();
+            d.initOwner(stage);
+            d.setTitle("Novo baralho");
+            d.setHeaderText("Uma carta por linha. \"Nome: texto\" põe um texto na carta.");
+            TextField name = new TextField();
+            name.setPromptText("Eventos da estrada");
+            javafx.scene.control.TextArea lines = new javafx.scene.control.TextArea();
+            lines.setPromptText("Emboscada: 1d4 bandidos\nTempestade: viagem mais lenta\nMercador perdido");
+            lines.setPrefRowCount(10);
+            d.getDialogPane().setContent(new VBox(8, new Label("Nome"), name, new Label("Cartas"), lines));
+            d.getDialogPane().getButtonTypes().addAll(javafx.scene.control.ButtonType.OK, javafx.scene.control.ButtonType.CANCEL);
+            d.showAndWait().filter(b -> b == javafx.scene.control.ButtonType.OK).ifPresent(b -> {
+                com.vttcaseiro.model.CardDeck deck = com.vttcaseiro.model.CardDeck.fromLines(name.getText(), lines.getText());
+                if (deck.getCards().isEmpty()) showError("Escreva pelo menos uma carta.");
+                else addDeck(deck, reload);
+            });
+        });
+        add.getItems().addAll(std, tarot, fromImages, fromText);
+        add.setTooltip(new Tooltip("Novo baralho"));
+        Button shuffle = new Button("Embaralhar (junta todas)", com.vttcaseiro.view.Icons.icon("undo", 14));
+        shuffle.setOnAction(e -> {
+            com.vttcaseiro.model.CardDeck d = list.getSelectionModel().getSelectedItem();
+            if (d == null) return;
+            d.shuffle(new java.util.Random());
+            persist.accept(d);
+            announce("O mestre embaralhou " + d.getName() + ".");
+        });
+        Button remove = new Button("Apagar o baralho", com.vttcaseiro.view.Icons.icon("trash", 14));
+        remove.setOnAction(e -> {
+            com.vttcaseiro.model.CardDeck d = list.getSelectionModel().getSelectedItem();
+            if (d == null) return;
+            Alert c = new Alert(Alert.AlertType.CONFIRMATION, "Apagar o baralho \"" + d.getName() + "\"?");
+            c.initOwner(stage);
+            c.setHeaderText(null);
+            if (c.showAndWait().filter(b -> b == javafx.scene.control.ButtonType.OK).isEmpty()) return;
+            List<com.vttcaseiro.model.CardDeck> all = deckStore.load();
+            all.removeIf(x -> x.getId().equals(d.getId()));
+            deckStore.save(all);
+            reload.run();
+        });
+        Button show = new Button("Comprar", com.vttcaseiro.view.Icons.icon("eye", 14));
+        show.setTooltip(new Tooltip("Compra a de cima e mostra a todos no chat"));
+        show.getStyleClass().add("button-primary");
+        show.setOnAction(e -> drawCard(list.getSelectionModel().getSelectedItem(), null, false, persist));
+        Button secret = new Button("Só pra mim", com.vttcaseiro.view.Icons.icon("hidden", 14));
+        secret.setTooltip(new Tooltip("Compra a de cima e só você vê"));
+        secret.setOnAction(e -> drawCard(list.getSelectionModel().getSelectedItem(), null, true, persist));
+        Button give = new Button("Dar a um jogador...", com.vttcaseiro.view.Icons.icon("send", 14));
+        javafx.scene.control.ContextMenu giveMenu = new javafx.scene.control.ContextMenu();
+        give.setOnAction(e -> {
+            javafx.scene.control.ContextMenu give2 = giveMenu;
+            give2.getItems().clear();
+            List<String> names = new ArrayList<>(networkService.getPlayerIdsByName().keySet());
+            if (names.isEmpty()) {
+                javafx.scene.control.MenuItem none = new javafx.scene.control.MenuItem("Nenhum jogador conectado");
+                none.setDisable(true);
+                give2.getItems().add(none);
+            }
+            for (String p : names) {
+                javafx.scene.control.MenuItem it = new javafx.scene.control.MenuItem(p);
+                it.setOnAction(a -> drawCard(list.getSelectionModel().getSelectedItem(), p, true, persist));
+                give2.getItems().add(it);
+            }
+            give2.show(give, javafx.geometry.Side.BOTTOM, 0, 4);
+        });
+        give.setTooltip(new Tooltip("Compra e manda só pra um jogador (sussurro)"));
+        javafx.scene.layout.TilePane actions = buttonGrid(show, secret, give);
+        Label hint = new Label("A carta comprada sai do monte até embaralhar de novo. \"Comprar\" põe a carta no "
+                + "chat (com a imagem, se tiver); \"Só pra mim\" só você vê; \"Dar a...\" manda só pro jogador.");
+        hint.getStyleClass().add("label-muted");
+        hint.setWrapText(true);
+        VBox box = new VBox(8, sectionHeader("Baralhos", iconize(add), iconize(shuffle), iconize(remove)), list, actions, hint);
+        box.getStyleClass().add("panel-section");
+        Runnable gmOnly = () -> {
+            boolean gm = networkService.isGm();
+            box.setVisible(gm);
+            box.setManaged(gm);
+        };
+        networkService.statusProperty().addListener((o, a, b) -> Platform.runLater(gmOnly));
+        gmOnly.run();
+        return box;
+    }
+
+    private void addDeck(com.vttcaseiro.model.CardDeck deck, Runnable reload) {
+        List<com.vttcaseiro.model.CardDeck> all = deckStore.load();
+        all.add(deck);
+        deckStore.save(all);
+        reload.run();
+        logEntries.add(LogEntry.system("Baralho criado: " + deck.getName() + " (" + deck.getCards().size() + " cartas)."));
+    }
+
+    /** Compra a carta de cima: mostra a todos, so pro mestre, ou so pro jogador {@code to}. */
+    private void drawCard(com.vttcaseiro.model.CardDeck deck, String to, boolean secret,
+                          java.util.function.Consumer<com.vttcaseiro.model.CardDeck> persist) {
+        if (deck == null) {
+            showError("Escolha um baralho na lista.");
+            return;
+        }
+        com.vttcaseiro.model.CardDeck.Card card = deck.draw();
+        if (card == null) {
+            showError("O monte de \"" + deck.getName() + "\" acabou. Use Embaralhar.");
+            return;
+        }
+        persist.accept(deck);
+        String text = "Carta de " + deck.getName() + ": " + card.getName() + (card.getText().isBlank() ? "" : " -- " + card.getText());
+        if (to != null) {
+            if (card.getImageAssetId() != null && networkService.isConnected()) networkService.sendChatImage(card.getImageAssetId(), text, to);
+            else onChatInput("/w \"" + to + "\" " + text);
+            logEntries.add(LogEntry.system("Você deu a " + to + ": " + card.getName() + "."));
+        } else if (secret) {
+            logEntries.add(card.getImageAssetId() != null
+                    ? LogEntry.image(networkService.getPlayerName(), text + " (só você vê)", card.getImageAssetId(), networkService.getPlayerName())
+                    : LogEntry.system(text + " (só você vê)"));
+        } else if (card.getImageAssetId() != null) {
+            if (networkService.isConnected()) networkService.sendChatImage(card.getImageAssetId(), text, null);
+            else logEntries.add(LogEntry.image(networkService.getPlayerName(), text, card.getImageAssetId(), null));
+        } else {
+            announce(text);
+        }
+    }
+
     private javafx.scene.Node buildTablesSection() {
         ListView<String> list = new ListView<>();
         list.setPrefHeight(130);
@@ -8972,6 +9389,36 @@ public class Main extends Application {
         if (e.isControlDown() || e.isAltDown() || e.isMetaDown()) return;
         List<TokenModel> sel = mapView.getSelectedTokens();
         boolean handled = true;
+        String action = Keybindings.actionFor(e.getCode());
+        if (action != null && e.getCode() != javafx.scene.input.KeyCode.ESCAPE) {
+            switch (action) {
+                case "target" -> sel.forEach(mapView::toggleTarget);
+                case "rotate" -> {
+                    double deg = e.isShiftDown() ? -45 : 45;
+                    for (TokenModel t : sel) if (table.canControl(t)) tokenActions.rotate(t, deg, false);
+                }
+                case "hide" -> {
+                    if (networkService.isGm() && !sel.isEmpty()) {
+                        boolean allHidden = sel.stream().allMatch(TokenModel::isHiddenFromPlayers);
+                        sel.forEach(t -> tokenActions.setHidden(t, !allHidden));
+                    }
+                }
+                case "tools.off" -> {
+                    toolsOff.run();
+                    mapView.clearSelection();
+                }
+                case "help" -> showShortcuts();
+                default -> {
+                    int n = Integer.parseInt(action.substring("tool.".length()));
+                    if (n <= toolHotkeys.size()) {
+                        // abre a categoria da ferramenta sozinho; neblina e paredes (6-9) so pro mestre
+                        if (n <= 5 || networkService.isGm()) toolHotkeys.get(n - 1).fire();
+                    }
+                }
+            }
+            e.consume();
+            return;
+        }
         switch (e.getCode()) {
             case DELETE, BACK_SPACE -> {
                 List<TokenModel> mine = sel.stream().filter(table::canControl).toList();
@@ -8988,17 +9435,7 @@ public class Main extends Application {
                     mapView.clearSelection();
                 }
             }
-            case T -> sel.forEach(mapView::toggleTarget);
-            case R -> {
-                double deg = e.isShiftDown() ? -45 : 45;
-                for (TokenModel t : sel) if (table.canControl(t)) tokenActions.rotate(t, deg, false);
-            }
-            case H -> {
-                if (!networkService.isGm() || sel.isEmpty()) break;
-                boolean allHidden = sel.stream().allMatch(TokenModel::isHiddenFromPlayers);
-                sel.forEach(t -> tokenActions.setHidden(t, !allHidden));
-            }
-            case ESCAPE, DIGIT0, NUMPAD0 -> {
+            case ESCAPE -> {
                 toolsOff.run();
                 mapView.clearSelection();
             }
@@ -9006,22 +9443,7 @@ public class Main extends Application {
             case DOWN -> mapView.nudgeSelection(0, 1);
             case LEFT -> mapView.nudgeSelection(-1, 0);
             case RIGHT -> mapView.nudgeSelection(1, 0);
-            case F1 -> showShortcuts();
-            default -> {
-                int n = switch (e.getCode()) {
-                    case DIGIT1, NUMPAD1 -> 1; case DIGIT2, NUMPAD2 -> 2; case DIGIT3, NUMPAD3 -> 3;
-                    case DIGIT4, NUMPAD4 -> 4; case DIGIT5, NUMPAD5 -> 5; case DIGIT6, NUMPAD6 -> 6;
-                    case DIGIT7, NUMPAD7 -> 7; case DIGIT8, NUMPAD8 -> 8; case DIGIT9, NUMPAD9 -> 9;
-                    default -> 0;
-                };
-                if (n > 0 && n <= toolHotkeys.size()) {
-                    ToggleButton b = toolHotkeys.get(n - 1);
-                    // abre a categoria da ferramenta sozinho; neblina e paredes (5-9) so pro mestre
-                    if (n <= 5 || networkService.isGm()) b.fire();
-                } else {
-                    handled = false;
-                }
-            }
+            default -> handled = false;
         }
         if (handled) e.consume();
     }
@@ -9031,14 +9453,77 @@ public class Main extends Application {
         help.initOwner(stage);
         help.setTitle("Atalhos do mapa");
         help.setHeaderText("Atalhos (com o foco fora dos campos de texto)");
-        help.setContentText("1 Medir   2 Área   3 Lápis   4 Texto   5 Borracha\n"
-                + "6 Revelar neblina   7 Cobrir neblina   8 Parede   9 Porta   (mestre: 6-9)\n"
-                + "Esc / 0  desliga a ferramenta e limpa a seleção\n\n"
+        StringBuilder keys = new StringBuilder();
+        for (var a : Keybindings.ACTIONS.entrySet()) {
+            keys.append(Keybindings.label(Keybindings.keyFor(a.getKey()))).append("  ").append(a.getValue()).append('\n');
+        }
+        help.setContentText(keys + "Esc  desliga a ferramenta e limpa a seleção\n\n"
                 + "Shift+arrastar no mapa vazio: seleciona vários tokens\n"
                 + "Shift+clique: poe/tira um token da seleção\n"
-                + "Setas: anda a seleção uma casa   Delete: remove   T: mira   H: esconder/revelar (mestre)\n"
-                + "Ctrl+clique: mira   Alt+clique: ping   Ctrl+Z: desfaz   F1: esta ajuda");
-        help.showAndWait();
+                + "Setas: anda a seleção uma casa   Delete: remove\n"
+                + "Ctrl+clique: mira   Alt+clique: ping   Shift+Alt+clique: olhem aqui (mestre)   Ctrl+Z: desfaz");
+        javafx.scene.control.ButtonType change = new javafx.scene.control.ButtonType("Mudar atalhos...",
+                javafx.scene.control.ButtonBar.ButtonData.LEFT);
+        help.getButtonTypes().setAll(change, javafx.scene.control.ButtonType.OK);
+        help.showAndWait().filter(b -> b == change).ifPresent(b -> showKeybindings());
+    }
+
+    private Runnable refreshToolKeyTips = () -> { };
+
+    /** Janela de trocar as teclas: clica no botao da acao e aperta a tecla nova. */
+    void showKeybindings() {
+        javafx.scene.control.Dialog<javafx.scene.control.ButtonType> d = new javafx.scene.control.Dialog<>();
+        d.initOwner(stage);
+        d.setTitle("Atalhos do teclado");
+        d.setHeaderText("Clique numa tecla e aperte a nova. Esc, setas e Delete são fixos.");
+        javafx.scene.layout.GridPane g = new javafx.scene.layout.GridPane();
+        g.setHgap(12);
+        g.setVgap(6);
+        g.setPadding(new Insets(10));
+        java.util.Map<String, Button> buttons = new java.util.LinkedHashMap<>();
+        Runnable paint = () -> buttons.forEach((a, b) -> b.setText(Keybindings.label(Keybindings.keyFor(a))));
+        int row = 0;
+        for (var a : Keybindings.ACTIONS.entrySet()) {
+            Button key = new Button();
+            key.setMinWidth(90);
+            key.setFocusTraversable(false);
+            key.setOnAction(e -> {
+                key.setText("aperte...");
+                key.requestFocus();
+                key.setOnKeyPressed(k -> {
+                    k.consume();
+                    key.setOnKeyPressed(null);
+                    if (k.getCode() == javafx.scene.input.KeyCode.ESCAPE) {
+                        paint.run();
+                        return;
+                    }
+                    if (Keybindings.reserved(k.getCode())) {
+                        showError("A tecla " + k.getCode().getName() + " é fixa (ou não pode ser atalho). Escolha outra.");
+                        paint.run();
+                        return;
+                    }
+                    String lost = Keybindings.set(a.getKey(), k.getCode());
+                    if (lost != null) logEntries.add(LogEntry.system("A tecla " + Keybindings.label(k.getCode())
+                            + " saiu de \"" + Keybindings.ACTIONS.get(lost) + "\" (ficou sem tecla)."));
+                    paint.run();
+                });
+            });
+            buttons.put(a.getKey(), key);
+            g.addRow(row++, new Label(a.getValue()), key);
+        }
+        paint.run();
+        javafx.scene.control.ButtonType reset = new javafx.scene.control.ButtonType("Voltar ao padrão",
+                javafx.scene.control.ButtonBar.ButtonData.LEFT);
+        d.getDialogPane().getButtonTypes().addAll(reset, javafx.scene.control.ButtonType.CLOSE);
+        Button resetBtn = (Button) d.getDialogPane().lookupButton(reset);
+        resetBtn.addEventFilter(javafx.event.ActionEvent.ACTION, e -> {
+            e.consume(); // nao fecha
+            Keybindings.resetAll();
+            paint.run();
+        });
+        d.getDialogPane().setContent(g);
+        d.showAndWait();
+        refreshToolKeyTips.run();
     }
 
     private void onRollDice(String expression) {

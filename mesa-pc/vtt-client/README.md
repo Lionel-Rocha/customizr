@@ -380,6 +380,39 @@ Escolha **um token seu** (clique nele) e aparece embaixo do mapa uma faixa com o
 - O mestre ve a barra dos monstros tambem (acoes com acerto ou dano do bloco do monstro; rolagem escondida, como
   na ficha do monstro).
 
+### Desfazer dano
+
+Depois de "Dano nos alvos", "Metade" ou "Curar" no cartao de uma rolagem, aparece no chat (so na sua tela) a linha
+"Dano aplicado: Goblin 12 → 4 PV" com o botao **Desfazer**, que volta os PV de antes. Ctrl+Z tambem desfaz. Vale pros
+tokens que voce mesmo mexeu (o pedido que vai pro mestre, o mestre e quem desfaz).
+
+### Cofre de personagens (levar a ficha pra qualquer mesa)
+
+Suas fichas guardadas no seu computador, fora das mesas: **Fichas > Mais > "Guardar ficha aberta no meu cofre"** (ou
+botao direito na ficha > Guardar no meu cofre). Em outra mesa, ate de outro mestre: **Fichas > Mais > "Trazer do meu
+cofre..."**. O retrato e as imagens do modelo de PDF vao junto. Online, a ficha trazida chega como sua. Depois de
+guardada, cada vez que a ficha e salva o cofre acompanha (o personagem evolui junto). Fica em
+`~/.vttcaseiro/cofre`.
+
+### Baralhos de cartas
+
+Mundo > Diario > **Baralhos** (so o mestre). O **+** cria: baralho comum (52 + 2 coringas), taro (22 arcanos
+maiores), de imagens (uma carta por imagem) ou de texto (uma carta por linha; "Nome: texto"). **Comprar** mostra a
+carta a todos no chat (com a imagem); **So pra mim** so o mestre ve; **Dar a um jogador...** manda so pra ele. A
+carta sai do monte ate **Embaralhar** (que junta todas de volta).
+
+### Ver o mapa como um jogador
+
+Mestre: clique na bolinha do jogador > **"Ver o mapa como ..."**, ou botao direito no token > ... > **"Ver o mapa como
+..."**. O mapa fica como aquele jogador ve: escuro e visao de verdade, neblina opaca e sem os tokens ocultos. Um aviso
+no alto tem o botao **"Voltar a visao do mestre"** (trocar de cena tambem volta).
+
+### Atalhos do teclado
+
+Engrenagem > **Atalhos do teclado...** (ou F1 > "Mudar atalhos..."): clique na tecla de uma acao e aperte a nova.
+Da pra trocar as ferramentas (1 a 9), desligar ferramenta, mirar, girar, esconder e a ajuda. Esc, setas e Delete
+sao fixos. Se a tecla ja era de outra acao, a outra fica sem tecla. "Voltar ao padrao" desfaz tudo.
+
 ### Zonas no mapa
 
 Barra do mapa > **Paredes > Zona** (so o mestre): arraste um retangulo e escolha o tipo. Com a ferramenta ligada,

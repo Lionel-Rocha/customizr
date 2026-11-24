@@ -1700,3 +1700,15 @@
     -fx-border-radius: 6;
     -fx-background-radius: 6;
 }
+/* mestre vendo o mapa como um jogador */
+.perspective-bar {
+    -fx-background-color: -c-surface-glass;
+    -fx-background-radius: 999;
+    -fx-border-color: -c-accent;
+    -fx-border-radius: 999;
+    -fx-padding: 4 6 4 14;
+}
+.perspective-label {
+    -fx-text-fill: -c-accent-text;
+    -fx-font-weight: bold;
+}

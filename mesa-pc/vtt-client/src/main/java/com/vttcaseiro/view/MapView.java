@@ -560,6 +560,20 @@ public class MapView extends Pane {
         else if (drawTool == null) setCursor(Cursor.DEFAULT);
     }
 
+    /** Tokens cuja visao o mestre esta usando ("ver como"); null = visao normal do mestre. */
+    private java.util.Set<String> perspectiveIds;
+
+    /** Mestre ve o mapa como quem controla esses tokens (null volta ao normal). */
+    public void setPerspective(java.util.Set<String> tokenIds) {
+        this.perspectiveIds = tokenIds == null ? null : new java.util.HashSet<>(tokenIds);
+        redrawFog();
+        updateVision();
+    }
+
+    public boolean hasPerspective() {
+        return perspectiveIds != null;
+    }
+
     /** Mestre: ver a mascara dos jogadores por cima do mapa. */
     public void setGmPreview(boolean preview) {
         this.gmPreview = preview;
@@ -813,14 +827,23 @@ public class MapView extends Pane {
     public void updateVision() {
         visionLayer.getChildren().clear();
         visibleArea = null;
-        boolean gm = tokenActions == null || tokenActions.isGm();
+        boolean asPlayer = perspectiveIds != null && (tokenActions == null || tokenActions.isGm());
+        // "ver como": o mestre ve exatamente o que aquele jogador ve (escuro de verdade, sem os ocultos)
+        boolean gm = (tokenActions == null || tokenActions.isGm()) && !asPlayer;
+        if (asPlayer && !scene.isVisionEnabled()) {
+            for (javafx.scene.Node n : tokenLayer.getChildren()) {
+                if (n instanceof TokenNode tn) tn.setVisible(!tn.getModel().isHiddenFromPlayers());
+            }
+            return;
+        }
         if (!scene.isVisionEnabled() || (gm && !gmPreview)) {
             for (javafx.scene.Node n : tokenLayer.getChildren()) n.setVisible(true);
             return;
         }
         java.util.List<TokenModel> viewers = new java.util.ArrayList<>();
         for (TokenModel t : scene.getTokens()) {
-            boolean mine = gm ? (t.getCharacterSheetId() != null || t.getOwnerId() != null) : tokenActions.canControl(t);
+            boolean mine = asPlayer ? perspectiveIds.contains(t.getId())
+                    : gm ? (t.getCharacterSheetId() != null || t.getOwnerId() != null) : tokenActions.canControl(t);
             if (mine) viewers.add(t);
         }
         // Luz e visao do 5.5e (ver vision.Perception): o que tem luz plena, o que tem penumbra, e o que cada token
@@ -873,7 +896,9 @@ public class MapView extends Pane {
         double cellSize = Math.max(10, scene.getGrid().getCellSize());
         int cols = gridCols();
         int rows = gridRows();
-        if (!gm && scene.getGrid().isHex()) {
+        if (asPlayer) {
+            // nao grava "explorado" na tela do mestre
+        } else if (!gm && scene.getGrid().isHex()) {
             com.vttcaseiro.model.GridSettings g = scene.getGrid();
             for (int[] h : g.hexesCovering(mapW, mapH)) {
                 double[] c = g.hexCenter(h[0], h[1]);
@@ -892,7 +917,7 @@ public class MapView extends Pane {
                 }
             }
         }
-        javafx.scene.shape.Shape seen = gm || exploredCells.isEmpty() ? visible
+        javafx.scene.shape.Shape seen = gm || asPlayer || exploredCells.isEmpty() ? visible
                 : union(visible, exploredPath(cellSize, cols, rows));
         javafx.scene.shape.Shape mask = seen == null ? all : javafx.scene.shape.Shape.subtract(all, seen);
         mask.setFill(gm ? Color.rgb(0, 0, 0, 0.55) : Color.web("#050608"));
@@ -907,7 +932,7 @@ public class MapView extends Pane {
             dimOnly.setMouseTransparent(true);
             visionLayer.getChildren().add(dimOnly);
         }
-        if (!gm && !exploredCells.isEmpty()) {
+        if (!gm && !asPlayer && !exploredCells.isEmpty()) {
             javafx.scene.shape.Shape dim = visible == null ? exploredPath(cellSize, cols, rows)
                     : javafx.scene.shape.Shape.subtract(exploredPath(cellSize, cols, rows), visible);
             dim.setFill(Color.rgb(5, 6, 8, 0.6));
@@ -921,7 +946,7 @@ public class MapView extends Pane {
             if (!(n instanceof TokenNode tn)) continue;
             TokenModel t = tn.getModel();
             double[] c = centerOf(t);
-            boolean seenNow = eyes.canSee(t);
+            boolean seenNow = eyes.canSee(t) && !(asPlayer && t.isHiddenFromPlayers());
             tn.setVisible(gm || viewers.contains(t) || seenNow);
             // sentido (sismico, tocha ao longe) sem enxergar o lugar: aparece meio apagado
             tn.setSensedOnly(!(gm || viewers.contains(t) || visibleArea.contains(c[0], c[1])));
@@ -1112,7 +1137,7 @@ public class MapView extends Pane {
         gc.clearRect(0, 0, mapW, mapH);
         com.vttcaseiro.model.Fog fog = scene.getFog();
         if (!fog.isEnabled()) return;
-        boolean gm = tokenActions == null || tokenActions.isGm();
+        boolean gm = (tokenActions == null || tokenActions.isGm()) && perspectiveIds == null;
         gc.setFill(gm ? Color.rgb(0, 0, 0, 0.55) : Color.web("#0B0C0E"));
         double cell = Math.max(10, scene.getGrid().getCellSize());
         if (scene.getGrid().isHex()) {
@@ -1927,6 +1952,10 @@ public class MapView extends Pane {
         /** Token ligado a ficha: abrir a janela dela. */
         void openSheet(TokenModel token);
 
+        /** Mestre: ver o mapa com a visao deste token (escuro, neblina, sem os ocultos). */
+        default void viewAs(TokenModel token) {
+        }
+
         void damage(TokenModel token, int amount);
 
         void heal(TokenModel token, int amount);
@@ -2251,6 +2280,7 @@ public class MapView extends Pane {
                     menuItem("Remover do mapa", () -> tokenActions.remove(token)));
             if (tokenActions.isGm()) {
                 menu.getItems().add(menuItem("Dar controle a...", () -> tokenActions.giveControl(token)));
+                menu.getItems().add(menuItem("Ver o mapa como " + token.getName(), () -> tokenActions.viewAs(token)));
                 menu.getItems().add(token.isHiddenFromPlayers()
                         ? menuItem("Revelar aos jogadores", () -> tokenActions.setHidden(token, false))
                         : menuItem("Esconder dos jogadores (camada do mestre)", () -> tokenActions.setHidden(token, true)));

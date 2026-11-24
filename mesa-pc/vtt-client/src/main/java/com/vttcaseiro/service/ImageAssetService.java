@@ -40,6 +40,11 @@ public class ImageAssetService {
         return assetId;
     }
 
+    /** Guarda bytes ja lidos (ex.: imagem que veio do cofre de personagens); devolve o id. */
+    public String storeBytes(byte[] bytes, String originalFileName) throws IOException {
+        return repository.getImageAssetStore().store(bytes, originalFileName);
+    }
+
     /** @throws IOException se o id nao corresponder a um asset guardado */
     public byte[] readBytes(String assetId) throws IOException {
         return repository.getImageAssetStore().read(assetId);

@@ -132,6 +132,45 @@ class ActionBarUiTest {
 
                 mv.clearSelection();
                 assertFalse(bar.isVisible(), "tirou a seleção: some");
+
+                // desfazer dano: os PV voltam
+                com.vttcaseiro.service.TableService table = (com.vttcaseiro.service.TableService) field(main, "table");
+                TokenModel goblin = new TokenModel("Goblin", null);
+                goblin.setMaxHp(20);
+                goblin.setCurrentHp(20);
+                ((SceneService) field(main, "sceneService")).addToken(goblin);
+                java.util.Map<TokenModel, Integer[]> hpBefore = new java.util.LinkedHashMap<>();
+                hpBefore.put(goblin, new Integer[]{20, 20, null});
+                table.setHp(goblin, 8, 20, null);
+                Method reg = Main.class.getDeclaredMethod("registerHpUndo", java.util.Map.class, String.class);
+                reg.setAccessible(true);
+                reg.invoke(main, hpBefore, "Dano");
+                @SuppressWarnings("unchecked")
+                java.util.Map<Object, Runnable> undos = (java.util.Map<Object, Runnable>) field(main, "hpUndos");
+                assertEquals(1, undos.size(), "a linha do chat ganha o Desfazer");
+                undos.values().iterator().next().run();
+                assertEquals(20, goblin.getCurrentHp(), "voltou aos PV de antes");
+                assertTrue(undos.isEmpty(), "desfazer de novo nao faz nada");
+
+                // ver como: o oculto some da tela do mestre ate voltar
+                TokenModel spy = new TokenModel("Espiao", null);
+                spy.setHiddenFromPlayers(true);
+                ((SceneService) field(main, "sceneService")).addToken(spy);
+                Method viewAs = Main.class.getDeclaredMethod("viewAs", java.util.Set.class, String.class);
+                viewAs.setAccessible(true);
+                viewAs.invoke(main, java.util.Set.of(t.getId()), "Lyra");
+                Field tl = MapView.class.getDeclaredField("tokenLayer");
+                tl.setAccessible(true);
+                javafx.scene.Parent layer = (javafx.scene.Parent) tl.get(mv);
+                java.util.function.Supplier<Boolean> spyVisible = () -> layer.getChildrenUnmodifiable().stream()
+                        .filter(n -> n instanceof com.vttcaseiro.view.TokenNode tn && tn.getModel().getId().equals(spy.getId()))
+                        .anyMatch(Node::isVisible);
+                assertFalse(spyVisible.get(), "vendo como a Lyra: o espiao oculto some");
+                assertTrue(((HBox) field(main, "perspectiveBar")).isVisible(), "aviso com o botao de voltar");
+                Method end = Main.class.getDeclaredMethod("endViewAs");
+                end.setAccessible(true);
+                end.invoke(main);
+                assertTrue(spyVisible.get(), "de volta a visao do mestre");
                 stage.close();
             } catch (Exception e) {
                 throw new RuntimeException(e);

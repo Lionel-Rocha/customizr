@@ -144,7 +144,7 @@ public class ImageAssetStore {
         return assetId != null && assetId.matches("[0-9a-f]{64}\\.(png|jpg|jpeg|gif|webp|bmp)");
     }
 
-    private static String safeAssetId(String assetId) {
+    static String safeAssetId(String assetId) {
         if (!assetId.matches("[0-9a-f]{64}\\.(png|jpg|jpeg|gif|webp|bmp)")) {
             throw new IllegalArgumentException("Id de asset de imagem inválido: " + assetId);
         }

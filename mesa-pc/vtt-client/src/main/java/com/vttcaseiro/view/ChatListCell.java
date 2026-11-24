@@ -50,6 +50,11 @@ public class ChatListCell extends ListCell<LogEntry> {
         /** Salva a imagem num arquivo. */
         default void saveImage(String assetId) {
         }
+
+        /** Esta linha (dano/cura aplicado) pode ser desfeita? Devolve o que fazer, ou null. */
+        default Runnable undoFor(LogEntry entry) {
+            return null;
+        }
     }
 
     private final ChatActions actions;
@@ -164,6 +169,11 @@ public class ChatListCell extends ListCell<LogEntry> {
                     textBox.getChildren().add(quick);
                 }
             }
+        }
+        Runnable undo = actions == null ? null : actions.undoFor(entry);
+        if (undo != null) {
+            javafx.scene.control.Button back = chip("Desfazer", "Volta os PV de antes nesses tokens", undo);
+            textBox.getChildren().add(new HBox(4, back));
         }
         HBox.setHgrow(textBox, Priority.ALWAYS);
 
