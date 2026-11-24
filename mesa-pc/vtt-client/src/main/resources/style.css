@@ -1200,3 +1200,32 @@
 .tree-cell > .tree-disclosure-node > .arrow {
     -fx-background-color: -c-muted;
 }
+
+/* Ficha de modelo (PDF editavel): os campos ficam claros como o papel do PDF, com qualquer tema. */
+.template-field .content,
+.template-field.text-area .scroll-pane,
+.template-field.text-area .scroll-pane .viewport {
+    -fx-background-color: transparent;
+}
+.template-field.combo-box-base {
+    -fx-background-color: rgba(120, 160, 255, 0.10);
+    -fx-background-radius: 0;
+    -fx-border-color: transparent;
+}
+.template-field .list-cell {
+    -fx-text-fill: #111111;
+    -fx-background-color: transparent;
+    -fx-padding: 0 2 0 2;
+}
+.template-field .arrow {
+    -fx-background-color: #333333;
+}
+.template-field .check-box .box {
+    -fx-background-color: rgba(255, 255, 255, 0.85);
+    -fx-border-color: #555555;
+    -fx-border-radius: 1;
+    -fx-background-radius: 1;
+}
+.template-field .check-box:selected .mark {
+    -fx-background-color: #111111;
+}

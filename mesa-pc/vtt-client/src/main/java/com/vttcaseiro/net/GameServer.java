@@ -650,12 +650,22 @@ public class GameServer {
         }
         for (CharacterSheet sheet : sharedCharacters.values()) {
             if (!canSeeCharacter(from, sheet)) continue;
+            if (sheet.getTemplate() != null) {
+                for (com.vttcaseiro.character.SheetTemplate.Page p : sheet.getTemplate().getPages()) {
+                    if (p.assetId != null) assetIds.add(p.assetId);
+                }
+            }
             if (sheet.getPortraitImageAssetId() != null) {
                 assetIds.add(sheet.getPortraitImageAssetId());
             }
         }
         for (MobSheet mob : sharedMobs.values()) {
             if (mob.isHiddenFromPlayers() && !from.isGm()) continue;
+            if (mob.getTemplate() != null) {
+                for (com.vttcaseiro.character.SheetTemplate.Page p : mob.getTemplate().getPages()) {
+                    if (p.assetId != null) assetIds.add(p.assetId);
+                }
+            }
             if (mob.getPortraitImageAssetId() != null) {
                 assetIds.add(mob.getPortraitImageAssetId());
             }

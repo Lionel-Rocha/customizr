@@ -434,12 +434,14 @@ public class GameClient {
                 listener.onCharacterSync(msg.character);
                 if (msg.character != null) {
                     requestImageIfMissing(msg.character.getPortraitImageAssetId());
+                    requestTemplatePages(msg.character.getTemplate());
                 }
             }
             case "mob_sync" -> {
                 listener.onMobSync(msg.mob);
                 if (msg.mob != null) {
                     requestImageIfMissing(msg.mob.getPortraitImageAssetId());
+                    requestTemplatePages(msg.mob.getTemplate());
                 }
             }
             case "party_sync" -> listener.onPartySync(msg.party);
@@ -666,6 +668,12 @@ public class GameClient {
         if (character != null) {
             pushImageAssetIfNew(character.getPortraitImageAssetId());
         }
+    }
+
+    /** Ficha de modelo de PDF: as paginas sao imagens da mesa; pede as que ainda nao tem. */
+    private void requestTemplatePages(com.vttcaseiro.character.SheetTemplate t) {
+        if (t == null) return;
+        for (com.vttcaseiro.character.SheetTemplate.Page p : t.getPages()) requestImageIfMissing(p.assetId);
     }
 
     public void sendCampaign(com.vttcaseiro.model.Campaign c) {

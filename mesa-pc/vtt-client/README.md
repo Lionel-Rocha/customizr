@@ -259,6 +259,23 @@ Botao **Campanha** na barra de cima. Abas:
 Cada item tem **"Visivel aos jogadores"**: so o que estiver marcado vai pra eles (o servidor nem manda
 o resto), e eles veem a mesma janela sem poder editar. Fica em `campanha.json` na pasta da mesa.
 
+### Modelos de ficha (PDF editavel)
+
+Qualquer ficha em PDF **preenchivel** (a oficial do seu sistema: Old Dragon, Tormenta, 5e, o que for) vira um
+modelo. Ao criar uma ficha ("Nova ficha..." ou "Novo monstro / PdM...") escolha o modelo: os sistemas prontos
+(D&D 5e, Tormenta20, Ordem Paranormal; editor de monstro do 5e) ou um modelo de PDF da mesa. A opcao
+"Importar modelo de PDF editavel..." aparece na mesma lista; tambem da pra gerenciar em Fichas > Mais >
+"Modelos de ficha (PDF editavel)...".
+
+- A ficha mostra **a propria pagina do PDF** com os campos editaveis no mesmo lugar (zoom no alto da janela).
+- Na importacao o programa adivinha quais campos sao **nome, PV atuais, PV maximos, CA, iniciativa e
+  deslocamento** (da pra conferir e trocar): esses ligam a ficha ao token e ao rastreador. Dano no token
+  muda o PV no PDF, e escrever o PV no PDF muda o token.
+- Botao direito num campo com numero: **rolar d20 + o valor**.
+- **"Exportar PDF preenchido..."** salva o PDF original com tudo que foi escrito (pra imprimir ou mandar).
+- As paginas viram imagens da mesa e o modelo vai junto dentro de cada ficha: os jogadores veem a ficha
+  igual, mesmo sem ter o PDF. Modulos levam as fichas de modelo com as paginas.
+
 ### Auras
 
 Botao direito no token > **"Auras..."**: um efeito (no mesmo formato dos efeitos, ex.: `Aura de Protecao

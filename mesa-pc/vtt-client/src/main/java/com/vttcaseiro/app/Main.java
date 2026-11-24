@@ -308,6 +308,7 @@ public class Main extends Application {
         this.table.setMobLookup(id -> mobService.findById(id).orElse(null));
         this.macroStore = new com.vttcaseiro.library.MacroStore(mesa.getRoot());
         this.handoutStore = new com.vttcaseiro.library.HandoutStore(mesa.getRoot());
+        this.templateStore = new com.vttcaseiro.library.TemplateStore(mesa.getRoot());
         this.tableStore = new com.vttcaseiro.library.JsonListStore<>(mesa.getRoot(), "tabelas.json",
                 new com.google.gson.reflect.TypeToken<List<com.vttcaseiro.model.RandomTable>>() { }.getType());
         if (!tableStore.exists()) tableStore.save(new java.util.ArrayList<>(com.vttcaseiro.model.RandomTable.samples()));
@@ -867,6 +868,10 @@ public class Main extends Application {
     /** Ficha de monstro com rolagens. {@code token} (pode ser null, aberta
      * pela lista) da o nome e as condicoes que mudam as rolagens. */
     private void openMobView(MobSheet mob, TokenModel token) {
+        if (mob.usesTemplate()) {
+            openTemplateMob(mob, token);
+            return;
+        }
         String name = token != null && token.getName() != null ? token.getName() : mob.getName();
         String mobKey = "mob:" + (token != null ? token.getId() : mob.getId());
         MobSheetView.Actions mobActions = new MobSheetView.Actions() {
@@ -1002,6 +1007,10 @@ public class Main extends Application {
     /** Abre a janela da ficha (ou traz pra frente se ja estiver aberta). */
     private void openSheetView(CharacterSheet sheet) {
         lastOpenedCharacter = sheet;
+        if (sheet.usesTemplate()) {
+            openTemplateCharacter(sheet);
+            return;
+        }
         CharacterSheetView existing = openSheetViews.get(sheet.getId());
         if (existing != null) {
             if (existing.getSheet() != sheet) existing.reload(sheet);
@@ -2619,7 +2628,9 @@ public class Main extends Application {
         exportItem.setOnAction(e -> onExportCharacter());
         javafx.scene.control.MenuItem saveItem = new javafx.scene.control.MenuItem("Salvar ficha aberta agora");
         saveItem.setOnAction(e -> onSaveLastCharacter());
-        moreChar.getItems().addAll(exportItem, saveItem);
+        javafx.scene.control.MenuItem templatesItem = new javafx.scene.control.MenuItem("Modelos de ficha (PDF editável)...");
+        templatesItem.setOnAction(e -> showTemplateManager());
+        moreChar.getItems().addAll(exportItem, saveItem, templatesItem);
         javafx.scene.layout.FlowPane charButtons = new javafx.scene.layout.FlowPane(6, 6, newCharButton, importCharButton, moreChar);
         for (javafx.scene.control.Control c : List.of(newCharButton, importCharButton, moreChar)) c.setMinWidth(Region.USE_PREF_SIZE);
         box.getChildren().addAll(charButtons, divider());
@@ -2752,6 +2763,338 @@ public class Main extends Application {
     private Stage mesaSettingsWindow;
 
     /** Engrenagem do topo: backup e copias automaticas da mesa (saiu da aba Rede). */
+    // ---------------- modelos de ficha (PDF editavel)
+
+    private com.vttcaseiro.library.TemplateStore templateStore;
+    private static final String MOB_EDITOR = "D&D 5e (editor de monstro)";
+    private static final String IMPORT_TEMPLATE = "Importar modelo de PDF editável...";
+    private final java.util.Map<String, com.vttcaseiro.view.TemplateSheetView> templateViews = new java.util.HashMap<>();
+
+    /**
+     * Escolher o modelo de uma ficha nova: as opcoes prontas ({@code builtIns}), os modelos de PDF da mesa daquele
+     * tipo e "Importar modelo de PDF...". Devolve a opcao escolhida (um SheetTemplate se for de PDF) ou null.
+     */
+    private Object chooseModel(String kind, List<Object> builtIns, String title) {
+        List<Object> options = new ArrayList<>(builtIns);
+        options.addAll(templateStore.list(kind));
+        options.add(IMPORT_TEMPLATE);
+        String lastKey = "ultimoModelo." + kind;
+        String last = AppSettings.getString(lastKey, "");
+        Object initial = options.stream().filter(o -> o.toString().equals(last)).findFirst().orElse(options.get(0));
+        javafx.scene.control.ChoiceDialog<Object> d = new javafx.scene.control.ChoiceDialog<>(initial, options);
+        d.initOwner(stage);
+        d.setTitle(title);
+        d.setHeaderText("Qual modelo de ficha?\nModelo de PDF: a ficha fica igual ao PDF (a ficha oficial do sistema, "
+                + "por exemplo), com os campos editáveis.");
+        d.setContentText("Modelo:");
+        Optional<Object> choice = d.showAndWait();
+        if (choice.isEmpty()) return null;
+        if (IMPORT_TEMPLATE.equals(choice.get())) {
+            return importTemplate(kind).orElse(null);
+        }
+        AppSettings.setString(lastKey, choice.get().toString());
+        return choice.get();
+    }
+
+    /** Escolhe um PDF editavel e transforma em modelo da mesa. */
+    private Optional<com.vttcaseiro.character.SheetTemplate> importTemplate(String kind) {
+        FileChooser fc = new FileChooser();
+        fc.setTitle("PDF editável da ficha");
+        fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("PDF", "*.pdf", "*.PDF"));
+        File file = fc.showOpenDialog(stage);
+        if (file == null) return Optional.empty();
+        try {
+            if (file.length() > 60L * 1024 * 1024) throw new IOException("PDF grande demais (mais de 60 MB).");
+            byte[] pdf = java.nio.file.Files.readAllBytes(file.toPath());
+            String suggested = file.getName().replaceFirst("(?i)\\.pdf$", "");
+            Optional<String> name = askNewName("Nome do modelo", suggested);
+            if (name.isEmpty()) return Optional.empty();
+            var t = com.vttcaseiro.importer.PdfTemplateReader.read(pdf, name.get(), kind, mesaRepository.getImageAssetStore());
+            if (!editTemplateRoles(t)) return Optional.empty();
+            templateStore.save(t, pdf);
+            logEntries.add(LogEntry.system("Modelo de ficha importado: " + t.getName() + " (" + t.getFields().size()
+                    + " campos, " + t.getPages().size() + " página(s))."));
+            return Optional.of(t);
+        } catch (IOException | RuntimeException ex) {
+            showError("Não deu pra usar esse PDF como modelo: " + ex.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    /** Quais campos do PDF sao o nome, os PV, a CA... (o programa adivinha; o mestre confere). */
+    private boolean editTemplateRoles(com.vttcaseiro.character.SheetTemplate t) {
+        javafx.scene.control.Dialog<javafx.scene.control.ButtonType> d = new javafx.scene.control.Dialog<>();
+        d.initOwner(stage);
+        d.setTitle("Campos do modelo " + t.getName());
+        d.setHeaderText("Quais campos do PDF o programa usa no mapa (token, rastreador)? Já tentei adivinhar; confira.");
+        d.getDialogPane().getButtonTypes().addAll(javafx.scene.control.ButtonType.OK, javafx.scene.control.ButtonType.CANCEL);
+        List<String> names = new ArrayList<>();
+        names.add("(nenhum)");
+        java.util.LinkedHashSet<String> unique = new java.util.LinkedHashSet<>();
+        for (var f : t.getFields()) if ("texto".equals(f.type)) unique.add(f.name);
+        names.addAll(unique);
+        String[][] roles = {{com.vttcaseiro.character.SheetTemplate.ROLE_NAME, "Nome"},
+                {com.vttcaseiro.character.SheetTemplate.ROLE_HP, "PV atuais"},
+                {com.vttcaseiro.character.SheetTemplate.ROLE_HP_MAX, "PV máximos"},
+                {com.vttcaseiro.character.SheetTemplate.ROLE_AC, "CA / Defesa"},
+                {com.vttcaseiro.character.SheetTemplate.ROLE_INIT, "Iniciativa"},
+                {com.vttcaseiro.character.SheetTemplate.ROLE_SPEED, "Deslocamento"}};
+        javafx.scene.layout.GridPane g = new javafx.scene.layout.GridPane();
+        g.setHgap(8);
+        g.setVgap(6);
+        java.util.Map<String, ComboBox<String>> boxes = new java.util.LinkedHashMap<>();
+        int r = 0;
+        for (String[] role : roles) {
+            ComboBox<String> c = new ComboBox<>(FXCollections.observableArrayList(names));
+            String cur = t.getRoles().get(role[0]);
+            c.setValue(cur == null ? "(nenhum)" : cur);
+            c.setPrefWidth(320);
+            boxes.put(role[0], c);
+            g.addRow(r++, new Label(role[1]), c);
+        }
+        ComboBox<String> kind = new ComboBox<>(FXCollections.observableArrayList("Ficha de personagem", "Ficha de monstro / PdM"));
+        kind.setValue(com.vttcaseiro.character.SheetTemplate.MOB.equals(t.getKind()) ? "Ficha de monstro / PdM" : "Ficha de personagem");
+        g.addRow(r, new Label("Tipo"), kind);
+        d.getDialogPane().setContent(g);
+        if (d.showAndWait().filter(b -> b == javafx.scene.control.ButtonType.OK).isEmpty()) return false;
+        t.getRoles().clear();
+        boxes.forEach((role, c) -> {
+            if (c.getValue() != null && !c.getValue().equals("(nenhum)")) t.getRoles().put(role, c.getValue());
+        });
+        t.setKind(kind.getValue().startsWith("Ficha de monstro") ? com.vttcaseiro.character.SheetTemplate.MOB
+                : com.vttcaseiro.character.SheetTemplate.CHARACTER);
+        return true;
+    }
+
+    private void showTemplateManager() {
+        Stage w = new Stage();
+        w.initOwner(stage);
+        w.setTitle("Modelos de ficha (PDF editável)");
+        ListView<com.vttcaseiro.character.SheetTemplate> list = new ListView<>();
+        Runnable reload = () -> list.getItems().setAll(templateStore.list());
+        reload.run();
+        list.setPlaceholder(new Label("Nenhum modelo. Importe o PDF editável da ficha do seu sistema."));
+        list.setCellFactory(lv -> new ListCell<>() {
+            @Override
+            protected void updateItem(com.vttcaseiro.character.SheetTemplate t, boolean empty) {
+                super.updateItem(t, empty);
+                setText(empty || t == null ? null : t.getName() + "  •  "
+                        + (com.vttcaseiro.character.SheetTemplate.MOB.equals(t.getKind()) ? "monstro/PdM" : "personagem")
+                        + "  •  " + t.getFields().size() + " campos" + (templateStore.pdf(t.getId()) == null ? "  •  sem o PDF" : ""));
+            }
+        });
+        Button importChar = new Button("Importar PDF (personagem)...", com.vttcaseiro.view.Icons.icon("upload", 14));
+        importChar.setOnAction(e -> { importTemplate(com.vttcaseiro.character.SheetTemplate.CHARACTER); reload.run(); });
+        Button importMob = new Button("Importar PDF (monstro/PdM)...", com.vttcaseiro.view.Icons.icon("upload", 14));
+        importMob.setOnAction(e -> { importTemplate(com.vttcaseiro.character.SheetTemplate.MOB); reload.run(); });
+        Button roles = new Button("Campos do mapa...");
+        roles.setOnAction(e -> {
+            var t = list.getSelectionModel().getSelectedItem();
+            if (t == null) return;
+            if (editTemplateRoles(t)) {
+                try {
+                    templateStore.save(t, null);
+                } catch (IOException ex) {
+                    showError("Não deu pra salvar: " + ex.getMessage());
+                }
+                reload.run();
+            }
+        });
+        Button rename = new Button("Renomear...");
+        rename.setOnAction(e -> {
+            var t = list.getSelectionModel().getSelectedItem();
+            if (t == null) return;
+            askNewName("Renomear modelo", t.getName()).ifPresent(n -> {
+                t.setName(n);
+                try {
+                    templateStore.save(t, null);
+                } catch (IOException ex) {
+                    showError("Não deu pra salvar: " + ex.getMessage());
+                }
+                reload.run();
+            });
+        });
+        Button del = new Button("Apagar", com.vttcaseiro.view.Icons.icon("trash", 14));
+        del.setOnAction(e -> {
+            var t = list.getSelectionModel().getSelectedItem();
+            if (t == null) return;
+            if (!confirmDelete("Apagar o modelo \"" + t.getName() + "\"?\n\nAs fichas já feitas com ele continuam funcionando "
+                    + "(o modelo vai junto dentro de cada ficha); só não dá mais pra criar fichas novas nem exportar o PDF.")) return;
+            try {
+                templateStore.delete(t.getId());
+            } catch (IOException ex) {
+                showError("Não deu pra apagar: " + ex.getMessage());
+            }
+            reload.run();
+        });
+        Label hint = new Label("Use o PDF \"preenchível\" da ficha (o que dá pra digitar dentro no leitor de PDF). Cada página "
+                + "vira a imagem de fundo da ficha e cada campo vira um espaço de digitar no mesmo lugar. Os jogadores "
+                + "veem a ficha igual, mesmo sem ter o PDF.");
+        hint.setWrapText(true);
+        hint.getStyleClass().add("label-muted");
+        javafx.scene.layout.FlowPane buttons = new javafx.scene.layout.FlowPane(6, 6, importChar, importMob, roles, rename, del);
+        VBox box = new VBox(8, list, buttons, hint);
+        VBox.setVgrow(list, Priority.ALWAYS);
+        box.setPadding(new Insets(12));
+        Scene sc = new Scene(box, 620, 420);
+        w.setScene(sc);
+        w.show();
+    }
+
+    private void createTemplateCharacter(String name, com.vttcaseiro.character.SheetTemplate t) {
+        try {
+            CharacterSheet sheet = characterService.create(name);
+            sheet.setTemplate(t);
+            sheet.setTemplateValues(t.defaults());
+            String nameField = t.getRoles().get(com.vttcaseiro.character.SheetTemplate.ROLE_NAME);
+            if (nameField != null) sheet.getTemplateValues().put(nameField, name);
+            sheet.setPlayerName(networkService.getPlayerName());
+            sheet.setOwnerPlayerId(networkService.getPlayerId());
+            com.vttcaseiro.service.TemplateSync.toCharacter(sheet);
+            characterService.save(sheet);
+            refreshCharacterList();
+            openSheetView(sheet);
+            logEntries.add(LogEntry.system("Ficha criada com o modelo " + t.getName() + ": " + sheet.getName()));
+        } catch (IllegalArgumentException | IOException ex) {
+            showError("Não foi possível criar a ficha: " + ex.getMessage());
+        }
+    }
+
+    private void createTemplateMob(com.vttcaseiro.character.SheetTemplate t) {
+        Optional<String> name = askNewName("Novo monstro / PdM (" + t.getName() + ")", "Novo monstro");
+        if (name.isEmpty()) return;
+        MobSheet mob = new MobSheet(name.get());
+        mob.setTemplate(t);
+        mob.setTemplateValues(t.defaults());
+        String nameField = t.getRoles().get(com.vttcaseiro.character.SheetTemplate.ROLE_NAME);
+        if (nameField != null) mob.getTemplateValues().put(nameField, name.get());
+        com.vttcaseiro.service.TemplateSync.toMob(mob);
+        if (mobService.list().contains(com.vttcaseiro.repository.MesaRepository.fileNameOf(mob.getName()))) {
+            mob.setName(mobService.freeCopyName(mob.getName()));
+        }
+        try {
+            mobService.save(mob);
+            refreshMobList();
+            refreshMobCount();
+            openMobView(mob, null);
+            logEntries.add(LogEntry.system("Monstro criado com o modelo " + t.getName() + ": " + mob.getName()));
+        } catch (IOException ex) {
+            showError("Não deu pra salvar: " + ex.getMessage());
+        }
+    }
+
+    /** "Exportar PDF preenchido" (so se esta maquina tem o PDF do modelo). */
+    private Runnable exportFilledPdf(com.vttcaseiro.character.SheetTemplate t, java.util.Map<String, String> values, String fileName) {
+        byte[] pdf = templateStore.pdf(t.getId());
+        if (pdf == null) return null;
+        return () -> {
+            FileChooser fc = new FileChooser();
+            fc.setTitle("Salvar PDF preenchido");
+            fc.setInitialFileName(com.vttcaseiro.library.MesaBackup.safeName(fileName) + ".pdf");
+            fc.getExtensionFilters().add(new FileChooser.ExtensionFilter("PDF", "*.pdf"));
+            File out = fc.showSaveDialog(stage);
+            if (out == null) return;
+            try {
+                List<String> skipped = new ArrayList<>();
+                java.nio.file.Files.write(out.toPath(), com.vttcaseiro.importer.PdfTemplateReader.fill(pdf, values, skipped));
+                logEntries.add(LogEntry.system("PDF salvo: " + out.getName()
+                        + (skipped.isEmpty() ? "" : " (" + skipped.size() + " campo(s) ficaram em branco: o PDF não aceita essas letras)")));
+            } catch (IOException | RuntimeException ex) {
+                showError("Não deu pra salvar o PDF: " + ex.getMessage());
+            }
+        };
+    }
+
+    private void openTemplateCharacter(CharacterSheet sheet) {
+        var existing = templateViews.get(sheet.getId());
+        if (existing != null && existing.getStage().isShowing()) {
+            com.vttcaseiro.service.TemplateSync.fromCharacter(sheet);
+            existing.reload(sheet.getTemplate(), sheet.getTemplateValues());
+            existing.show();
+            return;
+        }
+        com.vttcaseiro.service.TemplateSync.fromCharacter(sheet);
+        boolean canEdit = !networkService.isConnected() || networkService.isGm()
+                || java.util.Objects.equals(sheet.getOwnerPlayerId(), networkService.getPlayerId());
+        javafx.animation.PauseTransition save = new javafx.animation.PauseTransition(javafx.util.Duration.millis(700));
+        save.setOnFinished(e -> {
+            com.vttcaseiro.service.TemplateSync.toCharacter(sheet);
+            try {
+                characterService.save(sheet);
+                networkService.sendCharacterSync(sheet);
+                refreshCharacterList();
+                if (table != null) table.pushSheetToTokens(sheet);
+            } catch (IOException ex) {
+                showError("Não deu pra salvar a ficha: " + ex.getMessage());
+            }
+        });
+        var view = new com.vttcaseiro.view.TemplateSheetView(stage, sheet.getName() + " — " + sheet.getTemplate().getName(),
+                sheet.getTemplate(), sheet.getTemplateValues(), imageAssetService, canEdit,
+                new com.vttcaseiro.view.TemplateSheetView.Actions() {
+                    @Override public void changed() { save.playFromStart(); }
+                    @Override public void roll(String label, int modifier) {
+                        rollLabeled(sheet.getName() + " - " + label, "1d20" + (modifier >= 0 ? "+" : "") + modifier, false);
+                    }
+                    @Override public Runnable exportPdf() {
+                        return exportFilledPdf(sheet.getTemplate(), sheet.getTemplateValues(), sheet.getName());
+                    }
+                });
+        view.setOnClosed(() -> {
+            if (save.getStatus() == javafx.animation.Animation.Status.RUNNING) {
+                save.stop();
+                save.getOnFinished().handle(null);
+            }
+            templateViews.remove(sheet.getId());
+        });
+        templateViews.put(sheet.getId(), view);
+        view.show();
+    }
+
+    private void openTemplateMob(MobSheet mob, TokenModel token) {
+        String key = "mob:" + mob.getId();
+        var existing = templateViews.get(key);
+        if (existing != null && existing.getStage().isShowing()) {
+            existing.show();
+            return;
+        }
+        boolean canEdit = !networkService.isConnected() || networkService.isGm();
+        javafx.animation.PauseTransition save = new javafx.animation.PauseTransition(javafx.util.Duration.millis(700));
+        save.setOnFinished(e -> {
+            String before = com.vttcaseiro.repository.MesaRepository.fileNameOf(mob.getName());
+            com.vttcaseiro.service.TemplateSync.toMob(mob);
+            try {
+                mobService.save(mob);
+                String after = com.vttcaseiro.repository.MesaRepository.fileNameOf(mob.getName());
+                if (!after.equals(before)) mesaService.getRepository().deleteMob(before);
+                networkService.sendMobSync(mob);
+                refreshMobList();
+            } catch (IOException ex) {
+                showError("Não deu pra salvar o monstro: " + ex.getMessage());
+            }
+        });
+        String who = token != null && token.getName() != null ? token.getName() : mob.getName();
+        var view = new com.vttcaseiro.view.TemplateSheetView(stage, who + " — " + mob.getTemplate().getName(),
+                mob.getTemplate(), mob.getTemplateValues(), imageAssetService, canEdit,
+                new com.vttcaseiro.view.TemplateSheetView.Actions() {
+                    @Override public void changed() { save.playFromStart(); }
+                    @Override public void roll(String label, int modifier) {
+                        rollLabeled(who + " - " + label, "1d20" + (modifier >= 0 ? "+" : "") + modifier, true);
+                    }
+                    @Override public Runnable exportPdf() {
+                        return exportFilledPdf(mob.getTemplate(), mob.getTemplateValues(), who);
+                    }
+                });
+        view.setOnClosed(() -> {
+            if (save.getStatus() == javafx.animation.Animation.Status.RUNNING) {
+                save.stop();
+                save.getOnFinished().handle(null);
+            }
+            templateViews.remove(key);
+        });
+        templateViews.put(key, view);
+        view.show();
+    }
+
     // ---------------- modulos
 
     private void onExportModule() {
@@ -5112,18 +5455,15 @@ public class Main extends Application {
         if (name.isEmpty()) {
             return;
         }
-        // Sistema da ficha: D&D 5e, Tormenta20 ou Ordem Paranormal (lembra o ultimo escolhido).
+        // Modelo da ficha: D&D 5e, Tormenta20, Ordem Paranormal ou um modelo de PDF editavel da mesa.
         List<com.vttcaseiro.character.GameSystem> systems = com.vttcaseiro.character.GameSystem.all();
-        int last = (int) AppSettings.getDouble("ultimoSistema", 0);
-        javafx.scene.control.ChoiceDialog<com.vttcaseiro.character.GameSystem> sysDialog =
-                new javafx.scene.control.ChoiceDialog<>(systems.get(Math.max(0, Math.min(systems.size() - 1, last))), systems);
-        sysDialog.initOwner(stage);
-        sysDialog.setTitle("Nova ficha");
-        sysDialog.setHeaderText("Qual sistema de RPG?");
-        sysDialog.setContentText("Sistema:");
-        Optional<com.vttcaseiro.character.GameSystem> system = sysDialog.showAndWait();
-        if (system.isEmpty()) return;
-        AppSettings.setDouble("ultimoSistema", systems.indexOf(system.get()));
+        Object model = chooseModel(com.vttcaseiro.character.SheetTemplate.CHARACTER, new ArrayList<>(systems), "Nova ficha");
+        if (model == null) return;
+        if (model instanceof com.vttcaseiro.character.SheetTemplate t) {
+            createTemplateCharacter(name.get(), t);
+            return;
+        }
+        Optional<com.vttcaseiro.character.GameSystem> system = Optional.of((com.vttcaseiro.character.GameSystem) model);
         try {
             CharacterSheet sheet = characterService.create(name.get());
             system.get().initialize(sheet);
@@ -5409,6 +5749,12 @@ public class Main extends Application {
     }
 
     private void onNewMob() {
+        Object model = chooseModel(com.vttcaseiro.character.SheetTemplate.MOB, List.of(MOB_EDITOR), "Novo monstro / PdM");
+        if (model == null) return;
+        if (model instanceof com.vttcaseiro.character.SheetTemplate t) {
+            createTemplateMob(t);
+            return;
+        }
         MobSheet mob = new MobSheet("Novo monstro");
         if (!com.vttcaseiro.view.MobEditor.edit(stage, mob, "Novo monstro / NPC")) return;
         if (mobService.list().contains(com.vttcaseiro.repository.MesaRepository.fileNameOf(mob.getName()))) {
@@ -7022,6 +7368,10 @@ public class Main extends Application {
                     characterService.storeFromNetwork(character);
                     CharacterSheetView view = openSheetViews.get(character.getId());
                     if (view != null) view.reload(character);
+                    var tview = templateViews.get(character.getId());
+                    if (tview != null && character.usesTemplate()) {
+                        tview.reload(character.getTemplate(), character.getTemplateValues());
+                    }
                     refreshCharacterList();
                     if (networkService.isGm()) table.pushSheetToTokens(character);
                     logEntries.add(LogEntry.system("Ficha sincronizada: " + character.getName()));

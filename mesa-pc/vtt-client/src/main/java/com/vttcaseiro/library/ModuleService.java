@@ -110,11 +110,13 @@ public final class ModuleService {
             MobSheet mob = repo.loadMob(name);
             m.mobs.add(mob);
             collect(assets, mob.getPortraitImageAssetId());
+            collectTemplate(assets, mob.getTemplate());
         }
         for (String name : sel.characters()) {
             CharacterSheet c = repo.loadCharacter(name);
             m.characters.add(c);
             collect(assets, c.getPortraitImageAssetId());
+            collectTemplate(assets, c.getTemplate());
         }
         if (sel.handouts() && handouts != null) {
             for (Handout h : handouts.load()) {
@@ -148,6 +150,11 @@ public final class ModuleService {
         Files.move(tmp, zip, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
         return new Result(m.scenes.size(), m.mobs.size(), m.characters.size(), m.handouts.size(),
                 m.npcs.size() + m.adventures.size() + m.parcels.size() + m.encounters.size(), images);
+    }
+
+    private static void collectTemplate(Set<String> out, com.vttcaseiro.character.SheetTemplate t) {
+        if (t == null) return;
+        for (com.vttcaseiro.character.SheetTemplate.Page p : t.getPages()) collect(out, p.assetId);
     }
 
     private static void collect(Set<String> out, String assetId) {

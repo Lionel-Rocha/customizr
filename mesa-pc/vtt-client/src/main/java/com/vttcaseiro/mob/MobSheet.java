@@ -116,6 +116,26 @@ public class MobSheet {
     public void assignNewId() { this.id = UUID.randomUUID().toString(); }
 
     /**
+     * Ficha feita com um modelo de PDF editavel: o modelo vem junto (as imagens das paginas e onde fica cada campo),
+     * pra quem recebe a ficha pela rede ver igual, e os valores de cada campo do PDF.
+     */
+    private com.vttcaseiro.character.SheetTemplate template;
+    private java.util.Map<String, String> templateValues;
+
+    public com.vttcaseiro.character.SheetTemplate getTemplate() { return template == null ? null : template.sanitize(); }
+    public void setTemplate(com.vttcaseiro.character.SheetTemplate t) { this.template = t; }
+    public boolean usesTemplate() { return getTemplate() != null; }
+
+    public java.util.Map<String, String> getTemplateValues() {
+        if (templateValues == null) templateValues = new java.util.LinkedHashMap<>();
+        return templateValues;
+    }
+
+    public void setTemplateValues(java.util.Map<String, String> values) {
+        this.templateValues = values == null ? new java.util.LinkedHashMap<>() : new java.util.LinkedHashMap<>(values);
+    }
+
+    /**
      * So o mestre recebe a ficha deste monstro pela rede (os jogadores nao veem CA, PV, ataques... nem que o
      * monstro existe na lista). Padrao: escondido -- o mestre libera o que quiser mostrar.
      */
