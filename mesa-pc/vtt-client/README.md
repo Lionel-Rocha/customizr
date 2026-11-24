@@ -380,6 +380,12 @@ Escolha **um token seu** (clique nele) e aparece embaixo do mapa uma faixa com o
 - O mestre ve a barra dos monstros tambem (acoes com acerto ou dano do bloco do monstro; rolagem escondida, como
   na ficha do monstro).
 
+### Formato do token
+
+Botao direito no token > ... > **Formato**: quadrado (o de sempre), redondo, hexagono ou octogono. A imagem e
+recortada no formato, com um contorno fino, e o anel de selecao acompanha. Vale pra todos (vai pela rede, fica salvo
+na cena e aparece igual no navegador). Funciona em qualquer tamanho (2x2, 3x3...).
+
 ### Tamanho da interface
 
 Engrenagem > Aparencia > **Tamanho da interface**: 90% a 175% (letras, botoes e janelas juntos, em cima da escala do

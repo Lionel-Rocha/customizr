@@ -248,9 +248,40 @@ public class TokenModel {
 
     /** Copia o "estado de jogo" de outro token (o mesmo, vindo da rede):
      * tudo menos id, posicao e dono. */
+    /** Formatos do token no mapa. */
+    public static final String SQUARE = "square";
+    public static final String CIRCLE = "circle";
+    public static final String HEX = "hex";
+    public static final String OCTAGON = "octagon";
+
+    /** Formato do token (a imagem e recortada nele); null = quadrado. */
+    private String shape;
+
+    public String getShape() {
+        return CIRCLE.equals(shape) || HEX.equals(shape) || OCTAGON.equals(shape) ? shape : SQUARE;
+    }
+
+    public void setShape(String shape) {
+        this.shape = CIRCLE.equals(shape) || HEX.equals(shape) || OCTAGON.equals(shape) ? shape : null;
+    }
+
+    /**
+     * Contorno do formato num retangulo w x h, como pares x,y (null = quadrado/redondo, que nao sao poligono).
+     * Hexagono com ponta em cima e embaixo; octogono com os cantos cortados.
+     */
+    public static double[] outline(String shape, double w, double h) {
+        if (HEX.equals(shape)) return new double[]{w / 2, 0, w, h / 4, w, h * 3 / 4, w / 2, h, 0, h * 3 / 4, 0, h / 4};
+        if (OCTAGON.equals(shape)) {
+            double kx = w * 0.2929, ky = h * 0.2929;
+            return new double[]{kx, 0, w - kx, 0, w, ky, w, h - ky, w - kx, h, kx, h, 0, h - ky, 0, ky};
+        }
+        return null;
+    }
+
     public void copyStateFrom(TokenModel other) {
         if (other == null) return;
         this.name = other.name;
+        setShape(other.shape);
         this.currentHp = other.currentHp;
         this.maxHp = other.maxHp;
         this.tempHp = other.tempHp;

@@ -38,7 +38,7 @@ public class TokenNode extends StackPane {
     private final ImageAssetService imageAssetService;
     private boolean snapToGrid = true;
     private java.util.function.Consumer<TokenModel> onMoved;
-    private Rectangle highlightRing;
+    private javafx.scene.shape.Shape highlightRing;
 
     private double pressParentX;
     private double pressParentY;
@@ -160,6 +160,22 @@ public class TokenNode extends StackPane {
         this.onMovedFrom = onMovedFrom;
     }
 
+    /** O formato num retangulo w x h, maior {@code grow} pixels de cada lado (anel de selecao). */
+    static javafx.scene.shape.Shape shapeOf(String shape, double w, double h, double grow) {
+        double W = w + grow * 2, H = h + grow * 2;
+        if (TokenModel.CIRCLE.equals(shape)) {
+            javafx.scene.shape.Ellipse e = new javafx.scene.shape.Ellipse(w / 2, h / 2, W / 2, H / 2);
+            e.setManaged(false);
+            return e;
+        }
+        double[] pts = TokenModel.outline(shape, W, H);
+        if (pts == null) return new Rectangle(-grow, -grow, W, H);
+        for (int i = 0; i < pts.length; i++) pts[i] -= grow;
+        javafx.scene.shape.Polygon p = new javafx.scene.shape.Polygon(pts);
+        p.setManaged(false);
+        return p;
+    }
+
     private void buildVisual() {
         double size = grid.getCellSize();
         double w = size * model.getWidthCells();
@@ -168,6 +184,8 @@ public class TokenNode extends StackPane {
         setMinSize(w, h);
         setMaxSize(w, h);
 
+        String shape = model.getShape();
+        boolean square = TokenModel.SQUARE.equals(shape);
         Image image = tryLoadImage(w, h);
         if (image != null) {
             ImageView imageView = new ImageView(image);
@@ -175,22 +193,58 @@ public class TokenNode extends StackPane {
             imageView.setFitHeight(h);
             imageView.setPreserveRatio(false);
             imageView.setRotate(model.getRotation()); // so a imagem gira; nome e barras ficam retos
-            getChildren().add(imageView);
+            if (square) {
+                getChildren().add(imageView);
+            } else {
+                // recorta no formato (o formato fica parado; a imagem gira dentro dele)
+                javafx.scene.layout.Pane holder = new javafx.scene.layout.Pane(imageView);
+                holder.setPrefSize(w, h);
+                holder.setMinSize(w, h);
+                holder.setMaxSize(w, h);
+                holder.setClip(shapeOf(shape, w, h, 0));
+                holder.setMouseTransparent(true);
+                getChildren().add(holder);
+            }
         } else {
             javafx.scene.Node silhouette = SilhouetteIcon.create(Math.min(w, h));
             silhouette.setRotate(model.getRotation());
-            getChildren().add(silhouette);
+            if (square) {
+                getChildren().add(silhouette);
+            } else {
+                // sem imagem: o fundo da silhueta tambem fica no formato
+                StackPane holder = new StackPane(silhouette);
+                holder.setPrefSize(w, h);
+                holder.setMinSize(w, h);
+                holder.setMaxSize(w, h);
+                holder.setClip(shapeOf(shape, w, h, 0));
+                holder.setMouseTransparent(true);
+                getChildren().add(holder);
+            }
+        }
+        if (!square) {
+            // contorno fino: mostra o formato mesmo com imagem clara ou transparente
+            javafx.scene.shape.Shape border = shapeOf(shape, w, h, 0);
+            border.setFill(Color.TRANSPARENT);
+            border.setStroke(Color.web("#000000", 0.55));
+            border.setStrokeWidth(1.5);
+            border.setMouseTransparent(true);
+            getChildren().add(border);
         }
 
         // anel de destaque ao passar o mouse -- comeca invisivel, so aparece
         // via setOnMouseEntered/Exited (ver construtor). E um retangulo sem
         // preenchimento (so borda) do tamanho do token, levemente maior.
-        highlightRing = new Rectangle(w + 4, h + 4);
+        if (square) {
+            Rectangle ring = new Rectangle(w + 4, h + 4);
+            ring.setArcWidth(6);
+            ring.setArcHeight(6);
+            highlightRing = ring;
+        } else {
+            highlightRing = shapeOf(shape, w, h, 2); // o anel segue o formato
+        }
         highlightRing.setFill(Color.TRANSPARENT);
         highlightRing.setStroke(Color.web("#E8A23E"));
         highlightRing.setStrokeWidth(2);
-        highlightRing.setArcWidth(6);
-        highlightRing.setArcHeight(6);
         highlightRing.setVisible(false);
         highlightRing.setMouseTransparent(true);
         getChildren().add(highlightRing);

@@ -200,7 +200,21 @@ class LayoutUiTest {
                         ss.getScene().getZones().add(z);
                     }
                     mv.redrawZones();
+                    // formatos de token: quadrado, redondo, hexagono, octogono
+                    String[] shapes = {"square", "circle", "hex", "octagon"};
+                    for (int i = 0; i < shapes.length; i++) {
+                        com.vttcaseiro.model.TokenModel tk = new com.vttcaseiro.model.TokenModel(shapes[i], null);
+                        tk.setShape(shapes[i]);
+                        tk.setX(140 + i * 140);
+                        tk.setY(560);
+                        tk.setWidthCells(i == 3 ? 2 : 1);
+                        tk.setHeightCells(i == 3 ? 2 : 1);
+                        ss.addToken(tk);
+                        assertEquals(shapes[i], tk.getShape());
+                    }
                     snapStage(stage, "tela-zonas.png");
+                    for (String sh : shapes) ss.getScene().getTokens().stream().filter(x -> sh.equals(x.getName())).toList()
+                            .forEach(x -> ss.removeToken(x.getId()));
                     ss.getScene().getZones().clear();
                     mv.redrawZones();
                 }

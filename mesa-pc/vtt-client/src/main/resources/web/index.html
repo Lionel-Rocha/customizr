@@ -596,6 +596,16 @@ function terrainExtra(x1, y1, x2, y2, cells) {
   }
   return extra;
 }
+/** Caminho do formato do token (redondo, hexagono, octogono) no retangulo, maior "grow" de cada lado. */
+function tokenShapePath(c, shape, x, y, w, h, grow) {
+  const X = x - grow, Y = y - grow, W = w + grow * 2, H = h + grow * 2;
+  c.beginPath();
+  if (shape === 'circle') { c.ellipse(x + w / 2, y + h / 2, W / 2, H / 2, 0, 0, Math.PI * 2); return; }
+  let p;
+  if (shape === 'hex') p = [W / 2, 0, W, H / 4, W, H * 3 / 4, W / 2, H, 0, H * 3 / 4, 0, H / 4];
+  else { const kx = W * 0.2929, ky = H * 0.2929; p = [kx, 0, W - kx, 0, W, ky, W, H - ky, W - kx, H, kx, H, 0, H - ky, 0, ky]; }
+  c.moveTo(X + p[0], Y + p[1]); for (let i = 2; i < p.length; i += 2) c.lineTo(X + p[i], Y + p[i + 1]); c.closePath();
+}
 function cell() { return Math.max(10, (S.scene && S.scene.grid && S.scene.grid.cellSize) || 70); }
 function feetToPx(ft) { const g = S.scene.grid || {}; return ft / (g.feetPerCell > 0 ? g.feetPerCell : 5) * (g.cellSize || 70); }
 function centerOf(t) { const c = cell(); return [t.x + c * (t.widthCells || 1) / 2, t.y + c * (t.heightCells || 1) / 2]; }
@@ -779,6 +789,8 @@ function render(now) {
     const img = image(sc, t.imageAssetId, t.imageData);
     ctx.save();
     if ((t.conditions || []).includes('UNCONSCIOUS')) ctx.globalAlpha = 0.55;
+    const shaped = t.shape === 'circle' || t.shape === 'hex' || t.shape === 'octagon';
+    if (shaped) { tokenShapePath(ctx, t.shape, x, y, w, h, 0); ctx.clip(); }
     if (img) {
       if (t.rotation) { ctx.translate(x + w / 2, y + h / 2); ctx.rotate(t.rotation * Math.PI / 180); ctx.drawImage(img, -w / 2, -h / 2, w, h); }
       else ctx.drawImage(img, x, y, w, h);
@@ -788,8 +800,10 @@ function render(now) {
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText((t.name || '?').slice(0, 1).toUpperCase(), x + w / 2, y + h / 2);
     }
     ctx.restore();
-    if (mine && !S.gm) { ctx.strokeStyle = '#FFCF7F'; ctx.lineWidth = 2; ctx.strokeRect(x + 1, y + 1, w - 2, h - 2); }
-    if ((S.gm || mine) && S.selectedToken === t.id) { ctx.strokeStyle = '#FFCF7F'; ctx.lineWidth = 3; ctx.strokeRect(x - 1, y - 1, w + 2, h + 2); }
+    if (shaped) { ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = 1.5; tokenShapePath(ctx, t.shape, x, y, w, h, 0); ctx.stroke(); }
+    const ring = (grow, lw) => { ctx.strokeStyle = '#FFCF7F'; ctx.lineWidth = lw; if (shaped) { tokenShapePath(ctx, t.shape, x, y, w, h, grow); ctx.stroke(); } else ctx.strokeRect(x - grow, y - grow, w + grow * 2, h + grow * 2); };
+    if (mine && !S.gm) ring(-1, 2);
+    if ((S.gm || mine) && S.selectedToken === t.id) ring(1, 3);
     if (t.hiddenFromPlayers) {
       ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(x, y, w, h);
       ctx.fillStyle = '#FFCF7F'; ctx.font = 'bold 9px Segoe UI'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('OCULTO', x + w / 2, y + h / 2);

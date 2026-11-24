@@ -2386,6 +2386,7 @@ public class MapView extends Pane {
                     menuItem("Rolar iniciativa", () -> tokenActions.rollInitiative(token)),
                     sizeMenu(token),
                     rotateMenu(token),
+                    shapeMenu(token),
                     menuItem("Visão e luz...", () -> askVision(token)),
                     menuItem("Altura...", () -> askElevation(token)),
                     facingMenu(token),
@@ -2509,6 +2510,22 @@ public class MapView extends Pane {
     }
 
     /** Submenu "Girar" (tambem: tecla R / Shift+R com o token selecionado). */
+    /** Submenu "Formato": quadrado, redondo, hexagono ou octogono (o atual vem marcado). */
+    private javafx.scene.control.Menu shapeMenu(TokenModel token) {
+        javafx.scene.control.Menu menu = new javafx.scene.control.Menu("Formato");
+        String[][] options = {{TokenModel.SQUARE, "Quadrado"}, {TokenModel.CIRCLE, "Redondo"},
+                {TokenModel.HEX, "Hexágono"}, {TokenModel.OCTAGON, "Octógono"}};
+        javafx.scene.control.ToggleGroup group = new javafx.scene.control.ToggleGroup();
+        for (String[] o : options) {
+            javafx.scene.control.RadioMenuItem item = new javafx.scene.control.RadioMenuItem(o[1]);
+            item.setToggleGroup(group);
+            item.setSelected(o[0].equals(token.getShape()));
+            item.setOnAction(e -> tokenActions.editToken(token, "Formato de " + token.getName(), t -> t.setShape(o[0])));
+            menu.getItems().add(item);
+        }
+        return menu;
+    }
+
     private javafx.scene.control.Menu rotateMenu(TokenModel token) {
         javafx.scene.control.Menu menu = new javafx.scene.control.Menu("Girar");
         menu.getItems().addAll(
