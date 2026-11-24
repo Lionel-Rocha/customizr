@@ -70,6 +70,9 @@ de cima (`vtt-caseiro-classes`), que so chama o de `vtt-client`.
     "Lyra (Ana)"; o servidor so aceita personagem que e mesmo do jogador.
   - **Rolagens**: publica, so pro mestre, so eu (rola aqui, ninguem mais ve) ou as cegas (so o mestre ve o
     resultado; quem rolou recebe o aviso). Vale pra todas as rolagens: chat, ficha, ataques.
+- **Mundo > Cenas**: os icones no titulo criam cena, importam mapa (Azgaar, Watabou, Dungeondraft), criam
+  pasta, salvam e abrem **"Configurar cena"** (grade, tamanho da casa, pes por casa e tamanho do mapa, numa
+  janela propria). O resto esta no botao direito de cada cena.
 - **Barra da direita**, uma so, com abas: **Mesa** (chat e rolagens), **Combate**, **Personagens** (fichas e
   grupo), **Mundo** (cenas e diario), **Som** e **Rede**. Clicar de novo na aba aberta (ou em "»") recolhe a
   barra numa faixa de icones; o mapa fica com a tela toda.
@@ -209,7 +212,7 @@ limite da mesa (4 MB, que tambem vai pela rede pros jogadores).
 
 ### Grade hexagonal e objetos no mapa
 
-- **Tipo de grade** (painel Mapa > Grade da cena atual): **Quadrada**, **Hexagonal** (hexagonos "em pe")
+- **Tipo de grade** (Mundo > Cenas > ícone "Configurar cena", ou botão direito na cena atual da barra de cima): **Quadrada**, **Hexagonal** (hexagonos "em pe")
   ou **Sem grade**. No hex os tokens encaixam no centro do hexagono, as setas do teclado andam de
   hexagono em hexagono e a regua conta passos. Sem grade, o token fica onde soltar e a regua mede em
   linha reta. Os jogadores (inclusive no navegador) recebem a grade nova na hora.

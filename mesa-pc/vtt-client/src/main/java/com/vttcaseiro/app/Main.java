@@ -2618,8 +2618,8 @@ public class Main extends Application {
     private Tab buildMapTab() {
         VBox box = new VBox(8);
         box.setPadding(new Insets(12));
+        VBox scenesBox = box;
 
-        box.getChildren().add(sectionLabel("Cenas desta mesa"));
         sceneFolders = com.vttcaseiro.library.SceneFolders.load(mesaRepository.getRoot());
         mapListView = new javafx.scene.control.TreeView<>();
         mapListView.setShowRoot(false);
@@ -2643,10 +2643,10 @@ public class Main extends Application {
             SceneEntry sel = selectedSceneEntry();
             onNewSceneFolder(sel == null ? "" : sel.folder() ? sel.path() : sel.path());
         });
-        Label treeHint = new Label("Duplo clique abre pra todos. Botão direito: mostrar rapidinho e voltar, mover, pastas.");
+        Label treeHint = new Label("Duplo clique abre pra todos. Botão direito: abrir escondida, mostrar rapidinho e voltar, "
+                + "renomear, duplicar, mover, apagar.");
         treeHint.getStyleClass().add("label-muted");
         treeHint.setWrapText(true);
-        box.getChildren().addAll(mapListView, new HBox(6, newFolderButton), treeHint);
 
         Button newSceneButton = new Button("Nova cena (imagem)...", com.vttcaseiro.view.Icons.icon("add", 14));
         newSceneButton.getStyleClass().add("button-primary");
@@ -2657,15 +2657,37 @@ public class Main extends Application {
         sceneSaveStatus.getStyleClass().add("live-status");
         sceneSaveStatus.getStyleClass().add("label-muted");
         sceneSaveStatus.setWrapText(true);
-        Button importMapButton = new Button("Importar mapa (Azgaar / Watabou)...", com.vttcaseiro.view.Icons.icon("upload", 14));
-        importMapButton.setTooltip(new Tooltip("Masmorra do One Page Dungeon (JSON) vira cena com paredes e portas;"
-                + " mundo do Azgaar e cidades/vilas do Watabou entram como imagem (PNG/JPG)."));
+        Button importMapButton = new Button("Importar mapa (Azgaar, Watabou, Dungeondraft)...", com.vttcaseiro.view.Icons.icon("upload", 14));
+        importMapButton.setTooltip(new Tooltip("Masmorra do One Page Dungeon (JSON) e Universal VTT (.dd2vtt) viram cena com "
+                + "paredes e portas; mundo do Azgaar e cidades/vilas do Watabou entram como imagem (PNG/JPG)."));
         importMapButton.setOnAction(e -> onImportGeneratedMap());
-        for (Button b : List.of(newSceneButton, importMapButton, saveSceneButton)) b.setMaxWidth(Double.MAX_VALUE);
-        box.getChildren().addAll(newSceneButton, importMapButton, saveSceneButton, sceneSaveStatus, divider());
+        Button configButton = new Button("Configurar cena...", com.vttcaseiro.view.Icons.icon("tune", 14));
+        configButton.setTooltip(new Tooltip("Grade (quadrada, hexagonal, sem grade), tamanho da casa, pés por casa e tamanho do mapa"));
+        configButton.setOnAction(e -> showSceneConfig());
+        saveSceneButton.setGraphic(com.vttcaseiro.view.Icons.icon("save", 14));
+        // cabecalho enxuto: o titulo e os icones (o nome de cada um fica na dica)
+        for (Button b : List.of(newSceneButton, importMapButton, newFolderButton, saveSceneButton, configButton)) {
+            if (b.getTooltip() == null) b.setTooltip(new Tooltip(b.getText()));
+            else b.getTooltip().setText(b.getText() + ": " + b.getTooltip().getText());
+            b.setContentDisplay(javafx.scene.control.ContentDisplay.GRAPHIC_ONLY);
+            b.getStyleClass().add("panel-icon-button");
+            b.setMinWidth(Region.USE_PREF_SIZE);
+        }
+        Label scenesTitle = sectionLabel("Cenas desta mesa");
+        Region headerGrow = new Region();
+        HBox.setHgrow(headerGrow, Priority.ALWAYS);
+        HBox scenesHeader = new HBox(4, scenesTitle, headerGrow, newSceneButton, importMapButton, newFolderButton,
+                saveSceneButton, configButton);
+        scenesHeader.setAlignment(Pos.CENTER_LEFT);
+        scenesHeader.getStyleClass().add("label-section-row");
+        box.getChildren().addAll(scenesHeader, mapListView, treeHint, sceneSaveStatus);
         box.getChildren().add(buildSceneQueue());
-        box.getChildren().add(divider());
 
+        // grade, pes e tamanho: janela "Configurar cena" (montada uma vez; os campos continuam vivos)
+        VBox config = new VBox(8);
+        config.setPadding(new Insets(14));
+        sceneConfigBox = config;
+        box = config;
         box.getChildren().add(sectionLabel("Grade da cena atual"));
         ComboBox<String> gridType = new ComboBox<>(FXCollections.observableArrayList(
                 "Quadrada", "Hexagonal", "Sem grade"));
@@ -2700,13 +2722,36 @@ public class Main extends Application {
         box.getChildren().add(sectionLabel("Tamanho do mapa (em casas)"));
         box.getChildren().add(buildMapSizeControls());
 
-        return new Tab("Mapa", wrapInScroll(box));
+        return new Tab("Mapa", wrapInScroll(scenesBox));
     }
 
     /**
      * Tamanho do mapa escolhido pelo mestre: largura x altura em casas (a imagem estica pra caber), ou automatico
      * (o tamanho da imagem). Mostra o tamanho em pes e metros.
      */
+    private VBox sceneConfigBox;
+    private Stage sceneConfigStage;
+
+    /** Janela "Configurar cena": grade, tamanho da casa, pes por casa e tamanho do mapa da cena aberta. */
+    void showSceneConfig() {
+        if (sceneConfigStage == null) {
+            sceneConfigStage = new Stage();
+            sceneConfigStage.initOwner(stage);
+            sceneConfigStage.setTitle("Configurar cena");
+            sceneConfigBox.getStyleClass().add("side-panel"); // fundo do tema (nao branco)
+            ScrollPane sp = new ScrollPane(sceneConfigBox);
+            sp.setFitToWidth(true);
+            sp.setFitToHeight(true);
+            sp.getStyleClass().add("side-panel");
+            Scene sc = new Scene(sp, 420, 460);
+            sceneConfigStage.setScene(sc);
+        }
+        if (mapSizeRefresh != null) mapSizeRefresh.run();
+        sceneConfigStage.setTitle("Configurar cena: " + (currentMapName != null ? currentMapName : "cena atual"));
+        sceneConfigStage.show();
+        sceneConfigStage.toFront();
+    }
+
     private javafx.scene.Node buildMapSizeControls() {
         com.vttcaseiro.model.GridSettings g = sceneService.getScene().getGrid();
         javafx.scene.control.Spinner<Integer> width = new javafx.scene.control.Spinner<>(1, com.vttcaseiro.model.GridSettings.MAX_MAP_CELLS, 30);
@@ -4034,7 +4079,7 @@ public class Main extends Application {
         box.getChildren().add(initiativeListView);
 
         Button rollAllButton = new Button("Rolar iniciativa e começar combate");
-        rollAllButton.getStyleClass().add("button-primary");
+        startCombatButton = rollAllButton;
         rollAllButton.setOnAction(e -> table.rollInitiativeForAllAndStart());
         Button startButton = new Button("Começar com as iniciativas atuais");
         startButton.setOnAction(e -> table.startEncounter());
@@ -4050,7 +4095,7 @@ public class Main extends Application {
         box.getChildren().add(new javafx.scene.layout.FlowPane(6, 6, rollAllButton, startButton, pullButton, editButton));
 
         Button nextTurnButton = new Button("Próximo turno");
-        nextTurnButton.getStyleClass().add("button-primary");
+        nextTurnPanelButton = nextTurnButton;
         nextTurnButton.setOnAction(e -> table.nextTurn());
         Button endButton = new Button("Encerrar combate");
         endButton.setOnAction(e -> table.endEncounter());
@@ -4058,7 +4103,6 @@ public class Main extends Application {
 
         box.getChildren().addAll(divider(), sectionLabel("Mestre: grupo inteiro"));
         Button groupSaveButton = new Button("Salvaguarda em grupo...");
-        groupSaveButton.getStyleClass().add("button-primary");
         groupSaveButton.setTooltip(new Tooltip("Todos rolam contra uma CD; da pra aplicar o dano (cheio em quem"
                 + " falha, metade em quem passa) -- ex.: Bola de Fogo."));
         groupSaveButton.setOnAction(e -> onGroupSave());
@@ -4987,7 +5031,6 @@ public class Main extends Application {
             }
         });
         Button next = new Button("Próxima cena  \u25B6");
-        next.getStyleClass().add("button-primary");
         next.setTooltip(new Tooltip("Abre pra todos a cena seguinte da fila (a atual é salva antes)."));
         next.setOnAction(e -> {
             List<String> q = sceneQueueStore.load();
@@ -5000,8 +5043,19 @@ public class Main extends Application {
             reload.run();
             queue.getSelectionModel().select(nextScene.get());
         });
-        VBox box = new VBox(6, sectionLabel("Fila de cenas da sessão"), currentSceneLabel, queue,
-                new javafx.scene.layout.FlowPane(6, 6, next, open, enqueue, up, down, removeQ));
+        // fila compacta: icones (o nome fica na dica); "proxima" tambem esta na barra de cima
+        Object[][] icons = {{next, "next"}, {open, "send"}, {enqueue, "add"}, {up, "upload"}, {down, "download"},
+                {removeQ, "trash"}};
+        for (Object[] it : icons) {
+            Button b = (Button) it[0];
+            String text = b.getText().replace("▶", "").strip();
+            if (b.getTooltip() == null) b.setTooltip(new Tooltip(text));
+            else b.getTooltip().setText(text + ": " + b.getTooltip().getText());
+            b.setGraphic(com.vttcaseiro.view.Icons.icon((String) it[1], 14));
+            b.setContentDisplay(javafx.scene.control.ContentDisplay.GRAPHIC_ONLY);
+            b.getStyleClass().add("panel-icon-button");
+        }
+        VBox box = new VBox(6, sectionLabel("Fila de cenas da sessão"), queue, new HBox(4, next, open, enqueue, up, down, removeQ));
         return box;
     }
 
@@ -6261,9 +6315,11 @@ public class Main extends Application {
             javafx.scene.control.ContextMenu m = new javafx.scene.control.ContextMenu();
             javafx.scene.control.MenuItem toggle = new javafx.scene.control.MenuItem(hidden ? "Mostrar aos jogadores" : "Esconder dos jogadores");
             toggle.setOnAction(a -> setSceneHidden(!hidden));
-            javafx.scene.control.MenuItem config = new javafx.scene.control.MenuItem("Ver em Mundo > Cenas");
-            config.setOnAction(a -> openPanel("Mapa"));
-            m.getItems().addAll(toggle, config);
+            javafx.scene.control.MenuItem config = new javafx.scene.control.MenuItem("Configurar cena (grade, tamanho)...");
+            config.setOnAction(a -> showSceneConfig());
+            javafx.scene.control.MenuItem list = new javafx.scene.control.MenuItem("Ver em Mundo > Cenas");
+            list.setOnAction(a -> openPanel("Mapa"));
+            m.getItems().addAll(toggle, config, list);
             m.show(current, javafx.geometry.Side.BOTTOM, 0, 4);
         });
         sceneStrip.getChildren().add(current);
@@ -6483,6 +6539,9 @@ public class Main extends Application {
         });
     }
 
+    private Button startCombatButton;
+    private Button nextTurnPanelButton;
+
     private void refreshInitiativeList() {
         refreshTurnQueue();
         if (initiativeListView == null) {
@@ -6493,6 +6552,12 @@ public class Main extends Application {
         if (roundLabel != null) {
             var e = sceneService.getScene().getEncounter();
             roundLabel.setText(e.isActive() ? "Rodada " + e.getRound() : "Sem combate em andamento");
+            // um destaque por vez: sem combate, "comecar"; em combate, "proximo turno"
+            if (startCombatButton != null && nextTurnPanelButton != null) {
+                startCombatButton.getStyleClass().remove("button-primary");
+                nextTurnPanelButton.getStyleClass().remove("button-primary");
+                (e.isActive() ? nextTurnPanelButton : startCombatButton).getStyleClass().add("button-primary");
+            }
         }
         boolean gm = networkService.isGm();
         // jogador nao ve os botoes do mestre (em vez de ve-los apagados); o cartao "Mestre: grupo inteiro" some todo

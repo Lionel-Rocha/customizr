@@ -458,8 +458,9 @@ class SheetCombatUiTest {
 
                 scenes.setMapSizeCells(0, 0);
                 assertEquals(200, map.mapWidth(), 0.01, "volta pro automatico");
-                assertFalse(find(((Stage) field(o.main(), "stage")).getScene().getRoot(),
-                        n -> n instanceof Label l && "Tamanho do mapa (em casas)".equals(l.getText())).isEmpty(), "controles na aba Mapa");
+                assertFalse(find((javafx.scene.Parent) field(o.main(), "sceneConfigBox"),
+                        n -> n instanceof Label l && "Tamanho do mapa (em casas)".equals(l.getText())).isEmpty(),
+                        "controles na janela Configurar cena");
             });
         } finally {
             close(o);

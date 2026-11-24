@@ -1463,3 +1463,9 @@
     -fx-text-fill: -c-accent-text;
     -fx-border-color: -c-accent;
 }
+
+/* ---- Paineis enxutos: icones no cabecalho ---- */
+.panel-icon-button {
+    -fx-padding: 5 7 5 7;
+    -fx-background-radius: 6;
+}

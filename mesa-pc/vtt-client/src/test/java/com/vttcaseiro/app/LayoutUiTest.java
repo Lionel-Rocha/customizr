@@ -144,6 +144,7 @@ class LayoutUiTest {
                 // aba com duas secoes: seletor pequeno
                 rail.get("Personagens").fire();
                 assertTrue(contents.get("Fichas").isVisible());
+                snapStage(stage, "tela-fichas.png");
                 Method open = Main.class.getDeclaredMethod("openPanel", String.class);
                 open.setAccessible(true);
                 open.invoke(main, "Party");
@@ -151,6 +152,14 @@ class LayoutUiTest {
                 open.invoke(main, "Mapa");
                 assertTrue(rail.get("Mundo").isSelected(), "cenas ficam na aba Mundo");
                 snapStage(stage, "tela-mundo.png");
+                Method cfg = Main.class.getDeclaredMethod("showSceneConfig");
+                cfg.setAccessible(true);
+                cfg.invoke(main);
+                Stage cfgStage = (Stage) field(main, "sceneConfigStage");
+                assertTrue(cfgStage.isShowing(), "Configurar cena abre numa janela");
+                assertNotNull(field(main, "gridSizeField"), "campos da grade continuam ligados");
+                snapStage(cfgStage, "tela-config-cena.png");
+                cfgStage.close();
 
                 // modo Preparar (mestre): o token colocado nasce escondido dos jogadores
                 Field mode = Main.class.getDeclaredField("gmMode");
