@@ -1602,3 +1602,47 @@
     -fx-text-fill: -c-muted;
     -fx-font-size: 12px;
 }
+
+/* capa da mesa: botaozinho no canto da miniatura */
+.mesa-cover-button {
+    -fx-background-color: rgba(0, 0, 0, 0.55);
+    -fx-background-radius: 999;
+    -fx-padding: 5;
+    -fx-cursor: hand;
+}
+.mesa-cover-button:hover {
+    -fx-background-color: -c-accent;
+}
+
+/* combate: estado no topo e lista vazia com texto */
+.combat-status {
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -c-muted;
+}
+.combat-status-active {
+    -fx-text-fill: -c-accent;
+}
+.empty-hint {
+    -fx-text-fill: -c-muted;
+    -fx-font-size: 12px;
+    -fx-padding: 10;
+}
+
+/* menu "mais" no cabecalho: so o icone, sem a setinha */
+.panel-icon-button.menu-button > .arrow-button {
+    -fx-padding: 0;
+}
+.panel-icon-button.menu-button > .arrow-button > .arrow {
+    -fx-padding: 0;
+    -fx-shape: null;
+}
+.panel-icon-button.menu-button > .label {
+    -fx-padding: 0;
+}
+.panel-icon-button.menu-button {
+    -fx-border-color: -c-border;
+    -fx-border-radius: 6;
+    -fx-background-color: -c-raised;
+    -fx-background-radius: 6;
+}

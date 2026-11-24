@@ -77,6 +77,13 @@ de cima (`vtt-caseiro-classes`), que so chama o de `vtt-client`.
   (fichas e grupo), **Mundo** (cenas e diario), **Som** e **Rede**. **Alt+1 a Alt+6** trocam de aba. Avisos: numero
   de mensagens novas na Mesa (com a barra em outra aba ou recolhida) e bolinha no Combate quando ha combate.
   Clicar de novo na aba aberta (ou em "»") recolhe a barra numa faixa de icones; o mapa fica com a tela toda.
+- **Por dentro das abas**: cada secao e um cartao com o titulo e os icones de acao a direita (+ cria, lapis edita,
+  lixeira apaga; o nome de cada um aparece na dica). Lista vazia diz o que fazer. No **Combate** aparece so o que
+  serve na hora: sem combate, "Rolar e comecar" e "Comecar ja"; em combate, "Proximo turno" e "Encerrar". As
+  acoes do mestre (salvaguarda, descansos, dificuldade) ficam numa grade 2x2.
+- **Capa da mesa**: na tela de escolher mesa, botao direito no cartao > **"Escolher capa..."** (do computador ou
+  por link), ou o botaozinho de imagem que aparece no canto da miniatura. A capa fica na pasta da mesa
+  (`capa.png`/`capa.jpg`) e vai junto no backup. Sem capa, o cartao mostra a ultima cena mexida.
 - **Faixa de ferramentas**: a dica de cada categoria mostra as teclas (1 a 9; Esc ou 0 desliga). A categoria
   aberta mostra uma caixa com o nome dela e "✕" pra fechar.
 

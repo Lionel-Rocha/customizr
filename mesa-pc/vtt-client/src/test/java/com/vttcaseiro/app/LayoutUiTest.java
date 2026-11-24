@@ -79,6 +79,24 @@ class LayoutUiTest {
         return f.get(o);
     }
 
+    /** Foto de um pedaco da tela (so com -Dvtt.snap=pasta). */
+    private static void snapNode(Node n, String file) {
+        String dir = System.getProperty("vtt.snap");
+        if (dir == null) return;
+        n.applyCss();
+        if (n instanceof Parent p) p.layout();
+        javafx.scene.image.WritableImage img = n.snapshot(null, null);
+        java.awt.image.BufferedImage out = new java.awt.image.BufferedImage((int) img.getWidth(), (int) img.getHeight(),
+                java.awt.image.BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < out.getHeight(); y++)
+            for (int x = 0; x < out.getWidth(); x++) out.setRGB(x, y, img.getPixelReader().getArgb(x, y));
+        try {
+            javax.imageio.ImageIO.write(out, "png", new java.io.File(dir, file));
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+    }
+
     /** Foto da janela inteira (so com -Dvtt.snap=pasta). */
     private static void snapStage(Stage stage, String file) {
         String dir = System.getProperty("vtt.snap");
@@ -152,6 +170,13 @@ class LayoutUiTest {
                 open.invoke(main, "Mapa");
                 assertTrue(rail.get("Mundo").isSelected(), "cenas ficam na aba Mundo");
                 snapStage(stage, "tela-mundo.png");
+                if (System.getProperty("vtt.snap") != null) {
+                    for (String sec : List.of("Combate", "Fichas", "Party", "Diário", "Som", "Rede")) {
+                        open.invoke(main, sec);
+                        snapNode(panel, "aba-" + sec.replace("á", "a") + ".png");
+                    }
+                    open.invoke(main, "Mapa");
+                }
                 Method cfg = Main.class.getDeclaredMethod("showSceneConfig");
                 cfg.setAccessible(true);
                 cfg.invoke(main);

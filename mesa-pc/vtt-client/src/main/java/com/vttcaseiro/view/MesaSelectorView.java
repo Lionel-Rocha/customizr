@@ -329,9 +329,18 @@ public class MesaSelectorView {
         clip.setArcHeight(14);
         iv.setClip(clip);
         thumb.getChildren().add(iv);
+        // botaozinho no canto: escolher a capa (aparece com o mouse em cima)
+        Button coverButton = new Button(null, Icons.icon("image", 14));
+        coverButton.getStyleClass().add("mesa-cover-button");
+        coverButton.setTooltip(new javafx.scene.control.Tooltip("Escolher capa..."));
+        coverButton.setOnAction(e -> chooseCover(baseFolder, name));
+        StackPane.setAlignment(coverButton, Pos.TOP_RIGHT);
+        StackPane.setMargin(coverButton, new Insets(6));
+        coverButton.setVisible(false);
+        thumb.getChildren().add(coverButton);
         // a imagem carrega fora da tela (mesa grande nao trava a lista)
         Thread t = new Thread(() -> {
-            javafx.scene.image.Image img = lastSceneImage(mesa);
+            javafx.scene.image.Image img = cardImage(mesa);
             if (img != null) javafx.application.Platform.runLater(() -> {
                 iv.setImage(img);
                 placeholder.setVisible(false);
@@ -346,6 +355,7 @@ public class MesaSelectorView {
         info.getStyleClass().add("mesa-info");
         info.setMaxWidth(MESA_THUMB_W);
         VBox card = new VBox(6, thumb, n, info);
+        card.hoverProperty().addListener((o, a, b) -> coverButton.setVisible(b));
         card.getStyleClass().add("mesa-card");
         card.setCursor(javafx.scene.Cursor.HAND);
         card.setUserData(name);
@@ -373,6 +383,68 @@ public class MesaSelectorView {
             return (int) files.filter(p -> p.getFileName().toString().endsWith(".json")).count();
         } catch (IOException ex) {
             return 0;
+        }
+    }
+
+    /** Nome do arquivo da capa dentro da pasta da mesa (capa.png, capa.jpg...). */
+    static final String COVER_NAME = "capa";
+    private static final List<String> COVER_EXTS = List.of("png", "jpg", "jpeg", "gif", "bmp", "webp");
+
+    /** A capa escolhida pra mesa, ou null. */
+    static Path coverFile(Path mesa) {
+        for (String ext : COVER_EXTS) {
+            Path p = mesa.resolve(COVER_NAME + "." + ext);
+            if (Files.isRegularFile(p)) return p;
+        }
+        return null;
+    }
+
+    /** Poe {@code source} como capa da mesa (troca a anterior). Recusa o que nao for imagem. */
+    static Path setCover(Path mesa, Path source) throws IOException {
+        if (Files.size(source) > ImagePicker.MAX_BYTES) throw new IOException("Imagem grande demais (máximo 25 MB).");
+        byte[] bytes = Files.readAllBytes(source);
+        String ext = ImagePicker.extensionOf(bytes);
+        if (ext == null && bytes.length > 2 && bytes[0] == 'B' && bytes[1] == 'M') ext = ".bmp";
+        if (ext == null || SafeImage.read(bytes, 64, 64L * 64L) == null)
+            throw new IOException("Esse arquivo não parece ser uma imagem (PNG, JPG, GIF ou BMP).");
+        clearCover(mesa);
+        Path target = mesa.resolve(COVER_NAME + ext);
+        Files.write(target, bytes);
+        return target;
+    }
+
+    /** Tira a capa (volta a mostrar a ultima cena). */
+    static void clearCover(Path mesa) throws IOException {
+        for (String ext : COVER_EXTS) Files.deleteIfExists(mesa.resolve(COVER_NAME + "." + ext));
+    }
+
+    /** Imagem do cartao: a capa, se tiver; senao a ultima cena mexida. */
+    static javafx.scene.image.Image cardImage(Path mesa) {
+        Path cover = coverFile(mesa);
+        if (cover != null) {
+            try {
+                SafeImage.Loaded l = SafeImage.read(Files.readAllBytes(cover), 420, 420L * 240L);
+                if (l != null) return l.image();
+            } catch (IOException | RuntimeException ignored) {
+                // capa estragada: cai pra ultima cena
+            }
+        }
+        return lastSceneImage(mesa);
+    }
+
+    /** Janela de escolher imagem (do computador ou por link) e grava como capa. */
+    private void chooseCover(Path baseFolder, String name) {
+        javafx.stage.FileChooser fc = new javafx.stage.FileChooser();
+        fc.setTitle("Capa da mesa \"" + name + "\"");
+        fc.getExtensionFilters().add(new javafx.stage.FileChooser.ExtensionFilter("Imagens",
+                "*.png", "*.jpg", "*.jpeg", "*.gif", "*.bmp"));
+        File f = ImagePicker.open(fc, stage);
+        if (f == null) return;
+        try {
+            setCover(baseFolder.resolve(name), f.toPath());
+            showMesaList(baseFolder);
+        } catch (IOException | RuntimeException ex) {
+            error("Não deu pra usar essa capa", ex.getMessage());
         }
     }
 
@@ -469,7 +541,19 @@ public class MesaSelectorView {
                 error("Não deu pra apagar", ex.getMessage());
             }
         });
-        m.getItems().addAll(open, rename, backup, folder, new javafx.scene.control.SeparatorMenuItem(), delete);
+        javafx.scene.control.MenuItem cover = new javafx.scene.control.MenuItem("Escolher capa...");
+        cover.setOnAction(e -> chooseCover(baseFolder, name));
+        javafx.scene.control.MenuItem noCover = new javafx.scene.control.MenuItem("Tirar capa (volta a última cena)");
+        noCover.setDisable(coverFile(baseFolder.resolve(name)) == null);
+        noCover.setOnAction(e -> {
+            try {
+                clearCover(baseFolder.resolve(name));
+                showMesaList(baseFolder);
+            } catch (IOException ex) {
+                error("Não deu pra tirar a capa", ex.getMessage());
+            }
+        });
+        m.getItems().addAll(open, rename, cover, noCover, backup, folder, new javafx.scene.control.SeparatorMenuItem(), delete);
         return m;
     }
 

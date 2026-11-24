@@ -89,6 +89,22 @@ class MesaSelectorUiTest {
         assertNotNull(MesaSelectorView.lastSceneImage(dir.resolve("Minha campanha")), "miniatura da última cena");
         assertNull(MesaSelectorView.lastSceneImage(dir.resolve("Teste")), "sem cena: fica o ícone");
 
+        // capa: vale mais que a ultima cena; arquivo que nao e imagem e recusado
+        Path cover = dir.resolve("capa-escolhida.png");
+        Files.write(cover, png.toByteArray());
+        Path teste = dir.resolve("Teste");
+        assertNull(MesaSelectorView.cardImage(teste));
+        MesaSelectorView.setCover(teste, cover);
+        assertEquals("capa.png", MesaSelectorView.coverFile(teste).getFileName().toString());
+        assertNotNull(MesaSelectorView.cardImage(teste), "capa aparece no cartão");
+        Path notImage = dir.resolve("nota.png");
+        Files.writeString(notImage, "isso nao e imagem");
+        assertThrows(java.io.IOException.class, () -> MesaSelectorView.setCover(teste, notImage));
+        assertNotNull(MesaSelectorView.coverFile(teste), "capa antiga continua");
+        MesaSelectorView.clearCover(teste);
+        assertNull(MesaSelectorView.coverFile(teste));
+        MesaSelectorView.setCover(teste, cover);
+
         AtomicReference<Stage> st = new AtomicReference<>();
         onFx(() -> {
             try {

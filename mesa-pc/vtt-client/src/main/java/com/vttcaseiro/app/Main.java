@@ -146,7 +146,6 @@ public class Main extends Application {
     private Label roundLabel;
     /** Ferramenta de neblina ativa: null, true (revelar) ou false (cobrir). */
     private Boolean fogToolMode;
-    private List<Button> gmOnlyInitiativeButtons = List.of();
     /** Mestre: confirmar cada pedido de dano/cura/salvaguarda/efeito dos jogadores. */
     private boolean approveRequests;
 
@@ -1879,13 +1878,14 @@ public class Main extends Application {
         VBox current = null;
         for (javafx.scene.Node n : kids) {
             if (n.getStyleClass().contains("section-divider")) continue;
-            boolean title = n instanceof Label l && l.getStyleClass().contains("label-section");
+            boolean title = (n instanceof Label l && l.getStyleClass().contains("label-section"))
+                    || n.getStyleClass().contains("label-section-row") || n.getStyleClass().contains("panel-section");
             if (title || current == null) {
                 current = new VBox(8);
                 current.getStyleClass().add("panel-card");
                 cards.add(current);
             }
-            if (title && ((Label) n).getText().equalsIgnoreCase(panelName) && current.getChildren().isEmpty()) {
+            if (title && n instanceof Label tl && tl.getText().equalsIgnoreCase(panelName) && current.getChildren().isEmpty()) {
                 continue; // repete o nome do painel
             }
             current.getChildren().add(n);
@@ -2721,6 +2721,75 @@ public class Main extends Application {
     }
 
 
+    /**
+     * Botoes em duas colunas da mesma largura (o painel fica alinhado em vez de uma fileira torta que quebra onde
+     * da). Botao escondido (managed=false) nao deixa buraco.
+     */
+    static javafx.scene.layout.TilePane buttonGrid(Button... buttons) {
+        return buttonGrid(2, buttons);
+    }
+
+    static javafx.scene.layout.TilePane buttonGrid(int cols, Button... buttons) {
+        javafx.scene.layout.TilePane grid = new javafx.scene.layout.TilePane(6, 6);
+        grid.setPrefColumns(cols);
+        grid.getStyleClass().add("button-grid");
+        grid.prefTileWidthProperty().bind(javafx.beans.binding.Bindings.max(60,
+                grid.widthProperty().subtract(6 * cols - 2).divide(cols).subtract(0.5)));
+        grid.setTileAlignment(Pos.CENTER_LEFT);
+        for (Button b : buttons) {
+            b.setMaxWidth(Double.MAX_VALUE);
+            b.setMinWidth(0);
+            b.setTextOverrun(javafx.scene.control.OverrunStyle.ELLIPSIS);
+            if (b.getTooltip() == null && b.getText() != null) b.setTooltip(new Tooltip(b.getText()));
+        }
+        grid.getChildren().addAll(buttons);
+        return grid;
+    }
+
+    /** Botao so com icone pro cabecalho de uma secao (o nome vai na dica). */
+    static Button iconButton(String icon, String tip, Runnable action) {
+        Button b = new Button(null, com.vttcaseiro.view.Icons.icon(icon, 14));
+        b.getStyleClass().add("panel-icon-button");
+        b.setTooltip(new Tooltip(tip));
+        b.setMinWidth(Region.USE_PREF_SIZE);
+        b.setOnAction(e -> action.run());
+        return b;
+    }
+
+    /** Deixa um botao que ja existe so com o icone (o texto vira a dica e continua no botao pra quem procura). */
+    static <B extends javafx.scene.control.ButtonBase> B iconize(B b) {
+        String text = b.getText();
+        if (b.getTooltip() == null) b.setTooltip(new Tooltip(text));
+        else if (text != null && !b.getTooltip().getText().startsWith(text))
+            b.getTooltip().setText(text + ": " + b.getTooltip().getText());
+        b.setContentDisplay(javafx.scene.control.ContentDisplay.GRAPHIC_ONLY);
+        b.getStyleClass().remove("button-primary");
+        b.getStyleClass().add("panel-icon-button");
+        b.setMinWidth(Region.USE_PREF_SIZE);
+        return b;
+    }
+
+    /** Titulo da secao com icones a direita (abre um cartao novo como um titulo normal). */
+    javafx.scene.Node sectionHeader(String title, javafx.scene.Node... right) {
+        Label l = sectionLabel(title);
+        Region grow = new Region();
+        HBox.setHgrow(grow, Priority.ALWAYS);
+        HBox row = new HBox(4, l, grow);
+        row.getChildren().addAll(right);
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.getStyleClass().add("label-section-row");
+        return row;
+    }
+
+    /** Lista vazia: texto amigavel no meio em vez de uma caixa escura muda. */
+    static Label emptyHint(String text) {
+        Label l = new Label(text);
+        l.getStyleClass().add("empty-hint");
+        l.setWrapText(true);
+        l.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
+        return l;
+    }
+
     private ScrollPane wrapInScroll(VBox content) {
         ScrollPane scroll = new ScrollPane(content);
         scroll.setFitToWidth(true);
@@ -2937,9 +3006,8 @@ public class Main extends Application {
         VBox box = new VBox(8);
         box.setPadding(new Insets(12));
 
-        box.getChildren().add(sectionLabel("Fichas desta mesa"));
         characterListView = new ListView<>();
-        characterListView.setPlaceholder(new Label("Nenhuma ficha ainda. Crie uma nova ou importe um PDF/JSON."));
+        characterListView.setPlaceholder(emptyHint("Nenhuma ficha ainda.\nCrie com + ou importe um PDF/JSON."));
         characterListView.setPrefHeight(170);
         refreshCharacterList();
         characterListView.setOnMouseClicked(e -> {
@@ -2962,7 +3030,6 @@ public class Main extends Application {
             else if (e.getCode() == javafx.scene.input.KeyCode.ENTER) onOpenCharacterFromMesa(name);
         });
         characterListView.setTooltip(new Tooltip("Clique duplo abre. Botão direito: renomear, duplicar, apagar."));
-        box.getChildren().add(characterListView);
 
         Button newCharButton = new Button("Nova ficha...", com.vttcaseiro.view.Icons.icon("add", 14));
         newCharButton.getStyleClass().add("button-primary");
@@ -2984,9 +3051,11 @@ public class Main extends Application {
         javafx.scene.control.MenuItem templatesItem = new javafx.scene.control.MenuItem("Modelos de ficha (PDF editável)...");
         templatesItem.setOnAction(e -> showTemplateManager());
         moreChar.getItems().addAll(exportItem, saveItem, templatesItem);
-        javafx.scene.layout.FlowPane charButtons = new javafx.scene.layout.FlowPane(6, 6, newCharButton, importCharButton, moreChar);
-        for (javafx.scene.control.Control c : List.of(newCharButton, importCharButton, moreChar)) c.setMinWidth(Region.USE_PREF_SIZE);
-        box.getChildren().addAll(charButtons, divider());
+        moreChar.setGraphic(com.vttcaseiro.view.Icons.icon("more", 14));
+        moreChar.setTooltip(new Tooltip("Exportar, salvar agora, modelos de ficha"));
+        importCharButton.setText("Importar ficha (PDF ou JSON)...");
+        box.getChildren().addAll(sectionHeader("Fichas desta mesa", iconize(newCharButton), iconize(importCharButton),
+                iconize(moreChar)), characterListView);
 
         // Tudo que e de preparar a campanha (importar, conteudo pronto, buscar no compendio) fica numa janela propria.
         VBox compendium = new VBox(8);
@@ -3027,15 +3096,13 @@ public class Main extends Application {
         compendium.getChildren().addAll(compendiumImportRow1, compendiumImportRow2, compendiumImportRow3,
                 new HBox(6, importMonstersButton), compendiumCountLabel, importOrderHint);
 
-        box.getChildren().add(sectionLabel("Monstros"));
         mobCountLabel = new Label(mobService.list().size() + " monstro(s) nesta mesa.");
         mobCountLabel.getStyleClass().add("live-status");
         mobCountLabel.getStyleClass().add("label-muted");
-        box.getChildren().add(mobCountLabel);
 
         mobListView = new ListView<>();
         mobListView.setPrefHeight(160);
-        mobListView.setPlaceholder(new Label("Nenhum monstro ainda (importe no Compêndio)."));
+        mobListView.setPlaceholder(emptyHint("Nenhum monstro ainda.\nCrie com + ou importe no Compêndio."));
         refreshMobList();
         mobListView.setOnMouseClicked(e -> {
             if (e.getClickCount() == 2) {
@@ -3060,11 +3127,10 @@ public class Main extends Application {
         Button newMobButton = new Button("Novo monstro / NPC...", com.vttcaseiro.view.Icons.icon("add", 14));
         newMobButton.setTooltip(new Tooltip("Cria um monstro ou NPC do zero (CA, PV, atributos, ataques...)."));
         newMobButton.setOnAction(e -> onNewMob());
-        Button mobToMapButton = new Button("Colocar monstro selecionado no mapa");
+        Button mobToMapButton = new Button("Colocar o escolhido no mapa", com.vttcaseiro.view.Icons.icon("target", 14));
         mobToMapButton.setOnAction(e -> onPlaceSelectedMob());
-        javafx.scene.layout.FlowPane mobButtons = new javafx.scene.layout.FlowPane(6, 6, newMobButton, mobToMapButton);
-        for (javafx.scene.control.Control c : List.of(newMobButton, mobToMapButton)) c.setMinWidth(Region.USE_PREF_SIZE);
-        box.getChildren().add(mobButtons);
+        box.getChildren().addAll(sectionHeader("Monstros e PdMs", iconize(newMobButton), iconize(mobToMapButton)),
+                mobCountLabel);
         Label mobHint = new Label("Clique duplo num monstro da lista pra abrir a ficha dele; botão direito pra "
                 + "editar, duplicar (ex.: \"Goblin chefe\"), renomear ou apagar. O token do monstro "
                 + "nasce com PV médio e bônus de iniciativa; o PV fica escondido dos jogadores.");
@@ -3094,14 +3160,13 @@ public class Main extends Application {
         compendium.getChildren().addAll(new HBox(6, compendiumSearchField, searchButton), compendiumSearchListView,
                 attachButton);
 
-        box.getChildren().add(sectionLabel("Compêndio"));
         Label compendiumSummary = new Label();
         compendiumSummary.getStyleClass().addAll("label-muted", "live-status");
         compendiumSummary.textProperty().bind(compendiumCountLabel.textProperty());
         Button openCompendium = new Button("Abrir compêndio...", com.vttcaseiro.view.Icons.icon("journal", 14));
         openCompendium.setTooltip(new Tooltip("Conteúdo pronto 2024, importar do 5etools e buscar algo pra anexar na ficha."));
         openCompendium.setOnAction(e -> showCompendiumWindow(compendium));
-        box.getChildren().addAll(compendiumSummary, openCompendium, divider());
+        box.getChildren().addAll(sectionHeader("Compêndio", iconize(openCompendium)), compendiumSummary, divider());
 
         Label hint = new Label("Dica: arraste o retrato (ou a silhueta) da janela "
                 + "da ficha para cima do mapa -- isso cria um token vinculado a "
@@ -4095,14 +4160,18 @@ public class Main extends Application {
         VBox box = new VBox(8);
         box.setPadding(new Insets(12));
 
-        box.getChildren().add(sectionLabel("Nome da party"));
+        box.getChildren().add(sectionLabel("Nome do grupo"));
         TextField partyNameField = new TextField(partyService.getParty().getName());
-        Button renamePartyButton = new Button("Renomear");
+        partyNameField.setOnAction(e -> onRenameParty(partyNameField.getText()));
+        Button renamePartyButton = new Button("Salvar o nome", com.vttcaseiro.view.Icons.icon("save", 14));
         renamePartyButton.setOnAction(e -> onRenameParty(partyNameField.getText()));
-        box.getChildren().addAll(new HBox(6, partyNameField, renamePartyButton), divider());
+        HBox.setHgrow(partyNameField, Priority.ALWAYS);
+        HBox nameRow = new HBox(6, partyNameField, iconize(renamePartyButton));
+        nameRow.setAlignment(Pos.CENTER_LEFT);
+        box.getChildren().add(nameRow);
 
-        box.getChildren().add(sectionLabel("Membros (ficha precisa estar aberta nesta sessão pra mostrar o nome)"));
         partyMemberListView = new ListView<>();
+        partyMemberListView.setPlaceholder(emptyHint("Ninguém no grupo ainda.\nAbra uma ficha e use + aqui."));
         partyMemberListView.setPrefHeight(120);
         partyMemberListView.setCellFactory(lv -> new ListCell<>() {
             @Override
@@ -4119,15 +4188,15 @@ public class Main extends Application {
             }
         });
         refreshPartyMemberList();
-        box.getChildren().add(partyMemberListView);
-        Button addMemberButton = new Button("+ Adicionar ficha aberta na party");
-        Button removeMemberButton = new Button("Remover selecionado da party");
+        Button addMemberButton = new Button("Pôr no grupo a ficha aberta", com.vttcaseiro.view.Icons.icon("add", 14));
+        Button removeMemberButton = new Button("Tirar do grupo o escolhido", com.vttcaseiro.view.Icons.icon("trash", 14));
         removeMemberButton.setOnAction(e -> onRemovePartyMember());
         addMemberButton.setOnAction(e -> onAddLastOpenedCharacterToParty());
-        box.getChildren().addAll(new HBox(6, addMemberButton, removeMemberButton), divider());
+        box.getChildren().addAll(sectionHeader("Membros", iconize(addMemberButton), iconize(removeMemberButton)),
+                partyMemberListView);
 
-        box.getChildren().add(sectionLabel("Inventário compartilhado (loot comum do grupo)"));
         partyInventoryListView = new ListView<>();
+        partyInventoryListView.setPlaceholder(emptyHint("Nada no baú do grupo."));
         partyInventoryListView.setPrefHeight(140);
         partyInventoryListView.setCellFactory(lv -> new ListCell<>() {
             @Override
@@ -4137,15 +4206,16 @@ public class Main extends Application {
             }
         });
         refreshPartyInventoryList();
-        box.getChildren().add(partyInventoryListView);
-        Button addItemButton = new Button("+ Adicionar item...");
+        Button addItemButton = new Button("Adicionar item...", com.vttcaseiro.view.Icons.icon("add", 14));
         addItemButton.setOnAction(e -> onAddPartyItem());
-        Button transferItemButton = new Button("Transferir 1 selecionado pra ficha aberta");
+        Button transferItemButton = new Button("Passar 1 do escolhido pra ficha aberta", com.vttcaseiro.view.Icons.icon("send", 14));
         transferItemButton.setOnAction(e -> onTransferPartyItemToLastOpenedCharacter());
-        box.getChildren().add(new HBox(6, addItemButton, transferItemButton));
+        box.getChildren().addAll(sectionHeader("Baú do grupo", iconize(addItemButton), iconize(transferItemButton)),
+                partyInventoryListView);
 
-        Label hint = new Label("Transferir item específico pra outra ficha (não só a última aberta) e "
-                + "editar dinheiro da party ainda não tem botão aqui -- ver HANDOFF.md.");
+        Label hint = new Label("Membros: + põe no grupo a última ficha que você abriu (o nome aparece quando a ficha "
+                + "está nesta mesa). Baú: o loot de todo mundo; a seta passa 1 unidade do item escolhido pra última "
+                + "ficha aberta.");
         hint.getStyleClass().add("label-muted");
         hint.setWrapText(true);
         box.getChildren().add(hint);
@@ -4163,11 +4233,23 @@ public class Main extends Application {
         VBox box = new VBox(8);
         box.setPadding(new Insets(12));
 
-        roundLabel = new Label("Sem combate em andamento");
+        roundLabel = new Label("Sem combate");
         roundLabel.getStyleClass().add("live-status");
-        roundLabel.getStyleClass().add("label-title");
-        box.getChildren().addAll(sectionLabel("Combate"), roundLabel);
+        roundLabel.getStyleClass().add("combat-status");
+        Button pullButton = iconButton("download", "Puxar das fichas: usa a iniciativa que cada jogador rolou na própria "
+                + "ficha (+ o modificador do rastreador)", () -> {
+            int n = table.pullInitiativesFromSheets();
+            if (n > 0) refreshInitiativeList();
+        });
+        Button editButton = iconButton("edit", "Editar a linha escolhida: iniciativa, modificador e cor (ou duplo clique)",
+                this::onEditInitiative);
+        Region statusGrow = new Region();
+        HBox.setHgrow(statusGrow, Priority.ALWAYS);
+        HBox status = new HBox(4, roundLabel, statusGrow, pullButton, editButton);
+        status.setAlignment(Pos.CENTER_LEFT);
+        box.getChildren().add(status);
         initiativeListView = new ListView<>();
+        initiativeListView.setPlaceholder(emptyHint("Ninguém na iniciativa ainda.\nColoque tokens no mapa e role."));
         initiativeListView.setPrefHeight(150);
         initiativeListView.setCellFactory(lv -> new ListCell<>() {
             @Override
@@ -4198,34 +4280,31 @@ public class Main extends Application {
         });
         box.getChildren().add(initiativeListView);
 
-        Button rollAllButton = new Button("Rolar iniciativa e começar combate");
+        // sem combate: rolar e comecar / comecar com as atuais; em combate: proximo turno / encerrar
+        Button rollAllButton = new Button("Rolar e começar", com.vttcaseiro.view.Icons.icon("dice", 14));
+        rollAllButton.setTooltip(new Tooltip("Rola a iniciativa de todos os tokens do mapa e começa o combate"));
         startCombatButton = rollAllButton;
         rollAllButton.setOnAction(e -> table.rollInitiativeForAllAndStart());
-        Button startButton = new Button("Começar com as iniciativas atuais");
+        Button startButton = new Button("Começar já");
+        startButton.setTooltip(new Tooltip("Começa com as iniciativas que já estão na lista (sem rolar de novo)"));
         startButton.setOnAction(e -> table.startEncounter());
-        Button editButton = new Button("Editar...");
-        editButton.setTooltip(new Tooltip("Iniciativa, modificador só deste combatente e cor da linha (ou duplo clique na linha)."));
-        editButton.setOnAction(e -> onEditInitiative());
-        Button pullButton = new Button("Puxar das fichas");
-        pullButton.setTooltip(new Tooltip("Usa a iniciativa que cada jogador rolou na própria ficha (+ o modificador do rastreador)."));
-        pullButton.setOnAction(e -> {
-            int n = table.pullInitiativesFromSheets();
-            if (n > 0) refreshInitiativeList();
-        });
-        box.getChildren().add(new javafx.scene.layout.FlowPane(6, 6, rollAllButton, startButton, pullButton, editButton));
-
-        Button nextTurnButton = new Button("Próximo turno");
+        Button nextTurnButton = new Button("Próximo turno", com.vttcaseiro.view.Icons.icon("next", 14));
         nextTurnPanelButton = nextTurnButton;
         nextTurnButton.setOnAction(e -> table.nextTurn());
-        Button endButton = new Button("Encerrar combate");
+        Button endButton = new Button("Encerrar");
+        endButton.setTooltip(new Tooltip("Encerrar combate"));
         endButton.setOnAction(e -> table.endEncounter());
-        box.getChildren().add(new HBox(6, nextTurnButton, endButton));
+        combatIdleButtons = List.of(rollAllButton, startButton);
+        combatActiveButtons = List.of(nextTurnButton, endButton);
+        box.getChildren().add(buttonGrid(rollAllButton, startButton, nextTurnButton, endButton));
+        combatToolButtons = List.of(pullButton, editButton);
 
-        box.getChildren().addAll(divider(), sectionLabel("Mestre: grupo inteiro"));
-        Button groupSaveButton = new Button("Salvaguarda em grupo...");
+        box.getChildren().add(sectionLabel("Mestre: grupo inteiro"));
+        Button groupSaveButton = new Button("Salvaguarda...");
         groupSaveButton.setTooltip(new Tooltip("Todos rolam contra uma CD; da pra aplicar o dano (cheio em quem"
                 + " falha, metade em quem passa) -- ex.: Bola de Fogo."));
         groupSaveButton.setOnAction(e -> onGroupSave());
+        groupSaveButton.setGraphic(com.vttcaseiro.view.Icons.icon("spark", 14));
         Button shortRestButton = new Button("Descanso curto");
         shortRestButton.setTooltip(new Tooltip("Cada personagem no mapa gasta dados de vida até ficar quase cheio."));
         shortRestButton.setOnAction(e -> table.groupShortRest());
@@ -4239,21 +4318,24 @@ public class Main extends Application {
             confirm.showAndWait().filter(b -> b == javafx.scene.control.ButtonType.OK)
                     .ifPresent(b -> table.groupLongRest());
         });
-        Button calcButton = new Button("Calculadora de encontro...");
-        calcButton.setTooltip(new Tooltip("Dificuldade (2024) dos monstros do mapa (ou dos selecionados) pro nível do grupo."));
+        Button calcButton = new Button("Dificuldade...", com.vttcaseiro.view.Icons.icon("perigo", 14));
+        calcButton.setTooltip(new Tooltip("Calculadora de encontro: dificuldade (2024) dos monstros do mapa (ou dos "
+                + "selecionados) pro nível do grupo."));
         calcButton.setOnAction(e -> onEncounterCalculator());
-        box.getChildren().add(new javafx.scene.layout.FlowPane(6, 6, groupSaveButton, shortRestButton, longRestButton, calcButton));
-        CheckBox approve = new CheckBox("Aprovar pedidos dos jogadores (dano, cura, efeitos)");
-        approve.setTooltip(new Tooltip("Desligado: o pedido de um jogador (ex.: dano no goblin que ele acertou) e aplicado"
+        groupSaveButton.setTooltip(new Tooltip("Salvaguarda em grupo: " + groupSaveButton.getTooltip().getText()));
+        box.getChildren().add(buttonGrid(groupSaveButton, shortRestButton, longRestButton, calcButton));
+        gmCombatCard = groupSaveButton;
+        CheckBox approve = new CheckBox("Aprovar pedidos dos jogadores");
+        approve.setTooltip(new Tooltip("Pedidos de dano, cura e efeitos. Desligado: o pedido de um jogador (ex.: dano no goblin que ele acertou) e aplicado"
                 + " direto. Ligado: aparece uma pergunta pra você aprovar ou recusar."));
         approve.setSelected(approveRequests);
         approve.setOnAction(e -> approveRequests = approve.isSelected());
         box.getChildren().add(approve);
-        gmOnlyInitiativeButtons = List.of(rollAllButton, startButton, nextTurnButton, endButton,
-                groupSaveButton, shortRestButton, longRestButton, calcButton);
+
         refreshInitiativeList();
 
-        Label hint = new Label("Bolinha da linha: clique troca a cor (cinza, verde, amarelo, vermelho). Botão direito: "
+        Label hint = new Label("Ícones ao lado da rodada: puxar a iniciativa das fichas e editar a linha escolhida. "
+                + "Bolinha da linha: clique troca a cor (cinza, verde, amarelo, vermelho). Botão direito: "
                 + "modificador, puxar da ficha, rolar. A ordem segue a iniciativa dos tokens (editar reordena na hora). Rodada e turno "
                 + "sincronizam pra todos; só o mestre avança. Efeitos com duração (botão direito no token > "
                 + "\"Efeito com duração...\") somem sozinhos quando a rodada vira.");
@@ -4271,7 +4353,7 @@ public class Main extends Application {
         box.setPadding(new Insets(12));
         journalList = new ListView<>(journalItems);
         journalList.setPrefHeight(170);
-        journalList.setPlaceholder(new Label("Nada no diário ainda."));
+        journalList.setPlaceholder(emptyHint("Nada no diário ainda."));
         journalList.setCellFactory(lv -> new ListCell<>() {
             @Override
             protected void updateItem(com.vttcaseiro.model.Handout h, boolean empty) {
@@ -4295,21 +4377,20 @@ public class Main extends Application {
             if (e.getClickCount() == 2 && h != null) openHandoutWindow(h);
         });
 
-        Button add = new Button("+ Nova");
-        add.getStyleClass().add("button-primary");
+        Button add = new Button("Nova anotação", com.vttcaseiro.view.Icons.icon("add", 14));
         add.setOnAction(e -> editHandout(null));
-        Button edit = new Button("Editar");
+        Button edit = new Button("Editar a escolhida", com.vttcaseiro.view.Icons.icon("edit", 14));
         edit.setOnAction(e -> {
             com.vttcaseiro.model.Handout h = journalList.getSelectionModel().getSelectedItem();
             if (h != null) editHandout(h);
         });
-        Button reveal = new Button("Revelar / esconder");
+        Button reveal = new Button("Revelar / esconder", com.vttcaseiro.view.Icons.icon("eye", 14));
         reveal.setTooltip(new Tooltip("Revelar manda a anotação pra todos os jogadores (e pra quem entrar depois)."));
         reveal.setOnAction(e -> {
             com.vttcaseiro.model.Handout h = journalList.getSelectionModel().getSelectedItem();
             if (h != null) setHandoutRevealed(h, !h.isRevealed());
         });
-        Button remove = new Button("Remover");
+        Button remove = new Button("Apagar", com.vttcaseiro.view.Icons.icon("trash", 14));
         remove.setOnAction(e -> {
             com.vttcaseiro.model.Handout h = journalList.getSelectionModel().getSelectedItem();
             if (h == null) return;
@@ -4324,7 +4405,8 @@ public class Main extends Application {
                 refreshJournal();
             });
         });
-        javafx.scene.layout.FlowPane gmButtons = new javafx.scene.layout.FlowPane(6, 6, add, edit, reveal, remove);
+        HBox gmButtons = new HBox(4, iconize(add), iconize(edit), iconize(reveal), iconize(remove));
+        gmButtons.setAlignment(Pos.CENTER_RIGHT);
         Label hint = new Label();
         hint.getStyleClass().add("label-muted");
         hint.setWrapText(true);
@@ -4345,8 +4427,8 @@ public class Main extends Application {
             }
         }));
         byRole.run();
-        box.getChildren().addAll(sectionLabel("Diário da mesa"), journalList, gmButtons, divider(), journalViewer, hint,
-                divider(), buildTablesSection());
+        box.getChildren().addAll(sectionHeader("Diário da mesa", gmButtons), journalList, journalViewer, hint,
+                buildTablesSection());
         return new Tab("Diário", wrapInScroll(box));
     }
 
@@ -5229,11 +5311,10 @@ public class Main extends Application {
         // --- mestre: biblioteca e controles ---
         ListView<com.vttcaseiro.model.SoundEntry> library = new ListView<>();
         library.setPrefHeight(170);
-        library.setPlaceholder(new Label("Nenhum som ainda. \"+ Adicionar sons...\" (mp3, ogg, wav)."));
+        library.setPlaceholder(emptyHint("Nenhum som ainda.\nUse + pra trazer mp3, ogg ou wav."));
         Runnable reload = () -> library.getItems().setAll(soundIndex.load());
         reload.run();
-        Button add = new Button("+ Adicionar sons...");
-        add.getStyleClass().add("button-primary");
+        Button add = new Button("Adicionar sons...", com.vttcaseiro.view.Icons.icon("add", 14));
         add.setOnAction(e -> {
             javafx.stage.FileChooser chooser = new javafx.stage.FileChooser();
             chooser.setTitle("Escolher músicas/sons");
@@ -5254,9 +5335,12 @@ public class Main extends Application {
             soundIndex.save(all);
             reload.run();
         });
-        Button music = new Button("Tocar como música");
-        Button ambient = new Button("Como ambiente");
-        Button sfx = new Button("Efeito (uma vez)");
+        Button music = new Button("Música", com.vttcaseiro.view.Icons.icon("sound", 14));
+        music.setTooltip(new Tooltip("Toca o escolhido como música (em loop, pra todos)"));
+        Button ambient = new Button("Ambiente");
+        ambient.setTooltip(new Tooltip("Toca o escolhido como som ambiente (em loop, junto com a música)"));
+        Button sfx = new Button("Efeito");
+        sfx.setTooltip(new Tooltip("Toca o escolhido uma vez (porta, trovão, grito)"));
         for (Button b : List.of(music, ambient, sfx)) {
             b.setOnAction(e -> {
                 com.vttcaseiro.model.SoundEntry se = library.getSelectionModel().getSelectedItem();
@@ -5270,7 +5354,7 @@ public class Main extends Application {
         stopMusic.setOnAction(e -> gmAudio(com.vttcaseiro.model.AudioCommand.stop(com.vttcaseiro.model.AudioCommand.MUSIC)));
         Button stopAmbient = new Button("Parar ambiente");
         stopAmbient.setOnAction(e -> gmAudio(com.vttcaseiro.model.AudioCommand.stop(com.vttcaseiro.model.AudioCommand.AMBIENT)));
-        Button remove = new Button("Tirar da lista");
+        Button remove = new Button("Tirar o escolhido da lista", com.vttcaseiro.view.Icons.icon("trash", 14));
         remove.setOnAction(e -> {
             com.vttcaseiro.model.SoundEntry se = library.getSelectionModel().getSelectedItem();
             if (se == null) return;
@@ -5283,8 +5367,11 @@ public class Main extends Application {
                 + "Quem joga pelo programa ou pelo navegador baixa o som do seu computador.");
         hint.getStyleClass().add("label-muted");
         hint.setWrapText(true);
-        VBox gmBox = new VBox(6, sectionLabel("Biblioteca de sons (mestre)"), library,
-                new javafx.scene.layout.FlowPane(6, 6, add, music, ambient, sfx, stopMusic, stopAmbient, remove), hint, divider());
+        Label playAs = new Label("Tocar o escolhido como");
+        playAs.getStyleClass().add("label-muted");
+        VBox gmBox = new VBox(8, sectionHeader("Sons da mesa", iconize(add), iconize(remove)), library, playAs,
+                buttonGrid(3, music, ambient, sfx), buttonGrid(stopMusic, stopAmbient), hint);
+        gmBox.getStyleClass().add("panel-section");
         Runnable gmOnly = () -> {
             boolean gm = networkService.isGm();
             gmBox.setVisible(gm);
@@ -5308,6 +5395,8 @@ public class Main extends Application {
                 {com.vttcaseiro.model.AudioCommand.AMBIENT, "Ambiente"}, {com.vttcaseiro.model.AudioCommand.SFX, "Efeitos"}}) {
             javafx.scene.control.Slider slider = new javafx.scene.control.Slider(0, 1, soundPlayer.volume(ch[0]));
             slider.setPrefWidth(200);
+            slider.setMaxWidth(Double.MAX_VALUE);
+            HBox.setHgrow(slider, Priority.ALWAYS);
             slider.valueProperty().addListener((o, a, v) -> soundPlayer.setVolume(ch[0], v.doubleValue()));
             Label l = new Label(ch[1]);
             l.setMinWidth(70);
@@ -5318,8 +5407,8 @@ public class Main extends Application {
         CheckBox dice = new CheckBox("Dados animados no mapa");
         dice.setSelected(AppSettings.getBool("dice.animated", true));
         dice.setOnAction(e -> AppSettings.setBool("dice.animated", dice.isSelected()));
-        box.getChildren().addAll(gmBox, sectionLabel("Tocando agora"), playing, sectionLabel("Volume (só nesta maquina)"),
-                volumes, mute, divider(), dice);
+        box.getChildren().addAll(gmBox, sectionLabel("Tocando agora"), playing, sectionLabel("Volume (só nesta máquina)"),
+                volumes, mute, dice);
         return new Tab("Som", wrapInScroll(box));
     }
 
@@ -6662,6 +6751,15 @@ public class Main extends Application {
 
     private Button startCombatButton;
     private Button nextTurnPanelButton;
+    private List<Button> combatIdleButtons = List.of();
+    private List<Button> combatActiveButtons = List.of();
+    private List<Button> combatToolButtons = List.of();
+    private Button gmCombatCard;
+
+    private static void showNode(javafx.scene.Node n, boolean show) {
+        n.setVisible(show);
+        n.setManaged(show);
+    }
 
     private void refreshInitiativeList() {
         refreshTurnQueue();
@@ -6672,7 +6770,9 @@ public class Main extends Application {
         initiativeListView.refresh();
         if (roundLabel != null) {
             var e = sceneService.getScene().getEncounter();
-            roundLabel.setText(e.isActive() ? "Rodada " + e.getRound() : "Sem combate em andamento");
+            roundLabel.setText(e.isActive() ? "Rodada " + e.getRound() : "Sem combate");
+            roundLabel.getStyleClass().remove("combat-status-active");
+            if (e.isActive()) roundLabel.getStyleClass().add("combat-status-active");
             // um destaque por vez: sem combate, "comecar"; em combate, "proximo turno"
             if (startCombatButton != null && nextTurnPanelButton != null) {
                 startCombatButton.getStyleClass().remove("button-primary");
@@ -6681,16 +6781,15 @@ public class Main extends Application {
             }
         }
         boolean gm = networkService.isGm();
-        // jogador nao ve os botoes do mestre (em vez de ve-los apagados); o cartao "Mestre: grupo inteiro" some todo
-        for (Button b : gmOnlyInitiativeButtons) {
-            b.setVisible(gm);
-            b.setManaged(gm);
-            javafx.scene.Node card = b.getParent();
+        boolean active = sceneService.getScene().getEncounter().isActive();
+        // jogador nao ve os botoes do mestre (em vez de ve-los apagados); e o mestre so ve os da hora
+        for (Button b : combatIdleButtons) showNode(b, gm && !active);
+        for (Button b : combatActiveButtons) showNode(b, gm && active);
+        for (Button b : combatToolButtons) showNode(b, gm);
+        if (gmCombatCard != null) {
+            javafx.scene.Node card = gmCombatCard.getParent();
             while (card != null && !card.getStyleClass().contains("panel-card")) card = card.getParent();
-            if (card != null && b == gmOnlyInitiativeButtons.get(4)) { // salvaguarda em grupo: cartao so do mestre
-                card.setVisible(gm);
-                card.setManaged(gm);
-            }
+            if (card != null) showNode(card, gm); // cartao "Mestre: grupo inteiro" some todo pro jogador
         }
     }
 
@@ -8122,8 +8221,11 @@ public class Main extends Application {
                 .map(com.vttcaseiro.model.RandomTable::getName).toList());
         reload.run();
         CheckBox hidden = new CheckBox("Só pra mim");
-        Button roll = new Button("Rolar");
+        Button roll = new Button("Rolar a escolhida", com.vttcaseiro.view.Icons.icon("dice", 14));
         roll.getStyleClass().add("button-primary");
+        roll.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(roll, Priority.ALWAYS);
+        hidden.setMinWidth(Region.USE_PREF_SIZE);
         roll.setOnAction(e -> {
             String n = list.getSelectionModel().getSelectedItem();
             if (n != null) rollRandomTable(n, hidden.isSelected());
@@ -8132,12 +8234,12 @@ public class Main extends Application {
             String n = list.getSelectionModel().getSelectedItem();
             if (e.getClickCount() == 2 && n != null) rollRandomTable(n, hidden.isSelected());
         });
-        Button add = new Button("Nova");
+        Button add = new Button("Nova tabela", com.vttcaseiro.view.Icons.icon("add", 14));
         add.setOnAction(e -> {
             editTable(null);
             reload.run();
         });
-        Button edit = new Button("Editar");
+        Button edit = new Button("Editar a escolhida", com.vttcaseiro.view.Icons.icon("edit", 14));
         edit.setOnAction(e -> {
             String n = list.getSelectionModel().getSelectedItem();
             if (n != null) findTable(n).ifPresent(t -> {
@@ -8145,7 +8247,7 @@ public class Main extends Application {
                 reload.run();
             });
         });
-        Button remove = new Button("Remover");
+        Button remove = new Button("Apagar a escolhida", com.vttcaseiro.view.Icons.icon("trash", 14));
         remove.setOnAction(e -> {
             String n = list.getSelectionModel().getSelectedItem();
             if (n == null) return;
@@ -8157,8 +8259,11 @@ public class Main extends Application {
         Label hint = new Label("Clique duplo rola. No chat: /tabela Nome. Linhas com faixa: \"1-3: goblins\".");
         hint.getStyleClass().add("label-muted");
         hint.setWrapText(true);
-        VBox box = new VBox(6, sectionLabel("Tabelas aleatórias (mestre)"), list,
-                new javafx.scene.layout.FlowPane(6, 6, roll, hidden, add, edit, remove), hint);
+        HBox rollRow = new HBox(8, roll, hidden);
+        rollRow.setAlignment(Pos.CENTER_LEFT);
+        VBox box = new VBox(8, sectionHeader("Tabelas aleatórias", iconize(add), iconize(edit), iconize(remove)), list,
+                rollRow, hint);
+        box.getStyleClass().add("panel-section");
         Runnable gmOnly = () -> {
             boolean gm = networkService.isGm();
             box.setVisible(gm);
