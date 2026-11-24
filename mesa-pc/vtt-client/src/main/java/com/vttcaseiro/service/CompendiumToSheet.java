@@ -144,6 +144,7 @@ public final class CompendiumToSheet {
         java.util.regex.Matcher m = java.util.regex.Pattern.compile("Components:\\s*([^|\\n]*)").matcher(full);
         spell.setMaterialRequired(m.find() && m.group(1).matches("(?s).*\\bM\\b.*"));
         spell.setNotes(nonNull(entry.getSpellDuration()));
+        spell.setArea(SpellArea.phrase(full)); // "20-foot-radius Sphere": a area aparece no mapa ao conjurar
         fillSpellDice(spell, full);
         return spell;
     }

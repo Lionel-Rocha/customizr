@@ -208,6 +208,14 @@ public class MapView extends Pane {
             if (ringToken != null && !(e.getTarget() instanceof javafx.scene.Node t && isInRing(t))) closeActionRing();
         });
         addEventFilter(ScrollEvent.SCROLL, e -> closeActionRing());
+        // area de magia presa no cursor tem prioridade sobre o resto
+        for (javafx.event.EventType<MouseEvent> type : java.util.List.of(MouseEvent.MOUSE_MOVED, MouseEvent.MOUSE_DRAGGED,
+                MouseEvent.MOUSE_PRESSED, MouseEvent.MOUSE_RELEASED, MouseEvent.MOUSE_CLICKED)) {
+            addEventFilter(type, e -> {
+                if (armedShape != null) onArmedEvent(e);
+            });
+        }
+        addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, this::onArmedEvent);
         addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, e -> {
             if (e.getCode() == javafx.scene.input.KeyCode.ESCAPE && ringToken != null) {
                 closeActionRing();
@@ -1663,6 +1671,112 @@ public class MapView extends Pane {
 
     public void setTemplateShapeType(String shapeType) {
         this.templateShapeType = shapeType;
+    }
+
+    // ---------------- area de magia presa no cursor
+
+    private String armedShape;
+    private double armedSizePx;
+    private double[] armedOrigin;
+    private java.util.function.Consumer<java.util.List<TokenModel>> armedDone;
+    private Runnable armedCancel;
+
+    /**
+     * Area de magia presa no cursor: circulo e cubo seguem o mouse; cone e linha saem de {@code origin} (o
+     * conjurador; null = do ponto do mouse, apontando pra direita) na direcao do mouse. Clique marca e devolve os
+     * tokens dentro; Esc ou botao direito cancela.
+     */
+    public void armArea(String shape, double sizePx, double[] origin,
+                        java.util.function.Consumer<java.util.List<TokenModel>> done, Runnable cancel) {
+        disarmArea();
+        armedShape = shape;
+        armedSizePx = Math.max(5, sizePx);
+        armedOrigin = origin;
+        armedDone = done;
+        armedCancel = cancel;
+        setCursor(Cursor.CROSSHAIR);
+        requestFocus();
+    }
+
+    public boolean isAreaArmed() {
+        return armedShape != null;
+    }
+
+    private void disarmArea() {
+        armedShape = null;
+        armedDone = null;
+        armedCancel = null;
+        setCursor(Cursor.DEFAULT);
+    }
+
+    private void drawArmed(double px, double py) {
+        String keep = templateShapeType;
+        templateShapeType = armedShape;
+        double s = armedSizePx;
+        switch (armedShape) {
+            case "Cubo" -> drawTemplate(px - s / 2, py - s / 2, px + s / 2, py + s / 2);
+            case "Cone", "Linha" -> {
+                double ox = armedOrigin != null ? armedOrigin[0] : px;
+                double oy = armedOrigin != null ? armedOrigin[1] : py;
+                double dx = px - ox, dy = py - oy, len = Math.hypot(dx, dy);
+                if (len < 1) {
+                    dx = 1;
+                    dy = 0;
+                    len = 1;
+                }
+                drawTemplate(ox, oy, ox + dx / len * s, oy + dy / len * s);
+            }
+            default -> drawTemplate(px, py, px + s, py);
+        }
+        templateShapeType = keep;
+    }
+
+    /** Tokens com o centro dentro da area desenhada agora. */
+    public java.util.List<TokenModel> tokensInTemplate() {
+        java.util.List<TokenModel> out = new java.util.ArrayList<>();
+        if (templateGroup.getChildren().isEmpty() || !(templateGroup.getChildren().get(0) instanceof javafx.scene.shape.Shape shape)) return out;
+        for (TokenModel t : scene.getTokens()) {
+            double[] c = centerOf(t);
+            if (shape.contains(shape.parentToLocal(c[0], c[1]))) out.add(t);
+        }
+        return out;
+    }
+
+    /** Troca os alvos marcados por estes. */
+    public void setTargets(java.util.Collection<TokenModel> tokens) {
+        targetIds.clear();
+        for (TokenModel t : tokens) targetIds.add(t.getId());
+        refreshTargetMarkers();
+    }
+
+    private void onArmedEvent(javafx.event.Event ev) {
+        if (armedShape == null) return;
+        if (ev instanceof MouseEvent e) {
+            Point2D p = content.sceneToLocal(e.getSceneX(), e.getSceneY());
+            if (e.getEventType() == MouseEvent.MOUSE_MOVED || e.getEventType() == MouseEvent.MOUSE_DRAGGED) {
+                drawArmed(p.getX(), p.getY());
+            } else if (e.getEventType() == MouseEvent.MOUSE_PRESSED) {
+                if (e.getButton() == MouseButton.PRIMARY) {
+                    drawArmed(p.getX(), p.getY());
+                    java.util.List<TokenModel> inside = tokensInTemplate();
+                    var done = armedDone;
+                    disarmArea();
+                    if (done != null) done.accept(inside);
+                } else {
+                    var cancel = armedCancel;
+                    disarmArea();
+                    clearTemplate();
+                    if (cancel != null) cancel.run();
+                }
+            }
+            e.consume();
+        } else if (ev instanceof javafx.scene.input.KeyEvent k && k.getCode() == javafx.scene.input.KeyCode.ESCAPE) {
+            var cancel = armedCancel;
+            disarmArea();
+            clearTemplate();
+            if (cancel != null) cancel.run();
+            k.consume();
+        }
     }
 
     /** Apaga o template desenhado agora (se tiver algum). */

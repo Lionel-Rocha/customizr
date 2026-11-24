@@ -163,6 +163,14 @@ public class NetworkService {
         }
 
         void onDisconnected(String reason);
+
+        /** Caiu a conexao e o programa esta tentando voltar sozinho (tentativa {@code attempt} de {@code max}). */
+        default void onReconnecting(int attempt, int max) {
+        }
+
+        /** Voltou sozinho depois de cair. */
+        default void onReconnected() {
+        }
     }
 
     private final StringProperty status = new SimpleStringProperty("Offline (tudo local)");
@@ -403,9 +411,65 @@ public class NetworkService {
         this.connectedHost = host;
         this.connectedPort = port;
         this.connectedRelayCode = relayCodeUsed;
+        lastConnect = new ConnectArgs(host, port, playerName, imageAssetStore, isGm, tablePassword, masterPassword, tlsOn,
+                prompt, listener, relayCodeUsed);
         setStatus("Conectado em " + host + ":" + port + (relayCodeUsed != null ? " (ponte, mesa " + relayCodeUsed + ")" : "")
                 + " como " + playerName);
         log.info("Conectado a " + host + ":" + port);
+    }
+
+    // ---------------- reconectar sozinho
+
+    /** Tudo que precisa pra conectar de novo do mesmo jeito. */
+    private record ConnectArgs(String host, int port, String playerName, ImageAssetStore images, boolean isGm,
+                               String tablePassword, String masterPassword, boolean tls,
+                               com.vttcaseiro.net.TlsSupport.TrustPrompt prompt, GameListener listener, String relayCode) {
+    }
+
+    private volatile ConnectArgs lastConnect;
+    private volatile Thread reconnectThread;
+    /** Tentativas e espera entre elas: uns 2 minutos no total. */
+    static int RECONNECT_ATTEMPTS = 24;
+    static long RECONNECT_DELAY_MS = 5000;
+
+    public boolean isReconnecting() {
+        return reconnectThread != null;
+    }
+
+    private void startReconnect(ConnectArgs a, String reason) {
+        setStatus("Reconectando...");
+        Thread t = new Thread(() -> {
+            try {
+                for (int i = 1; i <= RECONNECT_ATTEMPTS; i++) {
+                    if (lastConnect != a) return; // desconectou de proposito no meio
+                    a.listener().onReconnecting(i, RECONNECT_ATTEMPTS);
+                    Thread.sleep(i == 1 ? Math.min(1000, RECONNECT_DELAY_MS) : RECONNECT_DELAY_MS);
+                    if (lastConnect != a) return;
+                    try {
+                        if (a.relayCode() != null) connectThroughRelay(a.relayCode());
+                        connect(a.host(), a.port(), a.playerName(), a.images(), a.isGm(), a.tablePassword(),
+                                a.masterPassword(), a.tls(), a.prompt(), a.listener());
+                        log.info("Reconectado depois de " + i + " tentativa(s).");
+                        reconnectThread = null;
+                        a.listener().onReconnected();
+                        return;
+                    } catch (IOException | RuntimeException ex) {
+                        log.info("Tentativa " + i + " de reconectar falhou: " + ex.getMessage());
+                    }
+                }
+                lastConnect = null;
+                reconnectThread = null;
+                setStatus("Offline (conexão perdida)");
+                a.listener().onDisconnected(reason + " (não deu pra reconectar)");
+            } catch (InterruptedException stop) {
+                Thread.currentThread().interrupt();
+            } finally {
+                if (reconnectThread == Thread.currentThread()) reconnectThread = null;
+            }
+        }, "reconectar");
+        t.setDaemon(true);
+        reconnectThread = t;
+        t.start();
     }
 
     private void requireNotConnected() {
@@ -630,12 +694,17 @@ public class NetworkService {
             public void onDisconnected(String reason) {
                 client = null;
                 stopWebGateway();
+                ConnectArgs again = server == null ? lastConnect : null; // quem hospeda nao tem pra onde voltar
                 if (server != null) {
                     server.stop();
                     server = null;
                 }
-                setStatus("Offline (conexão perdida)");
                 onlinePlayers.clear();
+                if (again != null && RECONNECT_ATTEMPTS > 0) {
+                    startReconnect(again, reason);
+                    return;
+                }
+                setStatus("Offline (conexão perdida)");
                 listener.onDisconnected(reason);
             }
 
@@ -908,6 +977,9 @@ public class NetworkService {
      * e so pra falha inesperada), entao quem chamou isto e que decide o
      * que fazer na tela depois. */
     public void disconnect() {
+        lastConnect = null; // saiu porque quis: nao tenta voltar
+        Thread r = reconnectThread;
+        if (r != null) r.interrupt();
         closeRelay();
         if (client != null) {
             client.disconnect();

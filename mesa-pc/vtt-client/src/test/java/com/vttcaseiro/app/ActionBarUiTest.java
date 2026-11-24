@@ -171,6 +171,28 @@ class ActionBarUiTest {
                 end.setAccessible(true);
                 end.invoke(main);
                 assertTrue(spyVisible.get(), "de volta a visao do mestre");
+
+                // area de magia presa no cursor: clicar marca quem esta dentro
+                goblin.setX(500);
+                goblin.setY(500);
+                java.util.concurrent.atomic.AtomicReference<java.util.List<TokenModel>> got = new java.util.concurrent.atomic.AtomicReference<>();
+                mv.armArea("Circulo", 150, null, got::set, null);
+                assertTrue(mv.isAreaArmed());
+                Field cf = MapView.class.getDeclaredField("content");
+                cf.setAccessible(true);
+                Node content = (Node) cf.get(mv);
+                double cell = ((SceneService) field(main, "sceneService")).getScene().getGrid().getCellSize();
+                javafx.geometry.Point2D at = content.localToScene(500 + cell / 2, 500 + cell / 2);
+                for (javafx.event.EventType<javafx.scene.input.MouseEvent> type : List.of(
+                        javafx.scene.input.MouseEvent.MOUSE_MOVED, javafx.scene.input.MouseEvent.MOUSE_PRESSED)) {
+                    mv.fireEvent(new javafx.scene.input.MouseEvent(type, at.getX(), at.getY(), 0, 0,
+                            javafx.scene.input.MouseButton.PRIMARY, 1, false, false, false, false, true, false, false, true,
+                            false, true, null));
+                }
+                assertFalse(mv.isAreaArmed(), "o clique marcou a area");
+                assertNotNull(got.get());
+                assertTrue(got.get().stream().anyMatch(x -> x.getId().equals(goblin.getId())), "goblin dentro da esfera");
+                assertFalse(got.get().stream().anyMatch(x -> x.getId().equals(t.getId())), "Lyra longe, fora");
                 stage.close();
             } catch (Exception e) {
                 throw new RuntimeException(e);

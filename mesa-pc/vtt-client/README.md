@@ -380,6 +380,27 @@ Escolha **um token seu** (clique nele) e aparece embaixo do mapa uma faixa com o
 - O mestre ve a barra dos monstros tambem (acoes com acerto ou dano do bloco do monstro; rolagem escondida, como
   na ficha do monstro).
 
+### Reconectar sozinho
+
+Se a internet de alguem pisca, o programa (e a pagina do navegador) tenta voltar sozinho por uns 2 minutos, com o
+aviso "Conexao caiu. Reconectando..." no meio do mapa. Voltando, a mesa chega de novo (posse dos tokens mantida pelo
+id do jogador). Sair de proposito ("Desconectar") nao tenta voltar. Quem hospeda nao reconecta (a mesa e dele).
+
+### Area da magia presa no cursor
+
+Ao conjurar uma magia de area com dados (pela ficha ou pela barra de acoes), a forma certa aparece no mapa presa no
+cursor: esfera/raio e cubo seguem o mouse; cone e linha saem do token do conjurador na direcao do mouse. **Clique**
+marca a area: quem esta dentro vira alvo e os dados/salvaguardas seguem como antes. **Esc ou botao direito** conjura
+sem area (usa os alvos marcados). A area vem do texto da magia ("Self (15-foot cone)", "20-foot-radius Sphere",
+"cone de 4,5 m"); fichas antigas buscam a magia com o mesmo nome no compendio.
+
+### Navegador dos jogadores atualizado
+
+A pagina do navegador agora acompanha o programa: segue a **camera guiada** pelo mestre e o **"olhem aqui"**, mostra
+as **zonas visiveis** (terreno dificil) e a regua conta o terreno em dobro, tem a **barra de acoes** (toque no seu
+token: ataques e magias da ficha, sem sair do mapa) e a **visao nova** (penumbra, visao no escuro, luzes fixas do mapa,
+visao verdadeira/as cegas).
+
 ### Desfazer dano
 
 Depois de "Dano nos alvos", "Metade" ou "Curar" no cartao de uma rolagem, aparece no chat (so na sua tela) a linha

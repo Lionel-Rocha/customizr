@@ -104,6 +104,7 @@ final class WebSession implements TableService.Port {
             case "encounter_sync" -> scene().setEncounter(m.encounter);
             case "fog_sync" -> scene().setFog(m.fog);
             case "pins_sync" -> scene().setPins(m.pins);
+            case "zones_sync" -> scene().setZones(m.zones);
             case "objects_sync" -> scene().setObjects(m.objects);
             case "walls_sync" -> {
                 scene().setWalls(m.walls);

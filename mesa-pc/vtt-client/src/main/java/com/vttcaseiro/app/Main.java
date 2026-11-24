@@ -2134,6 +2134,11 @@ public class Main extends Application {
         StackPane.setAlignment(actionBar, Pos.BOTTOM_CENTER);
         StackPane.setMargin(actionBar, new Insets(0, 120, 52, 120));
         mapView.setSelectionListener(this::refreshActionBar);
+        reconnectBanner.getStyleClass().add("reconnect-banner");
+        reconnectBanner.setMouseTransparent(true);
+        reconnectBanner.setVisible(false);
+        stack.getChildren().add(reconnectBanner);
+        StackPane.setAlignment(reconnectBanner, Pos.CENTER);
         perspectiveBar.getStyleClass().add("perspective-bar");
         perspectiveBar.setAlignment(Pos.CENTER);
         perspectiveBar.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
@@ -7066,6 +7071,23 @@ public class Main extends Application {
         if (view != null) view.reload(sheet);
     }
 
+    /** Area da magia: a que veio na ficha, ou a do compendio com o mesmo nome (fichas antigas). */
+    com.vttcaseiro.service.SpellArea spellAreaOf(com.vttcaseiro.character.PreparedSpell spell) {
+        com.vttcaseiro.service.SpellArea a = com.vttcaseiro.service.SpellArea.of(spell);
+        if (a != null || compendiumService == null || spell.getName() == null || spell.getName().isBlank()) return a;
+        try {
+            for (com.vttcaseiro.compendium.CompendiumEntry e : compendiumService.search(spell.getName())) {
+                if (!spell.getName().equalsIgnoreCase(e.getName())) continue;
+                a = com.vttcaseiro.service.SpellArea.parse(e.getSpellRange());
+                if (a == null) a = com.vttcaseiro.service.SpellArea.parse(e.getFullText());
+                if (a != null) return a;
+            }
+        } catch (RuntimeException ignored) {
+            // compendio vazio ou estragado: sem area
+        }
+        return null;
+    }
+
     /** Mestre esta olhando uma cena separada (de um jogador sozinho), nao a do grupo. */
     private boolean sideViewing;
     /** Nome da cena do grupo (pra saber de onde um portal sai mesmo olhando uma cena separada). */
@@ -7300,6 +7322,8 @@ public class Main extends Application {
     // ---------------- ver como um jogador
 
     private final HBox perspectiveBar = new HBox(8);
+    /** "Conexao caiu. Reconectando..." no meio do mapa. */
+    private final Label reconnectBanner = new Label();
 
     /** Mestre ve o mapa (visao, escuro, neblina, ocultos) como o jogador ve, pelos tokens dele. */
     void viewAsPlayer(String player) {
@@ -8072,6 +8096,26 @@ public class Main extends Application {
         @Override
         public void castSpellEffect(CharacterSheet sheet, com.vttcaseiro.character.PreparedSpell spell, int slotLevel,
                                     String dice, boolean hidden) {
+            com.vttcaseiro.service.SpellArea area = spellAreaOf(spell);
+            if (area != null && mapView != null && sceneService.getScene().getGrid().getCellSize() > 1) {
+                // magia de area: a forma fica presa no cursor; o clique marca quem esta dentro e ai rola
+                double px = area.feet() / Math.max(0.1, sceneService.getScene().getGrid().getFeetPerCell())
+                        * sceneService.getScene().getGrid().getCellSize();
+                double[] origin = sceneService.getScene().getTokens().stream()
+                        .filter(t -> sheet.getId().equals(t.getCharacterSheetId())).findFirst()
+                        .map(t -> com.vttcaseiro.service.ZoneRules.center(sceneService.getScene(), t, t.getX(), t.getY()))
+                        .orElse(null);
+                logEntries.add(LogEntry.system(spell.getName() + ": posicione a área (" + area.label() + ") no mapa e clique. "
+                        + "Esc ou botão direito: sem área (usa os alvos marcados)."));
+                mapView.armArea(area.shape(), px, origin, inside -> {
+                    mapView.setTargets(inside);
+                    logEntries.add(LogEntry.system(spell.getName() + ": " + (inside.isEmpty() ? "ninguém dentro da área."
+                            : inside.size() + " dentro da área (" + String.join(", ", inside.stream().map(TokenModel::getName).toList()) + ").")));
+                    com.vttcaseiro.service.CombatFlow.castDice(table, roller, inside, sheet, spell, slotLevel, dice, hidden);
+                }, () -> com.vttcaseiro.service.CombatFlow.castDice(table, roller, mapView.getTargets(), sheet, spell,
+                        slotLevel, dice, hidden));
+                return;
+            }
             com.vttcaseiro.service.CombatFlow.castDice(table, roller, mapView.getTargets(), sheet, spell, slotLevel,
                     dice, hidden);
         }
@@ -8961,7 +9005,27 @@ public class Main extends Application {
             // NetworkService ja zerou o client/server e atualizou o status
             // (netStatusLabel esta vinculado a ele, nao precisa mexer aqui) --
             // so falta avisar no chat.
-            Platform.runLater(() -> logEntries.add(LogEntry.error("Desconectado: " + reason)));
+            Platform.runLater(() -> {
+                reconnectBanner.setVisible(false);
+                logEntries.add(LogEntry.error("Desconectado: " + reason));
+            });
+        }
+
+        @Override
+        public void onReconnecting(int attempt, int max) {
+            Platform.runLater(() -> {
+                reconnectBanner.setText("Conexão caiu. Reconectando... (tentativa " + attempt + " de " + max + ")");
+                reconnectBanner.setVisible(true);
+                if (attempt == 1) logEntries.add(LogEntry.system("A conexão caiu. Tentando voltar sozinho..."));
+            });
+        }
+
+        @Override
+        public void onReconnected() {
+            Platform.runLater(() -> {
+                reconnectBanner.setVisible(false);
+                logEntries.add(LogEntry.system("Reconectado! A mesa voltou."));
+            });
         }
     }
 

@@ -1712,3 +1712,15 @@
     -fx-text-fill: -c-accent-text;
     -fx-font-weight: bold;
 }
+
+/* conexao caiu: aviso no meio do mapa enquanto tenta voltar */
+.reconnect-banner {
+    -fx-background-color: rgba(74, 20, 20, 0.92);
+    -fx-text-fill: #FFD9D4;
+    -fx-border-color: -c-danger;
+    -fx-border-radius: 10;
+    -fx-background-radius: 10;
+    -fx-padding: 10 18 10 18;
+    -fx-font-weight: bold;
+    -fx-font-size: 14px;
+}

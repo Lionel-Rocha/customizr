@@ -63,6 +63,15 @@
   #map { position: absolute; inset: 0; width: 100%; height: 100%; }
   #maptools { position: absolute; left: 10px; top: 10px; display: flex; gap: 6px; flex-wrap: wrap;
     background: #211915EE; border: 1px solid var(--border); border-radius: 10px; padding: 6px; }
+  #camBanner { position: absolute; left: 50%; top: 10px; transform: translateX(-50%); background: #3a2510ee; color: var(--gold2);
+    border: 1px solid var(--gold); border-radius: 999px; padding: 4px 14px; font-weight: bold; pointer-events: none; z-index: 5; }
+  #reconnectBanner { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); background: #4a1414ee; color: #ffd9d4;
+    border: 1px solid #D9544C; border-radius: 10px; padding: 10px 18px; font-weight: bold; z-index: 7; pointer-events: none; }
+  #actionBar { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); display: flex; gap: 6px; flex-wrap: wrap;
+    justify-content: center; align-items: center; max-width: calc(100% - 24px); background: #211915EE; border: 1px solid var(--border);
+    border-radius: 10px; padding: 6px 8px; z-index: 5; }
+  #actionBar b { color: var(--gold2); margin-right: 4px; }
+  #actionBar button { padding: 5px 9px; font-size: 13px; }
   #toast { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); background: #000000cc;
     color: var(--gold2); padding: 6px 12px; border-radius: 8px; pointer-events: none; transition: opacity .3s; opacity: 0; }
 
@@ -152,6 +161,9 @@
     <div id="mapwrap">
       <canvas id="map"></canvas>
       <div id="pinCard" class="hidden"></div>
+      <div id="camBanner" class="hidden">O mestre está guiando a câmera</div>
+      <div id="reconnectBanner" class="hidden"></div>
+      <div id="actionBar" class="hidden"></div>
       <div id="maptools">
         <button id="btnCenter" title="Centralizar no seu token">Centralizar</button>
         <button id="btnPing" title="Próximo toque no mapa marca um ping (ou Alt+clique)">Ping</button>
@@ -326,11 +338,21 @@ function connect() {
   S.ws = ws;
   ws.onmessage = ev => { try { handle(JSON.parse(ev.data)); } catch (ex) { console.error(ex); } };
   ws.onclose = () => {
+    if (S.ws !== ws) return;
     if (!S.joined) { if (!$('loginError').textContent) $('loginError').textContent = 'Não foi possível entrar (servidor fechado ou senha errada).'; return; }
-    setStatus('desconectado', 'bad');
-    addLog({ kind: 'system', text: 'Conexão perdida. Recarregue a página para entrar de novo.' });
+    // caiu no meio da sessao: tenta voltar sozinho (uns 2 minutos)
+    S.retry = (S.retry || 0) + 1;
+    if (S.retry > 40) {
+      $('reconnectBanner').classList.add('hidden'); setStatus('desconectado', 'bad');
+      addLog({ kind: 'system', text: 'Não deu pra reconectar. Recarregue a página para entrar de novo.' }); return;
+    }
+    if (S.retry === 1) addLog({ kind: 'system', text: 'A conexão caiu. Tentando voltar sozinho...' });
+    setStatus('reconectando...', 'bad');
+    $('reconnectBanner').textContent = 'Conexão caiu. Reconectando... (tentativa ' + S.retry + ')';
+    $('reconnectBanner').classList.remove('hidden');
+    setTimeout(connect, S.retry === 1 ? 800 : 3000);
   };
-  setInterval(() => send({ type: 'ping' }), 10000);
+  if (!S.pingTimer) S.pingTimer = setInterval(() => send({ type: 'ping' }), 10000);
 }
 
 function handle(m) {
@@ -342,7 +364,8 @@ function handle(m) {
       break;
     case 'scene_sync':
       if (!S.joined) { S.joined = true; $('login').classList.add('hidden'); $('app').classList.remove('hidden'); setStatus('na mesa como ' + S.me.name, 'ok'); resize(); }
-      S.scene = m.scene; S.view.init = false; closePinCard(); $('sceneName').textContent = S.scene.name || 'mesa'; S.encounter = S.scene.encounter;
+      if (S.retry) { S.retry = 0; $('reconnectBanner').classList.add('hidden'); setStatus('na mesa como ' + S.me.name + (S.gm ? ' (mestre)' : ''), 'ok'); addLog({ kind: 'system', text: 'Reconectado! A mesa voltou.' }); }
+      S.scene = m.scene; if (!S.camLock) S.view.init = false; closePinCard(); S.selectedToken = null; renderActionBar(); $('sceneName').textContent = S.scene.name || 'mesa'; S.encounter = S.scene.encounter;
       renderEncounter(); markDirty(); break;
     case 'move_token': { const t = token(m.tokenId); if (t) { t.x = m.x; t.y = m.y; markDirty(); } break; }
     case 'add_token': case 'update_token': upsertToken(m.token); renderEncounter(); break;
@@ -355,7 +378,7 @@ function handle(m) {
       else addLog({ kind: m.player === 'servidor' ? 'system' : 'chat', who: m.player, text: m.text });
       break;
     case 'character_sync':
-      if (m.character && m.character.id) { m.character.__derived = m.derived; S.sheets[m.character.id] = m.character; renderSheet(); markDirty(); }
+      if (m.character && m.character.id) { m.character.__derived = m.derived; S.sheets[m.character.id] = m.character; renderSheet(); renderActionBar(); markDirty(); }
       break;
     case 'encounter_sync': S.encounter = m.encounter; if (S.scene) S.scene.encounter = m.encounter; renderEncounter(); markDirty(); break;
     case 'fog_sync': if (S.scene) { S.scene.fog = m.fog; markDirty(); } break;
@@ -365,7 +388,14 @@ function handle(m) {
     case 'drawing_add': if (S.scene) { S.scene.drawings = (S.scene.drawings || []).filter(d => d.id !== m.drawing.id); S.scene.drawings.push(m.drawing); markDirty(); } break;
     case 'drawing_remove': if (S.scene) { S.scene.drawings = (S.scene.drawings || []).filter(d => d.id !== m.text); markDirty(); } break;
     case 'drawing_clear': if (S.scene) { S.scene.drawings = (S.scene.drawings || []).filter(d => m.text && d.ownerId !== m.text); markDirty(); } break;
-    case 'map_ping': S.pings.push({ x: m.x, y: m.y, who: m.player, t0: performance.now() }); markDirty(); break;
+    case 'map_ping':
+      S.pings.push({ x: m.x, y: m.y, who: m.player, t0: performance.now() });
+      if (m.pull) { slideTo(m.x, m.y, null); toast((m.player || 'O mestre') + ' chamou sua atenção'); }
+      markDirty(); break;
+    case 'camera_lock':
+      S.camLock = !!m.locked; $('camBanner').classList.toggle('hidden', !S.camLock);
+      if (S.camLock && m.x != null) slideTo(m.x, m.y, m.zoom); break;
+    case 'zones_sync': if (S.scene) { S.scene.zones = m.zones || []; markDirty(); } break;
     case 'handout_sync': {
       const isNew = !S.handouts[m.handout.id]; S.handouts[m.handout.id] = m.handout;
       addLog({ kind: 'system', text: (isNew ? 'Nova anotação no diário: ' : 'Anotação atualizada: ') + (m.handout.title || '') });
@@ -555,38 +585,91 @@ function cellsBetween(x1, y1, x2, y2) {
   if (g.type === 'none') return Math.round(Math.hypot(x2 - x1, y2 - y1) / c);
   return Math.round(Math.max(Math.abs(x2 - x1), Math.abs(y2 - y1)) / c);
 }
+/** Casas a mais por terreno dificil na linha reta (cada casa dentro de uma zona de terreno conta em dobro). */
+function terrainExtra(x1, y1, x2, y2, cells) {
+  const terr = ((S.scene && S.scene.zones) || []).filter(zn => zn.kind === 'terreno');
+  if (!terr.length || cells <= 0) return 0;
+  let extra = 0;
+  for (let i = 1; i <= cells; i++) {
+    const f = i / cells, px = x1 + (x2 - x1) * f, py = y1 + (y2 - y1) * f;
+    if (terr.some(zn => px >= zn.x && px <= zn.x + zn.width && py >= zn.y && py <= zn.y + zn.height)) extra++;
+  }
+  return extra;
+}
 function cell() { return Math.max(10, (S.scene && S.scene.grid && S.scene.grid.cellSize) || 70); }
 function feetToPx(ft) { const g = S.scene.grid || {}; return ft / (g.feetPerCell > 0 ? g.feetPerCell : 5) * (g.cellSize || 70); }
 function centerOf(t) { const c = cell(); return [t.x + c * (t.widthCells || 1) / 2, t.y + c * (t.heightCells || 1) / 2]; }
 
-/** Calcula o que eu vejo: { viewers:[{poly,cx,cy,r}], lights:[...] } ou null (sem visao dinamica). */
+/**
+ * O que eu vejo (igual o programa de PC, regras de luz do 5.5e): luz plena, penumbra e escuridao; luzes dos tokens e
+ * fixas do mapa; visao no escuro e visao verdadeira/as cegas. null = sem visao dinamica.
+ */
 function computeVision(w, h) {
   if (!S.scene || !S.scene.visionEnabled || S.gm) return null;
-  const walls = S.scene.walls || [], dark = !!S.scene.dark;
-  const viewers = S.scene.tokens.filter(isMine).map(t => {
+  const sc = S.scene, walls = sc.walls || [];
+  const ambient = sc.dark ? 'dark' : sc.dim ? 'dim' : 'bright';
+  const sources = [];
+  for (const t of sc.tokens) {
+    const reach = (t.lightFeet || 0) + (t.dimLightFeet || 0); if (reach <= 0) continue;
     const [cx, cy] = centerOf(t);
-    return { t, cx, cy, poly: visionPolygon(cx, cy, walls, w, h), r: dark ? feetToPx(Math.max(t.visionFeet || 0, t.lightFeet || 0)) : Infinity };
+    sources.push({ cx, cy, poly: visionPolygon(cx, cy, walls, w, h), bright: feetToPx(t.lightFeet || 0), reach: feetToPx(reach) });
+  }
+  for (const l of sc.lights || []) {
+    if (l.on === false) continue;
+    const reach = (l.brightFeet || 0) + (l.dimFeet || 0); if (reach <= 0) continue;
+    sources.push({ cx: l.x, cy: l.y, poly: visionPolygon(l.x, l.y, walls, w, h), bright: feetToPx(l.brightFeet || 0), reach: feetToPx(reach) });
+  }
+  const viewers = sc.tokens.filter(isMine).map(t => {
+    const [cx, cy] = centerOf(t);
+    return { t, cx, cy, poly: visionPolygon(cx, cy, walls, w, h), dv: feetToPx(t.visionFeet || 0),
+             sense: feetToPx(Math.max(t.truesightFeet || 0, t.blindsightFeet || 0)) };
   });
-  const lights = dark ? S.scene.tokens.filter(t => (t.lightFeet || 0) > 0).map(t => {
-    const [cx, cy] = centerOf(t); return { cx, cy, poly: visionPolygon(cx, cy, walls, w, h), r: feetToPx(t.lightFeet) };
-  }) : [];
-  return { viewers, lights, dark };
+  return { viewers, sources, ambient, dark: ambient === 'dark' };
 }
 /** Igual o servidor: token com luz propria aparece de longe no escuro se estiver na linha de visao. */
 function canSeeToken(vis, t) {
   const [x, y] = centerOf(t);
   if (canSee(vis, x, y)) return true;
-  if (vis && vis.dark && (t.lightFeet || 0) > 0) return vis.viewers.some(v => insidePoly(v.poly, x, y));
+  if (vis && vis.dark && ((t.lightFeet || 0) + (t.dimLightFeet || 0)) > 0) return vis.viewers.some(v => insidePoly(v.poly, x, y));
   return false;
 }
 function canSee(vis, x, y) {
   if (!vis) return true;
   for (const v of vis.viewers) {
     if (!insidePoly(v.poly, x, y)) continue;
-    if (Math.hypot(x - v.cx, y - v.cy) <= v.r) return true;
-    for (const l of vis.lights) if (insidePoly(l.poly, x, y) && Math.hypot(x - l.cx, y - l.cy) <= l.r) return true;
+    if (vis.ambient !== 'dark') return true;
+    const d = Math.hypot(x - v.cx, y - v.cy);
+    if (d <= v.dv || d <= v.sense) return true;
+    for (const l of vis.sources) if (insidePoly(l.poly, x, y) && Math.hypot(x - l.cx, y - l.cy) <= l.reach) return true;
   }
   return false;
+}
+function polyPathOn(o, p) { o.beginPath(); o.moveTo(p[0], p[1]); for (let i = 2; i < p.length; i += 2) o.lineTo(p[i], p[i + 1]); o.closePath(); }
+function circleOn(o, x, y, r) { if (r > 0) { o.beginPath(); o.arc(x, y, r, 0, Math.PI * 2); o.fill(); } }
+/** Pinta (com o modo de composicao atual) a area que enxergo. */
+function paintVisible(o, vis, W, H) {
+  for (const v of vis.viewers) {
+    o.save(); polyPathOn(o, v.poly); o.clip();
+    if (vis.ambient !== 'dark') o.fillRect(0, 0, W, H);
+    else {
+      circleOn(o, v.cx, v.cy, Math.max(v.dv, v.sense));
+      for (const l of vis.sources) { o.save(); polyPathOn(o, l.poly); o.clip(); circleOn(o, l.cx, l.cy, l.reach); o.restore(); }
+    }
+    o.restore();
+  }
+}
+/** Pinta a parte que vejo em luz plena (o resto do visivel fica em penumbra, mais escuro). */
+function paintBright(o, vis, W, H) {
+  for (const v of vis.viewers) {
+    o.save(); polyPathOn(o, v.poly); o.clip();
+    if (vis.ambient === 'bright') o.fillRect(0, 0, W, H);
+    else {
+      if (vis.ambient === 'dim') circleOn(o, v.cx, v.cy, v.dv); // visao no escuro na penumbra = luz plena
+      circleOn(o, v.cx, v.cy, v.sense);
+      for (const l of vis.sources) { o.save(); polyPathOn(o, l.poly); o.clip(); circleOn(o, l.cx, l.cy, l.bright); o.restore(); }
+    }
+    o.restore();
+  }
 }
 
 // =====================================================================
@@ -662,6 +745,14 @@ function render(now) {
     if (p.length === 2) ctx.lineTo(p[0] + 0.1, p[1] + 0.1);
     ctx.stroke();
   }
+  // Zonas que o mestre deixou visiveis (terreno dificil, area marcada)
+  const ZONE_COLORS = { armadilha: '#E8A23E', portal: '#5B9BEF', dano: '#E5534B', terreno: '#B08850', aviso: '#3FB968' };
+  for (const zn of sc.zones || []) {
+    const col = ZONE_COLORS[zn.kind] || '#B08850';
+    ctx.save(); ctx.fillStyle = col + '29'; ctx.fillRect(zn.x, zn.y, zn.width, zn.height);
+    ctx.strokeStyle = col; ctx.lineWidth = 2 / z; ctx.setLineDash(zn.kind === 'terreno' ? [2 / z, 5 / z] : [8 / z, 5 / z]);
+    ctx.strokeRect(zn.x, zn.y, zn.width, zn.height); ctx.restore();
+  }
   // Portas (o jogador nao ve as paredes, so as portas)
   for (const w of sc.walls || []) {
     if (!w.door) continue;
@@ -698,7 +789,7 @@ function render(now) {
     }
     ctx.restore();
     if (mine && !S.gm) { ctx.strokeStyle = '#FFCF7F'; ctx.lineWidth = 2; ctx.strokeRect(x + 1, y + 1, w - 2, h - 2); }
-    if (S.gm && S.selectedToken === t.id) { ctx.strokeStyle = '#FFCF7F'; ctx.lineWidth = 3; ctx.strokeRect(x - 1, y - 1, w + 2, h + 2); }
+    if ((S.gm || mine) && S.selectedToken === t.id) { ctx.strokeStyle = '#FFCF7F'; ctx.lineWidth = 3; ctx.strokeRect(x - 1, y - 1, w + 2, h + 2); }
     if (t.hiddenFromPlayers) {
       ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(x, y, w, h);
       ctx.fillStyle = '#FFCF7F'; ctx.font = 'bold 9px Segoe UI'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('OCULTO', x + w / 2, y + h / 2);
@@ -726,14 +817,7 @@ function render(now) {
     const o = off.getContext('2d');
     o.fillStyle = '#050608'; o.fillRect(0, 0, off.width, off.height);
     o.globalCompositeOperation = 'destination-out';
-    const polyPath = (p) => { o.beginPath(); o.moveTo(p[0], p[1]); for (let i = 2; i < p.length; i += 2) o.lineTo(p[i], p[i + 1]); o.closePath(); };
-    for (const v of vis.viewers) {
-      o.save(); polyPath(v.poly); o.clip();
-      if (!vis.dark) o.fillRect(0, 0, off.width, off.height);
-      else if (v.r > 0) { o.beginPath(); o.arc(v.cx, v.cy, v.r, 0, Math.PI * 2); o.fill(); }
-      for (const l of vis.lights) { o.save(); polyPath(l.poly); o.clip(); o.beginPath(); o.arc(l.cx, l.cy, l.r, 0, Math.PI * 2); o.fill(); o.restore(); }
-      o.restore();
-    }
+    paintVisible(o, vis, off.width, off.height);
     // Explorado: o preto vira penumbra (mapa aparece, tokens nao).
     if (S.explored && S.explored.size) {
       o.globalCompositeOperation = 'source-over';
@@ -746,16 +830,19 @@ function render(now) {
       ctx.drawImage(off, 0, 0);
       // penumbra so onde nao estou vendo agora: recorta o visivel da camada de penumbra
       d.globalCompositeOperation = 'destination-out';
-      for (const v of vis.viewers) {
-        d.save(); d.beginPath(); d.moveTo(v.poly[0], v.poly[1]); for (let i = 2; i < v.poly.length; i += 2) d.lineTo(v.poly[i], v.poly[i + 1]); d.closePath(); d.clip();
-        if (!vis.dark) d.fillRect(0, 0, dim.width, dim.height);
-        else if (v.r > 0) { d.beginPath(); d.arc(v.cx, v.cy, v.r, 0, Math.PI * 2); d.fill(); }
-        for (const l of vis.lights) { d.save(); d.beginPath(); d.moveTo(l.poly[0], l.poly[1]); for (let i = 2; i < l.poly.length; i += 2) d.lineTo(l.poly[i], l.poly[i + 1]); d.closePath(); d.clip(); d.beginPath(); d.arc(l.cx, l.cy, l.r, 0, Math.PI * 2); d.fill(); d.restore(); }
-        d.restore();
-      }
+      paintVisible(d, vis, dim.width, dim.height);
       ctx.drawImage(dim, 0, 0);
     } else {
       ctx.drawImage(off, 0, 0);
+    }
+    // Penumbra: o que vejo sem luz plena fica mais escuro (como no programa de PC)
+    if (vis.ambient !== 'bright') {
+      const pen = document.createElement('canvas'); pen.width = off.width; pen.height = off.height;
+      const p = pen.getContext('2d');
+      p.fillStyle = '#000'; paintVisible(p, vis, pen.width, pen.height);
+      p.globalCompositeOperation = 'source-in'; p.fillStyle = 'rgba(0,0,0,0.4)'; p.fillRect(0, 0, pen.width, pen.height);
+      p.globalCompositeOperation = 'destination-out'; p.fillStyle = '#000'; paintBright(p, vis, pen.width, pen.height);
+      ctx.drawImage(pen, 0, 0);
     }
   }
   // Neblina manual do mestre
@@ -772,13 +859,15 @@ function render(now) {
   // Regua de movimento: arrastando meu token mostra quanto andou
   if (S.drag && (S.drag.x !== S.drag.sx || S.drag.y !== S.drag.sy)) {
     const t = S.drag.t, half = c * (t.widthCells || 1) / 2;
-    const cells = cellsBetween(S.drag.sx + half, S.drag.sy + half, S.drag.x + half, S.drag.y + half);
+    const straight = cellsBetween(S.drag.sx + half, S.drag.sy + half, S.drag.x + half, S.drag.y + half);
+    const extra = terrainExtra(S.drag.sx + half, S.drag.sy + half, S.drag.x + half, S.drag.y + half, straight);
+    const cells = straight + extra;
     const feet = Math.round(cells * ((sc.grid && sc.grid.feetPerCell) || 5));
     const speed = speedFeetOf(t), over = speed > 0 && feet > speed, dash = over && feet <= speed * 2;
     const color = !over ? '#3FBE6E' : dash ? '#E8A23E' : '#D9544C';
     ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = 3 / z; ctx.setLineDash([10 / z, 6 / z]);
     ctx.beginPath(); ctx.moveTo(S.drag.sx + half, S.drag.sy + half); ctx.lineTo(S.drag.x + half, S.drag.y + half); ctx.stroke();
-    const label = feet + ' pés (' + cells + (cells === 1 ? ' casa)' : ' casas)') + (speed > 0 ? '  /  ' + speed + ' pés' + (over ? (dash ? '  - precisa de Disparada' : '  - longe demais') : '') : '');
+    const label = feet + ' pés (' + cells + (cells === 1 ? ' casa)' : ' casas)') + (extra > 0 ? ' terreno difícil' : '') + (speed > 0 ? '  /  ' + speed + ' pés' + (over ? (dash ? '  - precisa de Disparada' : '  - longe demais') : '') : '');
     ctx.setLineDash([]); ctx.font = `bold ${13 / z}px Segoe UI`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
     const tw = ctx.measureText(label).width + 14 / z, lx = S.drag.x + half * 2 + 6 / z, ly = S.drag.y + 8 / z;
     ctx.fillStyle = '#1B1411e6'; ctx.fillRect(lx, ly - 11 / z, tw, 22 / z); ctx.fillStyle = color; ctx.fillText(label, lx + 7 / z, ly);
@@ -828,6 +917,46 @@ function render(now) {
 }
 requestAnimationFrame(render);
 
+/** Leva a vista ate (x, y) do mapa, deslizando (zoom opcional, ex.: o do mestre com a camera guiada). */
+function slideTo(x, y, zoom) {
+  const r = $('mapwrap').getBoundingClientRect();
+  const z1 = zoom ? Math.max(0.2, Math.min(4, zoom)) : S.view.zoom;
+  const from = { tx: S.view.tx, ty: S.view.ty, zoom: S.view.zoom };
+  const to = { tx: r.width / 2 - x * z1, ty: r.height / 2 - y * z1, zoom: z1 };
+  const t0 = performance.now();
+  S.view.init = true;
+  const step = now => {
+    const k = Math.min(1, (now - t0) / 380), e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+    S.view.tx = from.tx + (to.tx - from.tx) * e; S.view.ty = from.ty + (to.ty - from.ty) * e; S.view.zoom = from.zoom + (to.zoom - from.zoom) * e;
+    markDirty(); if (k < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+/** Barra embaixo do mapa: ataques e magias da ficha do token escolhido (meu), a um toque. */
+function renderActionBar() {
+  const bar = $('actionBar'); bar.innerHTML = '';
+  const t = S.selectedToken ? token(S.selectedToken) : null, s = t && isMine(t) ? sheetOf(t) : null, d = s && s.__derived;
+  if (!d) { bar.classList.add('hidden'); return; }
+  bar.append(el('b', {}, t.name || s.name || ''));
+  const items = [];
+  for (const a of d.attacks || []) {
+    if (a.bonus != null) items.push(el('button', { title: (a.damage ? 'Dano ' + a.damage + '. ' : '') + 'Acerto e dano (alvos marcados: compara com a CA)',
+      onclick: () => roll(s, 'attack', { index: a.index }, true) }, '⚔ ' + (a.name || 'Ataque') + ' ' + sign(a.bonus)));
+    else if (a.damage) items.push(el('button', { onclick: () => roll(s, 'damage', { index: a.index }, true) }, '⚔ ' + (a.name || 'Dano') + ' ' + a.damage));
+  }
+  for (const m of [...(d.spells || [])].sort((x, y) => x.level - y.level)) {
+    if (!m.dice && !m.attack && !m.save) continue;
+    const avail = (d.slots || []).filter(x => x.level >= m.level && x.current > 0);
+    if (m.level > 0 && !avail.length) continue; // sem espaco sobrando
+    items.push(el('button', { title: m.level ? 'Gasta um espaço de ' + (avail[0].level) + 'o nível' : 'Truque', onclick: () =>
+      send({ type: 'web_cast', sheetId: s.id, index: m.index, slot: m.level > 0 ? avail[0].level : 0, targets: [...S.targets], hidden: $('hiddenRolls').checked })
+    }, '✦ ' + m.name + (m.level ? ' (' + m.level + ')' : '')));
+  }
+  if (!items.length) bar.append(el('span', { class: 'muted' }, 'Sem ataques na ficha'));
+  bar.append(...items.slice(0, 10));
+  bar.append(el('button', { title: 'Abrir a ficha', onclick: () => document.querySelector('nav button[data-tab="sheet"]').click() }, 'Ficha'));
+  bar.classList.remove('hidden');
+}
 function centerView() {
   const r = $('mapwrap').getBoundingClientRect();
   const mine = S.scene ? S.scene.tokens.find(isMine) : null;
@@ -967,6 +1096,7 @@ canvas.addEventListener('pointerdown', ev => {
   S.pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
   if (S.pointers.size === 2) { // pinca
     S.drag = null; S.pan = null;
+    if (S.camLock) return; // o mestre esta guiando a camera
     const [a, b] = [...S.pointers.values()];
     S.pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), zoom: S.view.zoom, tx: S.view.tx, ty: S.view.ty, mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 };
     return;
@@ -1002,7 +1132,8 @@ canvas.addEventListener('pointerdown', ev => {
     else send({ type: 'door_toggle', text: door.id });
     return;
   }
-  S.pan = { x: ev.clientX, y: ev.clientY, tx: S.view.tx, ty: S.view.ty };
+  if (S.selectedToken && !S.gm) { S.selectedToken = null; renderActionBar(); markDirty(); } // tocou no vazio: some a barra
+  if (!S.camLock) S.pan = { x: ev.clientX, y: ev.clientY, tx: S.view.tx, ty: S.view.ty };
 });
 canvas.addEventListener('pointermove', ev => {
   if (S.pointers.has(ev.pointerId)) S.pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
@@ -1030,7 +1161,7 @@ function endPointer(ev) {
   if (S.drag) {
     const d = S.drag; S.drag = null; const c = cell();
     const [nx, ny] = snapTopLeft(d.x, d.y, d.t.widthCells || 1);
-    if (nx === d.sx && ny === d.sy) { S.selectedToken = d.t.id; renderGmToken(); }
+    if (nx === d.sx && ny === d.sy) { S.selectedToken = d.t.id; renderGmToken(); renderActionBar(); }
     if (nx !== d.sx || ny !== d.sy) {
       const [ax, ay] = centerOf(d.t), bx = nx + c * (d.t.widthCells || 1) / 2, by = ny + c * (d.t.heightCells || 1) / 2;
       if (!S.gm && blocked(ax, ay, bx, by)) toast('Uma parede (ou porta fechada) bloqueia o caminho.');
@@ -1044,6 +1175,7 @@ canvas.addEventListener('pointerup', endPointer);
 canvas.addEventListener('pointercancel', endPointer);
 canvas.addEventListener('wheel', ev => {
   ev.preventDefault();
+  if (S.camLock) return;
   const r = canvas.getBoundingClientRect(), mx = ev.clientX - r.left, my = ev.clientY - r.top;
   const z = Math.max(0.2, Math.min(4, S.view.zoom * (ev.deltaY < 0 ? 1.1 : 1 / 1.1)));
   S.view.tx = mx - (mx - S.view.tx) * z / S.view.zoom; S.view.ty = my - (my - S.view.ty) * z / S.view.zoom; S.view.zoom = z; markDirty();
@@ -1143,10 +1275,10 @@ document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
 // =====================================================================
 // Ficha (numeros calculados pelo programa do mestre; rolagens com as regras dele)
 // =====================================================================
-function roll(sheet, kind, extra) {
+function roll(sheet, kind, extra, stayOnMap) {
   send(Object.assign({ type: 'web_roll', sheetId: sheet.id, rollKind: kind, mode: S.rollMode, hidden: $('hiddenRolls').checked,
     targets: [...S.targets] }, extra || {}));
-  document.querySelector('nav button[data-tab="chat"]').click();
+  if (!stayOnMap) document.querySelector('nav button[data-tab="chat"]').click();
 }
 const sign = n => (n >= 0 ? '+' : '') + n;
 // Ficha de Tormenta20 / Ordem Paranormal: o servidor manda cada teste ja montado (ex.: "3d20kh1+5").

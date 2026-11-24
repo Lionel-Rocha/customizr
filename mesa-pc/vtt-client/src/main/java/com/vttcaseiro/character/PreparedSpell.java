@@ -29,6 +29,8 @@ public class PreparedSpell {
     private boolean halfOnSave;
     /** Magia que pede jogada de ataque (Raio de Fogo): o dano vai em quem foi acertado. */
     private boolean spellAttack;
+    /** Area da magia como veio do texto ("20-foot-radius Sphere"); vazio = sem area conhecida. */
+    private String area = "";
 
     public PreparedSpell() {
     }
@@ -111,6 +113,9 @@ public class PreparedSpell {
 
     public boolean isSpellAttack() { return spellAttack; }
     public void setSpellAttack(boolean spellAttack) { this.spellAttack = spellAttack; }
+
+    public String getArea() { return area == null ? "" : area; }
+    public void setArea(String area) { this.area = area == null ? "" : area; }
 
     public String getNotes() { return notes; }
     public void setNotes(String notes) { this.notes = notes; }
