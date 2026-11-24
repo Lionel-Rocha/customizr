@@ -47,12 +47,12 @@ class Group1FeaturesTest {
         assertEquals(2, ogre.getWidthCells());
         assertEquals(2, ogre.getHeightCells());
         t.table().setSize(ogre, 99);
-        assertEquals(6, ogre.getWidthCells(), "limite de 6x6");
+        assertEquals(com.vttcaseiro.model.TokenModel.MAX_CELLS, ogre.getWidthCells(), "limite de 20x20");
 
         t.port().gm = false;
         t.port().connected = true;
         t.table().setSize(ogre, 1);
-        assertEquals(6, ogre.getWidthCells(), "jogador nao mexe no token dos outros");
+        assertEquals(com.vttcaseiro.model.TokenModel.MAX_CELLS, ogre.getWidthCells(), "jogador nao mexe no token dos outros");
         assertFalse(t.port().errors.isEmpty());
 
         CharacterSheet big = hero(t.chars(), "Golias", 30);

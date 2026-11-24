@@ -844,8 +844,8 @@ public class Main extends Application {
         }
 
         @Override
-        public void setSize(TokenModel token, int cells) {
-            recorded("Tamanho de " + token.getName(), token, () -> table.setSize(token, cells));
+        public void setSize(TokenModel token, double width, double height) {
+            recorded("Tamanho de " + token.getName(), token, () -> table.setSize(token, width, height));
         }
 
         @Override

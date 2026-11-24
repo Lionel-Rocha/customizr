@@ -213,6 +213,7 @@ public class TokenNode extends StackPane {
             } else {
                 // sem imagem: o fundo da silhueta tambem fica no formato
                 StackPane holder = new StackPane(silhouette);
+                holder.setStyle("-fx-background-color: #45342A;"); // o formato todo com o fundo da silhueta
                 holder.setPrefSize(w, h);
                 holder.setMinSize(w, h);
                 holder.setMaxSize(w, h);
@@ -273,6 +274,7 @@ public class TokenNode extends StackPane {
         getChildren().add(targetMarker);
 
         Label label = new Label(model.getName());
+        label.setMinWidth(javafx.scene.layout.Region.USE_PREF_SIZE); // token pequeno (Miudo): o nome passa da borda em vez de cortar
         label.setTextFill(Color.WHITE);
         label.setStyle("-fx-background-color: rgba(0,0,0,0.65); -fx-padding: 1 4 1 4; -fx-background-radius: 4;");
         StackPane.setAlignment(label, Pos.BOTTOM_CENTER);

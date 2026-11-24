@@ -207,8 +207,8 @@ class LayoutUiTest {
                         tk.setShape(shapes[i]);
                         tk.setX(140 + i * 140);
                         tk.setY(560);
-                        tk.setWidthCells(i == 3 ? 2 : 1);
-                        tk.setHeightCells(i == 3 ? 2 : 1);
+                        tk.setWidthCells(i == 3 ? 2 : i == 0 ? 0.5 : 1);
+                        tk.setHeightCells(i == 3 ? 3 : i == 0 ? 0.5 : 1);
                         ss.addToken(tk);
                         assertEquals(shapes[i], tk.getShape());
                     }

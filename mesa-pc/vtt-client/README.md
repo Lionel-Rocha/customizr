@@ -386,6 +386,13 @@ Botao direito no token > ... > **Formato**: quadrado (o de sempre), redondo, hex
 recortada no formato, com um contorno fino, e o anel de selecao acompanha. Vale pra todos (vai pela rede, fica salvo
 na cena e aparece igual no navegador). Funciona em qualquer tamanho (2x2, 3x3...).
 
+### Tamanho do token
+
+Botao direito no token > ... > **Tamanho**: **Miudo** (meia casa, o Tiny do 5e; encaixa de meia em meia casa, cabem
+4 numa casa), Pequeno/Medio (1x1), Grande, Enorme, Imenso, ou **Personalizado...**: largura e altura livres de meia em
+meia casa, de 0,5 a 20 (criatura colossal, carroca 2x3, enxame). Monstro e ficha com tamanho Miudo/Tiny ja nascem com
+meia casa. Cenas antigas abrem igual.
+
 ### Tamanho da interface
 
 Engrenagem > Aparencia > **Tamanho da interface**: 90% a 175% (letras, botoes e janelas juntos, em cima da escala do

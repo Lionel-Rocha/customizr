@@ -24,4 +24,40 @@ class TokenShapeTest {
         assertEquals(16, TokenModel.outline(TokenModel.OCTAGON, 70, 70).length, "8 pontas");
         assertNull(TokenModel.outline(TokenModel.CIRCLE, 70, 70));
     }
+
+    @Test
+    void sizesGoFromTinyToCustom() {
+        TokenModel t = new TokenModel("Rato", null);
+        assertEquals(1.0, t.getWidthCells());
+        t.setWidthCells(0.5);
+        assertEquals(0.5, t.getWidthCells(), "Miudo: meia casa");
+        t.setWidthCells(0.2);
+        assertEquals(0.5, t.getWidthCells(), "menor que Miudo nao existe");
+        t.setWidthCells(2.4);
+        assertEquals(2.5, t.getWidthCells(), "de meia em meia casa");
+        t.setHeightCells(99);
+        assertEquals(TokenModel.MAX_CELLS, t.getHeightCells());
+        // cena antiga (inteiro no arquivo) continua abrindo
+        TokenModel old = com.google.gson.JsonParser.parseString("{\"name\":\"Orc\",\"widthCells\":2,\"heightCells\":2}")
+                .isJsonObject() ? new com.google.gson.Gson().fromJson("{\"name\":\"Orc\",\"widthCells\":2,\"heightCells\":2}", TokenModel.class) : null;
+        assertEquals(2.0, old.getWidthCells());
+        TokenModel copy = new TokenModel("x", null);
+        t.setWidthCells(2);
+        t.setHeightCells(3);
+        copy.copyStateFrom(t);
+        assertEquals(2.0, copy.getWidthCells());
+        assertEquals(3.0, copy.getHeightCells(), "retangular viaja pela rede");
+
+        assertEquals(0.5, com.vttcaseiro.service.TokenLink.cellsForSize("Miúdo"));
+        assertEquals(0.5, com.vttcaseiro.service.TokenLink.cellsForSize("Tiny"));
+        assertEquals(1.0, com.vttcaseiro.service.TokenLink.cellsForSize("Médio"));
+        assertEquals(2.0, com.vttcaseiro.service.TokenLink.cellsForSize("Large"));
+
+        GridSettings g = new GridSettings();
+        g.setCellSize(70);
+        double[] tiny = g.snapTopLeft(52, 30, 0.5);
+        assertEquals(35.0, tiny[0], 0.01, "Miudo encaixa de meia em meia casa");
+        assertEquals(35.0, tiny[1], 0.01);
+        assertEquals(70.0, g.snapTopLeft(52, 30, 1)[0], 0.01, "os outros, na casa inteira");
+    }
 }

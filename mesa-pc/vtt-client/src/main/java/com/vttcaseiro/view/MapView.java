@@ -2119,7 +2119,13 @@ public class MapView extends Pane {
         default void rotate(TokenModel token, double degrees, boolean reset) {
         }
 
-        default void setSize(TokenModel token, int cells) {
+        /** Largura x altura em casas, de meia em meia (0,5 = Miudo). */
+        default void setSize(TokenModel token, double width, double height) {
+        }
+
+        /** Quadrado de {@code cells} casas de lado. */
+        default void setSize(TokenModel token, double cells) {
+            setSize(token, cells, cells);
         }
 
         /** Visao no escuro e luz do token, em pes. */
@@ -2606,18 +2612,64 @@ public class MapView extends Pane {
     /** Submenu "Tamanho": o atual vem marcado. */
     private javafx.scene.control.Menu sizeMenu(TokenModel token) {
         javafx.scene.control.Menu menu = new javafx.scene.control.Menu("Tamanho");
-        String[][] options = {{"1", "Pequeno / Medio (1x1)"}, {"2", "Grande (2x2)"}, {"3", "Enorme (3x3)"},
-                {"4", "Imenso (4x4)"}};
+        String[][] options = {{"0.5", "Miúdo (½ casa)"}, {"1", "Pequeno / Médio (1x1)"}, {"2", "Grande (2x2)"},
+                {"3", "Enorme (3x3)"}, {"4", "Imenso (4x4)"}};
         javafx.scene.control.ToggleGroup group = new javafx.scene.control.ToggleGroup();
+        boolean standard = false;
         for (String[] o : options) {
-            int cells = Integer.parseInt(o[0]);
+            double cells = Double.parseDouble(o[0]);
             javafx.scene.control.RadioMenuItem item = new javafx.scene.control.RadioMenuItem(o[1]);
             item.setToggleGroup(group);
-            item.setSelected(token.getWidthCells() == cells);
-            item.setOnAction(e -> tokenActions.setSize(token, cells));
+            boolean here = token.getWidthCells() == cells && token.getHeightCells() == cells;
+            standard |= here;
+            item.setSelected(here);
+            item.setOnAction(e -> tokenActions.setSize(token, cells, cells));
             menu.getItems().add(item);
         }
+        javafx.scene.control.RadioMenuItem custom = new javafx.scene.control.RadioMenuItem("Personalizado..."
+                + (standard ? "" : "  (" + cellsText(token.getWidthCells()) + " x " + cellsText(token.getHeightCells()) + ")"));
+        custom.setToggleGroup(group);
+        custom.setSelected(!standard);
+        custom.setOnAction(e -> askCustomSize(token));
+        menu.getItems().addAll(new javafx.scene.control.SeparatorMenuItem(), custom);
         return menu;
+    }
+
+    static String cellsText(double c) {
+        return c == Math.rint(c) ? String.valueOf((long) c) : String.valueOf(c).replace('.', ',');
+    }
+
+    /** Largura e altura livres, de meia em meia casa (0,5 a 20): criatura colossal, carroca 2 x 3, enxame. */
+    private void askCustomSize(TokenModel token) {
+        javafx.scene.control.Dialog<javafx.scene.control.ButtonType> d = new javafx.scene.control.Dialog<>();
+        d.setTitle("Tamanho de " + token.getName());
+        d.setHeaderText("Em casas da grade, de meia em meia (0,5 = Miúdo).");
+        javafx.scene.control.Spinner<Double> w = new javafx.scene.control.Spinner<>(TokenModel.MIN_CELLS, TokenModel.MAX_CELLS,
+                token.getWidthCells(), 0.5);
+        javafx.scene.control.Spinner<Double> h = new javafx.scene.control.Spinner<>(TokenModel.MIN_CELLS, TokenModel.MAX_CELLS,
+                token.getHeightCells(), 0.5);
+        for (javafx.scene.control.Spinner<Double> s : java.util.List.of(w, h)) {
+            s.setEditable(true);
+            s.setPrefWidth(90);
+        }
+        javafx.scene.control.CheckBox same = new javafx.scene.control.CheckBox("Quadrado (altura igual à largura)");
+        same.setSelected(token.getWidthCells() == token.getHeightCells());
+        h.disableProperty().bind(same.selectedProperty());
+        w.valueProperty().addListener((o, a, v) -> { if (same.isSelected()) h.getValueFactory().setValue(v); });
+        javafx.scene.layout.GridPane g = new javafx.scene.layout.GridPane();
+        g.setHgap(8);
+        g.setVgap(8);
+        g.addRow(0, new Label("Largura"), w);
+        g.addRow(1, new Label("Altura"), h);
+        g.add(same, 1, 2);
+        d.getDialogPane().setContent(g);
+        d.getDialogPane().getButtonTypes().addAll(javafx.scene.control.ButtonType.OK, javafx.scene.control.ButtonType.CANCEL);
+        if (getScene() != null) d.initOwner(getScene().getWindow());
+        d.showAndWait().filter(b -> b == javafx.scene.control.ButtonType.OK).ifPresent(b -> {
+            double ww = w.getValue() == null ? 1 : w.getValue();
+            double hh = same.isSelected() ? ww : (h.getValue() == null ? 1 : h.getValue());
+            tokenActions.setSize(token, ww, hh);
+        });
     }
 
     private static javafx.scene.control.MenuItem menuItem(String text, Runnable action) {

@@ -113,7 +113,7 @@ public class GridSettings {
      * Onde um token de {@code cells} x {@code cells} solto em (x, y) (canto de cima) para:
      * quadrada = canto da casa; hexagonal = centrado no hexagono mais perto; sem grade = onde soltou.
      */
-    public double[] snapTopLeft(double x, double y, int cells) {
+    public double[] snapTopLeft(double x, double y, double cells) {
         if (isGridless() || cellSize <= 0) return new double[]{x, y};
         if (isHex()) {
             double half = cellSize * cells / 2;
@@ -121,7 +121,9 @@ public class GridSettings {
             double[] c = hexCenter(h[0], h[1]);
             return new double[]{c[0] - half, c[1] - half};
         }
-        return new double[]{Math.round(x / cellSize) * cellSize, Math.round(y / cellSize) * cellSize};
+        // Miudo (meia casa): encaixa de meia em meia casa (cabem 4 numa casa, como no 5e)
+        double step = cells < 1 ? cellSize / 2 : cellSize;
+        return new double[]{Math.round(x / step) * step, Math.round(y / step) * step};
     }
 
     /** Distancia em casas entre dois pontos (quadrada: diagonal conta 1; hex: passos; sem grade: em linha reta). */

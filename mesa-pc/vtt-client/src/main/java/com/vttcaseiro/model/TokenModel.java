@@ -37,8 +37,8 @@ public class TokenModel {
     private String imageAssetId;
     private double x;
     private double y;
-    private int widthCells = 1;
-    private int heightCells = 1;
+    private double widthCells = 1;
+    private double heightCells = 1;
     private Integer currentHp;
     private Integer maxHp;
     private String ownerId;
@@ -105,8 +105,18 @@ public class TokenModel {
     /** Maior token aceito, em casas de lado (Imenso = 4; folga pra criaturas colossais). */
     public static final int MAX_CELLS = 20;
 
-    public int getWidthCells() { return Math.max(1, Math.min(MAX_CELLS, widthCells)); }
-    public void setWidthCells(int widthCells) { this.widthCells = Math.max(1, Math.min(MAX_CELLS, widthCells)); }
+    /** Menor token: meia casa (Miudo / Tiny do 5e, 2,5 pes). */
+    public static final double MIN_CELLS = 0.5;
+
+    /** Lado em casas, de meia em meia (0,5 = Miudo; 1 = Pequeno/Medio; ate {@link #MAX_CELLS}). */
+    public static double clampCells(double cells) {
+        if (!Double.isFinite(cells)) return 1;
+        double half = Math.round(cells * 2) / 2.0;
+        return Math.max(MIN_CELLS, Math.min(MAX_CELLS, half));
+    }
+
+    public double getWidthCells() { return clampCells(widthCells); }
+    public void setWidthCells(double widthCells) { this.widthCells = clampCells(widthCells); }
 
     /** Giro do token em graus (0 = como a imagem veio), multiplos de qualquer angulo. */
     private double rotation;
@@ -117,8 +127,8 @@ public class TokenModel {
         this.rotation = r < 0 ? r + 360 : r;
     }
 
-    public int getHeightCells() { return Math.max(1, Math.min(MAX_CELLS, heightCells)); }
-    public void setHeightCells(int heightCells) { this.heightCells = Math.max(1, Math.min(MAX_CELLS, heightCells)); }
+    public double getHeightCells() { return clampCells(heightCells); }
+    public void setHeightCells(double heightCells) { this.heightCells = clampCells(heightCells); }
 
     public Integer getCurrentHp() { return currentHp; }
     public void setCurrentHp(Integer currentHp) { this.currentHp = currentHp; }
@@ -289,8 +299,8 @@ public class TokenModel {
         this.initiativeBonus = other.initiativeBonus;
         setInitiativeModifier(other.initiativeModifier);
         setTrackerColor(other.trackerColor);
-        this.widthCells = Math.max(1, other.widthCells);
-        this.heightCells = Math.max(1, other.heightCells);
+        this.widthCells = clampCells(other.widthCells);
+        this.heightCells = clampCells(other.heightCells);
         this.hpVisibleToAll = other.hpVisibleToAll;
         this.characterSheetId = other.characterSheetId;
         this.mobSheetId = other.mobSheetId;

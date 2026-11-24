@@ -82,7 +82,7 @@ public final class TokenLink {
         token.setCharacterSheetId(sheet.getId());
         token.setImageAssetId(sheet.getPortraitImageAssetId());
         token.setInitiativeBonus(sheet.initiative());
-        int cells = cellsForSize(sheet.getSize());
+        double cells = cellsForSize(sheet.getSize());
         token.setWidthCells(cells);
         token.setHeightCells(cells);
         pushSheetToToken(sheet, token);
@@ -100,7 +100,7 @@ public final class TokenLink {
         token.setMaxHp(mob.getHitPointsAverage());
         token.setCurrentHp(mob.getHitPointsAverage());
         token.setInitiativeBonus(CharacterSheet.abilityModifier(mob.getDexterity()));
-        int cells = cellsForSize(mob.getSize());
+        double cells = cellsForSize(mob.getSize());
         token.setWidthCells(cells);
         token.setHeightCells(cells);
         token.setHpVisibleToAll(false);
@@ -109,9 +109,10 @@ public final class TokenLink {
     }
 
     /** Pequeno/Medio = 1, Grande = 2, Enorme = 3, Imenso = 4 celulas. */
-    public static int cellsForSize(String size) {
+    public static double cellsForSize(String size) {
         if (size == null) return 1;
-        String s = size.toLowerCase();
+        String s = size.toLowerCase().strip();
+        if (s.startsWith("mi") || s.startsWith("ti") || s.equals("t")) return 0.5; // Miudo / Tiny
         if (s.startsWith("gr") || s.startsWith("la") || s.equals("l")) return 2;
         if (s.startsWith("en") || s.startsWith("hu") || s.equals("h")) return 3;
         if (s.startsWith("im") || s.startsWith("ga") || s.startsWith("gi") || s.equals("g")) return 4;

@@ -650,15 +650,19 @@ public class TableService {
     // Tamanho do token
     // ------------------------------------------------------------------
 
-    /** Lado do token em casas: 1 (Pequeno/Medio), 2 (Grande), 3 (Enorme), 4 (Imenso). */
-    public void setSize(TokenModel token, int cells) {
+    /** Lado do token em casas: 0,5 (Miudo), 1 (Pequeno/Medio), 2 (Grande), 3 (Enorme), 4 (Imenso) ou outro. */
+    public void setSize(TokenModel token, double cells) {
+        setSize(token, cells, cells);
+    }
+
+    /** Tamanho livre (largura x altura, de meia em meia casa; ex.: 2 x 3 pra uma carroca). */
+    public void setSize(TokenModel token, double width, double height) {
         if (!canControl(token)) {
             port.error("Você não controla " + token.getName() + ".");
             return;
         }
-        int c = Math.max(1, Math.min(6, cells));
-        token.setWidthCells(c);
-        token.setHeightCells(c);
+        token.setWidthCells(width);
+        token.setHeightCells(height);
         publishTokenUpdate(token);
     }
 

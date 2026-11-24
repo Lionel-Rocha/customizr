@@ -577,7 +577,8 @@ function snapTopLeft(x, y, cells) {
   const g = (S.scene && S.scene.grid) || {}, c = cell();
   if (g.type === 'none') return [x, y];
   if (g.type === 'hex') { const half = c * cells / 2, h = hexAt(g, x + half, y + half), ctr = hexCenter(g, h[0], h[1]); return [ctr[0] - half, ctr[1] - half]; }
-  return [Math.round(x / c) * c, Math.round(y / c) * c];
+  const step = cells < 1 ? c / 2 : c; // Miudo (meia casa): encaixa de meia em meia
+  return [Math.round(x / step) * step, Math.round(y / step) * step];
 }
 function cellsBetween(x1, y1, x2, y2) {
   const g = (S.scene && S.scene.grid) || {}, c = cell();
