@@ -1,0 +1,15 @@
+/* Orgulho: as seis cores da bandeira so nos detalhes. */
+.top-bar {
+    -fx-border-color: transparent transparent linear-gradient(to right, #E40303 0%, #E40303 16.6%, #FF8C00 16.6%, #FF8C00 33.3%, #FFED00 33.3%, #FFED00 50%, #008026 50%, #008026 66.6%, #24408E 66.6%, #24408E 83.3%, #732982 83.3%, #732982 100%) transparent;
+    -fx-border-width: 0 0 4 0;
+}
+.sidebar-tab:selected {
+    -fx-border-color: transparent transparent linear-gradient(to right, #E40303 0%, #E40303 16.6%, #FF8C00 16.6%, #FF8C00 33.3%, #FFED00 33.3%, #FFED00 50%, #008026 50%, #008026 66.6%, #24408E 66.6%, #24408E 83.3%, #732982 83.3%, #732982 100%) transparent;
+    -fx-border-width: 0 0 3 0;
+}
+.hero {
+    -fx-background-color: linear-gradient(to bottom, #E40303 0%, #E40303 16.6%, #FF8C00 16.6%, #FF8C00 33.3%, #FFED00 33.3%, #FFED00 50%, #008026 50%, #008026 66.6%, #24408E 66.6%, #24408E 83.3%, #732982 83.3%, #732982 100%), linear-gradient(to bottom, #FFFFFFEE, #FFFFFFF4);
+}
+.mesa-card-selected {
+    -fx-border-color: linear-gradient(to right, #E40303 0%, #E40303 16.6%, #FF8C00 16.6%, #FF8C00 33.3%, #FFED00 33.3%, #FFED00 50%, #008026 50%, #008026 66.6%, #24408E 66.6%, #24408E 83.3%, #732982 83.3%, #732982 100%);
+}

@@ -338,7 +338,16 @@ chegam sem dono).
 ### Temas
 
 Engrenagem > tema: Fogueira (padrao), Claro, Escuro, Ordem Paranormal, Starfinder, Cyberpunk RED,
-Apocalypse World, **D&D**, **Old Dragon** e **Tormenta 20** (so cores e fonte, nada de logo ou arte).
+Apocalypse World, **D&D: Livro do Jogador**, **Old Dragon: Regras Basicas**, **Tormenta20: Livro Basico**, **Orgulho**
+e **Noir**.
+
+- Os tres temas dos livros usam as cores mais marcantes da capa do livro principal (so cores e fonte, nada de logo
+  ou arte): D&D 2024 com a noite cor de ameixa, a lombada vermelha e o dourado do dragao; Old Dragon 2 com o ceu
+  azul-aco e o laranja do dragao de fogo; Tormenta20 com a tempestade carmim, o laranja-dourado do titulo e a magia
+  turquesa.
+- **Orgulho**: homenagem ao mes do Orgulho LGBTQIA+, claro e limpo, com as seis cores da bandeira so nos detalhes
+  (faixa embaixo da barra de cima, aba escolhida, mesa escolhida e a lateral da tela de escolher mesa).
+- **Noir**: filme policial em preto e branco, tons de cinza e um unico vermelho pra perigo.
 
 ### Esconder o que o mestre preparou
 

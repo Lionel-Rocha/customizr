@@ -7,8 +7,10 @@ export const TEMAS = [
   { chave: 'scifi', nome: 'Starfinder' },
   { chave: 'cyberpunk', nome: 'Cyberpunk RED' },
   { chave: 'apocalipse', nome: 'Apocalypse World' },
-  { chave: 'dnd', nome: 'D&D' },
-  { chave: 'olddragon', nome: 'Old Dragon' },
-  { chave: 'tormenta', nome: 'Tormenta 20' },
+  { chave: 'dnd', nome: 'D&D: Livro do Jogador' },
+  { chave: 'olddragon', nome: 'Old Dragon: Regras Básicas' },
+  { chave: 'tormenta', nome: 'Tormenta20: Livro Básico' },
+  { chave: 'orgulho', nome: 'Orgulho' },
+  { chave: 'noir', nome: 'Noir' },
 ];
 export const TEMA_PADRAO = 'fogueira';

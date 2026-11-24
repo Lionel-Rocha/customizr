@@ -55,7 +55,7 @@ public class GerarTokens {
             if (t.equals(padrao)) continue;
             String nome = p.getProperty(t + ".nome", t);
             String out = "/* Tema " + nome + " (gerado por design/GerarTokens.java a partir de design/tokens.properties). */\n"
-                    + fxRoot(cores.get(t), p.getProperty(t + ".fonte"));
+                    + fxRoot(cores.get(t), p.getProperty(t + ".fonte")) + extra(root, t, "fx");
             Files.writeString(fx.resolve("theme-" + t + ".css"), out, StandardCharsets.UTF_8);
         }
         Files.deleteIfExists(fx.resolve("theme-derived.css"));
@@ -72,6 +72,7 @@ public class GerarTokens {
             web.append("    --font-family: ").append(fonte != null ? fonte + ", " : "").append("\"Segoe UI\", system-ui, sans-serif;\n");
             for (var e : cores.get(t).entrySet()) web.append("    --c-").append(e.getKey()).append(": ").append(e.getValue()).append(";\n");
             web.append("}\n\n");
+            web.append(extra(root, t, "web"));
         }
         Files.createDirectories(root.resolve("design/web"));
         Files.writeString(root.resolve("design/web/tokens.css"), web.toString(), StandardCharsets.UTF_8);
@@ -187,6 +188,12 @@ public class GerarTokens {
             throw new RuntimeException(e);
         }
         return keys;
+    }
+
+    /** Detalhes do tema que nao sao cor: design/temas-extra/&lt;tema&gt;.&lt;fx|web&gt;.css, se existir. */
+    static String extra(Path root, String tema, String onde) throws IOException {
+        Path f = root.resolve("design/temas-extra/" + tema + "." + onde + ".css");
+        return Files.exists(f) ? "\n" + Files.readString(f, StandardCharsets.UTF_8).strip() + "\n" : "";
     }
 
     static String fxRoot(Map<String, String> cores, String fonte) {

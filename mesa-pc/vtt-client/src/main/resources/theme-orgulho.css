@@ -1,0 +1,73 @@
+/* Tema Orgulho (gerado por design/GerarTokens.java a partir de design/tokens.properties). */
+.root {
+    -c-bg: #F7F5FA;
+    -c-surface: #FFFFFF;
+    -c-raised: #EFEAF5;
+    -c-border: #D9D0E3;
+    -c-accent: #7A2FBF;
+    -c-accent-deep: #EADCF8;
+    -c-accent-text: #5A1E92;
+    -c-text: #231A2E;
+    -c-muted: #6A5E78;
+    -c-danger: #D7263D;
+    -c-success: #1E8A4C;
+    -c-private: #9B6BDF;
+    -c-bg-deep: #D2D0D5;
+    -c-bg-deep2: #B9B8BC;
+    -c-bg-input: #F8F6FA;
+    -c-bg-alt: #F8F6FB;
+    -c-surface-0: #F0F0F0;
+    -c-surface-1: #FFFFFF;
+    -c-surface-1b: #FFFFFF;
+    -c-surface-2: #FFFFFF;
+    -c-surface-2b: #FFFFFF;
+    -c-surface-3: #FFFFFF;
+    -c-surface-4: #FFFFFF;
+    -c-raised-2: #F1EDF6;
+    -c-raised-2b: #F1EDF6;
+    -c-raised-3: #F4F1F8;
+    -c-raised-3b: #F5F1F9;
+    -c-raised-armed: #C7BBD3;
+    -c-border-2: #DFD7E7;
+    -c-border-3: #E4DEEB;
+    -c-accent-deep-2: #EFE4FA;
+    -c-accent-deep-3: #EDE0F9;
+    -c-accent-deep-4: #F4EDFB;
+    -c-accent-deep-5: #A49AAE;
+    -c-accent-text-2: #7A44AC;
+    -c-accent-text-3: #6D35A2;
+    -c-accent-text-4: #622799;
+    -c-text-2: #21182B;
+    -c-text-3: #1E1627;
+    -c-muted-2: #5F556C;
+    -c-muted-3: #574D62;
+    -c-muted-3b: #554B60;
+    -c-muted-4: #4C4456;
+    -c-danger-text: #DF4E61;
+    -c-success-text: #4BAB74;
+    -c-success-bg: #092917;
+    -c-private-bg: #9B6BDF26;
+    -c-accent-88: #7A2FBF88;
+    -c-accent-66: #7A2FBF66;
+    -c-accent-55: #7A2FBF55;
+    -c-accent-22: #7A2FBF22;
+    -c-surface-glass: #FFFFFFF2;
+    -c-surface-glass2: #FFFFFFEE;
+    -c-surface-glass3: #FFFFFFEE;
+}
+
+/* Orgulho: as seis cores da bandeira so nos detalhes. */
+.top-bar {
+    -fx-border-color: transparent transparent linear-gradient(to right, #E40303 0%, #E40303 16.6%, #FF8C00 16.6%, #FF8C00 33.3%, #FFED00 33.3%, #FFED00 50%, #008026 50%, #008026 66.6%, #24408E 66.6%, #24408E 83.3%, #732982 83.3%, #732982 100%) transparent;
+    -fx-border-width: 0 0 4 0;
+}
+.sidebar-tab:selected {
+    -fx-border-color: transparent transparent linear-gradient(to right, #E40303 0%, #E40303 16.6%, #FF8C00 16.6%, #FF8C00 33.3%, #FFED00 33.3%, #FFED00 50%, #008026 50%, #008026 66.6%, #24408E 66.6%, #24408E 83.3%, #732982 83.3%, #732982 100%) transparent;
+    -fx-border-width: 0 0 3 0;
+}
+.hero {
+    -fx-background-color: linear-gradient(to bottom, #E40303 0%, #E40303 16.6%, #FF8C00 16.6%, #FF8C00 33.3%, #FFED00 33.3%, #FFED00 50%, #008026 50%, #008026 66.6%, #24408E 66.6%, #24408E 83.3%, #732982 83.3%, #732982 100%), linear-gradient(to bottom, #FFFFFFEE, #FFFFFFF4);
+}
+.mesa-card-selected {
+    -fx-border-color: linear-gradient(to right, #E40303 0%, #E40303 16.6%, #FF8C00 16.6%, #FF8C00 33.3%, #FFED00 33.3%, #FFED00 50%, #008026 50%, #008026 66.6%, #24408E 66.6%, #24408E 83.3%, #732982 83.3%, #732982 100%);
+}

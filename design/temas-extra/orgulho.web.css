@@ -1,0 +1,5 @@
+/* Orgulho: as seis cores da bandeira so nos detalhes. */
+[data-theme="orgulho"] .top-bar {
+    border-bottom: 4px solid transparent;
+    border-image: linear-gradient(to right, #E40303 0 16.6%, #FF8C00 16.6% 33.3%, #FFED00 33.3% 50%, #008026 50% 66.6%, #24408E 66.6% 83.3%, #732982 83.3% 100%) 1;
+}

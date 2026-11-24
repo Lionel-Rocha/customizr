@@ -176,6 +176,19 @@ class LayoutUiTest {
                         snapNode(panel, "aba-" + sec.replace("á", "a") + ".png");
                     }
                     open.invoke(main, "Mapa");
+                    // foto da tela em cada tema (sem gravar a escolha nas preferencias)
+                    java.lang.reflect.Field cur = Theme.class.getDeclaredField("current");
+                    cur.setAccessible(true);
+                    Object before = cur.get(null);
+                    open.invoke(main, "Combate");
+                    for (String key : List.of("dnd", "olddragon", "tormenta", "orgulho", "noir")) {
+                        cur.set(null, key);
+                        Theme.apply(stage.getScene());
+                        snapStage(stage, "tema-" + key + ".png");
+                    }
+                    cur.set(null, before);
+                    Theme.apply(stage.getScene());
+                    open.invoke(main, "Mapa");
                 }
                 Method cfg = Main.class.getDeclaredMethod("showSceneConfig");
                 cfg.setAccessible(true);

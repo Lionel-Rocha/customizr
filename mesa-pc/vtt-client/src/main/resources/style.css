@@ -1626,7 +1626,12 @@
 .empty-hint {
     -fx-text-fill: -c-muted;
     -fx-font-size: 12px;
-    -fx-padding: 10;
+    -fx-padding: 4 8 4 8;
+}
+/* grade de botoes: menos sobra nas laterais (fonte serifada larga ainda cabe) */
+.button-grid .button {
+    -fx-padding: 6 6 6 6;
+    -fx-graphic-text-gap: 5;
 }
 
 /* menu "mais" no cabecalho: so o icone, sem a setinha */

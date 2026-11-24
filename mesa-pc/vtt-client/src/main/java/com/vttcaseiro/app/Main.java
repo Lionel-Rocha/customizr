@@ -1847,7 +1847,7 @@ public class Main extends Application {
         }
         lv.prefHeightProperty().bind(javafx.beans.binding.Bindings.createDoubleBinding(() -> {
             int n = lv.getItems().size();
-            return n == 0 ? 60.0 : Math.min(max, n * LIST_ROW + 8);
+            return n == 0 ? 68.0 : Math.min(max, n * LIST_ROW + 8);
         }, lv.getItems()));
         lv.setMinHeight(javafx.scene.layout.Region.USE_PREF_SIZE);
     }
