@@ -1469,3 +1469,81 @@
     -fx-padding: 5 7 5 7;
     -fx-background-radius: 6;
 }
+
+/* ---- Laterais: abas com nome, avisos, caixa de subferramentas ---- */
+.sidebar-tabs .sidebar-tab {
+    -fx-padding: 6 2 5 2;
+    -fx-graphic-text-gap: 3;
+    -fx-text-fill: -c-muted;
+    -fx-font-size: 10px;
+}
+.sidebar-tabs .sidebar-tab:hover {
+    -fx-text-fill: -c-text;
+}
+.sidebar-tabs .sidebar-tab:selected {
+    -fx-text-fill: -c-accent-text;
+    -fx-font-weight: bold;
+}
+.tab-badge {
+    -fx-background-color: -c-danger;
+    -fx-background-radius: 8;
+    -fx-text-fill: white;
+    -fx-font-size: 9px;
+    -fx-font-weight: bold;
+    -fx-padding: 0 4 0 4;
+    -fx-min-height: 14px;
+}
+.tab-badge-dot {
+    -fx-background-color: -c-accent;
+    -fx-min-width: 9px;
+    -fx-min-height: 9px;
+    -fx-max-width: 9px;
+    -fx-max-height: 9px;
+    -fx-padding: 0;
+    -fx-border-color: -c-bg-deep;
+    -fx-border-width: 1.5;
+    -fx-border-radius: 5;
+    -fx-background-radius: 5;
+}
+.side-panel .side-panel-header {
+    -fx-padding: 8 10 8 10;
+}
+.tool-fly {
+    -fx-background-color: -c-surface;
+    -fx-border-color: -c-border;
+    -fx-border-radius: 10;
+    -fx-effect: dropshadow(gaussian, #00000088, 12, 0.15, 0, 3);
+    -fx-background-radius: 8;
+    -fx-padding: 4 6 6 6;
+}
+.tool-fly-title {
+    -fx-text-fill: -c-accent-text;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-padding: 0 0 0 4;
+}
+.tool-fly-close {
+    -fx-font-size: 10px;
+    -fx-padding: 1 6 1 6;
+    -fx-text-fill: -c-muted;
+}
+.tool-column-title {
+    -fx-text-fill: -c-muted;
+    -fx-font-size: 9px;
+    -fx-padding: 0 0 1 0;
+    -fx-alignment: center;
+    -fx-max-width: Infinity;
+}
+.mode-button {
+    -fx-font-size: 9px;
+    -fx-graphic-text-gap: 2;
+    -fx-padding: 5 3 4 3;
+    -fx-text-fill: -c-muted;
+}
+.mode-button:selected {
+    -fx-text-fill: -c-accent-text;
+}
+.tool-column .tool-button:selected {
+    -fx-border-color: transparent transparent transparent -c-accent;
+    -fx-border-width: 0 0 0 3;
+}

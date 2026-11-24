@@ -221,6 +221,31 @@ class LayoutUiTest {
                 assertTrue(mv.ringActions().containsAll(List.of("Dano", "Cura", "Condições", "Mirar", "Mais opções")), mv.ringActions().toString());
                 assertTrue(mv.ringActions().contains("Esconder dos jogadores"), "mestre pode esconder pelo anel");
                 snapStage(stage, "tela-anel.png");
+                // aviso na aba Mesa: mensagem nova com outra aba aberta
+                @SuppressWarnings("unchecked")
+                javafx.collections.ObservableList<com.vttcaseiro.app.LogEntry> log =
+                        (javafx.collections.ObservableList<com.vttcaseiro.app.LogEntry>) field(main, "logEntries");
+                log.add(com.vttcaseiro.app.LogEntry.system("teste"));
+                Method badges = Main.class.getDeclaredMethod("refreshTabBadges");
+                badges.setAccessible(true);
+                badges.invoke(main);
+                @SuppressWarnings("unchecked")
+                Map<String, List<Label>> tb = (Map<String, List<Label>>) field(main, "tabBadges");
+                assertTrue(tb.get("Mesa").get(0).isVisible(), "numero de mensagens novas na aba Mesa");
+                assertTrue(tb.get("Combate").get(0).isVisible(), "bolinha: combate rolando");
+                // Alt+1 abre a Mesa e zera o aviso
+                javafx.event.Event.fireEvent(stage.getScene().getRoot(), new javafx.scene.input.KeyEvent(
+                        javafx.scene.input.KeyEvent.KEY_PRESSED, "", "", javafx.scene.input.KeyCode.DIGIT1, false, false, true, false));
+                assertTrue(rail.get("Mesa").isSelected(), "Alt+1 abre a Mesa");
+                assertFalse(tb.get("Mesa").get(0).isVisible(), "abriu o chat: aviso some");
+                snapStage(stage, "tela-laterais.png");
+                // caixa de subferramentas com o nome da categoria
+                ToggleButton medir = all(stage.getScene().getRoot(), ToggleButton.class).stream()
+                        .filter(t -> t.getStyleClass().contains("tool-category") && "Medir".equals(t.getText())).findFirst().orElseThrow();
+                medir.fire();
+                assertEquals("Medir", ((Label) field(main, "toolFlyTitle")).getText(), "caixa com o nome da categoria");
+                snapStage(stage, "tela-subferramentas.png");
+                medir.fire();
                 mv.pressRing("Mirar");
                 assertTrue(mv.isTargeted(normal), "mirou pelo anel");
                 assertNull(mv.ringToken(), "o anel fecha depois da acao");

@@ -59,7 +59,7 @@ de cima (`vtt-caseiro-classes`), que so chama o de `vtt-client`.
 - **Modos do mestre**, no pe dessa faixa: **Jogar** (conduzir a cena), **Preparar** (o que voce colocar, tokens e
   pins, nasce escondido dos jogadores; objetos ficam editaveis) e **Construir** (paredes, portas, luz, neblina).
   Um aviso no alto do mapa mostra quando voce esta preparando ou construindo.
-- **Fila de turnos**: durante o combate, cartoes no alto do mapa com retrato, iniciativa, PV (quando voce pode ver)
+- **Fila de turnos**: durante o combate, cartoes no canto de cima a direita do mapa com retrato, iniciativa, PV (quando voce pode ver)
   e condicoes; o da vez maior. Clicar no cartao mostra o token no mapa; o botao no fim passa a vez (mestre ou
   dono de quem esta na vez).
 - **Anel do token**: botao direito no token abre botoes em volta dele: dano, cura, condicoes, mirar, ficha,
@@ -73,9 +73,12 @@ de cima (`vtt-caseiro-classes`), que so chama o de `vtt-client`.
 - **Mundo > Cenas**: os icones no titulo criam cena, importam mapa (Azgaar, Watabou, Dungeondraft), criam
   pasta, salvam e abrem **"Configurar cena"** (grade, tamanho da casa, pes por casa e tamanho do mapa, numa
   janela propria). O resto esta no botao direito de cada cena.
-- **Barra da direita**, uma so, com abas: **Mesa** (chat e rolagens), **Combate**, **Personagens** (fichas e
-  grupo), **Mundo** (cenas e diario), **Som** e **Rede**. Clicar de novo na aba aberta (ou em "»") recolhe a
-  barra numa faixa de icones; o mapa fica com a tela toda.
+- **Barra da direita**, uma so, com abas (icone + nome): **Mesa** (chat e rolagens), **Combate**, **Fichas**
+  (fichas e grupo), **Mundo** (cenas e diario), **Som** e **Rede**. **Alt+1 a Alt+6** trocam de aba. Avisos: numero
+  de mensagens novas na Mesa (com a barra em outra aba ou recolhida) e bolinha no Combate quando ha combate.
+  Clicar de novo na aba aberta (ou em "»") recolhe a barra numa faixa de icones; o mapa fica com a tela toda.
+- **Faixa de ferramentas**: a dica de cada categoria mostra as teclas (1 a 9; Esc ou 0 desliga). A categoria
+  aberta mostra uma caixa com o nome dela e "✕" pra fechar.
 
 ### Hospedar e entrar numa mesa
 
