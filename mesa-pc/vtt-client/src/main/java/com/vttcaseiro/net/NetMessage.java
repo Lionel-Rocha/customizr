@@ -78,6 +78,14 @@ public class NetMessage {
     public String sceneKey;
     public Boolean sideView;
 
+    /**
+     * "map_ping" com {@code pull}: o mestre puxa a tela de todos pra aquele ponto. "camera_lock": o mestre trava (ou
+     * solta) a camera dos jogadores; vem com o centro (x, y) e o {@code zoom} da tela dele.
+     */
+    public Boolean pull;
+    public Boolean locked;
+    public Double zoom;
+
     /** "zones_sync": zonas da cena (o servidor tira as escondidas pra quem nao e mestre). */
     public java.util.List<com.vttcaseiro.model.MapZone> zones;
 
@@ -503,6 +511,22 @@ public class NetMessage {
         m.playerId = playerId;
         m.sceneKey = sceneKey;
         m.scene = scene;
+        return m;
+    }
+
+    public static NetMessage mapPull(double x, double y) {
+        NetMessage m = mapPing(x, y);
+        m.pull = true;
+        return m;
+    }
+
+    public static NetMessage cameraLock(boolean locked, double x, double y, double zoom) {
+        NetMessage m = new NetMessage();
+        m.type = "camera_lock";
+        m.locked = locked;
+        m.x = x;
+        m.y = y;
+        m.zoom = zoom;
         return m;
     }
 

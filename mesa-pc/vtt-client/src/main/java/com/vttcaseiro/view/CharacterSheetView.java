@@ -1458,6 +1458,15 @@ public class CharacterSheetView {
      * chat e rola os dados (com os extras por nivel acima).
      */
     private void castSpell(PreparedSpell spell) {
+        if (castSpell(sheet, spell, actions, stage, hiddenRolls)) changed();
+    }
+
+    /**
+     * Conjura {@code spell} da ficha (escolhe e gasta o espaco, concentracao, chat, dados). Usado pela janela da
+     * ficha e pela barra de acoes do token. Devolve true se conjurou (a ficha mudou).
+     */
+    public static boolean castSpell(CharacterSheet sheet, PreparedSpell spell, Actions actions, javafx.stage.Window owner,
+                                    boolean hiddenRolls) {
         SpellSlots slots = sheet.getSpellSlots();
         int slotLevel = 0;
         if (spell.getLevel() > 0) {
@@ -1468,7 +1477,7 @@ public class CharacterSheetView {
             if (available.isEmpty()) {
                 actions.chat(sheet, sheet.getName() + " não tem espaço de magia de nível " + spell.getLevel()
                         + " ou maior sobrando pra " + spell.getName() + ".");
-                return;
+                return false;
             }
             if (available.size() == 1) {
                 slotLevel = available.get(0);
@@ -1479,9 +1488,9 @@ public class CharacterSheetView {
                 choose.setTitle("Conjurar " + spell.getName());
                 choose.setHeaderText("Em qual espaço de magia?");
                 choose.setContentText("Espaço:");
-                if (stage != null) choose.initOwner(stage);
+                if (owner != null) choose.initOwner(owner);
                 java.util.Optional<String> picked = choose.showAndWait();
-                if (picked.isEmpty()) return;
+                if (picked.isEmpty()) return false;
                 slotLevel = available.get(labels.indexOf(picked.get()));
             }
             slots.useSlot(slotLevel);
@@ -1499,7 +1508,7 @@ public class CharacterSheetView {
         if (!dice.isBlank()) {
             actions.castSpellEffect(sheet, spell, Math.max(slotLevel, spell.getLevel()), dice, hiddenRolls);
         }
-        changed();
+        return true;
     }
 
     /** Campo de texto "fogo, veneno" ligado a uma lista. */

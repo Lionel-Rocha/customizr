@@ -1662,3 +1662,41 @@
     -fx-border-color: -c-accent;
     -fx-border-style: segments(4, 3);
 }
+
+/* barra de acoes do token escolhido (embaixo do mapa) */
+.action-bar {
+    -fx-background-color: -c-surface-glass;
+    -fx-background-radius: 10;
+    -fx-border-color: -c-border;
+    -fx-border-radius: 10;
+    -fx-padding: 6 8 6 10;
+    -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.35), 10, 0, 0, 2);
+}
+.action-bar-name {
+    -fx-font-weight: bold;
+    -fx-text-fill: -c-accent-text;
+    -fx-padding: 0 6 0 0;
+}
+.action-bar-button {
+    -fx-padding: 4 9 4 9;
+    -fx-font-size: 12px;
+}
+.action-bar-icon {
+    -fx-padding: 4 7 4 7;
+}
+/* camera guiada pelo mestre */
+.camera-banner {
+    -fx-background-color: -c-accent-deep;
+    -fx-text-fill: -c-accent-text;
+    -fx-border-color: -c-accent;
+    -fx-border-radius: 999;
+    -fx-background-radius: 999;
+    -fx-padding: 4 14 4 14;
+    -fx-font-weight: bold;
+}
+.camera-lock-on {
+    -fx-background-color: -c-accent-deep;
+    -fx-border-color: -c-accent;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+}

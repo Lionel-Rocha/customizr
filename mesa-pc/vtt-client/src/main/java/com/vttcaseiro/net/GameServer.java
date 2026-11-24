@@ -58,6 +58,8 @@ public class GameServer {
     private String groupKey;
     private final Map<String, SceneModel> sideScenes = new java.util.LinkedHashMap<>();
     private String ctxKey;
+    /** Camera travada pelo mestre, por cena ("" = a do grupo): quem entra depois ja chega travado. */
+    private final Map<String, NetMessage> cameraLocks = new java.util.HashMap<>();
     private final List<ClientHandler> clients = new CopyOnWriteArrayList<>();
     /** Musica e ambiente tocando agora (quem entra depois ouve o mesmo). */
     private final java.util.Map<String, com.vttcaseiro.model.AudioCommand> playingAudio = new java.util.LinkedHashMap<>();
@@ -389,7 +391,17 @@ public class GameServer {
                                 msg.player + " tentou rolar \"" + msg.expression + "\": " + ex.getMessage()));
                     }
                 }
-                case "map_ping" -> broadcastExcept(msg, from);
+                case "map_ping" -> {
+                    if (!from.isGm()) msg.pull = null; // so o mestre puxa a tela dos outros
+                    broadcastExcept(msg, from);
+                }
+                case "camera_lock" -> {
+                    if (!from.isGm() || msg.x == null || msg.y == null) break;
+                    String k = ctxKey == null ? "" : ctxKey;
+                    if (Boolean.TRUE.equals(msg.locked)) cameraLocks.put(k, msg);
+                    else cameraLocks.remove(k);
+                    broadcastExcept(msg, from);
+                }
                 case "audio" -> {
                     if (!from.isGm() || msg.audio == null) break;
                     com.vttcaseiro.model.AudioCommand c = msg.audio;
@@ -717,6 +729,8 @@ public class GameServer {
                     PlayerSession session = new PlayerSession(msg.playerId, msg.player, gmAccepted);
                     from.setSession(session);
                     from.send(NetMessage.sceneSync(sceneFor(from)));
+                    NetMessage lock = cameraLocks.get("");
+                    if (lock != null && !gmAccepted && !curtain(from)) from.send(lock);
                     // Quem acabou de entrar precisa receber o estado atual de
                     // tudo que ja foi sincronizado antes dele chegar -- senao
                     // so veria fichas/monstros/party sincronizados DEPOIS da
@@ -901,6 +915,8 @@ public class GameServer {
             }
         }
         target.send(NetMessage.sceneSwitch(sceneFor(target)));
+        NetMessage lock = cameraLocks.get(key == null ? "" : key);
+        target.send(lock != null ? lock : NetMessage.cameraLock(false, 0, 0, 1)); // a camera da cena nova
         target.send(NetMessage.chat("servidor", key == null ? "Você voltou pra cena do grupo."
                 : "O mestre levou você pra outra cena (o resto do grupo não vê o que acontece aqui)."));
         pruneSides();
@@ -1076,7 +1092,7 @@ public class GameServer {
     /** Mensagens que mostram o que tem na cena (nao vao pro jogador enquanto ela esta escondida). */
     private static final java.util.Set<String> SCENE_TYPES = java.util.Set.of("move_token", "add_token", "update_token",
             "remove_token", "objects_sync", "pins_sync", "walls_sync", "door_toggle", "drawing_add", "drawing_remove",
-            "drawing_clear", "fog_sync", "encounter_sync", "map_ping");
+            "drawing_clear", "fog_sync", "encounter_sync", "map_ping", "camera_lock");
 
     /** Este cliente esta atras da cortina (cena escondida e ele nao e o mestre)? */
     private boolean curtain(ClientHandler c) {

@@ -54,6 +54,12 @@ public class NetworkService {
         default void onZonesSync(java.util.List<com.vttcaseiro.model.MapZone> zones) {
         }
 
+        default void onMapPull(String player, double x, double y) {
+        }
+
+        default void onCameraLock(boolean locked, double x, double y, double zoom) {
+        }
+
         default void onZoneEvent(com.vttcaseiro.model.MapZone zone, TokenModel token, String sceneKey, String ownerName) {
         }
 
@@ -429,6 +435,16 @@ public class NetworkService {
             @Override
             public void onZonesSync(java.util.List<com.vttcaseiro.model.MapZone> zones) {
                 listener.onZonesSync(zones);
+            }
+
+            @Override
+            public void onMapPull(String player, double x, double y) {
+                listener.onMapPull(player, x, y);
+            }
+
+            @Override
+            public void onCameraLock(boolean locked, double x, double y, double zoom) {
+                listener.onCameraLock(locked, x, y, zoom);
             }
 
             @Override
@@ -862,6 +878,14 @@ public class NetworkService {
 
     public void sendZonesSync(java.util.List<com.vttcaseiro.model.MapZone> zones) {
         if (client != null) client.sendZonesSync(zones);
+    }
+
+    public void sendMapPull(double x, double y) {
+        if (client != null) client.sendMapPull(x, y);
+    }
+
+    public void sendCameraLock(boolean locked, double x, double y, double zoom) {
+        if (client != null) client.sendCameraLock(locked, x, y, zoom);
     }
 
     public void sendGmView(String sceneKey) {

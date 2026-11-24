@@ -361,6 +361,25 @@ cena. So aquele jogador vai pra la; o resto do grupo continua na cena aberta e n
   pro programa do mestre e e salva sozinha, com tudo que mudou nela.
 - Abrir pra todos (Mundo > Cenas) a cena onde alguem ja estava sozinho junta o grupo la, com o que ja mudou.
 
+### "Olhem aqui" e camera guiada
+
+- **Shift+Alt+clique** no mapa (mestre, online): a tela de todos desliza ate aquele ponto, com o ping. Alt+clique
+  sozinho continua sendo o ping comum (de qualquer um), sem mexer na tela de ninguem.
+- **Guiar a camera** (icone de olho na barra de cima, so o mestre online): os jogadores passam a ver o mesmo pedaco
+  do mapa que o mestre, com o mesmo zoom, e nao conseguem arrastar nem dar zoom ate o mestre soltar. Aparece o aviso
+  "O mestre esta guiando a camera". Quem entra no meio ja chega com a camera guiada. Bom pra narrar uma cena.
+
+### Barra de acoes do token
+
+Escolha **um token seu** (clique nele) e aparece embaixo do mapa uma faixa com os ataques e magias da ficha:
+
+- **Ataque**: acerto e dano num clique (critico dobra os dados, falha critica nao rola dano); com alvos marcados
+  (Ctrl+clique no token), compara com a CA de cada um. **Shift+clique** = vantagem, **Ctrl+clique** = desvantagem.
+- **Magia** com dados, ataque ou salvaguarda: conjura como pela ficha (escolhe e gasta o espaco, concentracao, dados).
+- No fim: rolar iniciativa e abrir a ficha. Mais de 8 itens: o resto vai pro menu "Mais".
+- O mestre ve a barra dos monstros tambem (acoes com acerto ou dano do bloco do monstro; rolagem escondida, como
+  na ficha do monstro).
+
 ### Zonas no mapa
 
 Barra do mapa > **Paredes > Zona** (so o mestre): arraste um retangulo e escolha o tipo. Com a ferramenta ligada,

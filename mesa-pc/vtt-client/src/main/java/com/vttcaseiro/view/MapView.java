@@ -217,6 +217,12 @@ public class MapView extends Pane {
         addEventFilter(MouseEvent.MOUSE_PRESSED, e -> {
             if (e.isAltDown() && e.getButton() == MouseButton.PRIMARY) {
                 Point2D p = content.sceneToLocal(e.getSceneX(), e.getSceneY());
+                if (e.isShiftDown() && pullHandler != null && pullHandler.test(p)) {
+                    // Shift+Alt+clique (mestre): "olhem aqui" -- a tela de todos vem pra ca
+                    showPing(p.getX(), p.getY(), null);
+                    e.consume();
+                    return;
+                }
                 showPing(p.getX(), p.getY(), null);
                 if (pingHandler != null) pingHandler.accept(p);
                 e.consume();
@@ -941,6 +947,74 @@ public class MapView extends Pane {
     }
 
     private java.util.function.Consumer<Point2D> pingHandler;
+    private java.util.function.Predicate<Point2D> pullHandler;
+    private Runnable viewListener;
+    private boolean cameraLocked;
+    private javafx.animation.Timeline panAnimation;
+
+    /** Shift+Alt+clique: devolve true se puxou a tela de todos (so o mestre online). */
+    public void setPullHandler(java.util.function.Predicate<Point2D> handler) {
+        this.pullHandler = handler;
+    }
+
+    /** Avisado quando a vista muda (zoom, arrastar, centralizar): o mestre com a camera travada manda pros outros. */
+    public void setViewListener(Runnable listener) {
+        this.viewListener = listener;
+    }
+
+    private void viewChanged() {
+        if (viewListener != null) viewListener.run();
+    }
+
+    /** Camera travada pelo mestre: este jogador nao da zoom nem arrasta a vista. */
+    public void setCameraLocked(boolean locked) {
+        this.cameraLocked = locked;
+    }
+
+    public boolean isCameraLocked() {
+        return cameraLocked;
+    }
+
+    public double getZoom() {
+        return zoom;
+    }
+
+    /** Ponto do mapa no meio da tela. */
+    public double[] viewCenter() {
+        Point2D p = content.parentToLocal(getWidth() / 2, getHeight() / 2);
+        return new double[]{p.getX(), p.getY()};
+    }
+
+    /** Leva a vista pra deixar (x, y) do mapa no meio da tela (deslizando, se {@code animate}). */
+    public void centerOn(double x, double y, boolean animate) {
+        Point2D p = content.localToParent(x, y);
+        double tx = content.getTranslateX() + getWidth() / 2 - p.getX();
+        double ty = content.getTranslateY() + getHeight() / 2 - p.getY();
+        if (panAnimation != null) panAnimation.stop();
+        if (!animate || getWidth() <= 0) {
+            content.setTranslateX(tx);
+            content.setTranslateY(ty);
+            viewChanged();
+            return;
+        }
+        panAnimation = new javafx.animation.Timeline(new javafx.animation.KeyFrame(javafx.util.Duration.millis(380),
+                new javafx.animation.KeyValue(content.translateXProperty(), tx, javafx.animation.Interpolator.EASE_BOTH),
+                new javafx.animation.KeyValue(content.translateYProperty(), ty, javafx.animation.Interpolator.EASE_BOTH)));
+        panAnimation.setOnFinished(e -> viewChanged());
+        panAnimation.play();
+    }
+
+    /** Mesma vista do mestre: o zoom dele e o centro dele. */
+    public void applyView(double x, double y, double newZoom) {
+        double z = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, newZoom));
+        if (z != zoom) {
+            zoom = z;
+            content.setScaleX(zoom);
+            content.setScaleY(zoom);
+            updatePinScale();
+        }
+        centerOn(x, y, true);
+    }
 
     /** Quem e avisado do ping local (o Main manda pela rede). */
     public void setPingHandler(java.util.function.Consumer<Point2D> handler) {
@@ -2493,6 +2567,10 @@ public class MapView extends Pane {
      * do node (fixo, nao muda com zoom/pan), entao a correcao e so
      * "(zoomAntigo - zoomNovo) * (pontoSobCursor - pivot)". */
     private void onScroll(ScrollEvent e) {
+        if (cameraLocked) {
+            e.consume();
+            return;
+        }
         double oldZoom = zoom;
         double factor = e.getDeltaY() > 0 ? 1.1 : 1 / 1.1;
         double newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom * factor));
@@ -2514,6 +2592,7 @@ public class MapView extends Pane {
         content.setTranslateX(oldTranslateX + (oldZoom - zoom) * (mouseInContent.getX() - pivotX));
         content.setTranslateY(oldTranslateY + (oldZoom - zoom) * (mouseInContent.getY() - pivotY));
         e.consume();
+        viewChanged();
     }
 
     // ------------------------------------------------------------------
@@ -2549,6 +2628,14 @@ public class MapView extends Pane {
         for (javafx.scene.Node n : tokenLayer.getChildren()) {
             if (n instanceof TokenNode tn) tn.setSelected(selectedIds.contains(tn.getModel().getId()));
         }
+        if (selectionListener != null) selectionListener.run();
+    }
+
+    private Runnable selectionListener;
+
+    /** Avisado quando a selecao de tokens muda (barra de acoes do token). */
+    public void setSelectionListener(Runnable listener) {
+        this.selectionListener = listener;
     }
 
     private boolean noToolActive() {
@@ -2666,7 +2753,9 @@ public class MapView extends Pane {
             e.consume();
             return;
         }
-        if (e.getButton() == MouseButton.SECONDARY) {
+        if (e.getButton() == MouseButton.SECONDARY && cameraLocked) {
+            e.consume(); // o mestre esta guiando a camera
+        } else if (e.getButton() == MouseButton.SECONDARY) {
             panStartSceneX = e.getSceneX();
             panStartSceneY = e.getSceneY();
             panStartTranslateX = content.getTranslateX();
@@ -2750,10 +2839,13 @@ public class MapView extends Pane {
             e.consume();
             return;
         }
-        if (e.getButton() == MouseButton.SECONDARY) {
+        if (e.getButton() == MouseButton.SECONDARY && cameraLocked) {
+            e.consume();
+        } else if (e.getButton() == MouseButton.SECONDARY) {
             content.setTranslateX(panStartTranslateX + (e.getSceneX() - panStartSceneX));
             content.setTranslateY(panStartTranslateY + (e.getSceneY() - panStartSceneY));
             e.consume();
+            viewChanged();
         } else if (measuring && e.getButton() == MouseButton.PRIMARY) {
             Point2D p = content.sceneToLocal(e.getSceneX(), e.getSceneY());
             measureLine.setEndX(p.getX());

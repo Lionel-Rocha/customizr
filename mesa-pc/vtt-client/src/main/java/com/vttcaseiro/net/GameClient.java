@@ -55,6 +55,15 @@ public class GameClient {
         default void onSideSceneClosed(String sceneKey, SceneModel scene) {
         }
 
+        /** O mestre puxou a tela pra este ponto. */
+        default void onMapPull(String player, double x, double y) {
+            onMapPing(player, x, y);
+        }
+
+        /** O mestre travou (ou soltou) a camera; centro e zoom da tela dele. */
+        default void onCameraLock(boolean locked, double x, double y, double zoom) {
+        }
+
         /** Zonas da cena mudaram. */
         default void onZonesSync(java.util.List<com.vttcaseiro.model.MapZone> zones) {
         }
@@ -431,6 +440,10 @@ public class GameClient {
                 }
             }
             case "side_scene_closed" -> listener.onSideSceneClosed(msg.sceneKey, msg.scene);
+            case "camera_lock" -> {
+                if (msg.x != null && msg.y != null) listener.onCameraLock(Boolean.TRUE.equals(msg.locked), msg.x, msg.y,
+                        msg.zoom == null ? 1 : msg.zoom);
+            }
             case "zones_sync" -> listener.onZonesSync(msg.zones != null ? msg.zones : java.util.List.of());
             case "zone_event" -> {
                 if (msg.zones != null && !msg.zones.isEmpty() && msg.token != null)
@@ -520,7 +533,10 @@ public class GameClient {
                 if (msg.gmRequest != null) listener.onGmRequest(msg.player, msg.gmRequest);
             }
             case "map_ping" -> {
-                if (msg.x != null && msg.y != null) listener.onMapPing(msg.player, msg.x, msg.y);
+                if (msg.x != null && msg.y != null) {
+                    if (Boolean.TRUE.equals(msg.pull)) listener.onMapPull(msg.player, msg.x, msg.y);
+                    else listener.onMapPing(msg.player, msg.x, msg.y);
+                }
             }
             case "pong" -> lastPongTime = System.currentTimeMillis();
             case "challenge" -> send(NetMessage.hello(pendingName, playerId, pendingGm, tablePassword,
@@ -758,6 +774,14 @@ public class GameClient {
     }
 
     /** Mestre leva um jogador pra uma cena (null = volta pro grupo). */
+    public void sendMapPull(double x, double y) {
+        send(NetMessage.mapPull(x, y));
+    }
+
+    public void sendCameraLock(boolean locked, double x, double y, double zoom) {
+        send(NetMessage.cameraLock(locked, x, y, zoom));
+    }
+
     public void sendZonesSync(java.util.List<com.vttcaseiro.model.MapZone> zones) {
         send(NetMessage.zonesSync(zones));
     }

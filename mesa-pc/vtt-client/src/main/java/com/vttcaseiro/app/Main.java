@@ -878,8 +878,14 @@ public class Main extends Application {
             return;
         }
         String name = token != null && token.getName() != null ? token.getName() : mob.getName();
+        new MobSheetView(mob, name, mobActionsFor(mob, token), trait -> onMobTraitClicked(mob, trait)).show();
+    }
+
+    /** Rolagens da ficha de monstro (acerto contra os alvos, critico, dano), pela janela ou pela barra do token. */
+    private MobSheetView.Actions mobActionsFor(MobSheet mob, TokenModel token) {
+        String name = token != null && token.getName() != null ? token.getName() : mob.getName();
         String mobKey = "mob:" + (token != null ? token.getId() : mob.getId());
-        MobSheetView.Actions mobActions = new MobSheetView.Actions() {
+        return new MobSheetView.Actions() {
             @Override
             public void rollD20(String label, int modifier, com.vttcaseiro.character.RollKind kind,
                                 com.vttcaseiro.character.Ability ability, com.vttcaseiro.character.RollMode chosen,
@@ -950,7 +956,6 @@ public class Main extends Application {
                 announce(text);
             }
         };
-        new MobSheetView(mob, name, mobActions, trait -> onMobTraitClicked(mob, trait)).show();
     }
 
     /** d20 com vantagem/desvantagem/exaustao ja decididas pelas regras. */
@@ -1103,8 +1108,22 @@ public class Main extends Application {
         campaignButton.setTooltip(new Tooltip("Gerenciador de campanha: jogadores (XP, ouro), calendário e clima, PdMs, "
                 + "aventuras, sessões e anotações. O que você marcar como visível os jogadores veem."));
         campaignButton.setOnAction(e -> openCampaign());
-        bar.getChildren().addAll(brand, sep, title, sceneStrip, spacer, returnSceneButton, playersStrip, hint, campaignButton, gear,
-                netStatusLabel);
+        cameraLockButton = new ToggleButton(null, com.vttcaseiro.view.Icons.icon("eye", 14));
+        cameraLockButton.getStyleClass().addAll("button-flat", "camera-lock-button");
+        cameraLockButton.setTooltip(new Tooltip("Guiar a câmera: os jogadores veem o mesmo pedaço do mapa que você (zoom e "
+                + "posição) e não mexem na vista até você soltar. Bom pra narrar. Shift+Alt+clique: \"olhem aqui\" "
+                + "(leva a tela de todos pro ponto, sem travar)."));
+        cameraLockButton.setOnAction(e -> sendCameraNow());
+        Runnable cameraButtonByRole = () -> {
+            boolean show = networkService.isGm() && networkService.isConnected();
+            cameraLockButton.setVisible(show);
+            cameraLockButton.setManaged(show);
+            if (!show) cameraLockButton.setSelected(false);
+        };
+        networkService.statusProperty().addListener((o, a, b) -> Platform.runLater(cameraButtonByRole));
+        cameraButtonByRole.run();
+        bar.getChildren().addAll(brand, sep, title, sceneStrip, spacer, returnSceneButton, cameraLockButton, playersStrip, hint,
+                campaignButton, gear, netStatusLabel);
         return bar;
     }
 
@@ -2066,6 +2085,29 @@ public class Main extends Application {
         StackPane.setAlignment(diceAnimator, Pos.BOTTOM_CENTER);
         StackPane.setMargin(diceAnimator, new Insets(0, 0, 40, 0));
         diceAnimator.setMaxHeight(110);
+        actionBar.getStyleClass().add("action-bar");
+        actionBar.setAlignment(Pos.CENTER);
+        actionBar.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+        actionBar.setVisible(false);
+        actionBar.setManaged(false);
+        stack.getChildren().add(actionBar);
+        StackPane.setAlignment(actionBar, Pos.BOTTOM_CENTER);
+        StackPane.setMargin(actionBar, new Insets(0, 120, 52, 120));
+        mapView.setSelectionListener(this::refreshActionBar);
+        cameraBanner.getStyleClass().add("camera-banner");
+        cameraBanner.setMouseTransparent(true);
+        cameraBanner.setVisible(false);
+        stack.getChildren().add(cameraBanner);
+        StackPane.setAlignment(cameraBanner, Pos.TOP_CENTER);
+        StackPane.setMargin(cameraBanner, new Insets(10, 0, 0, 0));
+        mapView.setPullHandler(p -> {
+            if (!networkService.isGm() || !networkService.isConnected()) return false;
+            networkService.sendMapPull(p.getX(), p.getY());
+            mapView.centerOn(p.getX(), p.getY(), true);
+            logEntries.add(LogEntry.system("Você chamou a atenção de todos pra esse ponto do mapa."));
+            return true;
+        });
+        mapView.setViewListener(this::scheduleCameraSend);
         javafx.scene.Node hint = buildEmptyMapHint();
         stack.getChildren().add(hint);
         StackPane.setAlignment(hint, Pos.CENTER);
@@ -6673,6 +6715,165 @@ public class Main extends Application {
         }
     }
 
+    // ---------------- camera guiada pelo mestre
+
+    private ToggleButton cameraLockButton;
+    private final Label cameraBanner = new Label("O mestre está guiando a câmera");
+    private final javafx.animation.PauseTransition cameraThrottle = new javafx.animation.PauseTransition(javafx.util.Duration.millis(120));
+
+    /** Vista do mestre mudou: com a camera travada, manda (no maximo umas 8 vezes por segundo). */
+    private void scheduleCameraSend() {
+        if (cameraLockButton == null || !cameraLockButton.isSelected()) return;
+        cameraThrottle.setOnFinished(e -> sendCameraNow());
+        if (cameraThrottle.getStatus() != javafx.animation.Animation.Status.RUNNING) cameraThrottle.playFromStart();
+    }
+
+    private void sendCameraNow() {
+        if (cameraLockButton == null || !networkService.isGm() || !networkService.isConnected()) return;
+        double[] c = mapView.viewCenter();
+        networkService.sendCameraLock(cameraLockButton.isSelected(), c[0], c[1], mapView.getZoom());
+        cameraLockButton.getStyleClass().remove("camera-lock-on");
+        if (cameraLockButton.isSelected()) cameraLockButton.getStyleClass().add("camera-lock-on");
+    }
+
+    // ---------------- barra de acoes do token escolhido
+
+    private final HBox actionBar = new HBox(6);
+    private String actionBarKey;
+    /** Mais que isso na barra vai pro menu "Mais". */
+    static final int ACTION_BAR_MAX = 8;
+
+    /** Um token so escolhido, que eu controlo: os ataques e magias da ficha dele a um clique. */
+    void refreshActionBar() {
+        if (table == null || characterService == null || mobService == null) return; // mesa ainda carregando
+        List<TokenModel> sel = mapView.getSelectedTokens();
+        TokenModel t = sel.size() == 1 ? sel.get(0) : null;
+        CharacterSheet sheet = null;
+        MobSheet mob = null;
+        if (t != null && table.canControl(t)) {
+            if (t.getCharacterSheetId() != null) {
+                sheet = characterService.findOpen(t.getCharacterSheetId())
+                        .or(() -> characterService.findById(t.getCharacterSheetId())).orElse(null);
+            } else if (t.getMobSheetId() != null && networkService.isGm()) {
+                mob = mobService.findById(t.getMobSheetId()).orElse(null);
+            }
+        }
+        List<Object[]> items = new ArrayList<>(); // {icone, texto, dica, acao(MouseEvent)}
+        if (sheet != null && !sheet.usesTemplate()) {
+            CharacterSheet s = sheet;
+            for (com.vttcaseiro.character.Attack a : s.getAttacks()) {
+                if (a.attackBonus().isEmpty() && a.damageExpression().isEmpty()) continue;
+                String bonus = a.attackBonus().isPresent() ? " " + signed(a.attackBonus().getAsInt()) : "";
+                items.add(new Object[]{"combat", a.getName() + bonus,
+                        a.getName() + (a.getDamageAndType().isBlank() ? "" : ": " + a.getDamageAndType())
+                                + " -- acerto e dano juntos (alvos marcados: compara com a CA)",
+                        (java.util.function.Consumer<javafx.scene.input.MouseEvent>) e ->
+                                sheetActions.attack(s, a, modeFrom(e), false)});
+            }
+            List<com.vttcaseiro.character.PreparedSpell> spells = new ArrayList<>(s.getSpells());
+            spells.sort(java.util.Comparator.comparingInt(com.vttcaseiro.character.PreparedSpell::getLevel));
+            for (com.vttcaseiro.character.PreparedSpell sp : spells) {
+                if (sp.getDice().isBlank() && !sp.isSpellAttack() && sp.getSaveAbility().isBlank()) continue;
+                items.add(new Object[]{"spark", sp.getName() + (sp.getLevel() > 0 ? " (" + sp.getLevel() + ")" : ""),
+                        sp.getName() + (sp.getLevel() > 0 ? " -- gasta um espaço de nível " + sp.getLevel() + " ou maior" : " -- truque"),
+                        (java.util.function.Consumer<javafx.scene.input.MouseEvent>) e -> {
+                            if (com.vttcaseiro.view.CharacterSheetView.castSpell(s, sp, sheetActions, stage, false)) sheetEdited(s);
+                        }});
+            }
+        } else if (mob != null && !mob.usesTemplate()) {
+            MobSheetView.Actions acts = mobActionsFor(mob, t);
+            String name = t.getName() != null ? t.getName() : mob.getName();
+            for (com.vttcaseiro.character.CharacterTrait tr : mob.getActions()) {
+                String desc = tr.getDescription() == null ? "" : tr.getDescription();
+                var bonus = com.vttcaseiro.mob.MobAttack.attackBonus(desc);
+                var dmg = com.vttcaseiro.mob.MobAttack.damage(desc);
+                if (bonus.isEmpty() && dmg.isEmpty()) continue;
+                String type = com.vttcaseiro.mob.MobAttack.damageType(desc);
+                String typeText = type == null ? "" : " (" + com.vttcaseiro.character.DamageTypes.namePt(type) + ")";
+                items.add(new Object[]{"combat", tr.getName() + (bonus.isPresent() ? " " + signed(bonus.getAsInt()) : ""),
+                        tr.getName() + (dmg.isPresent() ? ": " + dmg.get() + typeText : "") + " -- rolagem escondida, como na ficha",
+                        (java.util.function.Consumer<javafx.scene.input.MouseEvent>) e -> {
+                            if (bonus.isPresent()) {
+                                acts.attack(name + " - Ataque: " + tr.getName(), bonus.getAsInt(),
+                                        name + " - Dano: " + tr.getName() + typeText, dmg.orElse(null), modeFrom(e), true);
+                            } else {
+                                acts.roll(name + " - Dano: " + tr.getName() + typeText, dmg.get(), true);
+                            }
+                        }});
+            }
+        }
+        boolean show = t != null && (sheet != null || mob != null);
+        StringBuilder key = new StringBuilder(show ? t.getId() : "");
+        for (Object[] it : items) key.append('|').append(it[1]);
+        if (java.util.Objects.equals(key.toString(), actionBarKey)) return;
+        actionBarKey = key.toString();
+        actionBar.getChildren().clear();
+        actionBar.setVisible(show);
+        actionBar.setManaged(show);
+        if (!show) return;
+        Label who = new Label(t.getName());
+        who.getStyleClass().add("action-bar-name");
+        actionBar.getChildren().add(who);
+        javafx.scene.control.MenuButton more = new javafx.scene.control.MenuButton("Mais");
+        more.getStyleClass().add("action-bar-button");
+        for (int i = 0; i < items.size(); i++) {
+            Object[] it = items.get(i);
+            @SuppressWarnings("unchecked")
+            java.util.function.Consumer<javafx.scene.input.MouseEvent> act = (java.util.function.Consumer<javafx.scene.input.MouseEvent>) it[3];
+            if (i < ACTION_BAR_MAX) {
+                Button b = new Button((String) it[1], com.vttcaseiro.view.Icons.icon((String) it[0], 13));
+                b.getStyleClass().add("action-bar-button");
+                b.setTooltip(new Tooltip(it[2] + "\nShift+clique: vantagem · Ctrl+clique: desvantagem"));
+                b.setOnMouseClicked(e -> {
+                    if (e.getButton() == javafx.scene.input.MouseButton.PRIMARY) act.accept(e);
+                });
+                actionBar.getChildren().add(b);
+            } else {
+                javafx.scene.control.MenuItem mi = new javafx.scene.control.MenuItem((String) it[1]);
+                mi.setOnAction(e -> act.accept(null));
+                more.getItems().add(mi);
+            }
+        }
+        if (!more.getItems().isEmpty()) actionBar.getChildren().add(more);
+        if (items.isEmpty()) {
+            Label none = new Label("Sem ataques na ficha");
+            none.getStyleClass().add("label-muted");
+            actionBar.getChildren().add(none);
+        }
+        Button init = new Button(null, com.vttcaseiro.view.Icons.icon("dice", 13));
+        init.getStyleClass().addAll("action-bar-button", "action-bar-icon");
+        init.setTooltip(new Tooltip("Rolar iniciativa"));
+        init.setOnAction(e -> tokenActions.rollInitiative(t));
+        Button open = new Button(null, com.vttcaseiro.view.Icons.icon("sheet", 13));
+        open.getStyleClass().addAll("action-bar-button", "action-bar-icon");
+        open.setTooltip(new Tooltip("Abrir a ficha"));
+        open.setOnAction(e -> tokenActions.openSheet(t));
+        actionBar.getChildren().addAll(init, open);
+    }
+
+    private static com.vttcaseiro.character.RollMode modeFrom(javafx.scene.input.MouseEvent e) {
+        if (e == null) return com.vttcaseiro.character.RollMode.NORMAL;
+        if (e.isShiftDown()) return com.vttcaseiro.character.RollMode.ADVANTAGE;
+        if (e.isControlDown()) return com.vttcaseiro.character.RollMode.DISADVANTAGE;
+        return com.vttcaseiro.character.RollMode.NORMAL;
+    }
+
+    private static String signed(int n) {
+        return n >= 0 ? "+" + n : String.valueOf(n);
+    }
+
+    /** A ficha mudou fora da janela dela (magia pela barra): salva, sincroniza e atualiza a janela aberta. */
+    private void sheetEdited(CharacterSheet sheet) {
+        sheetActions.sheetChanged(sheet);
+        try {
+            sheetActions.save(sheet);
+        } catch (Exception ex) {
+            logEntries.add(LogEntry.error("Não deu pra salvar a ficha: " + ex.getMessage()));
+        }
+        CharacterSheetView view = openSheetViews.get(sheet.getId());
+        if (view != null) view.reload(sheet);
+    }
+
     /** Mestre esta olhando uma cena separada (de um jogador sozinho), nao a do grupo. */
     private boolean sideViewing;
     /** Nome da cena do grupo (pra saber de onde um portal sai mesmo olhando uma cena separada). */
@@ -8184,6 +8385,28 @@ public class Main extends Application {
                 } catch (IOException | RuntimeException ex) {
                     logEntries.add(LogEntry.error("Não deu pra salvar a cena \"" + sceneKey + "\": " + ex.getMessage()));
                 }
+            });
+        }
+
+        @Override
+        public void onMapPull(String player, double x, double y) {
+            Platform.runLater(() -> {
+                mapView.centerOn(x, y, true);
+                mapView.showPing(x, y, player);
+                logEntries.add(LogEntry.system((player == null ? "O mestre" : player) + " chamou sua atenção pra um ponto do mapa."));
+            });
+        }
+
+        @Override
+        public void onCameraLock(boolean locked, double x, double y, double zoom) {
+            Platform.runLater(() -> {
+                if (networkService.isGm()) return;
+                boolean was = mapView.isCameraLocked();
+                mapView.setCameraLocked(locked);
+                cameraBanner.setVisible(locked);
+                if (locked) mapView.applyView(x, y, zoom);
+                if (locked != was) logEntries.add(LogEntry.system(locked ? "O mestre está guiando a câmera."
+                        : "Câmera liberada: você pode mexer na vista de novo."));
             });
         }
 
