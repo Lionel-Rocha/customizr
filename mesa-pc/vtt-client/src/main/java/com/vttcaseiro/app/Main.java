@@ -5128,6 +5128,10 @@ public class Main extends Application {
                 + "(cenas, combates, críticos, dano, quem caiu, tesouro) num texto pra copiar ou guardar em Campanha > Sessões."));
         summaryButton.setOnAction(e -> showSessionSummary());
         quickRow.getChildren().add(summaryButton);
+        Button statsButton = new Button("Dados", com.vttcaseiro.view.Icons.icon("dice", 13));
+        statsButton.setTooltip(new Tooltip("Estatísticas do d20: rolagens, média, 20 e 1 naturais de cada um (sessão e histórico)"));
+        statsButton.setOnAction(e -> showDiceStats());
+        quickRow.getChildren().add(statsButton);
         box.getChildren().addAll(chatList, diceRow, quickRow, inputRow); // o titulo "Mesa" da barra ja diz o que e
         return box;
     }
@@ -5602,6 +5606,56 @@ public class Main extends Application {
         playlistIndex = (playlistIndex + 1) % playlist.size(); // acabou a lista: volta pra primeira
         com.vttcaseiro.model.SoundEntry se = playlist.get(playlistIndex);
         gmAudio(com.vttcaseiro.model.AudioCommand.playOnce(com.vttcaseiro.model.AudioCommand.MUSIC, se.getId(), se.getName()));
+    }
+
+    // ---------------- estatisticas dos dados
+
+    /** Tabela por pessoa (desta sessao e de todo o historico do chat da mesa), com botao de mandar pro chat. */
+    void showDiceStats() {
+        List<LogEntry> session = new ArrayList<>(logEntries.subList(Math.min(sessionStartIndex, logEntries.size()), logEntries.size()));
+        List<LogEntry> history;
+        try {
+            history = new com.vttcaseiro.library.ChatLogStore(mesaRepository.getRoot()).loadLast(200_000);
+        } catch (RuntimeException ex) {
+            history = new ArrayList<>(logEntries);
+        }
+        List<DiceStats.Line> now = DiceStats.of(session);
+        List<DiceStats.Line> all = DiceStats.of(history);
+        javafx.scene.control.TabPane tabs = new javafx.scene.control.TabPane(
+                new javafx.scene.control.Tab("Esta sessão", statsTable(now)),
+                new javafx.scene.control.Tab("Todo o histórico", statsTable(all)));
+        tabs.setTabClosingPolicy(javafx.scene.control.TabPane.TabClosingPolicy.UNAVAILABLE);
+        javafx.scene.control.Dialog<javafx.scene.control.ButtonType> d = new javafx.scene.control.Dialog<>();
+        d.initOwner(stage);
+        d.setTitle("Estatísticas dos dados");
+        d.setHeaderText("Só o d20 (ataques, testes, salvaguardas). Rolagem escondida fica de fora.");
+        javafx.scene.control.ButtonType toChat = new javafx.scene.control.ButtonType("Mandar a da sessão pro chat",
+                javafx.scene.control.ButtonBar.ButtonData.LEFT);
+        d.getDialogPane().getButtonTypes().addAll(toChat, javafx.scene.control.ButtonType.CLOSE);
+        d.getDialogPane().setContent(tabs);
+        d.getDialogPane().setPrefSize(560, 360);
+        d.showAndWait().filter(b -> b == toChat).ifPresent(b -> announce(DiceStats.summary(now, "Dados da sessão")));
+    }
+
+    private javafx.scene.Node statsTable(List<DiceStats.Line> lines) {
+        javafx.scene.layout.GridPane g = new javafx.scene.layout.GridPane();
+        g.setHgap(16);
+        g.setVgap(6);
+        g.setPadding(new Insets(10));
+        String[] head = {"Quem", "Rolagens", "Média", "20 naturais", "1 naturais"};
+        for (int c = 0; c < head.length; c++) {
+            Label h = new Label(head[c]);
+            h.getStyleClass().add("label-section");
+            g.add(h, c, 0);
+        }
+        int row = 1;
+        for (DiceStats.Line l : lines) {
+            g.addRow(row++, new Label(l.who()), new Label(String.valueOf(l.rolls())),
+                    new Label(String.format(java.util.Locale.ROOT, "%.1f", l.average()).replace('.', ',')),
+                    new Label(String.valueOf(l.crits())), new Label(String.valueOf(l.fumbles())));
+        }
+        if (lines.isEmpty()) g.add(new Label("Nenhum d20 rolado ainda."), 0, 1, 5, 1);
+        return new ScrollPane(g);
     }
 
     // ---------------- resumo da sessao

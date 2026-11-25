@@ -90,6 +90,8 @@ public final class CampaignView {
                 new Tab("Jogadores", playersTab()),
                 new Tab("Calendário", calendarTab()),
                 new Tab("PdMs", npcsTab()),
+                new Tab("Facções", factionsTab()),
+                new Tab("Linha do tempo", timelineTab()),
                 new Tab("Aventuras", adventuresTab()),
                 new Tab("Sessões", sessionsTab()));
         if (gm) {
@@ -215,7 +217,11 @@ public final class CampaignView {
                                   Supplier<T> create, String addText, String empty) {
         ListView<T> list = new ListView<>();
         list.getItems().setAll(items);
-        list.setPlaceholder(new Label(empty));
+        Label placeholder = new Label(empty);
+        placeholder.setWrapText(true);
+        placeholder.setMaxWidth(190);
+        placeholder.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
+        list.setPlaceholder(placeholder);
         list.setCellFactory(lv -> new ListCell<>() {
             @Override
             protected void updateItem(T item, boolean emptyCell) {
@@ -715,11 +721,112 @@ public final class CampaignView {
     // ================================================================ PdMs
 
     private Node npcsTab() {
-        return masterDetail(data.getNpcs(),
+        Node md = masterDetail(data.getNpcs(),
                 n -> eye(n.visible) + (n.name.isBlank() ? "(sem nome)" : n.name) + "  •  " + n.attitude
                         + (n.place.isBlank() ? "" : "  •  " + n.place),
                 this::npcEditor, Campaign.Npc::new, "PdM",
                 gm ? "Nenhum PdM ainda (taverneiro, vilão, contato...)." : "Nenhum PdM conhecido ainda.");
+        if (!gm) return md;
+        Button random = new Button("Sortear PdM", Icons.icon("dice", 14));
+        random.setTooltip(new javafx.scene.control.Tooltip("Cria um PdM pronto: nome, ocupação, aparência, jeito, o que quer "
+                + "e um segredo (só você vê). Edite à vontade."));
+        random.setOnAction(e -> {
+            data.getNpcs().add(0, com.vttcaseiro.service.NpcGenerator.random(new java.util.Random()));
+            changed();
+            reloadKeepingTab();
+        });
+        HBox bar = new HBox(8, random, muted("Sorteia um ponto de partida; fica escondido até você marcar visível."));
+        bar.setAlignment(Pos.CENTER_LEFT);
+        bar.setPadding(new Insets(8, 10, 0, 10));
+        VBox box = new VBox(bar, md);
+        VBox.setVgrow(md, Priority.ALWAYS);
+        return box;
+    }
+
+    // ================================================================ Faccoes
+
+    private Node factionsTab() {
+        return masterDetail(data.getFactions(),
+                f -> eye(f.visible) + (f.name.isBlank() ? "(sem nome)" : f.name) + "  •  " + Campaign.reputationText(f.reputation),
+                this::factionEditor, Campaign.Faction::new, "Facção",
+                gm ? "Nenhuma facção ainda (guilda, culto, reino...)." : "Nenhuma facção conhecida ainda.");
+    }
+
+    private Node factionEditor(Campaign.Faction f, Runnable refresh) {
+        GridPane g = grid();
+        g.setHgap(8);
+        g.setVgap(6);
+        g.addRow(0, new Label("Nome"), field(f.name, v -> { f.name = v; refresh.run(); }));
+        ComboBox<String> rep = new ComboBox<>();
+        for (int r = -3; r <= 3; r++) rep.getItems().add(Campaign.reputationText(r));
+        rep.getSelectionModel().select(Math.max(-3, Math.min(3, f.reputation)) + 3);
+        rep.setDisable(!gm);
+        rep.valueProperty().addListener((o, a, b) -> {
+            f.reputation = rep.getSelectionModel().getSelectedIndex() - 3;
+            refresh.run();
+            changed();
+        });
+        g.addRow(1, new Label("Reputação do grupo"), rep);
+        g.addRow(2, new Label("Amigos de"), field(f.allies, v -> f.allies = v));
+        g.addRow(3, new Label("Inimigos de"), field(f.enemies, v -> f.enemies = v));
+        java.util.List<String> members = new java.util.ArrayList<>();
+        for (Campaign.Npc n : data.getNpcs()) {
+            if (!f.name.isBlank() && f.name.equalsIgnoreCase(n.faction == null ? "" : n.faction.strip())) members.add(n.name);
+        }
+        Label who = muted(members.isEmpty() ? "Nenhum PdM ligado (em PdMs, preencha \"Facção\" com este nome)."
+                : "PdMs: " + String.join(", ", members));
+        who.setWrapText(true);
+        VBox box = new VBox(8, g, who, new Label(gm ? "O que os jogadores sabem" : "O que vocês sabem"),
+                area(f.description, "o que fazem, onde ficam, quem manda...", 5, v -> f.description = v));
+        if (gm) {
+            box.getChildren().add(visibleBox(f.visible, v -> f.visible = v, refresh));
+            box.getChildren().add(new Label("Segredos (só você vê)"));
+            box.getChildren().add(area(f.gmNotes, "ex.: o líder é um doppelganger; planeja tomar o porto", 4, v -> f.gmNotes = v));
+        }
+        return box;
+    }
+
+    // ================================================================ Linha do tempo
+
+    private Node timelineTab() {
+        data.getTimeline().sort(java.util.Comparator.comparingLong(t -> t.day));
+        return masterDetail(data.getTimeline(),
+                t -> eye(t.visible) + (t.dateText.isBlank() ? "" : t.dateText + "  •  ") + (t.title.isBlank() ? "(sem título)" : t.title),
+                this::timelineEditor,
+                () -> {
+                    Campaign.TimelineEvent t = new Campaign.TimelineEvent();
+                    t.day = data.getCalendar().day;
+                    t.dateText = data.getCalendar().dateText();
+                    return t;
+                }, "Acontecimento", gm ? "Nada na linha do tempo ainda. O novo vem com a data de hoje no mundo."
+                        : "Nada na linha do tempo ainda.");
+    }
+
+    private Node timelineEditor(Campaign.TimelineEvent t, Runnable refresh) {
+        GridPane g = grid();
+        g.setHgap(8);
+        g.setVgap(6);
+        g.addRow(0, new Label("Título"), field(t.title, v -> { t.title = v; refresh.run(); }));
+        g.addRow(1, new Label("Data no mundo"), field(t.dateText, v -> { t.dateText = v; refresh.run(); }));
+        VBox box = new VBox(8, g);
+        if (gm) {
+            Button now = new Button("Usar a data de hoje no mundo", Icons.icon("journal", 14));
+            now.setOnAction(e -> {
+                t.day = data.getCalendar().day;
+                t.dateText = data.getCalendar().dateText();
+                changed();
+                reloadKeepingTab();
+            });
+            box.getChildren().add(now);
+        }
+        box.getChildren().addAll(new Label(gm ? "O que aconteceu (os jogadores veem se estiver visível)" : "O que aconteceu"),
+                area(t.description, "a ponte caiu; o rei morreu; o grupo libertou a vila...", 5, v -> t.description = v));
+        if (gm) {
+            box.getChildren().add(visibleBox(t.visible, v -> t.visible = v, refresh));
+            box.getChildren().add(new Label("Anotações (só você vê)"));
+            box.getChildren().add(area(t.gmNotes, "por que aconteceu, o que vem depois", 3, v -> t.gmNotes = v));
+        }
+        return box;
     }
 
     private Node npcEditor(Campaign.Npc n, Runnable refresh) {
@@ -735,6 +842,8 @@ public final class CampaignView {
         g.addRow(1, new Label("Atitude com o grupo"), att);
         g.addRow(2, new Label("Onde está"), field(n.place, v -> { n.place = v; refresh.run(); }));
         g.addRow(3, new Label("Papel"), field(n.role, v -> n.role = v));
+        g.addRow(4, new Label("Facção"), field(n.faction, v -> n.faction = v));
+        g.addRow(5, new Label("Relações"), field(n.relations, v -> n.relations = v));
         VBox box = new VBox(8, g, new Label(gm ? "O que os jogadores sabem" : "O que vocês sabem"),
                 area(n.description, "aparência, o que disse, o que pediu...", 5, v -> n.description = v));
         if (gm) {

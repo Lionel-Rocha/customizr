@@ -76,6 +76,41 @@ public class Campaign {
         /** So o mestre. */
         public String gmNotes = "";
         public boolean visible;
+        /** Faccao a que pertence (nome) e com quem se da bem/mal. */
+        public String faction = "";
+        public String relations = "";
+    }
+
+    /** Faccao (guilda, culto, reino) e a reputacao do grupo com ela, de -3 (inimigos jurados) a +3 (herois). */
+    public static class Faction {
+        public String id = UUID.randomUUID().toString();
+        public String name = "";
+        public int reputation;
+        public String description = "";
+        /** Faccoes amigas e inimigas (texto livre). */
+        public String allies = "";
+        public String enemies = "";
+        public String gmNotes = "";
+        public boolean visible;
+    }
+
+    public static final String[] REPUTATION = {"Inimigos jurados", "Hostis", "Desconfiados", "Neutros", "Amigáveis",
+            "Aliados", "Heróis"};
+
+    public static String reputationText(int rep) {
+        int r = Math.max(-3, Math.min(3, rep));
+        return REPUTATION[r + 3] + " (" + (r > 0 ? "+" : "") + r + ")";
+    }
+
+    /** Acontecimento da linha do tempo, na data do mundo (dia do calendario da campanha). */
+    public static class TimelineEvent {
+        public String id = UUID.randomUUID().toString();
+        public long day;
+        public String dateText = "";
+        public String title = "";
+        public String description = "";
+        public String gmNotes = "";
+        public boolean visible;
     }
 
     public static class Adventure {
@@ -386,6 +421,11 @@ public class Campaign {
     private List<PlayerRecord> players = new ArrayList<>();
     private Calendar calendar = new Calendar();
     private List<Npc> npcs = new ArrayList<>();
+    private List<Faction> factions = new ArrayList<>();
+    private List<TimelineEvent> timeline = new ArrayList<>();
+
+    public List<Faction> getFactions() { return factions == null ? factions = new ArrayList<>() : factions; }
+    public List<TimelineEvent> getTimeline() { return timeline == null ? timeline = new ArrayList<>() : timeline; }
     private List<Adventure> adventures = new ArrayList<>();
     private List<SessionLog> sessions = new ArrayList<>();
     /** Anotacoes do mestre: nunca saem do PC dele. */
@@ -454,6 +494,10 @@ public class Campaign {
         c.getPlayers().forEach(p -> p.gmNotes = "");
         c.getNpcs().removeIf(n -> !n.visible);
         c.getNpcs().forEach(n -> n.gmNotes = "");
+        c.getFactions().removeIf(f -> !f.visible);
+        c.getFactions().forEach(f -> f.gmNotes = "");
+        c.getTimeline().removeIf(t -> !t.visible);
+        c.getTimeline().forEach(t -> t.gmNotes = "");
         c.getAdventures().removeIf(a -> !a.visible);
         c.getAdventures().forEach(a -> a.gmNotes = "");
         c.getSessions().removeIf(s -> !s.visible);
@@ -489,6 +533,18 @@ public class Campaign {
         for (Npc n : getNpcs()) {
             n.description = clip(n.description);
             n.gmNotes = clip(n.gmNotes);
+            n.relations = clip(n.relations);
+        }
+        trim(getFactions());
+        for (Faction f : getFactions()) {
+            f.reputation = Math.max(-3, Math.min(3, f.reputation));
+            f.description = clip(f.description);
+            f.gmNotes = clip(f.gmNotes);
+        }
+        trim(getTimeline());
+        for (TimelineEvent t : getTimeline()) {
+            t.description = clip(t.description);
+            t.gmNotes = clip(t.gmNotes);
         }
         for (Adventure a : getAdventures()) {
             a.description = clip(a.description);

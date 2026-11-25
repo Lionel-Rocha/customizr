@@ -380,6 +380,22 @@ Escolha **um token seu** (clique nele) e aparece embaixo do mapa uma faixa com o
 - O mestre ve a barra dos monstros tambem (acoes com acerto ou dano do bloco do monstro; rolagem escondida, como
   na ficha do monstro).
 
+### Faccoes, linha do tempo e PdM sorteado (Campanha)
+
+- **Faccoes**: guilda, culto, reino... com a reputacao do grupo (de "Inimigos jurados" a "Herois"), de quem sao amigas
+  e inimigas, o que os jogadores sabem e os segredos. Os PdMs ganharam os campos **Faccao** e **Relacoes**; a faccao
+  mostra quais PdMs sao dela.
+- **Linha do tempo**: os acontecimentos da campanha na data do mundo (o novo ja vem com a data de hoje do calendario),
+  em ordem. Escondidos ate marcar visivel.
+- **Sortear PdM** (aba PdMs, mestre): nome, ocupacao, aparencia, jeito e o que quer, e um segredo nas anotacoes do
+  mestre. Nasce escondido; edite a vontade.
+
+### Estatisticas dos dados
+
+Botao **Dados** embaixo do chat: por pessoa, quantos d20, a media do dado e quantos 20 e 1 naturais, desta sessao e de
+todo o historico do chat da mesa. "Mandar a da sessao pro chat" mostra pra todos (mais sortudo e mais 20 naturais).
+Rolagem escondida fica de fora.
+
 ### Escudo do mestre
 
 Combate > Mestre > **Escudo do mestre**: o grupo inteiro numa tabela: PV (e temporarios), CA, Percepcao, Intuicao e

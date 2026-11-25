@@ -118,8 +118,8 @@ class CampaignViewUiTest {
             CampaignView gm = new CampaignView(null, c, true, saved::set);
             gm.getStage().getScene().getStylesheets().add(CampaignView.class.getResource("/style.css").toExternalForm());
             gm.show();
-            assertEquals(8, gm.tabs().getTabs().size());
-            assertEquals("Anotações do mestre", gm.tabs().getTabs().get(7).getText());
+            assertEquals(10, gm.tabs().getTabs().size(), "com Facções e Linha do tempo");
+            assertEquals("Anotações do mestre", gm.tabs().getTabs().get(9).getText());
             String dir = System.getProperty("vtt.snap");
             if (dir != null) {
                 snap(gm.getStage().getScene().getRoot(), dir + "/camp-jogadores.png");
@@ -127,7 +127,11 @@ class CampaignViewUiTest {
                 gm.getStage().getScene().getRoot().applyCss();
                 gm.getStage().getScene().getRoot().layout();
                 snap(gm.getStage().getScene().getRoot(), dir + "/camp-calendario.png");
-                gm.tabs().getSelectionModel().select(5);
+                gm.tabs().getSelectionModel().select(3);
+                gm.getStage().getScene().getRoot().applyCss();
+                gm.getStage().getScene().getRoot().layout();
+                snap(gm.getStage().getScene().getRoot(), dir + "/camp-faccoes.png");
+                gm.tabs().getSelectionModel().select(7);
                 gm.getStage().getScene().getRoot().applyCss();
                 gm.getStage().getScene().getRoot().layout();
                 snap(gm.getStage().getScene().getRoot(), dir + "/camp-tesouro.png");
