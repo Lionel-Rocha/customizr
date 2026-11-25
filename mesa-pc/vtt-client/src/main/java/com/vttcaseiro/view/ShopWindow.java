@@ -66,7 +66,8 @@ public class ShopWindow {
         Icons.applyTo(stage);
 
         shopList.setPrefWidth(200);
-        shopList.setPlaceholder(new Label(actions.isGm() ? "Nenhuma loja.\nUse + Nova loja." : "Nenhuma loja aberta\npelo mestre."));
+        shopList.getStyleClass().add("boxed-list");
+        shopList.setPlaceholder(EmptyHint.of(actions.isGm() ? "Nenhuma loja.\nUse + Nova loja." : "Nenhuma loja aberta\npelo mestre."));
         shopList.setCellFactory(lv -> new ListCell<>() {
             @Override
             protected void updateItem(Shop s, boolean empty) {
@@ -84,7 +85,8 @@ public class ShopWindow {
                         + (it.getDescription().isBlank() ? "" : "\n   " + it.getDescription()));
             }
         });
-        itemList.setPlaceholder(new Label("Sem itens nesta loja."));
+        itemList.getStyleClass().add("boxed-list");
+        itemList.setPlaceholder(EmptyHint.of("Sem itens nesta loja."));
         sellList.setCellFactory(lv -> new ListCell<>() {
             @Override
             protected void updateItem(InventoryItem it, boolean empty) {
@@ -94,7 +96,8 @@ public class ShopWindow {
                         + (s == null ? "" : "  ·  a loja paga " + ShopService.coins(ShopService.sellPrice(s, it))));
             }
         });
-        sellList.setPlaceholder(new Label("Nada no inventário."));
+        sellList.getStyleClass().add("boxed-list");
+        sellList.setPlaceholder(EmptyHint.of("Nada no inventário."));
         sellList.setPrefHeight(150);
         sheetBox.setCellFactory(lv -> sheetCell());
         sheetBox.setButtonCell(sheetCell());
@@ -128,6 +131,7 @@ public class ShopWindow {
         Label sellTitle = new Label("Vender (a loja paga parte do preço)");
         sellTitle.getStyleClass().add("label-section");
         VBox right = new VBox(8, shopTitle, shopDesc, who, itemList, buyRow, sellTitle, sellList, sell);
+        rightPane = right;
         VBox.setVgrow(itemList, Priority.ALWAYS);
         right.setPadding(new Insets(10));
         HBox.setHgrow(right, Priority.ALWAYS);
@@ -222,9 +226,14 @@ public class ShopWindow {
         refreshSheet();
     }
 
+    /** Lado direito (comprar/vender): apagado ate escolher uma loja. */
+    private VBox rightPane;
+
     private void showShop() {
         Shop s = shopList.getSelectionModel().getSelectedItem();
-        shopTitle.setText(s == null ? "Escolha uma loja" : s.getName());
+        shopTitle.setText(s != null ? s.getName() : shopList.getItems().isEmpty()
+                ? (actions.isGm() ? "Crie uma loja (+ Nova loja)" : "Nenhuma loja aberta") : "Escolha uma loja na lista");
+        if (rightPane != null) for (javafx.scene.Node n : rightPane.getChildren()) if (n != shopTitle) n.setDisable(s == null);
         shopDesc.setText(s == null ? "" : s.getDescription());
         openBox.setSelected(s != null && s.isOpen());
         itemList.getItems().setAll(s == null ? List.of() : s.getItems());
@@ -233,7 +242,8 @@ public class ShopWindow {
 
     private void refreshSheet() {
         CharacterSheet sh = sheetBox.getValue();
-        money.setText(sh == null ? "(sem ficha)" : "Bolsa: " + ShopService.coins(sh.getInventory().getMoney().totalInCopper()));
+        long cp = sh == null ? 0 : sh.getInventory().getMoney().totalInCopper();
+        money.setText(sh == null ? "(sem ficha)" : "Bolsa: " + (cp <= 0 ? "vazia" : ShopService.coins(cp)));
         sellList.getItems().setAll(sh == null ? List.of() : sh.getInventory().getItems());
     }
 

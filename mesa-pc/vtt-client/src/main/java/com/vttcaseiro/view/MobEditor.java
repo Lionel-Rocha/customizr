@@ -28,7 +28,7 @@ import java.util.Optional;
  * ("Ataque corpo a corpo: +4 ... Acerto: 5 (1d6 + 2) de dano cortante") vira botao de rolar na ficha.
  */
 public final class MobEditor {
-    public static final String[] SIZES = {"Minusculo", "Pequeno", "Medio", "Grande", "Enorme", "Imenso"};
+    public static final String[] SIZES = {"Minúsculo", "Pequeno", "Médio", "Grande", "Enorme", "Imenso"};
     public static final String[] CRS = {"0", "1/8", "1/4", "1/2", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10",
             "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28",
             "29", "30"};
@@ -190,7 +190,7 @@ public final class MobEditor {
     }
 
     private static String blankTo(String text, String fallback) {
-        return text == null || text.isBlank() ? (fallback == null ? "Medio" : fallback) : text.trim();
+        return text == null || text.isBlank() ? (fallback == null ? "Médio" : fallback) : text.trim();
     }
 
     static String crText(double cr) {

@@ -705,7 +705,7 @@ public class TableService {
 
     public static String sizeName(int cells) {
         return switch (cells) {
-            case 1 -> "Pequeno/Medio";
+            case 1 -> "Pequeno/Médio";
             case 2 -> "Grande";
             case 3 -> "Enorme";
             case 4 -> "Imenso";

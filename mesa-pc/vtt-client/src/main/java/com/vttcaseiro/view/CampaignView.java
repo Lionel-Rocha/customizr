@@ -158,9 +158,18 @@ public final class CampaignView {
         return l;
     }
 
+    /** Texto de lista vazia (mesmo estilo das abas do programa). */
+    private static Label hint(String text) {
+        Label l = new Label(text);
+        l.getStyleClass().add("empty-hint");
+        l.setWrapText(true);
+        l.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
+        return l;
+    }
+
     private static Label title(String text) {
         Label l = new Label(text);
-        l.getStyleClass().add("section-label");
+        l.getStyleClass().add("label-section");
         return l;
     }
 
@@ -217,8 +226,7 @@ public final class CampaignView {
                                   Supplier<T> create, String addText, String empty) {
         ListView<T> list = new ListView<>();
         list.getItems().setAll(items);
-        Label placeholder = new Label(empty);
-        placeholder.setWrapText(true);
+        Label placeholder = hint(empty);
         placeholder.setMaxWidth(190);
         placeholder.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
         list.setPlaceholder(placeholder);
@@ -226,7 +234,9 @@ public final class CampaignView {
             @Override
             protected void updateItem(T item, boolean emptyCell) {
                 super.updateItem(item, emptyCell);
+                setPrefWidth(0); // corta com "..." na largura da lista (sem barra lateral)
                 setText(emptyCell || item == null ? null : label.apply(item));
+                setTooltip(emptyCell || item == null ? null : new javafx.scene.control.Tooltip(label.apply(item)));
             }
         });
         VBox detail = new VBox(8);
@@ -389,7 +399,7 @@ public final class CampaignView {
         box.getChildren().add(ledger("XP", p.xp, () -> { updateTotals.run(); refresh.run(); }));
         box.getChildren().add(ledger("Ouro (PO)", p.gold, () -> { updateTotals.run(); refresh.run(); }));
         if (gm) {
-            box.getChildren().add(new Label("Anotações sobre o jogador (só você vê)"));
+            box.getChildren().add(title("Anotações sobre o jogador (só você vê)"));
             box.getChildren().add(area(p.gmNotes, "ex.: gosta de combate; está devendo um favor ao duque", 3, v -> p.gmNotes = v));
         }
         return box;
@@ -400,7 +410,8 @@ public final class CampaignView {
         ListView<Campaign.Entry> lv = new ListView<>();
         lv.getItems().setAll(entries);
         lv.setPrefHeight(130);
-        lv.setPlaceholder(new Label("Nenhum lançamento."));
+        lv.getStyleClass().add("boxed-list");
+        lv.setPlaceholder(hint("Nenhum lançamento."));
         lv.setCellFactory(l -> new ListCell<>() {
             @Override
             protected void updateItem(Campaign.Entry e, boolean empty) {
@@ -528,6 +539,7 @@ public final class CampaignView {
             box.getChildren().add(light);
             box.getChildren().add(eventsBox(c, pass));
             box.getChildren().add(travelBox(pass));
+            box.getChildren().add(title("Configurar o calendário (era, lua, meses, estações)"));
             GridPane g = grid();
             g.setHgap(8);
             g.setVgap(6);
@@ -570,7 +582,8 @@ public final class CampaignView {
         sorted.sort(java.util.Comparator.comparingLong(Campaign.CalendarEvent::absoluteMinute));
         list.getItems().setAll(sorted);
         list.setPrefHeight(120);
-        list.setPlaceholder(new Label("Nenhum evento marcado."));
+        list.getStyleClass().add("boxed-list");
+        list.setPlaceholder(hint("Nenhum evento marcado."));
         list.setCellFactory(l -> new ListCell<>() {
             @Override
             protected void updateItem(Campaign.CalendarEvent e, boolean empty) {
@@ -780,7 +793,7 @@ public final class CampaignView {
                 area(f.description, "o que fazem, onde ficam, quem manda...", 5, v -> f.description = v));
         if (gm) {
             box.getChildren().add(visibleBox(f.visible, v -> f.visible = v, refresh));
-            box.getChildren().add(new Label("Segredos (só você vê)"));
+            box.getChildren().add(title("Segredos (só você vê)"));
             box.getChildren().add(area(f.gmNotes, "ex.: o líder é um doppelganger; planeja tomar o porto", 4, v -> f.gmNotes = v));
         }
         return box;
@@ -823,7 +836,7 @@ public final class CampaignView {
                 area(t.description, "a ponte caiu; o rei morreu; o grupo libertou a vila...", 5, v -> t.description = v));
         if (gm) {
             box.getChildren().add(visibleBox(t.visible, v -> t.visible = v, refresh));
-            box.getChildren().add(new Label("Anotações (só você vê)"));
+            box.getChildren().add(title("Anotações (só você vê)"));
             box.getChildren().add(area(t.gmNotes, "por que aconteceu, o que vem depois", 3, v -> t.gmNotes = v));
         }
         return box;
@@ -848,7 +861,7 @@ public final class CampaignView {
                 area(n.description, "aparência, o que disse, o que pediu...", 5, v -> n.description = v));
         if (gm) {
             box.getChildren().add(visibleBox(n.visible, v -> n.visible = v, refresh));
-            box.getChildren().add(new Label("Segredos (só você vê)"));
+            box.getChildren().add(title("Segredos (só você vê)"));
             box.getChildren().add(area(n.gmNotes, "ex.: é espião do culto; sabe onde está o artefato", 4, v -> n.gmNotes = v));
         }
         return box;
@@ -941,9 +954,9 @@ public final class CampaignView {
             }
         };
         redraw[0].run();
-        VBox box = new VBox(8, g, new Label("Descrição / objetivo"),
+        VBox box = new VBox(8, g, title("Descrição / objetivo"),
                 area(a.description, "o que o grupo precisa fazer", 4, v -> a.description = v),
-                new Label("Etapas"), stepsBox);
+                title("Etapas"), stepsBox);
         if (gm) {
             TextField newStep = new TextField();
             newStep.setPromptText("Nova etapa (Enter adiciona): falar com o ferreiro...");
@@ -958,10 +971,10 @@ public final class CampaignView {
             });
             box.getChildren().add(newStep);
         }
-        box.getChildren().addAll(new Label("Resultados"), area(a.results, "o que aconteceu no fim", 3, v -> a.results = v));
+        box.getChildren().addAll(title("Resultados"), area(a.results, "o que aconteceu no fim", 3, v -> a.results = v));
         if (gm) {
             box.getChildren().add(visibleBox(a.visible, v -> a.visible = v, refresh));
-            box.getChildren().add(new Label("Notas do mestre (só você vê)"));
+            box.getChildren().add(title("Notas do mestre (só você vê)"));
             box.getChildren().add(area(a.gmNotes, "ganchos, reviravoltas, recompensa", 4, v -> a.gmNotes = v));
         }
         return box;
@@ -997,7 +1010,7 @@ public final class CampaignView {
         TextField link = field(s.link, v -> s.link = v);
         link.setPromptText("link da gravação, do resumo... (opcional)");
         g.addRow(2, new Label("Link"), link);
-        VBox box = new VBox(8, g, new Label("Resumo"), area(s.summary, "o que aconteceu nesta sessão", 10, v -> s.summary = v));
+        VBox box = new VBox(8, g, title("Resumo"), area(s.summary, "o que aconteceu nesta sessão", 10, v -> s.summary = v));
         if (gm) box.getChildren().add(visibleBox(s.visible, v -> s.visible = v, refresh));
         return box;
     }
@@ -1036,7 +1049,7 @@ public final class CampaignView {
     private Node treasureTab() {
         Node parcels = masterDetail(data.getParcels(),
                 p -> (p.delivered ? "✓ " : "") + (p.name.isBlank() ? "(sem nome)" : p.name) + "  •  " + p.items.size()
-                        + " item(ns)" + (p.gp > 0 ? "  •  " + p.gp + " PO" : "") + (p.xp > 0 ? "  •  " + p.xp + " XP" : ""),
+                        + (p.items.size() == 1 ? " item" : " itens") + (p.gp > 0 ? "  •  " + p.gp + " PO" : "") + (p.xp > 0 ? "  •  " + p.xp + " XP" : ""),
                 this::parcelEditor,
                 () -> {
                     Campaign.Parcel p = new Campaign.Parcel();
@@ -1046,7 +1059,8 @@ public final class CampaignView {
         ListView<Campaign.Secret> secrets = new ListView<>();
         secrets.getItems().setAll(data.getSecrets().stream().filter(x -> !x.identified).toList());
         secrets.setPrefHeight(130);
-        secrets.setPlaceholder(new Label("Nenhum item não identificado com os jogadores."));
+        secrets.getStyleClass().add("boxed-list");
+        secrets.setPlaceholder(hint("Nenhum item não identificado com os jogadores."));
         secrets.setCellFactory(l -> new ListCell<>() {
             @Override
             protected void updateItem(Campaign.Secret x, boolean empty) {
@@ -1102,7 +1116,8 @@ public final class CampaignView {
         ListView<Campaign.ParcelItem> items = new ListView<>();
         items.getItems().setAll(p.items);
         items.setPrefHeight(150);
-        items.setPlaceholder(new Label("Nenhum item."));
+        items.getStyleClass().add("boxed-list");
+        items.setPlaceholder(hint("Nenhum item."));
         items.setCellFactory(l -> new ListCell<>() {
             @Override
             protected void updateItem(Campaign.ParcelItem i, boolean empty) {
@@ -1143,7 +1158,7 @@ public final class CampaignView {
             if (actions != null) actions.deliver(p);
         });
         return new VBox(8, g, title("Itens"), items, new HBox(6, add, edit, del),
-                new Label("Notas (só você vê)"), area(p.notes, "de onde vem, armadilha no baú...", 3, v -> p.notes = v),
+                title("Notas (só você vê)"), area(p.notes, "de onde vem, armadilha no baú...", 3, v -> p.notes = v),
                 new HBox(10, deliver, status));
     }
 
@@ -1259,7 +1274,8 @@ public final class CampaignView {
         for (var t : e.tokens) counts.merge(t.getName() == null ? "?" : t.getName().replaceAll("\\s+\\d+$", ""), 1L, Long::sum);
         counts.forEach((n, c) -> tokens.getItems().add(c + "x " + n));
         tokens.setPrefHeight(150);
-        tokens.setPlaceholder(new Label("Sem tokens (use \"Salvar seleção do mapa\")."));
+        tokens.getStyleClass().add("boxed-list");
+        tokens.setPlaceholder(hint("Sem tokens (use \"Salvar seleção do mapa\")."));
         CheckBox hidden = new CheckBox("Colocar escondidos dos jogadores");
         hidden.setSelected(true);
         CheckBox init = new CheckBox("Rolar iniciativa e pôr no rastreador");
@@ -1271,7 +1287,7 @@ public final class CampaignView {
             if (actions != null) actions.deploy(e, hidden.isSelected(), init.isSelected());
         });
         return new VBox(8, g, title("Tokens"), tokens, hidden, init, deploy,
-                new Label("Notas (só você vê)"), area(e.notes, "tática, onde ficam, o que carregam...", 4, v -> e.notes = v));
+                title("Notas (só você vê)"), area(e.notes, "tática, onde ficam, o que carregam...", 4, v -> e.notes = v));
     }
 
     // ================================================================ Anotacoes

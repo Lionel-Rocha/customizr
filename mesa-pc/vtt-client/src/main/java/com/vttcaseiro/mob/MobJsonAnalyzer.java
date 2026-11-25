@@ -29,7 +29,7 @@ public final class MobJsonAnalyzer {
      * uma. */
     public static String sizeName(List<Object> codes) {
         if (codes == null || codes.isEmpty()) {
-            return "Medio";
+            return "Médio";
         }
         List<String> names = new ArrayList<>();
         for (Object code : codes) {
@@ -43,12 +43,12 @@ public final class MobJsonAnalyzer {
      * mesmo (sem travar). */
     public static String sizeCodeName(String code) {
         if (code == null) {
-            return "Medio";
+            return "Médio";
         }
         switch (code.toUpperCase(Locale.ROOT)) {
-            case "T": return "Minusculo";
+            case "T": return "Minúsculo";
             case "S": return "Pequeno";
-            case "M": return "Medio";
+            case "M": return "Médio";
             case "L": return "Grande";
             case "H": return "Enorme";
             case "G": return "Gigantesco";

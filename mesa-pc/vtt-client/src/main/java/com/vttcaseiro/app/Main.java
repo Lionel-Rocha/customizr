@@ -3483,7 +3483,7 @@ public class Main extends Application {
         ListView<com.vttcaseiro.character.SheetTemplate> list = new ListView<>();
         Runnable reload = () -> list.getItems().setAll(templateStore.list());
         reload.run();
-        list.setPlaceholder(new Label("Nenhum modelo. Importe o PDF editável da ficha do seu sistema."));
+        list.setPlaceholder(emptyHint("Nenhum modelo. Importe o PDF editável da ficha do seu sistema."));
         list.setCellFactory(lv -> new ListCell<>() {
             @Override
             protected void updateItem(com.vttcaseiro.character.SheetTemplate t, boolean empty) {
@@ -3819,7 +3819,7 @@ public class Main extends Application {
             list.getItems().add(new com.vttcaseiro.model.Aura(a.getEffect(), a.getRadiusFeet(), a.getTarget(), a.isIncludeSelf()));
         }
         list.setPrefHeight(120);
-        list.setPlaceholder(new Label("Nenhuma aura."));
+        list.setPlaceholder(emptyHint("Nenhuma aura."));
         TextField effect = new TextField();
         effect.setPromptText("ex.: Aura de Proteção [salv+3]  ou  Bênção");
         javafx.scene.control.Spinner<Integer> radius = new javafx.scene.control.Spinner<>(0, com.vttcaseiro.model.Aura.MAX_RADIUS_FEET, 10, 5);
@@ -4375,7 +4375,7 @@ public class Main extends Application {
         box.getChildren().add(sectionLabel("Conectados agora"));
         ListView<String> onlineListView = new ListView<>(networkService.getOnlinePlayers());
         onlineListView.setPrefHeight(120);
-        onlineListView.setPlaceholder(new Label("Ninguém conectado."));
+        onlineListView.setPlaceholder(emptyHint("Ninguém conectado."));
         box.getChildren().add(onlineListView);
 
         return new Tab("Rede", wrapInScroll(box));
@@ -5380,7 +5380,7 @@ public class Main extends Application {
             }
         }));
         VBox.setVgrow(chatList, Priority.ALWAYS);
-        chatList.setPlaceholder(new Label("Nada no chat ainda. Role um dado!"));
+        chatList.setPlaceholder(emptyHint("Nada no chat ainda. Role um dado!"));
         logEntries.addListener((ListChangeListener<LogEntry>) c -> {
             if (!logEntries.isEmpty()) {
                 chatList.scrollTo(logEntries.size() - 1);
@@ -5791,7 +5791,7 @@ public class Main extends Application {
         currentSceneLabel.getStyleClass().add("label-muted");
         ListView<String> queue = new ListView<>();
         queue.setPrefHeight(120);
-        queue.setPlaceholder(new Label("Fila vazia: selecione uma cena acima e \"Por na fila\"."));
+        queue.setPlaceholder(emptyHint("Fila vazia: selecione uma cena acima e \"Por na fila\"."));
         Runnable reload = () -> {
             queue.getItems().setAll(sceneQueueStore.load());
             refreshSceneStrip();
@@ -6001,7 +6001,7 @@ public class Main extends Application {
                     new Label(String.format(java.util.Locale.ROOT, "%.1f", l.average()).replace('.', ',')),
                     new Label(String.valueOf(l.crits())), new Label(String.valueOf(l.fumbles())));
         }
-        if (lines.isEmpty()) g.add(new Label("Nenhum d20 rolado ainda."), 0, 1, 5, 1);
+        if (lines.isEmpty()) g.add(emptyHint("Nenhum d20 rolado ainda."), 0, 1, 5, 1);
         return new ScrollPane(g);
     }
 

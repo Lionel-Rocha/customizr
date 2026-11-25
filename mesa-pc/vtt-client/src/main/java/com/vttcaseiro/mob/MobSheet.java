@@ -26,7 +26,7 @@ import java.util.UUID;
 public class MobSheet {
     private String id;
     private String name = "Novo monstro";
-    private String size = "Medio";
+    private String size = "Médio";
     private String creatureType = "humanoide";
     private String alignment = "neutro";
 
@@ -147,7 +147,13 @@ public class MobSheet {
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
 
-    public String getSize() { return size; }
+    public String getSize() {
+        // fichas antigas gravaram sem acento
+        if ("Medio".equals(size)) return "Médio";
+        if ("Minusculo".equals(size)) return "Minúsculo";
+        if ("Miudo".equals(size)) return "Miúdo";
+        return size;
+    }
     public void setSize(String size) { this.size = size; }
 
     public String getCreatureType() { return creatureType; }

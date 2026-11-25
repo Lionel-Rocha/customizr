@@ -176,7 +176,7 @@ public class MobSheetView {
         VBox info = new VBox(4);
         Label name = new Label(mob.getName());
         name.getStyleClass().add("label-title");
-        String subtitle = String.join(" - ", nonBlank(mob.getSize()), nonBlank(mob.getCreatureType()),
+        String subtitle = String.join("  ·  ", nonBlank(mob.getSize()), nonBlank(mob.getCreatureType()),
                 nonBlank(mob.getAlignment()));
         Label sub = new Label(subtitle);
         sub.getStyleClass().add("label-muted");

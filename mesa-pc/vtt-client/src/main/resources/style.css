@@ -249,6 +249,14 @@
     -fx-background-color: -c-border;
 }
 
+/* lista dentro de um formulario (Campanha): caixa mais escura, como nos paineis do lado */
+.list-view.boxed-list {
+    -fx-background-color: -c-bg-deep;
+    -fx-control-inner-background: -c-bg-deep;
+    -fx-background-radius: 8;
+    -fx-padding: 4;
+}
+
 /* ---------- Divisor (SplitPane) ---------- */
 .split-pane {
     -fx-background-color: -c-bg;
@@ -741,7 +749,7 @@
 
 /* ---------- Dialogos: botoes e campos no mesmo tema ---------- */
 .dialog-pane > .button-bar > .container {
-    -fx-padding: 4 0 0 0;
+    -fx-padding: 6 16 14 16;
 }
 .dialog-pane .header-panel .label {
     -fx-text-fill: -c-text;

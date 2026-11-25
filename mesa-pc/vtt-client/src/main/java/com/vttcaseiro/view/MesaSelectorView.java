@@ -78,7 +78,7 @@ public class MesaSelectorView {
         hero.setMinWidth(300);
         Label name = new Label("Customizr");
         name.getStyleClass().add("hero-title");
-        Label tagline = new Label("historias em volta da fogueira");
+        Label tagline = new Label("histórias em volta da fogueira");
         tagline.getStyleClass().add("hero-tagline");
         Label about = new Label("Sua mesa virtual de RPG: mapa, fichas, dados e chat pra jogar com os amigos, "
                 + "no mesmo computador, na rede de casa ou pela internet.");
@@ -109,6 +109,7 @@ public class MesaSelectorView {
         }
         Label themeLabel = new Label("Tema");
         themeLabel.getStyleClass().add("hero-footer-text");
+        themeLabel.setMinWidth(javafx.scene.layout.Region.USE_PREF_SIZE);
         javafx.scene.control.ComboBox<String> theme = com.vttcaseiro.app.Theme.picker();
         javafx.scene.layout.Region g2 = new javafx.scene.layout.Region();
         HBox.setHgrow(g2, Priority.ALWAYS);

@@ -150,7 +150,7 @@ public class CharacterSheet {
     private int initiativeBonus;
 
     private String speed = "9 m";
-    private String size = "Medio";
+    private String size = "Médio";
 
     private boolean armorTrainingLight;
     private boolean armorTrainingMedium;
@@ -796,7 +796,13 @@ public class CharacterSheet {
         return speed + " (-" + penalty + " m exaustao)";
     }
 
-    public String getSize() { return size; }
+    public String getSize() {
+        // fichas antigas gravaram sem acento
+        if ("Medio".equals(size)) return "Médio";
+        if ("Minusculo".equals(size)) return "Minúsculo";
+        if ("Miudo".equals(size)) return "Miúdo";
+        return size;
+    }
     public void setSize(String size) { this.size = size; }
 
     public boolean isArmorTrainingLight() { return armorTrainingLight; }

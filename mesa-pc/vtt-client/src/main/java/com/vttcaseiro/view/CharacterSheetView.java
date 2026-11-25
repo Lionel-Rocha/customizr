@@ -1072,7 +1072,7 @@ public class CharacterSheetView {
         table.getColumns().add(column("Dano e tipo", Attack::getDamageAndType, 160));
         table.getColumns().add(column("Notas", Attack::getNotes, 220));
         table.getItems().setAll(sheet.getAttacks());
-        table.setPlaceholder(new Label("Nenhum ataque. Use \"Adicionar\"."));
+        table.setPlaceholder(EmptyHint.of("Nenhum ataque. Use \"Adicionar\"."));
 
         Runnable reload = () -> table.getItems().setAll(sheet.getAttacks());
         table.setOnMouseClicked(e -> {
@@ -1397,7 +1397,7 @@ public class CharacterSheetView {
         table.getColumns().add(column("Dados", sp -> sp.getDice().isBlank() ? ""
                 : sp.getDice() + (sp.getDicePerLevel().isBlank() ? "" : " (+" + sp.getDicePerLevel() + "/nv)"), 110));
         table.getColumns().add(column("Notas", PreparedSpell::getNotes, 220));
-        table.setPlaceholder(new Label("Nenhuma magia. Use \"Adicionar\"."));
+        table.setPlaceholder(EmptyHint.of("Nenhuma magia. Use \"Adicionar\"."));
 
         Runnable reload = () -> {
             List<PreparedSpell> sorted = new ArrayList<>(sheet.getSpells());
