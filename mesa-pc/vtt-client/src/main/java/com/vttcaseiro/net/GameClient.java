@@ -156,6 +156,13 @@ public class GameClient {
         default void onHandoutRemoved(String id) {
         }
 
+        /** Anotacao de jogador compartilhada com o grupo (nova ou mudada). */
+        default void onGroupNote(com.vttcaseiro.model.Handout note) {
+        }
+
+        default void onGroupNoteRemoved(String id) {
+        }
+
         /** O mestre mandou abrir esta anotacao na tela. */
         default void onHandoutShow(com.vttcaseiro.model.Handout handout) {
         }
@@ -544,6 +551,10 @@ public class GameClient {
                 }
             }
             case "handout_remove" -> listener.onHandoutRemoved(msg.text);
+            case "group_note" -> {
+                if (msg.handout != null) listener.onGroupNote(msg.handout);
+            }
+            case "group_note_remove" -> listener.onGroupNoteRemoved(msg.text);
             case "campaign_sync" -> {
                 if (msg.campaign != null) listener.onCampaignSync(msg.campaign.sanitize());
             }
@@ -664,6 +675,14 @@ public class GameClient {
     public void sendHandout(com.vttcaseiro.model.Handout h) {
         pushImageAssetIfNew(h.getImageAssetId());
         send(NetMessage.handoutSync(h));
+    }
+
+    public void sendGroupNote(com.vttcaseiro.model.Handout h) {
+        send(NetMessage.groupNote(h));
+    }
+
+    public void sendGroupNoteRemove(String id) {
+        send(NetMessage.groupNoteRemove(id));
     }
 
     public void sendHandoutShow(com.vttcaseiro.model.Handout h) {

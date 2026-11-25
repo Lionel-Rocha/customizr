@@ -92,7 +92,7 @@ public final class CampaignView {
                 new Tab("PdMs", npcsTab()),
                 new Tab("Facções", factionsTab()),
                 new Tab("Linha do tempo", timelineTab()),
-                new Tab("Aventuras", adventuresTab()),
+                new Tab("Missões", adventuresTab()),
                 new Tab("Sessões", sessionsTab()));
         if (gm) {
             tabs.getTabs().add(new Tab("Tesouro", treasureTab()));
@@ -858,14 +858,15 @@ public final class CampaignView {
 
     private Node adventuresTab() {
         return masterDetail(data.getAdventures(),
-                a -> eye(a.visible) + "#" + a.number + " " + (a.name.isBlank() ? "(sem nome)" : a.name) + "  •  " + a.state,
+                a -> eye(a.visible) + "#" + a.number + " " + (a.name.isBlank() ? "(sem nome)" : a.name) + "  •  " + a.state
+                        + (a.progress().isEmpty() ? "" : "  •  " + a.progress()),
                 this::adventureEditor,
                 () -> {
                     Campaign.Adventure a = new Campaign.Adventure();
                     a.number = data.nextAdventureNumber();
                     a.start = today();
                     return a;
-                }, "Aventura", gm ? "Nenhuma aventura ainda." : "Nenhuma aventura revelada ainda.");
+                }, "Missão", gm ? "Nenhuma missão ainda." : "Nenhuma missão revelada ainda.");
     }
 
     private Node adventureEditor(Campaign.Adventure a, Runnable refresh) {
@@ -894,9 +895,70 @@ public final class CampaignView {
         g.addRow(2, new Label("Estado"), state);
         g.addRow(3, new Label("Começo"), field(a.start, v -> a.start = v));
         g.addRow(4, new Label("Fim"), field(a.end, v -> a.end = v));
+        TextField giver = field(a.giver, v -> a.giver = v);
+        giver.setPromptText("quem pediu (ex.: Barão Ferraz)");
+        g.addRow(5, new Label("Quem deu"), giver);
+        TextField reward = field(a.reward, v -> a.reward = v);
+        reward.setPromptText("o que prometeu (ex.: 200 po e um cavalo)");
+        g.addRow(6, new Label("Recompensa"), reward);
+        // etapas: lista de marcar (o mestre marca; os jogadores veem o andamento)
+        VBox stepsBox = new VBox(4);
+        Runnable[] redraw = new Runnable[1];
+        redraw[0] = () -> {
+            stepsBox.getChildren().clear();
+            for (Campaign.Step st : new java.util.ArrayList<>(a.steps())) {
+                CheckBox cb = new CheckBox(st.text);
+                cb.setWrapText(true);
+                cb.setSelected(st.done);
+                cb.setDisable(!gm);
+                cb.selectedProperty().addListener((o, x, v) -> {
+                    st.done = v;
+                    refresh.run();
+                    changed();
+                });
+                HBox row = new HBox(6, cb);
+                row.setAlignment(Pos.CENTER_LEFT);
+                if (gm) {
+                    javafx.scene.layout.Region grow = new javafx.scene.layout.Region();
+                    HBox.setHgrow(grow, Priority.ALWAYS);
+                    Button del = new Button(null, Icons.icon("trash", 12));
+                    del.getStyleClass().add("panel-icon-button");
+                    del.setTooltip(new javafx.scene.control.Tooltip("Tirar a etapa"));
+                    del.setOnAction(e -> {
+                        a.steps().remove(st);
+                        redraw[0].run();
+                        refresh.run();
+                        changed();
+                    });
+                    row.getChildren().addAll(grow, del);
+                }
+                stepsBox.getChildren().add(row);
+            }
+            if (a.steps().isEmpty()) {
+                Label none = new Label(gm ? "Sem etapas. Escreva abaixo e aperte Enter." : "Sem etapas.");
+                none.getStyleClass().add("label-muted");
+                stepsBox.getChildren().add(none);
+            }
+        };
+        redraw[0].run();
         VBox box = new VBox(8, g, new Label("Descrição / objetivo"),
                 area(a.description, "o que o grupo precisa fazer", 4, v -> a.description = v),
-                new Label("Resultados"), area(a.results, "o que aconteceu no fim", 3, v -> a.results = v));
+                new Label("Etapas"), stepsBox);
+        if (gm) {
+            TextField newStep = new TextField();
+            newStep.setPromptText("Nova etapa (Enter adiciona): falar com o ferreiro...");
+            newStep.setOnAction(e -> {
+                String t = newStep.getText().strip();
+                if (t.isEmpty()) return;
+                a.steps().add(new Campaign.Step(t.length() > 300 ? t.substring(0, 300) : t));
+                newStep.clear();
+                redraw[0].run();
+                refresh.run();
+                changed();
+            });
+            box.getChildren().add(newStep);
+        }
+        box.getChildren().addAll(new Label("Resultados"), area(a.results, "o que aconteceu no fim", 3, v -> a.results = v));
         if (gm) {
             box.getChildren().add(visibleBox(a.visible, v -> a.visible = v, refresh));
             box.getChildren().add(new Label("Notas do mestre (só você vê)"));

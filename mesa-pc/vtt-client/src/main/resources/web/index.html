@@ -302,7 +302,7 @@ function prove(password, challenge) {
 const $ = id => document.getElementById(id);
 const S = {
   ws: null, me: { id: null, name: '' }, password: '', joined: false,
-  scene: null, sheets: {}, handouts: {}, encounter: null, players: [],
+  scene: null, sheets: {}, handouts: {}, groupNotes: {}, encounter: null, players: [],
   images: {}, view: { zoom: 1, tx: 40, ty: 40, init: false },
   drag: null, pan: null, pointers: new Map(), pinch: null, pingMode: false, pings: [],
   selectedSheet: null, rollMode: 'normal', dirty: true, selectedHandout: null,
@@ -405,6 +405,12 @@ function handle(m) {
       renderJournal(); break;
     }
     case 'handout_remove': delete S.handouts[m.text]; renderJournal(); break;
+    case 'group_note': {
+      const isNew = !S.groupNotes[m.handout.id]; S.groupNotes[m.handout.id] = m.handout;
+      if (isNew && m.handout.author && m.handout.author !== S.me.name) addLog({ kind: 'system', text: m.handout.author + ' compartilhou no Diário: ' + (m.handout.title || '') });
+      renderJournal(); break;
+    }
+    case 'group_note_remove': delete S.groupNotes[m.text]; renderJournal(); break;
     case 'presence': {
       S.players = m.players || (m.onlinePlayers || []).map(n => ({ name: n }));
       const me = (m.players || []).find(p => p.playerId === S.me.id);
@@ -1580,7 +1586,15 @@ function renderJournal() {
     const row = el('div', { class: 'handout' + (S.selectedHandout === h.id ? ' on' : ''), onclick: () => { S.selectedHandout = h.id; renderJournal(); } }, h.title || '(sem titulo)');
     list.append(row);
   }
-  const view = $('handoutView'), h = S.handouts[S.selectedHandout];
+  const notes = Object.values(S.groupNotes);
+  if (notes.length) {
+    list.append(el('div', { class: 'muted', style: 'margin:10px 0 4px' }, 'Anotações dos jogadores'));
+    for (const n of notes) {
+      list.append(el('div', { class: 'handout' + (S.selectedHandout === n.id ? ' on' : ''), onclick: () => { S.selectedHandout = n.id; renderJournal(); } },
+        (n.author || '?') + ': ' + (n.title || '(sem titulo)')));
+    }
+  }
+  const view = $('handoutView'), h = S.handouts[S.selectedHandout] || S.groupNotes[S.selectedHandout];
   view.classList.toggle('hidden', !h); view.innerHTML = '';
   if (h) {
     view.append(el('h3', {}, (h.title || '').toUpperCase()));

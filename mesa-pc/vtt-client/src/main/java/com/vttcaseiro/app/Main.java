@@ -171,6 +171,13 @@ public class Main extends Application {
     private com.vttcaseiro.library.JsonListStore<String> sceneQueueStore;
     private com.vttcaseiro.library.AudioAssetStore audioStore;
     private com.vttcaseiro.library.JsonListStore<com.vttcaseiro.model.SoundEntry> soundIndex;
+    /** Anotacoes so minhas (ficam nesta maquina) e as do grupo (o mestre guarda pra mandar de novo na proxima sessao). */
+    private com.vttcaseiro.library.JsonListStore<com.vttcaseiro.model.Handout> myNotesStore;
+    private com.vttcaseiro.library.JsonListStore<com.vttcaseiro.model.Handout> groupNotesStore;
+    private final java.util.Map<String, com.vttcaseiro.model.Handout> groupNotes = new java.util.LinkedHashMap<>();
+    private final ObservableList<com.vttcaseiro.model.Handout> playerNoteItems = FXCollections.observableArrayList();
+    private ListView<com.vttcaseiro.model.Handout> playerNotesList;
+    private Label playerNoteViewer;
     private final SoundPlayer soundPlayer = new SoundPlayer();
     private com.vttcaseiro.view.DiceAnimator diceAnimator;
     /** Nome do arquivo da cena aberta (pra "próxima cena" da fila). */
@@ -322,6 +329,10 @@ public class Main extends Application {
         }
         this.soundIndex = new com.vttcaseiro.library.JsonListStore<>(mesa.getRoot(), "sons.json",
                 new com.google.gson.reflect.TypeToken<List<com.vttcaseiro.model.SoundEntry>>() { }.getType());
+        this.myNotesStore = new com.vttcaseiro.library.JsonListStore<>(mesa.getRoot(), "minhas-notas.json",
+                new com.google.gson.reflect.TypeToken<List<com.vttcaseiro.model.Handout>>() { }.getType());
+        this.groupNotesStore = new com.vttcaseiro.library.JsonListStore<>(mesa.getRoot(), "notas-do-grupo.json",
+                new com.google.gson.reflect.TypeToken<List<com.vttcaseiro.model.Handout>>() { }.getType());
         this.sceneQueueStore = new com.vttcaseiro.library.JsonListStore<>(mesa.getRoot(), "fila-cenas.json",
                 new com.google.gson.reflect.TypeToken<List<String>>() { }.getType());
         buildMainScene();
@@ -4420,8 +4431,25 @@ public class Main extends Application {
         addItemButton.setOnAction(e -> onAddPartyItem());
         Button transferItemButton = new Button("Passar 1 do escolhido pra ficha aberta", com.vttcaseiro.view.Icons.icon("send", 14));
         transferItemButton.setOnAction(e -> onTransferPartyItemToLastOpenedCharacter());
-        box.getChildren().addAll(sectionHeader("Baú do grupo", iconize(addItemButton), iconize(transferItemButton)),
-                partyInventoryListView);
+        Button splitCoinsButton = new Button("Dividir as moedas do baú entre os membros", com.vttcaseiro.view.Icons.icon("party", 14));
+        splitCoinsButton.setOnAction(e -> onSplitPartyCoins());
+        partyCoinsLabel = new Label();
+        partyCoinsLabel.getStyleClass().add("label-muted");
+        partyCoinsLabel.setWrapText(true);
+        box.getChildren().addAll(sectionHeader("Baú do grupo", iconize(addItemButton), iconize(transferItemButton),
+                iconize(splitCoinsButton)), partyInventoryListView, partyCoinsLabel);
+        Button xpButton = new Button("Dar XP...", com.vttcaseiro.view.Icons.icon("spark", 14));
+        xpButton.setOnAction(e -> onGiveXp());
+        Button milestoneButton = new Button("Subir por marco", com.vttcaseiro.view.Icons.icon("next", 14));
+        milestoneButton.setTooltip(new Tooltip("Avisa a todos que o grupo sobe de nível (pra quem joga sem XP)."));
+        milestoneButton.setOnAction(e -> onMilestone());
+        Label xpHint = new Label("XP: pra cada membro ou dividido, com aviso de quem já pode subir de nível. "
+                + "Marco: avisa que o grupo sobe de nível.");
+        xpHint.getStyleClass().add("label-muted");
+        xpHint.setWrapText(true);
+        HBox xpRow = new HBox(8, xpButton, milestoneButton);
+        partyXpControls = List.of(xpRow, splitCoinsButton);
+        refreshPartyInventoryList();
 
         Label hint = new Label("Membros: + põe no grupo a última ficha que você abriu (o nome aparece quando a ficha "
                 + "está nesta mesa). Baú: o loot de todo mundo; a seta passa 1 unidade do item escolhido pra última "
@@ -4429,6 +4457,15 @@ public class Main extends Application {
         hint.getStyleClass().add("label-muted");
         hint.setWrapText(true);
         box.getChildren().add(hint);
+        box.getChildren().addAll(sectionLabel("Experiência (mestre)"), xpRow, xpHint);
+        Runnable xpByRole = () -> {
+            boolean gm = networkService.isGm();
+            for (javafx.scene.Node n : List.of(xpRow, xpHint, splitCoinsButton)) showNode(n, gm);
+            javafx.scene.Node label = box.getChildren().get(box.getChildren().indexOf(xpRow) - 1);
+            showNode(label, gm);
+        };
+        networkService.statusProperty().addListener((o, a, b) -> Platform.runLater(xpByRole));
+        xpByRole.run();
 
         return new Tab("Party", wrapInScroll(box));
     }
@@ -4672,8 +4709,177 @@ public class Main extends Application {
         }));
         byRole.run();
         box.getChildren().addAll(sectionHeader("Diário da mesa", gmButtons), journalList, journalViewer, hint,
-                buildTablesSection(), buildDecksSection());
+                buildPlayerNotesSection(), buildTablesSection(), buildDecksSection());
         return new Tab("Diário", wrapInScroll(box));
+    }
+
+    // ---------------- anotacoes dos jogadores (so minhas ou do grupo)
+
+    private javafx.scene.Node buildPlayerNotesSection() {
+        playerNotesList = new ListView<>(playerNoteItems);
+        playerNotesList.setPrefHeight(130);
+        playerNotesList.setPlaceholder(emptyHint("Nenhuma anotação ainda.\nUse + pra escrever (só pra você ou pro grupo)."));
+        playerNotesList.setCellFactory(lv -> new ListCell<>() {
+            @Override
+            protected void updateItem(com.vttcaseiro.model.Handout h, boolean empty) {
+                super.updateItem(h, empty);
+                if (empty || h == null) {
+                    setText(null);
+                    setTooltip(null);
+                    return;
+                }
+                boolean shared = groupNotes.containsKey(h.getId());
+                setText(shared ? (h.getAuthor() == null ? "?" : h.getAuthor()) + ": " + h.getTitle() : "(só eu) " + h.getTitle());
+                setTooltip(new Tooltip(shared ? "Compartilhada com o grupo" : "Só você vê (fica neste computador)"));
+            }
+        });
+        playerNoteViewer = new Label();
+        playerNoteViewer.setWrapText(true);
+        playerNotesList.getSelectionModel().selectedItemProperty().addListener((o, a, h) ->
+                playerNoteViewer.setText(h == null ? "" : h.getText()));
+        Button add = new Button("Nova anotação", com.vttcaseiro.view.Icons.icon("add", 14));
+        add.setOnAction(e -> editPlayerNote(null));
+        Button edit = new Button("Editar a escolhida", com.vttcaseiro.view.Icons.icon("edit", 14));
+        edit.setOnAction(e -> {
+            com.vttcaseiro.model.Handout h = playerNotesList.getSelectionModel().getSelectedItem();
+            if (h == null) return;
+            if (!canEditPlayerNote(h)) {
+                showError("Essa anotação é de " + h.getAuthor() + ": só quem escreveu (ou o mestre) muda.");
+                return;
+            }
+            editPlayerNote(h);
+        });
+        Button remove = new Button("Apagar a escolhida", com.vttcaseiro.view.Icons.icon("trash", 14));
+        remove.setOnAction(e -> {
+            com.vttcaseiro.model.Handout h = playerNotesList.getSelectionModel().getSelectedItem();
+            if (h == null) return;
+            if (!canEditPlayerNote(h)) {
+                showError("Essa anotação é de " + h.getAuthor() + ": só quem escreveu (ou o mestre) apaga.");
+                return;
+            }
+            Alert confirm = new Alert(Alert.AlertType.CONFIRMATION, "Apagar \"" + h.getTitle() + "\"?");
+            confirm.setHeaderText(null);
+            confirm.initOwner(stage);
+            confirm.showAndWait().filter(b -> b == javafx.scene.control.ButtonType.OK).ifPresent(b -> deletePlayerNote(h));
+        });
+        Label hint = new Label("Suas anotações da campanha. \"Só eu\" fica neste computador; compartilhada aparece no Diário "
+                + "de todo mundo (e de quem entrar depois).");
+        hint.getStyleClass().add("label-muted");
+        hint.setWrapText(true);
+        if (networkService.isGm() && groupNotesStore != null) {
+            for (com.vttcaseiro.model.Handout h : groupNotesStore.load()) groupNotes.put(h.getId(), h);
+        }
+        networkService.statusProperty().addListener((o, a, b) -> Platform.runLater(() -> {
+            // mestre que acabou de hospedar/conectar: manda de novo o que o grupo tinha compartilhado
+            if (networkService.isConnected() && networkService.isGm() && groupNotesStore != null) {
+                for (com.vttcaseiro.model.Handout h : groupNotesStore.load()) networkService.sendGroupNote(h);
+            }
+            refreshPlayerNotes();
+        }));
+        refreshPlayerNotes();
+        VBox box = new VBox(8, sectionHeader("Anotações dos jogadores", iconize(add), iconize(edit), iconize(remove)),
+                playerNotesList, playerNoteViewer, hint);
+        box.getStyleClass().add("panel-section");
+        return box;
+    }
+
+    boolean canEditPlayerNote(com.vttcaseiro.model.Handout h) {
+        if (!groupNotes.containsKey(h.getId())) return true; // so minha
+        return networkService.isGm() || java.util.Objects.equals(h.getAuthor(), networkService.getPlayerName());
+    }
+
+    void refreshPlayerNotes() {
+        if (playerNotesList == null) return;
+        String selected = playerNotesList.getSelectionModel().getSelectedItem() == null ? null
+                : playerNotesList.getSelectionModel().getSelectedItem().getId();
+        List<com.vttcaseiro.model.Handout> all = new ArrayList<>(myNotesStore == null ? List.of() : myNotesStore.load());
+        all.addAll(groupNotes.values());
+        playerNoteItems.setAll(all);
+        playerNotesList.refresh();
+        for (com.vttcaseiro.model.Handout h : playerNoteItems) {
+            if (h.getId().equals(selected)) {
+                playerNotesList.getSelectionModel().select(h);
+                playerNoteViewer.setText(h.getText());
+                return;
+            }
+        }
+        playerNoteViewer.setText("");
+    }
+
+    void editPlayerNote(com.vttcaseiro.model.Handout existing) {
+        javafx.scene.control.Dialog<javafx.scene.control.ButtonType> dialog = new javafx.scene.control.Dialog<>();
+        dialog.setTitle(existing == null ? "Nova anotação" : "Editar anotação");
+        dialog.setHeaderText(null);
+        dialog.initOwner(stage);
+        TextField title = new TextField(existing == null ? "" : existing.getTitle());
+        title.setPromptText("Pistas sobre o culto");
+        javafx.scene.control.TextArea text = new javafx.scene.control.TextArea(existing == null ? "" : existing.getText());
+        text.setWrapText(true);
+        text.setPrefRowCount(10);
+        boolean wasShared = existing != null && groupNotes.containsKey(existing.getId());
+        CheckBox share = new CheckBox("Compartilhar com o grupo");
+        share.setSelected(wasShared);
+        share.setDisable(!networkService.isConnected() && !wasShared);
+        if (!networkService.isConnected()) share.setTooltip(new Tooltip("Conecte numa mesa pra compartilhar."));
+        VBox content = new VBox(8, new Label("Título"), title, new Label("Texto"), text, share);
+        content.setPrefWidth(440);
+        dialog.getDialogPane().setContent(content);
+        dialog.getDialogPane().getButtonTypes().addAll(javafx.scene.control.ButtonType.OK, javafx.scene.control.ButtonType.CANCEL);
+        dialog.showAndWait().filter(b -> b == javafx.scene.control.ButtonType.OK).ifPresent(b -> {
+            if (title.getText().isBlank() && text.getText().isBlank()) return;
+            savePlayerNote(existing, title.getText(), text.getText(), share.isSelected());
+        });
+    }
+
+    /** Guarda (so minha) ou manda pro grupo; mudar de um pro outro tira do lugar antigo. */
+    void savePlayerNote(com.vttcaseiro.model.Handout existing, String title, String text, boolean shared) {
+        com.vttcaseiro.model.Handout h = existing == null ? new com.vttcaseiro.model.Handout() : existing;
+        h.setTitle(title);
+        h.setText(text);
+        boolean wasShared = existing != null && groupNotes.containsKey(existing.getId());
+        List<com.vttcaseiro.model.Handout> mine = myNotesStore.load();
+        if (shared && networkService.isConnected()) {
+            if (!wasShared) {
+                mine.removeIf(x -> x.getId().equals(h.getId()));
+                myNotesStore.save(mine);
+            }
+            networkService.sendGroupNote(h); // volta do servidor carimbada com o autor
+            logEntries.add(LogEntry.system("Anotação compartilhada com o grupo: " + h.getTitle()));
+        } else {
+            if (wasShared) {
+                groupNotes.remove(h.getId());
+                networkService.sendGroupNoteRemove(h.getId());
+                h.setAuthor(null);
+                if (networkService.isGm()) groupNotesStore.save(new ArrayList<>(groupNotes.values()));
+            }
+            mine.removeIf(x -> x.getId().equals(h.getId()));
+            mine.add(h);
+            myNotesStore.save(mine);
+        }
+        refreshPlayerNotes();
+    }
+
+    void deletePlayerNote(com.vttcaseiro.model.Handout h) {
+        if (groupNotes.remove(h.getId()) != null) {
+            networkService.sendGroupNoteRemove(h.getId());
+            if (networkService.isGm()) groupNotesStore.save(new ArrayList<>(groupNotes.values()));
+        } else {
+            List<com.vttcaseiro.model.Handout> mine = myNotesStore.load();
+            mine.removeIf(x -> x.getId().equals(h.getId()));
+            myNotesStore.save(mine);
+        }
+        refreshPlayerNotes();
+    }
+
+    /** Anotacao do grupo chegou (nova ou mudada). */
+    void onGroupNoteReceived(com.vttcaseiro.model.Handout h) {
+        boolean isNew = !groupNotes.containsKey(h.getId());
+        groupNotes.put(h.getId(), h);
+        if (networkService.isGm() && groupNotesStore != null) groupNotesStore.save(new ArrayList<>(groupNotes.values()));
+        if (isNew && h.getAuthor() != null && !h.getAuthor().equals(networkService.getPlayerName())) {
+            logEntries.add(LogEntry.system(h.getAuthor() + " compartilhou no Diário: " + h.getTitle()));
+        }
+        refreshPlayerNotes();
     }
 
     private void refreshJournal() {
@@ -7368,6 +7574,151 @@ public class Main extends Application {
 
     private void refreshPartyInventoryList() {
         partyInventoryListView.getItems().setAll(partyService.getParty().getSharedInventory().getItems());
+        if (partyCoinsLabel != null) {
+            partyCoinsLabel.setText("Moedas no baú: " + com.vttcaseiro.service.CoinSplit.describe(
+                    partyService.getParty().getSharedInventory().getMoney()));
+        }
+    }
+
+    private Label partyCoinsLabel;
+    private List<javafx.scene.Node> partyXpControls = List.of();
+
+    /** Fichas dos membros do grupo (as abertas primeiro, que sao as vivas). */
+    List<CharacterSheet> partySheetsForXp() {
+        List<CharacterSheet> out = new ArrayList<>();
+        for (String id : partyService.getParty().getCharacterIds()) {
+            Optional<CharacterSheet> s = characterService.findOpen(id);
+            if (s.isEmpty()) s = characterService.findById(id);
+            s.ifPresent(out::add);
+        }
+        if (out.isEmpty()) {
+            // sem grupo montado: as fichas dos tokens de jogador no mapa
+            java.util.Set<String> seen = new java.util.HashSet<>();
+            for (TokenModel t : sceneService.getScene().getTokens()) {
+                if (t.getOwnerId() == null || t.getOwnerId().isBlank()) continue;
+                table.linkedSheet(t).ifPresent(s -> {
+                    if (seen.add(s.getId())) out.add(s);
+                });
+            }
+        }
+        return out;
+    }
+
+    /** Divide as moedas do bau igualmente entre os membros (a sobra fica no bau). */
+    void onSplitPartyCoins() {
+        if (!networkService.isGm()) {
+            showError("Só o mestre divide as moedas do baú.");
+            return;
+        }
+        List<CharacterSheet> members = new ArrayList<>();
+        for (String id : partyService.getParty().getCharacterIds()) {
+            Optional<CharacterSheet> s = characterService.findOpen(id);
+            if (s.isEmpty()) s = characterService.findById(id);
+            s.ifPresent(members::add);
+        }
+        if (members.isEmpty()) {
+            showError("Ninguém no grupo ainda (Membros, acima).");
+            return;
+        }
+        String r = com.vttcaseiro.service.CoinSplit.split(partyService.getParty().getSharedInventory().getMoney(),
+                members.stream().map(m -> m.getInventory().getMoney()).toList());
+        if (r.isEmpty()) {
+            showError("Não tem moeda no baú pra dividir (ou dá menos de uma pra cada).");
+            return;
+        }
+        for (CharacterSheet m : members) sheetEdited(m);
+        refreshPartyInventoryList();
+        savePartyAndSync("Moedas do baú divididas entre " + members.size() + ": " + r + ".");
+        announce("Moedas do baú divididas entre " + members.size() + ": " + r + ".");
+    }
+
+    /** XP pro grupo: valor pra cada um ou dividido; avisa quem pode subir de nivel e anota na Campanha. */
+    void onGiveXp() {
+        List<CharacterSheet> sheets = partySheetsForXp();
+        if (sheets.isEmpty()) {
+            showError("Ninguém pra receber XP: monte o grupo (Party > Membros) ou ponha os tokens dos jogadores no mapa.");
+            return;
+        }
+        int monsterXp = 0;
+        for (TokenModel t : sceneService.getScene().getTokens()) {
+            if (t.getMobSheetId() == null) continue;
+            monsterXp += mobService.findById(t.getMobSheetId()).map(MobSheet::getExperiencePoints).orElse(0);
+        }
+        javafx.scene.control.Dialog<javafx.scene.control.ButtonType> d = new javafx.scene.control.Dialog<>();
+        d.initOwner(stage);
+        d.setTitle("Dar XP");
+        d.setHeaderText(null);
+        javafx.scene.control.Spinner<Integer> amount = new javafx.scene.control.Spinner<>(0, 1_000_000, Math.max(0, monsterXp), 50);
+        amount.setEditable(true);
+        amount.setPrefWidth(120);
+        javafx.scene.control.ToggleGroup how = new javafx.scene.control.ToggleGroup();
+        javafx.scene.control.RadioButton split = new javafx.scene.control.RadioButton("Dividir entre os escolhidos");
+        javafx.scene.control.RadioButton each = new javafx.scene.control.RadioButton("Cada um recebe esse valor");
+        split.setToggleGroup(how);
+        each.setToggleGroup(how);
+        split.setSelected(true);
+        List<CheckBox> boxes = new ArrayList<>();
+        javafx.scene.layout.FlowPane who = new javafx.scene.layout.FlowPane(10, 6);
+        for (CharacterSheet s : sheets) {
+            CheckBox cb = new CheckBox(s.getName() + " (" + s.getExperiencePoints() + " XP)");
+            cb.setSelected(true);
+            boxes.add(cb);
+            who.getChildren().add(cb);
+        }
+        TextField reason = new TextField();
+        reason.setPromptText("Motivo (ex.: Covil dos goblins)");
+        CheckBox record = new CheckBox("Anotar também na Campanha > Jogadores (pelo nome do personagem)");
+        record.setSelected(true);
+        Label monsters = new Label(monsterXp > 0 ? "Começa com a XP dos monstros no mapa: " + monsterXp + "." : "");
+        monsters.getStyleClass().add("label-muted");
+        VBox content = new VBox(8, new HBox(8, new Label("XP"), amount), monsters, new HBox(12, split, each),
+                new Label("Pra quem"), who, reason, record);
+        content.setPrefWidth(480);
+        d.getDialogPane().setContent(content);
+        d.getDialogPane().getButtonTypes().addAll(javafx.scene.control.ButtonType.OK, javafx.scene.control.ButtonType.CANCEL);
+        if (d.showAndWait().filter(b -> b == javafx.scene.control.ButtonType.OK).isEmpty()) return;
+        List<CharacterSheet> chosen = new ArrayList<>();
+        for (int i = 0; i < sheets.size(); i++) if (boxes.get(i).isSelected()) chosen.add(sheets.get(i));
+        int value = amount.getValue() == null ? 0 : amount.getValue();
+        giveXp(chosen, value, split.isSelected(), reason.getText(), record.isSelected());
+    }
+
+    /** Aplica a XP (fichas, chat e, se pedido, a Campanha). */
+    void giveXp(List<CharacterSheet> chosen, int value, boolean split, String reason, boolean record) {
+        List<com.vttcaseiro.service.XpService.Award> awards = com.vttcaseiro.service.XpService.award(chosen, value, split);
+        if (awards.isEmpty()) return;
+        for (CharacterSheet s : chosen) sheetEdited(s);
+        if (record && campaign != null) {
+            boolean any = false;
+            for (com.vttcaseiro.service.XpService.Award a : awards) {
+                for (com.vttcaseiro.model.Campaign.PlayerRecord p : campaign.getPlayers()) {
+                    if (p.character != null && p.character.strip().equalsIgnoreCase(a.name().strip())) {
+                        p.xp.add(new com.vttcaseiro.model.Campaign.Entry(com.vttcaseiro.view.CampaignView.todayText(),
+                                a.gained(), reason == null || reason.isBlank() ? "XP" : reason.strip()));
+                        any = true;
+                    }
+                }
+            }
+            if (any) {
+                pushCampaign();
+                if (campaignView != null && campaignView.isShowing()) campaignView.reload(campaign);
+            }
+        }
+        announce(com.vttcaseiro.service.XpService.summary(awards, reason));
+    }
+
+    /** Marco: o grupo sobe de nivel (sem XP). */
+    void onMilestone() {
+        List<CharacterSheet> sheets = partySheetsForXp();
+        int next = sheets.stream().mapToInt(CharacterSheet::getLevel).max().orElse(0) + 1;
+        javafx.scene.control.TextInputDialog d = new javafx.scene.control.TextInputDialog("");
+        d.initOwner(stage);
+        d.setTitle("Subir por marco");
+        d.setHeaderText(sheets.isEmpty() ? "O grupo sobe de nível." : "O grupo sobe pro nível " + Math.min(20, next) + ".");
+        d.setContentText("Motivo (opcional):");
+        d.showAndWait().ifPresent(r -> announce("Marco! " + (sheets.isEmpty() ? "O grupo sobe de nível" : "O grupo sobe pro nível "
+                + Math.min(20, next)) + (r.isBlank() ? "." : ": " + r.strip() + ".")
+                + " Subam o nível nas fichas."));
     }
 
     private void onRenameParty(String newName) {
@@ -9884,6 +10235,20 @@ public class Main extends Application {
         }
 
         @Override
+        public void onGroupNote(com.vttcaseiro.model.Handout note) {
+            Platform.runLater(() -> onGroupNoteReceived(note));
+        }
+
+        @Override
+        public void onGroupNoteRemoved(String id) {
+            Platform.runLater(() -> {
+                if (groupNotes.remove(id) == null) return;
+                if (networkService.isGm() && groupNotesStore != null) groupNotesStore.save(new ArrayList<>(groupNotes.values()));
+                refreshPlayerNotes();
+            });
+        }
+
+        @Override
         public void onHandoutShow(com.vttcaseiro.model.Handout handout) {
             Platform.runLater(() -> {
                 if (networkService.isGm()) return;
@@ -10129,7 +10494,8 @@ public class Main extends Application {
             logEntries.add(LogEntry.error("Tabela \"" + name + "\" não encontrada. Digite /tabela pra ver a lista."));
             return;
         }
-        String result = table.get().roll(n -> java.util.concurrent.ThreadLocalRandom.current().nextInt(1, n + 1));
+        String result = table.get().rollExpanded(n -> java.util.concurrent.ThreadLocalRandom.current().nextInt(1, n + 1),
+                this::findTable);
         String text = "Tabela " + table.get().getName() + " (" + result + ")";
         if (hidden) tablePort.announceGm(text); else announce(text);
     }
@@ -10354,7 +10720,8 @@ public class Main extends Application {
             tableStore.save(all);
             reload.run();
         });
-        Label hint = new Label("Clique duplo rola. No chat: /tabela Nome. Linhas com faixa: \"1-3: goblins\".");
+        Label hint = new Label("Clique duplo rola. No chat: /tabela Nome. Linhas com faixa: \"1-3: goblins\". "
+                + "Dados no resultado já saem rolados (\"2d4 lobos\" vira \"2d4 [5] lobos\") e [[Outra tabela]] sorteia a outra.");
         hint.getStyleClass().add("label-muted");
         hint.setWrapText(true);
         HBox rollRow = new HBox(8, roll, hidden);
@@ -10380,7 +10747,7 @@ public class Main extends Application {
         TextField name = new TextField(existing == null ? "" : existing.getName());
         name.setPromptText("Encontros na floresta");
         javafx.scene.control.TextArea entries = new javafx.scene.control.TextArea(existing == null ? "" : existing.getEntries());
-        entries.setPromptText("1-3: 2d4 lobos\n4-5: um urso-coruja\n6: um druida perdido");
+        entries.setPromptText("1-3: 2d4 lobos\n4-5: um urso-coruja\n6: um druida perdido com [[Tesouro rapido]]");
         entries.setPrefRowCount(10);
         VBox content = new VBox(8, new Label("Nome"), name, new Label("Resultados"), entries);
         content.setPrefWidth(420);

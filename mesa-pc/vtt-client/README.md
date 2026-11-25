@@ -282,7 +282,8 @@ Botao **Campanha** na barra de cima. Abas:
   distancia em km + ritmo (lento, normal, rapido) + terreno dificil = quanto tempo leva, e "Avancar esse
   tempo". Opcao **"A luz do mapa acompanha a hora"**: dia claro, entardecer e amanhecer em penumbra, noite escura.
 - **PdMs**: nome, atitude com o grupo, onde esta, o que os jogadores sabem e os segredos (so o mestre).
-- **Aventuras**: numero, estado (ativa, pausada, completa, falhou), datas, objetivo, resultado e notas do mestre.
+- **Missoes**: numero, estado (ativa, pausada, completa, falhou), datas, quem deu, recompensa, objetivo, **etapas** (o
+  mestre marca as feitas; na lista aparece "2/5 etapas" e os jogadores veem o andamento), resultado e notas do mestre.
 - **Sessoes**: numero e data automaticos, resumo e link.
 - **Anotacoes do mestre**: nunca saem do PC do mestre.
 - **Tesouro** (so o mestre): parcelas preparadas antes da sessao (itens, moedas e XP). "Entregar..."
@@ -490,6 +491,26 @@ falhas criticas, dano aplicado, quem caiu, tesouro/XP, cartas e tabelas, quem ma
 Combate > Mestre > **Agrupar monstros iguais**: monstros da mesma ficha ("4 Goblins") rolam uma iniciativa so,
 aparecem numa linha ("Goblin x4") na lista e na fila de turnos e jogam no mesmo turno. Vale na proxima
 "Rolar e comecar".
+
+### Tabelas com dados e tabelas dentro
+
+Nas tabelas aleatorias (Diario), os dados que aparecem no resultado ja saem rolados ("2d4+1 lobos" vira
+"2d4+1 [6] lobos") e `[[Outra tabela]]` sorteia a outra tabela no lugar (ate 4 uma dentro da outra).
+
+### Moedas do bau e XP (Party)
+
+- **Moedas no bau**: aparece embaixo do Bau do grupo (o tesouro entregue ao "Grupo" cai aqui). O botao do grupo
+  divide as moedas igualmente entre os membros (mestre); a sobra que nao divide fica no bau.
+- **Dar XP...** (mestre): ja comeca com a XP dos monstros no mapa; dividir entre os escolhidos ou o mesmo valor pra
+  cada um. Soma na ficha, avisa no chat quem ja pode subir de nivel (tabela de XP do D&D 5e) e anota em Campanha >
+  Jogadores (pelo nome do personagem). Sem grupo montado, vale pras fichas dos tokens de jogador no mapa.
+- **Subir por marco**: avisa a todos que o grupo sobe de nivel (pra quem joga sem XP).
+
+### Anotacoes dos jogadores (Diario)
+
+Cada um escreve as proprias anotacoes da campanha. "So eu" fica no computador de quem escreveu; **compartilhada**
+aparece no Diario de todo mundo (no navegador tambem), com o nome de quem escreveu, e de quem entrar depois. So quem
+escreveu (ou o mestre) muda ou apaga. O mestre guarda as compartilhadas e manda de novo na proxima sessao.
 
 ### Relogio do turno
 

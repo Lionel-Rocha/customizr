@@ -113,8 +113,36 @@ public class Campaign {
         public boolean visible;
     }
 
+    /** Etapa de uma aventura/missao ("Falar com o ferreiro"), marcada quando feita. */
+    public static class Step {
+        public String text = "";
+        public boolean done;
+
+        public Step() {
+        }
+
+        public Step(String text) {
+            this.text = text;
+        }
+    }
+
     public static class Adventure {
         public String id = UUID.randomUUID().toString();
+        /** Quem deu a missao e o que prometeu. */
+        public String giver = "";
+        public String reward = "";
+        public List<Step> steps = new ArrayList<>();
+
+        public List<Step> steps() {
+            if (steps == null) steps = new ArrayList<>();
+            return steps;
+        }
+
+        /** "2/5 etapas" (vazio sem etapas). */
+        public String progress() {
+            if (steps().isEmpty()) return "";
+            return steps().stream().filter(s -> s.done).count() + "/" + steps().size() + " etapas";
+        }
         public int number;
         public String name = "";
         public String state = "Ativa";
@@ -547,6 +575,11 @@ public class Campaign {
             t.gmNotes = clip(t.gmNotes);
         }
         for (Adventure a : getAdventures()) {
+            trim(a.steps());
+            a.steps().removeIf(st -> st == null);
+            for (Step st : a.steps()) st.text = st.text == null ? "" : st.text.length() > 300 ? st.text.substring(0, 300) : st.text;
+            a.giver = a.giver == null ? "" : clip(a.giver);
+            a.reward = a.reward == null ? "" : clip(a.reward);
             a.description = clip(a.description);
             a.results = clip(a.results);
             a.gmNotes = clip(a.gmNotes);

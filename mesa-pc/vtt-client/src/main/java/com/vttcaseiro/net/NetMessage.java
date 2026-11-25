@@ -379,6 +379,21 @@ public class NetMessage {
         return m;
     }
 
+    /** "group_note": anotacao de jogador compartilhada com o grupo (no Diario de todos). */
+    public static NetMessage groupNote(com.vttcaseiro.model.Handout h) {
+        NetMessage m = new NetMessage();
+        m.type = "group_note";
+        m.handout = h;
+        return m;
+    }
+
+    public static NetMessage groupNoteRemove(String id) {
+        NetMessage m = new NetMessage();
+        m.type = "group_note_remove";
+        m.text = id;
+        return m;
+    }
+
     /** Anotacao que ja abre na tela de quem recebe ("olhem isto"). */
     public static NetMessage handoutShow(com.vttcaseiro.model.Handout h) {
         NetMessage m = handoutSync(h);

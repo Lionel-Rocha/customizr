@@ -2,7 +2,9 @@ package com.vttcaseiro.model;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.function.IntUnaryOperator;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -14,6 +16,12 @@ import java.util.regex.Pattern;
  */
 public class RandomTable {
     private static final Pattern RANGE = Pattern.compile("^\\s*(\\d+)\\s*(?:-\\s*(\\d+))?\\s*[:.)-]\\s*(.*)$");
+    /** Dados no meio do texto: "2d6 po", "1d4+1 lobos" (nao pega palavras como "d20s" grudadas em letras). */
+    private static final Pattern DICE = Pattern.compile("(?<![\\w])(\\d{0,3})d(\\d{1,4})(?:\\s*([+-])\\s*(\\d{1,4}))?(?![\\w])");
+    /** Outra tabela dentro do resultado: [[Clima]]. */
+    private static final Pattern NESTED = Pattern.compile("\\[\\[([^\\[\\]]{1,80})]]");
+    /** Ate quantas tabelas uma dentro da outra (evita laco: A chama B que chama A). */
+    public static final int MAX_DEPTH = 4;
 
     private String id = UUID.randomUUID().toString();
     private String name = "";
@@ -72,6 +80,68 @@ public class RandomTable {
         int value = roller.applyAsInt(die);
         for (Row r : rows) {
             if (value >= r.from() && value <= r.to()) return "d" + die + " = " + value + ": " + r.text();
+        }
+        return "d" + die + " = " + value + ": (nenhuma linha cobre esse numero)";
+    }
+
+    /**
+     * Resolve o texto sorteado: rola os dados que aparecem ("2d6 po" vira "2d6 [7] po") e sorteia as tabelas citadas
+     * entre colchetes duplos ("[[Clima]]" vira o resultado da tabela Clima). Tabela que nao existe fica como esta.
+     */
+    public static String expand(String text, IntUnaryOperator roller, Function<String, Optional<RandomTable>> lookup) {
+        return expand(text, roller, lookup, 0);
+    }
+
+    private static String expand(String text, IntUnaryOperator roller, Function<String, Optional<RandomTable>> lookup, int depth) {
+        if (text == null || text.isEmpty()) return "";
+        StringBuilder nested = new StringBuilder();
+        Matcher nm = NESTED.matcher(text);
+        while (nm.find()) {
+            String name = nm.group(1).strip();
+            Optional<RandomTable> t = depth >= MAX_DEPTH || lookup == null ? Optional.empty() : lookup.apply(name);
+            String rep = t.map(tab -> {
+                Row r = tab.pick(roller);
+                return r == null ? "(" + name + " vazia)" : expand(r.text(), roller, lookup, depth + 1);
+            }).orElse(nm.group());
+            nm.appendReplacement(nested, Matcher.quoteReplacement(rep));
+        }
+        nm.appendTail(nested);
+        if (depth > 0) return nested.toString(); // os dados de dentro ja sao rolados na volta, no nivel de cima
+        StringBuilder out = new StringBuilder();
+        Matcher dm = DICE.matcher(nested);
+        while (dm.find()) {
+            int count = dm.group(1).isEmpty() ? 1 : Integer.parseInt(dm.group(1));
+            int sides = Integer.parseInt(dm.group(2));
+            if (count < 1 || count > 100 || sides < 2) {
+                dm.appendReplacement(out, Matcher.quoteReplacement(dm.group()));
+                continue;
+            }
+            int total = 0;
+            for (int i = 0; i < count; i++) total += roller.applyAsInt(sides);
+            if (dm.group(3) != null) total += ("-".equals(dm.group(3)) ? -1 : 1) * Integer.parseInt(dm.group(4));
+            dm.appendReplacement(out, Matcher.quoteReplacement(dm.group() + " [" + total + "]"));
+        }
+        dm.appendTail(out);
+        return out.toString();
+    }
+
+    /** Sorteia uma linha (null = tabela vazia ou numero sem linha). */
+    public Row pick(IntUnaryOperator roller) {
+        List<Row> rows = rows();
+        if (rows.isEmpty()) return null;
+        int value = roller.applyAsInt(dieSize());
+        for (Row r : rows) if (value >= r.from() && value <= r.to()) return r;
+        return null;
+    }
+
+    /** Como {@link #roll}, mas ja resolvendo dados e outras tabelas no resultado. */
+    public String rollExpanded(IntUnaryOperator roller, Function<String, Optional<RandomTable>> lookup) {
+        List<Row> rows = rows();
+        if (rows.isEmpty()) return "(tabela vazia)";
+        int die = dieSize();
+        int value = roller.applyAsInt(die);
+        for (Row r : rows) {
+            if (value >= r.from() && value <= r.to()) return "d" + die + " = " + value + ": " + expand(r.text(), roller, lookup);
         }
         return "d" + die + " = " + value + ": (nenhuma linha cobre esse numero)";
     }

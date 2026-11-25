@@ -18,6 +18,8 @@ public class Handout {
     private String text = "";
     private String imageAssetId;
     private boolean revealed;
+    /** Anotacao de jogador compartilhada com o grupo: quem escreveu (o servidor carimba). */
+    private String author;
     /** Pra quem vai (nomes dos jogadores); vazio = todos. */
     private List<String> recipients = new ArrayList<>();
 
@@ -59,6 +61,9 @@ public class Handout {
     public boolean isFor(String playerName) {
         return getRecipients().isEmpty() || (playerName != null && getRecipients().contains(playerName));
     }
+
+    public String getAuthor() { return author; }
+    public void setAuthor(String author) { this.author = author; }
 
     public boolean isRevealed() { return revealed; }
     public void setRevealed(boolean revealed) { this.revealed = revealed; }

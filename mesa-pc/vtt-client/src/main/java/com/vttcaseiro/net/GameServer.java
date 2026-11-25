@@ -101,6 +101,9 @@ public class GameServer {
     private final java.util.Map<String, com.vttcaseiro.model.AudioCommand> playingAudio = new java.util.LinkedHashMap<>();
     /** Entradas do diario que o mestre revelou (quem entra depois recebe). */
     private final java.util.Map<String, com.vttcaseiro.model.Handout> sharedHandouts = new java.util.LinkedHashMap<>();
+    /** Anotacoes que os jogadores compartilharam com o grupo (quem entra depois recebe). */
+    private final java.util.Map<String, com.vttcaseiro.model.Handout> groupNotes = new java.util.LinkedHashMap<>();
+    static final int MAX_GROUP_NOTES = 500;
     private final Object lock = new Object();
 
     /** Ultima versao conhecida de cada ficha de personagem/monstro e da
@@ -545,6 +548,34 @@ public class GameServer {
                         broadcastExcept(NetMessage.handoutRemove(msg.handout.getId()), from);
                     }
                 }
+                case "group_note" -> {
+                    com.vttcaseiro.model.Handout h = msg.handout;
+                    if (h == null || h.getId() == null || h.getId().length() > 64) break;
+                    com.vttcaseiro.model.Handout old = groupNotes.get(h.getId());
+                    String name = from.getSession().playerName();
+                    // so quem escreveu muda (o mestre pode mexer em qualquer uma, ex.: corrigir ou repassar a dele)
+                    if (old != null && !from.isGm() && !name.equals(old.getAuthor())) break;
+                    if (old == null && groupNotes.size() >= MAX_GROUP_NOTES) {
+                        from.send(NetMessage.chat("servidor", "O diário do grupo está cheio."));
+                        break;
+                    }
+                    h.setAuthor(old != null && from.isGm() && old.getAuthor() != null ? old.getAuthor()
+                            : (from.isGm() && h.getAuthor() != null && !h.getAuthor().isBlank() ? h.getAuthor() : name));
+                    h.setTitle(h.getTitle().length() > 120 ? h.getTitle().substring(0, 120) : h.getTitle());
+                    h.setText(h.getText());
+                    h.setImageAssetId(null);
+                    h.setRecipients(java.util.List.of());
+                    h.setRevealed(true);
+                    groupNotes.put(h.getId(), h);
+                    NetMessage out = NetMessage.groupNote(h);
+                    for (ClientHandler c : clients) if (c.getSession() != null) c.send(out); // inclusive quem mandou (volta carimbada)
+                }
+                case "group_note_remove" -> {
+                    com.vttcaseiro.model.Handout old = msg.text == null ? null : groupNotes.get(msg.text);
+                    if (old == null || !(from.isGm() || from.getSession().playerName().equals(old.getAuthor()))) break;
+                    groupNotes.remove(msg.text);
+                    broadcastExcept(msg, from);
+                }
                 case "handout_remove" -> {
                     if (from.isGm() && msg.text != null && sharedHandouts.remove(msg.text) != null) {
                         broadcastExcept(msg, from);
@@ -795,6 +826,7 @@ public class GameServer {
                             .forEach(mob -> from.send(NetMessage.mobSync(mob)));
                     sharedHandouts.values().stream().filter(h -> from.isGm() || h.isFor(session.playerName()))
                             .forEach(h -> from.send(NetMessage.handoutSync(h)));
+                    groupNotes.values().forEach(h -> from.send(NetMessage.groupNote(h)));
                     com.vttcaseiro.model.Campaign camp = sharedCampaign;
                     if (camp != null) from.send(NetMessage.campaignSync(from.isGm() ? camp : camp.publicCopy()));
                     playingAudio.values().forEach(a -> from.send(NetMessage.audio(a)));
