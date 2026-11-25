@@ -10,6 +10,7 @@ import java.util.UUID;
  *   <li>{@link #DAMAGE} dano: quem comeca o turno dentro leva o dano (lava, fogo, acido);</li>
  *   <li>{@link #TERRAIN} terreno dificil: a regua de movimento conta cada casa dentro em dobro;</li>
  *   <li>{@link #NOTE} aviso: um texto pro mestre (e opcionalmente pro jogador) quando alguem entra.</li>
+ *   <li>{@link #SOUND} som: quando alguem entra, toca um efeito, troca a musica ou o ambiente (pra todos).</li>
  * </ul>
  * So o mestre ve as zonas; o servidor nem manda pro jogador, a nao ser as marcadas como visiveis (o terreno
  * dificil nasce visivel).
@@ -20,7 +21,8 @@ public class MapZone {
     public static final String DAMAGE = "dano";
     public static final String TERRAIN = "terreno";
     public static final String NOTE = "aviso";
-    public static final String[] KINDS = {TRAP, PORTAL, DAMAGE, TERRAIN, NOTE};
+    public static final String SOUND = "som";
+    public static final String[] KINDS = {TRAP, PORTAL, DAMAGE, TERRAIN, NOTE, SOUND};
     public static final int MAX_TEXT = 1000;
 
     private String id = UUID.randomUUID().toString();
@@ -49,6 +51,12 @@ public class MapZone {
     private boolean triggered;
     /** Jogadores veem a zona no mapa (terreno dificil, area marcada). */
     private boolean visibleToPlayers;
+    /** Som: id do som da biblioteca da mesa (null = parar o canal), nome e canal (sfx, music, ambient). */
+    private String soundId;
+    private String soundName = "";
+    private String soundChannel = "sfx";
+    /** So dispara com token de jogador (monstro andando nao troca a musica). */
+    private boolean playersOnly;
 
     public MapZone() {
     }
@@ -110,13 +118,23 @@ public class MapZone {
     public void setOnce(boolean once) { this.once = once; }
     public boolean isTriggered() { return triggered; }
     public void setTriggered(boolean triggered) { this.triggered = triggered; }
+    public String getSoundId() { return soundId; }
+    public void setSoundId(String id) { this.soundId = id == null || id.isBlank() ? null : clip(id, 128); }
+    public String getSoundName() { return soundName == null ? "" : soundName; }
+    public void setSoundName(String n) { this.soundName = clip(n, 120); }
+    public String getSoundChannel() {
+        return "music".equals(soundChannel) || "ambient".equals(soundChannel) ? soundChannel : "sfx";
+    }
+    public void setSoundChannel(String c) { this.soundChannel = c; }
+    public boolean isPlayersOnly() { return playersOnly; }
+    public void setPlayersOnly(boolean p) { this.playersOnly = p; }
     public boolean isVisibleToPlayers() { return visibleToPlayers; }
     public void setVisibleToPlayers(boolean v) { this.visibleToPlayers = v; }
 
     /** Dispara ao entrar? (o dano e no comeco do turno; o terreno so mexe na regua) */
     public boolean triggersOnEnter() {
         String k = getKind();
-        return (TRAP.equals(k) || PORTAL.equals(k) || NOTE.equals(k)) && !(once && triggered);
+        return (TRAP.equals(k) || PORTAL.equals(k) || NOTE.equals(k) || SOUND.equals(k)) && !(once && triggered);
     }
 
     /** Nome pra mostrar ("Armadilha", "Fosso" etc.). */
@@ -127,6 +145,7 @@ public class MapZone {
             case DAMAGE -> "Área de dano";
             case TERRAIN -> "Terreno difícil";
             case NOTE -> "Aviso";
+            case SOUND -> "Som";
             default -> "Armadilha";
         };
     }

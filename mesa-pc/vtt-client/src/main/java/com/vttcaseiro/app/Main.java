@@ -4455,7 +4455,14 @@ public class Main extends Application {
                 this::onEditInitiative);
         Region statusGrow = new Region();
         HBox.setHgrow(statusGrow, Priority.ALWAYS);
-        HBox status = new HBox(4, roundLabel, statusGrow, pullButton, editButton);
+        turnClockPanel = new Label();
+        turnClockPanel.getStyleClass().add("turn-clock");
+        showNode(turnClockPanel, false);
+        Button timerButton = iconButton("timer", "Relógio do turno: quanto tempo cada um tem pra jogar (só avisa, não pula a vez)",
+                () -> { });
+        timerButton.setOnAction(e -> turnTimerMenu().show(timerButton, javafx.geometry.Side.BOTTOM, 0, 0));
+        turnTimerButton = timerButton;
+        HBox status = new HBox(4, roundLabel, turnClockPanel, statusGrow, timerButton, pullButton, editButton);
         status.setAlignment(Pos.CENTER_LEFT);
         box.getChildren().add(status);
         initiativeListView = new ListView<>();
@@ -4507,7 +4514,7 @@ public class Main extends Application {
         combatIdleButtons = List.of(rollAllButton, startButton);
         combatActiveButtons = List.of(nextTurnButton, endButton);
         box.getChildren().add(buttonGrid(rollAllButton, startButton, nextTurnButton, endButton));
-        combatToolButtons = List.of(pullButton, editButton);
+        combatToolButtons = List.of(pullButton, editButton, turnTimerButton);
 
         box.getChildren().add(sectionLabel("Mestre: grupo inteiro"));
         Button groupSaveButton = new Button("Salvaguarda...");
@@ -4588,9 +4595,11 @@ public class Main extends Application {
                     return;
                 }
                 boolean gm = networkService.isGm();
-                setText(gm ? (h.isRevealed() ? "\u25CF  " : "\u25CB  ") + h.getTitle() : h.getTitle());
+                String to = h.getRecipients().isEmpty() ? "" : "  \u2192 " + String.join(", ", h.getRecipients());
+                setText(gm ? (h.isRevealed() ? "\u25CF  " : "\u25CB  ") + h.getTitle() + to : h.getTitle());
                 setStyle(gm && h.isRevealed() ? "-fx-text-fill: -c-accent-text;" : "");
-                setTooltip(new Tooltip(gm ? (h.isRevealed() ? "Revelada: os jogadores veem" : "Só você vê")
+                setTooltip(new Tooltip(gm ? (h.isRevealed() ? (h.getRecipients().isEmpty() ? "Revelada: todos os jogadores veem"
+                        : "Revelada só pra " + String.join(", ", h.getRecipients())) : "Só você vê")
                         : "Clique duplo abre em janela"));
             }
         });
@@ -4614,6 +4623,16 @@ public class Main extends Application {
             com.vttcaseiro.model.Handout h = journalList.getSelectionModel().getSelectedItem();
             if (h != null) setHandoutRevealed(h, !h.isRevealed());
         });
+        Button sendImage = new Button("Mandar imagem pra...", com.vttcaseiro.view.Icons.icon("image", 14));
+        sendImage.setTooltip(new Tooltip("Escolhe uma imagem (bilhete, mapa, retrato), pra quem vai, e ela abre na tela deles. "
+                + "Fica guardada no Diário de cada um."));
+        sendImage.setOnAction(e -> sendImageToPlayers());
+        Button show = new Button("Abrir na tela deles", com.vttcaseiro.view.Icons.icon("send", 14));
+        show.setTooltip(new Tooltip("Revela a escolhida (se ainda não estava) e já abre na tela de quem recebe."));
+        show.setOnAction(e -> {
+            com.vttcaseiro.model.Handout h = journalList.getSelectionModel().getSelectedItem();
+            if (h != null) showHandoutToPlayers(h);
+        });
         Button remove = new Button("Apagar", com.vttcaseiro.view.Icons.icon("trash", 14));
         remove.setOnAction(e -> {
             com.vttcaseiro.model.Handout h = journalList.getSelectionModel().getSelectedItem();
@@ -4629,7 +4648,7 @@ public class Main extends Application {
                 refreshJournal();
             });
         });
-        HBox gmButtons = new HBox(4, iconize(add), iconize(edit), iconize(reveal), iconize(remove));
+        HBox gmButtons = new HBox(4, iconize(add), iconize(sendImage), iconize(edit), iconize(reveal), iconize(show), iconize(remove));
         gmButtons.setAlignment(Pos.CENTER_RIGHT);
         Label hint = new Label();
         hint.getStyleClass().add("label-muted");
@@ -4639,7 +4658,8 @@ public class Main extends Application {
             boolean gm = networkService.isGm();
             gmButtons.setVisible(gm);
             gmButtons.setManaged(gm);
-            hint.setText(gm ? "Só você vê as anotações até revelar (\u25CF = revelada). Clique duplo abre em janela."
+            hint.setText(gm ? "Só você vê as anotações até revelar (\u25CF = revelada, \u2192 = só pra esses jogadores). "
+                    + "Clique duplo abre em janela."
                     : "Aqui aparecem as anotações que o mestre revelar. Clique duplo abre em janela.");
             refreshJournal();
         };
@@ -4715,12 +4735,32 @@ public class Main extends Application {
         Label title = new Label(h.getTitle());
         title.getStyleClass().add("label-title");
         content.getChildren().add(title);
-        javafx.scene.image.Image img = handoutImage(h);
-        if (img != null) {
-            javafx.scene.image.ImageView view = new javafx.scene.image.ImageView(img);
-            view.setPreserveRatio(true);
+        javafx.scene.image.ImageView view = new javafx.scene.image.ImageView();
+        view.setPreserveRatio(true);
+        java.util.function.Predicate<javafx.scene.image.Image> put = img -> {
+            if (img == null) return false;
+            view.setImage(img);
             view.setFitWidth(Math.min(760, img.getWidth()));
+            return true;
+        };
+        if (h.getImageAssetId() != null) {
             content.getChildren().add(view);
+            if (!put.test(handoutImage(h))) {
+                // a imagem ainda esta chegando pela rede: tenta de novo por uns segundos
+                Label wait = new Label("(imagem chegando...)");
+                wait.getStyleClass().add("label-muted");
+                content.getChildren().add(wait);
+                javafx.animation.Timeline retry = new javafx.animation.Timeline();
+                retry.getKeyFrames().add(new javafx.animation.KeyFrame(javafx.util.Duration.millis(500), e -> {
+                    if (put.test(handoutImage(h))) {
+                        content.getChildren().remove(wait);
+                        retry.stop();
+                    }
+                }));
+                retry.setCycleCount(40);
+                retry.setOnFinished(e -> wait.setText("(a imagem não chegou; abra de novo pelo Diário)"));
+                retry.play();
+            }
         }
         Label text = new Label(h.getText());
         text.setWrapText(true);
@@ -4738,16 +4778,59 @@ public class Main extends Application {
     }
 
     private void editHandout(com.vttcaseiro.model.Handout existing) {
+        editHandout(existing, null, null, false);
+    }
+
+    /** Escolhe a imagem e abre o dialogo ja com ela, marcado pra abrir na tela de quem recebe. */
+    private void sendImageToPlayers() {
+        javafx.stage.FileChooser chooser = new javafx.stage.FileChooser();
+        chooser.getExtensionFilters().add(com.vttcaseiro.view.ImageFiles.filter());
+        java.io.File f = com.vttcaseiro.view.ImagePicker.open(chooser, stage);
+        if (f == null) return;
+        try {
+            String asset = imageAssetService.importFile(f.toPath());
+            String title = f.getName().replaceFirst("\\.[^.]+$", "");
+            editHandout(null, asset, title, true);
+        } catch (IOException ex) {
+            showError("Não foi possível usar a imagem: " + ex.getMessage());
+        }
+    }
+
+    /** Revela (se precisar) e abre na tela de quem recebe. */
+    private void showHandoutToPlayers(com.vttcaseiro.model.Handout handout) {
+        List<com.vttcaseiro.model.Handout> all = handoutStore.load();
+        for (com.vttcaseiro.model.Handout h : all) {
+            if (!h.getId().equals(handout.getId())) continue;
+            h.setRevealed(true);
+            handoutStore.save(all);
+            networkService.sendHandoutShow(h);
+            logEntries.add(LogEntry.system("Mostrando \"" + h.getTitle() + "\" pra "
+                    + (h.getRecipients().isEmpty() ? "todos os jogadores" : String.join(", ", h.getRecipients())) + "."));
+            break;
+        }
+        refreshJournal();
+    }
+
+    /** Nomes pra "pra quem": quem esta conectado (menos eu) e quem ja estava na lista. */
+    List<String> handoutRecipientChoices(com.vttcaseiro.model.Handout existing) {
+        java.util.LinkedHashSet<String> names = new java.util.LinkedHashSet<>();
+        String me = networkService.getPlayerName();
+        for (String n : networkService.getOnlinePlayers()) if (n != null && !n.equals(me)) names.add(n);
+        if (existing != null) names.addAll(existing.getRecipients());
+        return new ArrayList<>(names);
+    }
+
+    private void editHandout(com.vttcaseiro.model.Handout existing, String presetAsset, String presetTitle, boolean presetShow) {
         javafx.scene.control.Dialog<javafx.scene.control.ButtonType> dialog = new javafx.scene.control.Dialog<>();
-        dialog.setTitle(existing == null ? "Nova anotação" : "Editar anotação");
+        dialog.setTitle(existing == null ? (presetAsset != null ? "Mandar imagem" : "Nova anotação") : "Editar anotação");
         dialog.setHeaderText(existing != null && existing.isRevealed() ? "Revelada: os jogadores recebem a mudança" : null);
         dialog.initOwner(stage);
-        TextField title = new TextField(existing == null ? "" : existing.getTitle());
+        TextField title = new TextField(existing == null ? (presetTitle == null ? "" : presetTitle) : existing.getTitle());
         title.setPromptText("Carta do Barao");
         javafx.scene.control.TextArea text = new javafx.scene.control.TextArea(existing == null ? "" : existing.getText());
         text.setWrapText(true);
         text.setPrefRowCount(10);
-        String[] assetId = {existing == null ? null : existing.getImageAssetId()};
+        String[] assetId = {existing == null ? presetAsset : existing.getImageAssetId()};
         Label imageInfo = new Label(assetId[0] == null ? "Sem imagem" : "Com imagem");
         imageInfo.getStyleClass().add("label-muted");
         Button chooseImage = new Button("Escolher imagem...");
@@ -4768,8 +4851,34 @@ public class Main extends Application {
             assetId[0] = null;
             imageInfo.setText("Sem imagem");
         });
+        // pra quem vai: todos, ou so alguns (cada um ve so o que e dele)
+        List<String> names = handoutRecipientChoices(existing);
+        javafx.scene.control.ToggleGroup toWhom = new javafx.scene.control.ToggleGroup();
+        javafx.scene.control.RadioButton toAll = new javafx.scene.control.RadioButton("Todos os jogadores");
+        javafx.scene.control.RadioButton toSome = new javafx.scene.control.RadioButton("Só pra:");
+        toAll.setToggleGroup(toWhom);
+        toSome.setToggleGroup(toWhom);
+        javafx.scene.layout.FlowPane picks = new javafx.scene.layout.FlowPane(10, 6);
+        List<CheckBox> pickBoxes = new ArrayList<>();
+        for (String n : names) {
+            CheckBox cb = new CheckBox(n);
+            cb.setSelected(existing != null && existing.getRecipients().contains(n));
+            pickBoxes.add(cb);
+            picks.getChildren().add(cb);
+        }
+        if (names.isEmpty()) {
+            Label none = new Label("(ninguém conectado agora)");
+            none.getStyleClass().add("label-muted");
+            picks.getChildren().add(none);
+            toSome.setDisable(true);
+        }
+        boolean some = existing != null && !existing.getRecipients().isEmpty();
+        (some ? toSome : toAll).setSelected(true);
+        picks.disableProperty().bind(toSome.selectedProperty().not());
+        CheckBox showNow = new CheckBox("Revelar e abrir agora na tela de quem recebe");
+        showNow.setSelected(presetShow);
         VBox content = new VBox(8, new Label("Título"), title, new Label("Texto"), text,
-                new HBox(8, chooseImage, noImage, imageInfo));
+                new HBox(8, chooseImage, noImage, imageInfo), new Label("Pra quem"), new HBox(12, toAll, toSome), picks, showNow);
         content.setPrefWidth(460);
         dialog.getDialogPane().setContent(content);
         dialog.getDialogPane().getButtonTypes().addAll(javafx.scene.control.ButtonType.OK,
@@ -4782,9 +4891,19 @@ public class Main extends Application {
             h.setTitle(title.getText());
             h.setText(text.getText());
             h.setImageAssetId(assetId[0]);
+            List<String> chosen = new ArrayList<>();
+            if (toSome.isSelected()) for (CheckBox cb : pickBoxes) if (cb.isSelected()) chosen.add(cb.getText());
+            h.setRecipients(chosen);
+            if (showNow.isSelected()) h.setRevealed(true);
             if (all.stream().noneMatch(x -> x.getId().equals(h.getId()))) all.add(h);
             handoutStore.save(all);
-            if (h.isRevealed()) networkService.sendHandout(h);
+            if (showNow.isSelected()) {
+                networkService.sendHandoutShow(h);
+                logEntries.add(LogEntry.system("Mostrando \"" + h.getTitle() + "\" pra "
+                        + (chosen.isEmpty() ? "todos os jogadores" : String.join(", ", chosen)) + "."));
+            } else if (h.isRevealed()) {
+                networkService.sendHandout(h);
+            }
             refreshJournal();
             journalItems.stream().filter(x -> x.getId().equals(h.getId())).findFirst()
                     .ifPresent(x -> journalList.getSelectionModel().select(x));
@@ -7835,6 +7954,16 @@ public class Main extends Application {
             }
             case com.vttcaseiro.model.MapZone.NOTE -> logEntries.add(LogEntry.system("Aviso \"" + zone.label() + "\"" + where
                     + ": " + who + " entrou. " + zone.getText()));
+            case com.vttcaseiro.model.MapZone.SOUND -> {
+                com.vttcaseiro.model.AudioCommand cmd = zoneSound(zone);
+                if (cmd != null) {
+                    if (com.vttcaseiro.model.AudioCommand.MUSIC.equals(cmd.getChannel())) playlist.clear(); // a zona manda na musica agora
+                    gmAudio(cmd);
+                }
+                logEntries.add(LogEntry.system("Som \"" + zone.label() + "\"" + where + ": " + who + " entrou"
+                        + (cmd == null ? "." : cmd.isStop() ? " (parou o som)." : " (" + zone.getSoundName() + ").")
+                        + (zone.getText().isBlank() ? "" : " " + zone.getText())));
+            }
             default -> {
                 // armadilha
                 String detail = "Salvaguarda de " + zone.getAbility() + " CD " + zone.getDc()
@@ -7862,6 +7991,15 @@ public class Main extends Application {
         }
     }
 
+    /** O que a zona de som toca (null = nada: efeito sem som escolhido). */
+    static com.vttcaseiro.model.AudioCommand zoneSound(com.vttcaseiro.model.MapZone zone) {
+        String ch = zone.getSoundChannel();
+        if (zone.getSoundId() == null) {
+            return com.vttcaseiro.model.AudioCommand.SFX.equals(ch) ? null : com.vttcaseiro.model.AudioCommand.stop(ch);
+        }
+        return com.vttcaseiro.model.AudioCommand.play(ch, zone.getSoundId(), zone.getSoundName());
+    }
+
     /** Portal: o jogador vai pra cena de destino e o token dele vai junto (aparece perto do portal de volta). */
     private void sendPlayerThroughPortal(String owner, String target, TokenModel token, String fromScene) {
         try {
@@ -7887,7 +8025,7 @@ public class Main extends Application {
         d.setTitle(creating ? "Nova zona" : "Editar zona");
         d.setHeaderText(null);
         String[] labels = {"Armadilha", "Portal / escada pra outra cena", "Área de dano (começo do turno)",
-                "Terreno difícil", "Aviso"};
+                "Terreno difícil", "Aviso", "Som (efeito, música ou ambiente)"};
         javafx.scene.control.ComboBox<String> kind = new javafx.scene.control.ComboBox<>(
                 javafx.collections.FXCollections.observableArrayList(labels));
         int k = java.util.Arrays.asList(com.vttcaseiro.model.MapZone.KINDS).indexOf(z.getKind());
@@ -7924,6 +8062,33 @@ public class Main extends Application {
         rearm.setManaged(z.isTriggered());
         CheckBox visible = new CheckBox("Jogadores veem a zona no mapa");
         visible.setSelected(z.isVisibleToPlayers());
+        List<com.vttcaseiro.model.SoundEntry> sounds = new ArrayList<>();
+        try {
+            if (soundIndex != null) sounds.addAll(soundIndex.load());
+        } catch (RuntimeException ignored) {
+            // biblioteca de sons estragada: so da pra parar
+        }
+        javafx.scene.control.ComboBox<String> sound = new javafx.scene.control.ComboBox<>();
+        sound.getItems().add("(parar o que está tocando)");
+        int soundSel = 0;
+        for (int i = 0; i < sounds.size(); i++) {
+            sound.getItems().add(sounds.get(i).getName());
+            if (sounds.get(i).getId().equals(z.getSoundId())) soundSel = i + 1;
+        }
+        if (z.getSoundId() != null && soundSel == 0) {
+            sound.getItems().add(z.getSoundName().isBlank() ? "(som que saiu da biblioteca)" : z.getSoundName());
+            soundSel = sound.getItems().size() - 1;
+        }
+        sound.getSelectionModel().select(soundSel);
+        String[] channels = {com.vttcaseiro.model.AudioCommand.SFX, com.vttcaseiro.model.AudioCommand.MUSIC,
+                com.vttcaseiro.model.AudioCommand.AMBIENT};
+        javafx.scene.control.ComboBox<String> channel = new javafx.scene.control.ComboBox<>(javafx.collections.FXCollections
+                .observableArrayList("Efeito (toca uma vez)", "Trocar a música", "Trocar o ambiente (em loop)"));
+        channel.getSelectionModel().select(Math.max(0, java.util.Arrays.asList(channels).indexOf(z.getSoundChannel())));
+        CheckBox playersOnly = new CheckBox("Só com token de jogador (monstro andando não dispara)");
+        playersOnly.setSelected(z.isPlayersOnly());
+        Label soundHint = new Label(sounds.isEmpty() ? "Traga sons na aba Som pra escolher aqui." : "Toca pra todos, como na aba Som.");
+        soundHint.getStyleClass().add("label-muted");
 
         javafx.scene.layout.GridPane g = new javafx.scene.layout.GridPane();
         g.setHgap(8);
@@ -7942,11 +8107,17 @@ public class Main extends Application {
         g.add(half, 1, row++);
         Label targetL = new Label("Leva pra");
         g.addRow(row++, targetL, target);
+        Label soundL = new Label("Som");
+        g.addRow(row++, soundL, sound);
+        Label channelL = new Label("Como");
+        g.addRow(row++, channelL, channel);
+        g.add(soundHint, 1, row++);
         g.addRow(row++, new Label("Texto"), text);
         g.add(tell, 1, row++);
         g.add(once, 1, row++);
         g.add(rearm, 1, row++);
         g.add(visible, 1, row++);
+        g.add(playersOnly, 1, row++);
         Runnable byKind = () -> {
             String kk = com.vttcaseiro.model.MapZone.KINDS[Math.max(0, kind.getSelectionModel().getSelectedIndex())];
             boolean trap = kk.equals(com.vttcaseiro.model.MapZone.TRAP);
@@ -7956,11 +8127,19 @@ public class Main extends Application {
             for (javafx.scene.Node n : List.of(saveL, save, half)) { n.setVisible(trap); n.setManaged(trap); }
             for (javafx.scene.Node n : List.of(dmgL, dmg)) { n.setVisible(trap || dmgZone); n.setManaged(trap || dmgZone); }
             for (javafx.scene.Node n : List.of(targetL, target)) { n.setVisible(portal); n.setManaged(portal); }
+            boolean soundZone = kk.equals(com.vttcaseiro.model.MapZone.SOUND);
+            for (javafx.scene.Node n : List.of(soundL, sound, channelL, channel, soundHint)) {
+                n.setVisible(soundZone);
+                n.setManaged(soundZone);
+            }
+            playersOnly.setVisible(!terrain && !dmgZone);
+            playersOnly.setManaged(!terrain && !dmgZone);
             once.setVisible(!terrain && !dmgZone);
             once.setManaged(!terrain && !dmgZone);
             if (creating) {
                 visible.setSelected(terrain);
                 once.setSelected(trap);
+                playersOnly.setSelected(soundZone);
             }
             d.getDialogPane().getScene().getWindow().sizeToScene();
         };
@@ -7982,6 +8161,16 @@ public class Main extends Application {
         z.setOnce(once.isSelected());
         if (rearm.isSelected()) z.setTriggered(false);
         z.setVisibleToPlayers(visible.isSelected());
+        z.setPlayersOnly(playersOnly.isSelected());
+        z.setSoundChannel(channels[Math.max(0, channel.getSelectionModel().getSelectedIndex())]);
+        int si = sound.getSelectionModel().getSelectedIndex();
+        if (si <= 0) {
+            z.setSoundId(null);
+            z.setSoundName("");
+        } else if (si <= sounds.size()) {
+            z.setSoundId(sounds.get(si - 1).getId());
+            z.setSoundName(sounds.get(si - 1).getName());
+        } // senao: o som antigo que saiu da biblioteca fica como estava
         return true;
     }
 
@@ -8095,6 +8284,7 @@ public class Main extends Application {
      */
     void refreshTurnQueue() {
         if (sceneService == null) return;
+        updateTurnClock();
         refreshTabBadges();
         SceneModel sc = sceneService.getScene();
         com.vttcaseiro.model.Encounter enc = sc.getEncounter();
@@ -8109,6 +8299,7 @@ public class Main extends Application {
         Label round = new Label("Rodada " + enc.getRound());
         round.getStyleClass().add("turn-round");
         turnQueue.getChildren().add(round);
+        if (turnTimer.running()) turnQueue.getChildren().add(turnClock);
         // comeca em quem esta na vez, e da a volta
         int cur = 0;
         for (int i = 0; i < order.size(); i++) if (order.get(i).getId().equals(enc.getCurrentTokenId())) cur = i;
@@ -8130,6 +8321,102 @@ public class Main extends Application {
             next.setOnAction(e -> table.nextTurn());
             turnQueue.getChildren().add(next);
         }
+    }
+
+    // ---------------- relogio do turno
+
+    private final com.vttcaseiro.service.TurnTimer turnTimer = new com.vttcaseiro.service.TurnTimer();
+    /** Relogio na fila de turnos (sobre o mapa) e no painel de combate. */
+    private final Label turnClock = new Label();
+    private Label turnClockPanel;
+    private Button turnTimerButton;
+    private javafx.animation.Timeline turnClockTick;
+
+    /** Combate mudou: recomeca o relogio se a vez mudou e liga/desliga o tique. */
+    void updateTurnClock() {
+        com.vttcaseiro.model.Encounter enc = sceneService.getScene().getEncounter();
+        turnTimer.update(enc, System.currentTimeMillis());
+        if (turnClock.getStyleClass().isEmpty() || !turnClock.getStyleClass().contains("turn-clock")) {
+            turnClock.getStyleClass().add("turn-clock");
+            turnClock.setOnMouseClicked(e -> {
+                if (networkService.isGm()) table.setTurnTimerPaused(!sceneService.getScene().getEncounter().isTimerPaused());
+            });
+        }
+        turnClock.setTooltip(new Tooltip(networkService.isGm() ? "Tempo do turno. Clique pausa/continua." : "Tempo do turno"));
+        if (turnTimer.running() && turnClockTick == null) {
+            turnClockTick = new javafx.animation.Timeline(new javafx.animation.KeyFrame(
+                    javafx.util.Duration.millis(250), e -> tickTurnClock()));
+            turnClockTick.setCycleCount(javafx.animation.Animation.INDEFINITE);
+            turnClockTick.play();
+        } else if (!turnTimer.running() && turnClockTick != null) {
+            turnClockTick.stop();
+            turnClockTick = null;
+        }
+        tickTurnClock();
+    }
+
+    void tickTurnClock() {
+        long now = System.currentTimeMillis();
+        boolean on = turnTimer.running();
+        String text = on ? com.vttcaseiro.service.TurnTimer.format(turnTimer.leftMs(now)) + (turnTimer.paused() ? " (pausado)" : "") : "";
+        String state = on ? turnTimer.state(now) : "ok";
+        for (Label l : new Label[]{turnClock, turnClockPanel}) {
+            if (l == null) continue;
+            l.setText(text);
+            l.getStyleClass().removeAll("turn-clock-warn", "turn-clock-over");
+            if (!"ok".equals(state)) l.getStyleClass().add("turn-clock-" + state);
+        }
+        if (turnClockPanel != null) showNode(turnClockPanel, on);
+        if (turnTimer.checkExpired(now)) {
+            com.vttcaseiro.model.Encounter enc = sceneService.getScene().getEncounter();
+            TokenModel cur = sceneService.getScene().findToken(enc.getCurrentTokenId()).orElse(null);
+            if (cur != null && (networkService.isGm() || table.canControl(cur))) {
+                logEntries.add(LogEntry.system("Acabou o tempo do turno de " + cur.getName() + "."));
+            }
+        }
+    }
+
+    /** Menu do mestre: tempo por turno, pausar e reiniciar. */
+    javafx.scene.control.ContextMenu turnTimerMenu() {
+        javafx.scene.control.ContextMenu m = new javafx.scene.control.ContextMenu();
+        com.vttcaseiro.model.Encounter enc = sceneService.getScene().getEncounter();
+        javafx.scene.control.ToggleGroup group = new javafx.scene.control.ToggleGroup();
+        boolean known = false;
+        for (int s : new int[]{0, 30, 60, 90, 120, 180, 300}) {
+            javafx.scene.control.RadioMenuItem it = new javafx.scene.control.RadioMenuItem(com.vttcaseiro.service.TurnTimer.label(s));
+            it.setToggleGroup(group);
+            it.setSelected(enc.getTurnSeconds() == s);
+            known |= enc.getTurnSeconds() == s;
+            it.setOnAction(e -> table.setTurnTimer(s));
+            m.getItems().add(it);
+        }
+        javafx.scene.control.RadioMenuItem custom = new javafx.scene.control.RadioMenuItem(known ? "Outro tempo..."
+                : "Outro tempo (" + com.vttcaseiro.service.TurnTimer.label(enc.getTurnSeconds()) + ")...");
+        custom.setToggleGroup(group);
+        custom.setSelected(!known);
+        custom.setOnAction(e -> {
+            javafx.scene.control.TextInputDialog d = new javafx.scene.control.TextInputDialog(String.valueOf(Math.max(10, enc.getTurnSeconds())));
+            d.initOwner(stage);
+            d.setTitle("Relógio do turno");
+            d.setHeaderText(null);
+            d.setContentText("Segundos por turno:");
+            d.showAndWait().ifPresent(v -> {
+                try {
+                    table.setTurnTimer(Integer.parseInt(v.strip()));
+                } catch (NumberFormatException ex) {
+                    showError("Use um número de segundos (ex.: 45).");
+                }
+            });
+        });
+        m.getItems().addAll(custom, new javafx.scene.control.SeparatorMenuItem());
+        javafx.scene.control.MenuItem pause = new javafx.scene.control.MenuItem(enc.isTimerPaused() ? "Continuar o relógio" : "Pausar o relógio");
+        pause.setDisable(enc.getTurnSeconds() <= 0);
+        pause.setOnAction(e -> table.setTurnTimerPaused(!enc.isTimerPaused()));
+        javafx.scene.control.MenuItem restart = new javafx.scene.control.MenuItem("Reiniciar o tempo deste turno");
+        restart.setDisable(enc.getTurnSeconds() <= 0 || !enc.isActive());
+        restart.setOnAction(e -> table.restartTurnTimer());
+        m.getItems().addAll(pause, restart);
+        return m;
     }
 
     /** "Goblin 3" -> "Goblin" (nome do grupo na iniciativa). */
@@ -9590,8 +9877,21 @@ public class Main extends Application {
                 boolean isNew = !receivedHandouts.containsKey(handout.getId());
                 receivedHandouts.put(handout.getId(), handout);
                 refreshJournal();
-                logEntries.add(LogEntry.system((isNew ? "Nova anotação no diário: " : "Anotação atualizada no diário: ")
-                        + handout.getTitle() + " (aba Diário)"));
+                boolean mine = !handout.getRecipients().isEmpty();
+                logEntries.add(LogEntry.system((isNew ? (mine ? "O mestre te mandou: " : "Nova anotação no diário: ")
+                        : "Anotação atualizada no diário: ") + handout.getTitle() + " (aba Diário)"));
+            });
+        }
+
+        @Override
+        public void onHandoutShow(com.vttcaseiro.model.Handout handout) {
+            Platform.runLater(() -> {
+                if (networkService.isGm()) return;
+                if (journalList != null) {
+                    journalItems.stream().filter(x -> x.getId().equals(handout.getId())).findFirst()
+                            .ifPresent(x -> journalList.getSelectionModel().select(x));
+                }
+                openHandoutWindow(handout);
             });
         }
 

@@ -505,6 +505,27 @@ public class TableService {
         publishEncounter();
     }
 
+    /** Relogio do turno: segundos por turno (0 desliga). So avisa; ninguem perde a vez sozinho. */
+    public void setTurnTimer(int seconds) {
+        if (!requireGm("liga o relógio do turno")) return;
+        scene().getEncounter().setTurnSeconds(seconds);
+        scene().getEncounter().setTimerPaused(false);
+        publishEncounter();
+    }
+
+    public void setTurnTimerPaused(boolean paused) {
+        if (!requireGm("pausa o relógio do turno")) return;
+        scene().getEncounter().setTimerPaused(paused);
+        publishEncounter();
+    }
+
+    /** Recomeca o relogio do turno atual do zero. */
+    public void restartTurnTimer() {
+        if (!requireGm("reinicia o relógio do turno")) return;
+        scene().getEncounter().restartTimer();
+        publishEncounter();
+    }
+
     public void startEncounter() {
         if (!port.isGm()) {
             port.error("Só o mestre controla os turnos.");

@@ -491,6 +491,22 @@ Combate > Mestre > **Agrupar monstros iguais**: monstros da mesma ficha ("4 Gobl
 aparecem numa linha ("Goblin x4") na lista e na fila de turnos e jogam no mesmo turno. Vale na proxima
 "Rolar e comecar".
 
+### Relogio do turno
+
+Combate > icone do relogio (mestre): quanto tempo cada um tem pra jogar (30 s a 5 min, ou outro). Aparece na fila de
+turnos sobre o mapa e no painel de combate, pra todos (no navegador tambem); fica amarelo nos ultimos 10 segundos e
+vermelho quando acaba. **So avisa** (no chat do mestre e de quem esta na vez): ninguem perde o turno sozinho. Recomeca
+a cada turno; o mestre pausa clicando no relogio da fila, e no menu tem "Reiniciar o tempo deste turno".
+
+### Mandar material pros jogadores (Diario)
+
+- **Mandar imagem pra...**: escolhe a imagem (bilhete, mapa do tesouro, retrato), pra quem vai e ela ja abre numa
+  janela na tela deles. Fica guardada no Diario de cada um.
+- Toda anotacao do Diario tem **Pra quem**: todos os jogadores ou so alguns (quem esta conectado). Quem nao esta na
+  lista nem recebe; tirar alguem da lista tira a anotacao dele. Na lista do mestre aparece "→ Ana, Beto".
+- **Abrir na tela deles**: revela a escolhida (se precisar) e abre na tela de quem recebe. No navegador, abre a aba
+  Diario nela.
+
 ### Musicas em sequencia
 
 Som > **Tocar em sequencia**: toca as musicas escolhidas (Ctrl+clique pra escolher varias; nenhuma ou uma = a
@@ -570,6 +586,9 @@ clique numa zona pra editar (botao direito: apagar).
 - **Area de dano**: quem comeca o turno dentro (lava, fogo, acido) leva o dano e aparece no chat.
 - **Terreno dificil**: a regua de movimento conta cada casa dentro em dobro. Nasce visivel pros jogadores.
 - **Aviso**: um texto pro mestre quando alguem entra (e, se marcado, pro jogador por sussurro).
+- **Som**: quando alguem entra, toca pra todos um som da aba Som: um efeito (uma vez), troca a musica ou troca o
+  ambiente (em loop). "(parar o que esta tocando)" para a musica/ambiente. Com "So com token de jogador" (ligado por
+  padrao), monstro andando nao dispara. Bom pra taverna, caverna, chuva la fora.
 
 So o mestre ve as zonas; o servidor nem manda as escondidas pros jogadores. O aviso chega pro mestre mesmo que ele
 esteja olhando outra cena. Jogando sozinho (sem conexao), o proprio programa confere as zonas quando o token e

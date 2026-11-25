@@ -379,6 +379,13 @@ public class NetMessage {
         return m;
     }
 
+    /** Anotacao que ja abre na tela de quem recebe ("olhem isto"). */
+    public static NetMessage handoutShow(com.vttcaseiro.model.Handout h) {
+        NetMessage m = handoutSync(h);
+        m.pull = true;
+        return m;
+    }
+
     public static NetMessage handoutRemove(String id) {
         NetMessage m = new NetMessage();
         m.type = "handout_remove";

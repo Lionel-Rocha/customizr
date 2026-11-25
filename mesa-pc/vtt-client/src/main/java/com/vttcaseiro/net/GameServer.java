@@ -535,7 +535,12 @@ public class GameServer {
                     if (!from.isGm() || msg.handout == null || msg.handout.getId() == null) break;
                     if (msg.handout.isRevealed()) {
                         sharedHandouts.put(msg.handout.getId(), msg.handout);
-                        broadcastExcept(msg, from);
+                        // so pra quem esta na lista (vazia = todos); quem saiu da lista perde a anotacao
+                        NetMessage gone = NetMessage.handoutRemove(msg.handout.getId());
+                        for (ClientHandler c : clients) {
+                            if (c == from || c.getSession() == null) continue;
+                            c.send(c.isGm() || msg.handout.isFor(c.getSession().playerName()) ? msg : gone);
+                        }
                     } else if (sharedHandouts.remove(msg.handout.getId()) != null) {
                         broadcastExcept(NetMessage.handoutRemove(msg.handout.getId()), from);
                     }
@@ -788,7 +793,8 @@ public class GameServer {
                             .forEach(sheet -> from.send(NetMessage.characterSync(sheet)));
                     sharedMobs.values().stream().filter(mob -> from.isGm() || !mob.isHiddenFromPlayers())
                             .forEach(mob -> from.send(NetMessage.mobSync(mob)));
-                    sharedHandouts.values().forEach(h -> from.send(NetMessage.handoutSync(h)));
+                    sharedHandouts.values().stream().filter(h -> from.isGm() || h.isFor(session.playerName()))
+                            .forEach(h -> from.send(NetMessage.handoutSync(h)));
                     com.vttcaseiro.model.Campaign camp = sharedCampaign;
                     if (camp != null) from.send(NetMessage.campaignSync(from.isGm() ? camp : camp.publicCopy()));
                     playingAudio.values().forEach(a -> from.send(NetMessage.audio(a)));

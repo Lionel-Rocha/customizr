@@ -55,6 +55,18 @@ public class Encounter {
     public String getCurrentTokenId() { return currentTokenId; }
     public void setCurrentTokenId(String id) { this.currentTokenId = id; }
 
+    /** Relogio do turno: segundos por turno (0 = desligado), pausado e quantas vezes o mestre reiniciou. */
+    private int turnSeconds;
+    private boolean timerPaused;
+    private int timerResets;
+
+    public int getTurnSeconds() { return turnSeconds; }
+    public void setTurnSeconds(int s) { this.turnSeconds = Math.max(0, Math.min(3600, s)); }
+    public boolean isTimerPaused() { return timerPaused; }
+    public void setTimerPaused(boolean p) { this.timerPaused = p; }
+    public int getTimerResets() { return timerResets; }
+    public void restartTimer() { timerResets++; timerPaused = false; }
+
     public List<TimedEffect> getTimedEffects() {
         if (timedEffects == null) timedEffects = new ArrayList<>();
         return timedEffects;

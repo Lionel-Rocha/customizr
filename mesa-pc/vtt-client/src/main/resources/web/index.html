@@ -399,7 +399,9 @@ function handle(m) {
     case 'poll': renderPoll(m); break;
     case 'handout_sync': {
       const isNew = !S.handouts[m.handout.id]; S.handouts[m.handout.id] = m.handout;
-      addLog({ kind: 'system', text: (isNew ? 'Nova anotação no diário: ' : 'Anotação atualizada: ') + (m.handout.title || '') });
+      const mine = (m.handout.recipients || []).length > 0;
+      addLog({ kind: 'system', text: (isNew ? (mine ? 'O mestre te mandou: ' : 'Nova anotação no diário: ') : 'Anotação atualizada: ') + (m.handout.title || '') });
+      if (m.pull) { S.selectedHandout = m.handout.id; document.querySelector('nav button[data-tab="journal"]').click(); }
       renderJournal(); break;
     }
     case 'handout_remove': delete S.handouts[m.text]; renderJournal(); break;
@@ -773,7 +775,7 @@ function render(now) {
     ctx.stroke();
   }
   // Zonas que o mestre deixou visiveis (terreno dificil, area marcada)
-  const ZONE_COLORS = { armadilha: '#E8A23E', portal: '#5B9BEF', dano: '#E5534B', terreno: '#B08850', aviso: '#3FB968' };
+  const ZONE_COLORS = { armadilha: '#E8A23E', portal: '#5B9BEF', dano: '#E5534B', terreno: '#B08850', aviso: '#3FB968', som: '#B07CE8' };
   for (const zn of sc.zones || []) {
     const col = ZONE_COLORS[zn.kind] || '#B08850';
     ctx.save(); ctx.fillStyle = col + '29'; ctx.fillRect(zn.x, zn.y, zn.width, zn.height);
@@ -1586,14 +1588,40 @@ function renderJournal() {
     view.append(el('p', {}, h.text || ''));
   }
 }
+// relogio do turno: cada um conta com o proprio relogio; recomeca quando a vez muda (so avisa, nao pula)
+function turnTimerUpdate() {
+  const e = S.encounter, now = Date.now(), T = S.tt || (S.tt = { key: null, paused: -1 });
+  const k = e && e.active && e.turnSeconds > 0 && e.currentTokenId ? [e.round, e.currentTokenId, e.timerResets || 0, e.turnSeconds].join('|') : null;
+  if (k !== T.key) { T.key = k; T.start = now; T.paused = -1; T.warned = false; }
+  if (!k) return;
+  T.total = e.turnSeconds * 1000;
+  if (e.timerPaused && T.paused < 0) T.paused = turnLeft(now);
+  else if (!e.timerPaused && T.paused >= 0) { T.start = now - (T.total - T.paused); T.paused = -1; }
+}
+function turnLeft(now) {
+  const T = S.tt; if (!T || !T.key) return 0;
+  return T.paused >= 0 ? T.paused : Math.max(0, T.total - (now - T.start));
+}
+function fmtClock(ms) { const s = Math.ceil(Math.max(0, ms) / 1000); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
 function renderEncounter() {
   const e = S.encounter, box = $('encounter');
+  turnTimerUpdate();
   if (!e || !e.active) { box.textContent = 'Sem combate.'; $('turn').textContent = ''; return; }
   const cur = token(e.currentTokenId);
   const name = cur ? cur.name : '???';
-  box.textContent = `Rodada ${e.round} -- turno de ${name}`;
-  $('turn').textContent = `Rodada ${e.round}: ${name}` + (cur && isMine(cur) && !S.gm ? ' (sua vez!)' : '');
+  let clock = '';
+  if (S.tt && S.tt.key) {
+    const left = turnLeft(Date.now());
+    clock = ' · ' + fmtClock(left) + (S.tt.paused >= 0 ? ' (pausado)' : left <= 0 ? ' (acabou o tempo)' : '');
+    if (left <= 0 && !S.tt.warned) {
+      S.tt.warned = true;
+      if (cur && isMine(cur)) addLog({ kind: 'system', text: 'Acabou o tempo do turno de ' + name + '.' });
+    }
+  }
+  box.textContent = `Rodada ${e.round} -- turno de ${name}` + clock;
+  $('turn').textContent = `Rodada ${e.round}: ${name}` + (cur && isMine(cur) && !S.gm ? ' (sua vez!)' : '') + clock;
 }
+setInterval(() => { if (S.tt && S.tt.key) renderEncounter(); }, 500);
 function renderPlayers() {
   const box = $('players'); box.innerHTML = '';
   for (const p of S.players) box.append(el('div', {}, (p.name || p) + (p.gm ? ' (mestre)' : '')));

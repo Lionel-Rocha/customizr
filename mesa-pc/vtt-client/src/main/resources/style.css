@@ -1323,6 +1323,23 @@
     -fx-font-size: 11px;
     -fx-padding: 0 4 0 0;
 }
+/* relogio do turno (fila e painel de combate) */
+.turn-clock {
+    -fx-font-weight: bold;
+    -fx-text-fill: -c-text;
+    -fx-background-color: -c-raised;
+    -fx-background-radius: 8;
+    -fx-padding: 2 7 2 7;
+    -fx-cursor: hand;
+}
+.turn-clock-warn {
+    -fx-text-fill: #1A1300;
+    -fx-background-color: #E8B93C;
+}
+.turn-clock-over {
+    -fx-text-fill: white;
+    -fx-background-color: -c-danger;
+}
 .turn-card, .turn-card-current {
     -fx-background-radius: 9;
     -fx-padding: 4 8 4 4;

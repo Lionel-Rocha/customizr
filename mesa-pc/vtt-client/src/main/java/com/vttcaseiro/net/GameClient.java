@@ -156,6 +156,10 @@ public class GameClient {
         default void onHandoutRemoved(String id) {
         }
 
+        /** O mestre mandou abrir esta anotacao na tela. */
+        default void onHandoutShow(com.vttcaseiro.model.Handout handout) {
+        }
+
         default void onFogSync(com.vttcaseiro.model.Fog fog) {
         }
 
@@ -536,6 +540,7 @@ public class GameClient {
                 if (msg.handout != null) {
                     requestImageIfMissing(msg.handout.getImageAssetId());
                     listener.onHandoutSync(msg.handout);
+                    if (Boolean.TRUE.equals(msg.pull)) listener.onHandoutShow(msg.handout);
                 }
             }
             case "handout_remove" -> listener.onHandoutRemoved(msg.text);
@@ -659,6 +664,11 @@ public class GameClient {
     public void sendHandout(com.vttcaseiro.model.Handout h) {
         pushImageAssetIfNew(h.getImageAssetId());
         send(NetMessage.handoutSync(h));
+    }
+
+    public void sendHandoutShow(com.vttcaseiro.model.Handout h) {
+        pushImageAssetIfNew(h.getImageAssetId());
+        send(NetMessage.handoutShow(h));
     }
 
     public void sendHandoutRemove(String id) {

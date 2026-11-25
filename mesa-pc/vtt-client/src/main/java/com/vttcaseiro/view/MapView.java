@@ -547,6 +547,7 @@ public class MapView extends Pane {
             case com.vttcaseiro.model.MapZone.DAMAGE -> "#E5534B";
             case com.vttcaseiro.model.MapZone.TERRAIN -> "#B08850";
             case com.vttcaseiro.model.MapZone.NOTE -> "#3FB968";
+            case com.vttcaseiro.model.MapZone.SOUND -> "#B07CE8";
             default -> "#E8A23E";
         };
     }

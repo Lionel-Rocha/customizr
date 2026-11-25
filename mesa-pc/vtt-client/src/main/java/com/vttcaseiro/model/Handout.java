@@ -1,5 +1,7 @@
 package com.vttcaseiro.model;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -16,6 +18,8 @@ public class Handout {
     private String text = "";
     private String imageAssetId;
     private boolean revealed;
+    /** Pra quem vai (nomes dos jogadores); vazio = todos. */
+    private List<String> recipients = new ArrayList<>();
 
     public Handout() {
     }
@@ -39,6 +43,22 @@ public class Handout {
 
     public String getImageAssetId() { return imageAssetId; }
     public void setImageAssetId(String imageAssetId) { this.imageAssetId = imageAssetId; }
+
+    public List<String> getRecipients() {
+        if (recipients == null) recipients = new ArrayList<>();
+        return recipients;
+    }
+
+    public void setRecipients(List<String> names) {
+        getRecipients().clear();
+        if (names == null) return;
+        for (String n : names) if (n != null && !n.isBlank() && !recipients.contains(n.strip())) recipients.add(n.strip());
+    }
+
+    /** Este jogador recebe? (sem lista: todos) */
+    public boolean isFor(String playerName) {
+        return getRecipients().isEmpty() || (playerName != null && getRecipients().contains(playerName));
+    }
 
     public boolean isRevealed() { return revealed; }
     public void setRevealed(boolean revealed) { this.revealed = revealed; }

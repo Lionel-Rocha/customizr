@@ -145,6 +145,9 @@ public class NetworkService {
         default void onHandoutRemoved(String id) {
         }
 
+        default void onHandoutShow(com.vttcaseiro.model.Handout handout) {
+        }
+
         void onChat(String player, String text);
 
         default void onChatImage(String player, String assetId, String caption, String whisperTo) {
@@ -659,6 +662,11 @@ public class NetworkService {
             }
 
             @Override
+            public void onHandoutShow(com.vttcaseiro.model.Handout handout) {
+                listener.onHandoutShow(handout);
+            }
+
+            @Override
             public void onHandoutRemoved(String id) {
                 listener.onHandoutRemoved(id);
             }
@@ -873,6 +881,10 @@ public class NetworkService {
 
     public void sendHandout(com.vttcaseiro.model.Handout h) {
         if (client != null) client.sendHandout(h);
+    }
+
+    public void sendHandoutShow(com.vttcaseiro.model.Handout h) {
+        if (client != null) client.sendHandoutShow(h);
     }
 
     public void sendHandoutRemove(String id) {

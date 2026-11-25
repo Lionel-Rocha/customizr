@@ -24,6 +24,7 @@ public final class ZoneRules {
         double[] a = center(scene, t, oldX, oldY);
         double[] b = center(scene, t, t.getX(), t.getY());
         for (MapZone z : scene.getZones()) {
+            if (z.isPlayersOnly() && (t.getOwnerId() == null || t.getOwnerId().isBlank())) continue;
             if (z.triggersOnEnter() && !z.contains(a[0], a[1]) && z.contains(b[0], b[1])) out.add(z);
         }
         return out;
