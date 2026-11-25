@@ -97,6 +97,18 @@ public final class MesaBackup {
             deleteQuietly(target);
             throw ex;
         }
+        // backup automatico copiado pra outra pasta: as imagens e sons ficam do lado do zip, em assets/
+        Path assets = zip.toAbsolutePath().getParent() == null ? null : zip.toAbsolutePath().getParent().resolve("assets");
+        if (assets != null && Files.isDirectory(assets)) {
+            try (java.util.stream.Stream<Path> walk = Files.walk(assets)) {
+                for (Path p : (Iterable<Path>) walk.filter(Files::isRegularFile)::iterator) {
+                    Path out = target.resolve(assets.getParent().relativize(p).toString()).normalize();
+                    if (!out.startsWith(target) || Files.exists(out)) continue;
+                    Files.createDirectories(out.getParent());
+                    Files.copy(p, out);
+                }
+            }
+        }
         return target;
     }
 

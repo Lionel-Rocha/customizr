@@ -171,6 +171,11 @@ Na mesma janela ficam os **backups automaticos** (ao abrir a mesa e a cada 10 mi
 mudou; da pra mudar o intervalo ou desligar), **"Fazer backup agora"** e **"Restaurar backup..."**
 (a copia vira uma mesa nova; a atual nao muda). E o **tema** do programa.
 
+Ficam os 20 backups mais novos e, alem deles, o ultimo de cada dia dos ultimos 14 dias (da pra voltar pra "como estava
+ontem"). **Copiar tambem pra outra pasta...**: cada backup vai tambem pra uma pasta sua (a do Google Drive, um pen
+drive), numa subpasta com o nome da mesa e com as imagens e sons. Se o computador der problema: em outro, tela de mesas
+> **Importar backup...** e escolha o .zip dessa pasta (as imagens e sons vem junto).
+
 ### Importar fichas (PDF ou JSON)
 
 Painel **Fichas** > **"Importar..."**. Aceita:
@@ -409,7 +414,10 @@ Fichas > **Lojas (comprar e vender)**. O mestre (ou quem joga sozinho) cria loja
 estoque (vazio = sem fim), escolhe quanto a loja paga quando o jogador vende (padrao: metade) e marca **Aberta pros
 jogadores**. O jogador abre a mesma janela, escolhe a ficha e compra ou vende: o pedido vai pro programa do mestre, que
 tira o dinheiro, poe o item no inventario, baixa o estoque e avisa no chat. Sem dinheiro ou sem estoque, o jogador
-recebe um sussurro dizendo o porque. (Pelo navegador ainda nao tem loja.)
+recebe um sussurro dizendo o porque. So vale com a propria ficha (o servidor recusa pedido com a ficha de outro).
+
+**No navegador**: aba Mesa > **Lojas** (aparece quando o mestre abre alguma). Mostra os itens com preco e estoque, as
+moedas da sua ficha e o que ela tem pra vender (com quanto a loja paga). O pedido vai pro mestre como no programa.
 
 ### Idiomas no chat
 
@@ -511,6 +519,13 @@ Nas tabelas aleatorias (Diario), os dados que aparecem no resultado ja saem rola
 Cada um escreve as proprias anotacoes da campanha. "So eu" fica no computador de quem escreveu; **compartilhada**
 aparece no Diario de todo mundo (no navegador tambem), com o nome de quem escreveu, e de quem entrar depois. So quem
 escreveu (ou o mestre) muda ou apaga. O mestre guarda as compartilhadas e manda de novo na proxima sessao.
+
+### Descanso do grupo
+
+Combate > Mestre > **Descanso curto** / **Descanso longo**: abre a lista de quem descansa (as fichas dos tokens no mapa
+e as do grupo, todas marcadas; desmarque quem fica de vigia). Curto: gasta dados de vida enquanto falta PV e recupera
+os recursos de descanso curto. Longo: PV, dados de vida, espacos de magia, recursos e -1 de exaustao. O chat mostra o
+que cada um recuperou ("Lyra: +14 PV, 1 dado de vida, 3 espacos de magia, Rage").
 
 ### Relogio do turno
 

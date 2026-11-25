@@ -217,6 +217,7 @@
           <div class="muted" style="margin-top:6px">Paredes, neblina, cenas e fichas completas continuam no programa.</div>
         </div>
         <div class="card"><h3>COMBATE</h3><div id="encounter" class="muted">Sem combate.</div></div>
+        <div class="card hidden" id="shopCard"><h3>LOJAS</h3><div id="shops"></div></div>
         <div class="card"><h3>SOM</h3>
           <div id="nowPlaying" class="gold">Música: --<br>Ambiente: --</div>
           <div class="row" style="margin-top:6px"><span style="width:70px">Música</span><input type="range" min="0" max="1" step="0.05" id="volMusic"></div>
@@ -302,7 +303,7 @@ function prove(password, challenge) {
 const $ = id => document.getElementById(id);
 const S = {
   ws: null, me: { id: null, name: '' }, password: '', joined: false,
-  scene: null, sheets: {}, handouts: {}, groupNotes: {}, encounter: null, players: [],
+  scene: null, sheets: {}, handouts: {}, groupNotes: {}, shops: [], shopSel: null, encounter: null, players: [],
   images: {}, view: { zoom: 1, tx: 40, ty: 40, init: false },
   drag: null, pan: null, pointers: new Map(), pinch: null, pingMode: false, pings: [],
   selectedSheet: null, rollMode: 'normal', dirty: true, selectedHandout: null,
@@ -378,7 +379,7 @@ function handle(m) {
       else addLog({ kind: m.player === 'servidor' ? 'system' : 'chat', who: m.player, text: m.text });
       break;
     case 'character_sync':
-      if (m.character && m.character.id) { m.character.__derived = m.derived; S.sheets[m.character.id] = m.character; renderSheet(); renderActionBar(); markDirty(); }
+      if (m.character && m.character.id) { m.character.__derived = m.derived; S.sheets[m.character.id] = m.character; renderSheet(); renderActionBar(); renderShops(); markDirty(); }
       break;
     case 'encounter_sync': S.encounter = m.encounter; if (S.scene) S.scene.encounter = m.encounter; renderEncounter(); markDirty(); break;
     case 'fog_sync': if (S.scene) { S.scene.fog = m.fog; markDirty(); } break;
@@ -397,6 +398,7 @@ function handle(m) {
       if (S.camLock && m.x != null) slideTo(m.x, m.y, m.zoom); break;
     case 'zones_sync': if (S.scene) { S.scene.zones = m.zones || []; markDirty(); } break;
     case 'poll': renderPoll(m); break;
+    case 'shops_sync': S.shops = m.shops || []; renderShops(); break;
     case 'handout_sync': {
       const isNew = !S.handouts[m.handout.id]; S.handouts[m.handout.id] = m.handout;
       const mine = (m.handout.recipients || []).length > 0;
@@ -1288,7 +1290,7 @@ canvas.addEventListener('wheel', ev => {
 // =====================================================================
 function el(tag, attrs, ...kids) {
   const e = document.createElement(tag);
-  for (const [k, v] of Object.entries(attrs || {})) { if (k === 'class') e.className = v; else if (k.startsWith('on')) e[k] = v; else e.setAttribute(k, v); }
+  for (const [k, v] of Object.entries(attrs || {})) { if (v == null) continue; if (k === 'class') e.className = v; else if (k.startsWith('on')) e[k] = v; else e.setAttribute(k, v); }
   for (const k of kids) if (k != null) e.append(k.nodeType ? k : String(k));
   return e;
 }
@@ -1636,6 +1638,74 @@ function renderEncounter() {
   $('turn').textContent = `Rodada ${e.round}: ${name}` + (cur && isMine(cur) && !S.gm ? ' (sua vez!)' : '') + clock;
 }
 setInterval(() => { if (S.tt && S.tt.key) renderEncounter(); }, 500);
+// =====================================================================
+// Lojas: o mestre abre no programa; aqui se compra e vende (o mestre aplica na ficha)
+// =====================================================================
+function coinsText(cp) {
+  if (!cp || cp <= 0) return 'de graça';
+  const gp = Math.floor(cp / 100), sp = Math.floor((cp % 100) / 10), c = cp % 10, out = [];
+  if (gp) out.push(gp + ' po'); if (sp) out.push(sp + ' pp'); if (c) out.push(c + ' pc');
+  return out.join(' ');
+}
+function purseText(inv) {
+  const a = (inv && inv.money && inv.money.amounts) || {};
+  const parts = [['PLATINUM', 'pl'], ['GOLD', 'po'], ['ELECTRUM', 'pe'], ['SILVER', 'pp'], ['COPPER', 'pc']]
+    .filter(([k]) => a[k] > 0).map(([k, n]) => a[k] + ' ' + n);
+  return parts.length ? parts.join(', ') : 'sem moedas';
+}
+function shopRequest(shop, item, qty, sell) {
+  const sheetId = S.shopSheet || (mySheets()[0] || {}).id;
+  if (!sheetId) { addLog({ kind: 'system', text: 'Você precisa de uma ficha sua nesta mesa pra comprar.' }); return; }
+  send({ type: 'shop_request', shopRequest: { shopId: shop.id, item, quantity: Math.max(1, Math.min(999, qty | 0)), sheetId, sell } });
+  addLog({ kind: 'system', text: (sell ? 'Pedido de venda: ' : 'Pedido de compra: ') + qty + 'x ' + item + ' (o mestre confirma).' });
+}
+function renderShops() {
+  const card = $('shopCard'), box = $('shops');
+  const open = (S.shops || []).filter(sh => sh && sh.open);
+  card.classList.toggle('hidden', open.length === 0 || S.gm);
+  box.innerHTML = '';
+  if (!open.length) return;
+  if (!open.find(sh => sh.id === S.shopSel)) S.shopSel = open[0].id;
+  const shop = open.find(sh => sh.id === S.shopSel);
+  const mine = mySheets();
+  if (open.length > 1) {
+    const sel = el('select', { onchange: e => { S.shopSel = e.target.value; renderShops(); } });
+    for (const sh of open) sel.append(el('option', { value: sh.id }, sh.name || 'Loja'));
+    sel.value = S.shopSel; box.append(sel);
+  }
+  box.append(el('div', { class: 'gold', style: 'margin:6px 0 2px' }, shop.name || 'Loja'));
+  if (shop.description) box.append(el('div', { class: 'muted' }, shop.description));
+  if (!mine.length) { box.append(el('div', { class: 'muted', style: 'margin-top:6px' }, 'Você precisa de uma ficha sua nesta mesa pra comprar.')); return; }
+  if (!mine.find(s => s.id === S.shopSheet)) S.shopSheet = mine[0].id;
+  const sheet = S.sheets[S.shopSheet];
+  if (mine.length > 1) {
+    const ss = el('select', { onchange: e => { S.shopSheet = e.target.value; renderShops(); } });
+    for (const s of mine) ss.append(el('option', { value: s.id }, s.name));
+    ss.value = S.shopSheet; box.append(ss);
+  }
+  box.append(el('div', { class: 'muted', style: 'margin:4px 0' }, (sheet.name || '') + ': ' + purseText(sheet.inventory)));
+  for (const it of shop.items || []) {
+    const out = it.stock === 0;
+    const qty = el('input', { type: 'number', min: '1', max: '99', value: '1', style: 'width:52px' });
+    const row = el('div', { class: 'row', style: 'align-items:center;gap:6px;margin:3px 0' },
+      el('span', { style: 'flex:1' }, it.name + ' — ' + coinsText(it.priceCopper) + (it.stock > 0 ? ' (' + it.stock + ')' : '')),
+      qty, el('button', { disabled: out ? 'disabled' : null, onclick: () => shopRequest(shop, it.name, parseInt(qty.value, 10) || 1, false) }, out ? 'Esgotado' : 'Comprar'));
+    if (it.description) row.title = it.description;
+    box.append(row);
+  }
+  const rate = shop.buyBackRate > 0 && shop.buyBackRate <= 1 ? shop.buyBackRate : 0.5;
+  const have = ((sheet.inventory && sheet.inventory.items) || []).filter(i => i.quantity > 0);
+  if (have.length) {
+    box.append(el('div', { class: 'muted', style: 'margin-top:8px' }, 'Vender (a loja paga ' + Math.round(rate * 100) + '%)'));
+    for (const i of have) {
+      const listed = (shop.items || []).find(x => (x.name || '').toLowerCase() === (i.name || '').toLowerCase());
+      const unit = Math.round((listed ? listed.priceCopper : (i.unitValueCopper || 0)) * rate);
+      box.append(el('div', { class: 'row', style: 'align-items:center;gap:6px;margin:3px 0' },
+        el('span', { style: 'flex:1' }, i.name + ' x' + i.quantity + ' — ' + (unit > 0 ? coinsText(unit) : 'sem preço')),
+        el('button', { disabled: unit > 0 ? null : 'disabled', onclick: () => shopRequest(shop, i.name, 1, true) }, 'Vender 1')));
+    }
+  }
+}
 function renderPlayers() {
   const box = $('players'); box.innerHTML = '';
   for (const p of S.players) box.append(el('div', {}, (p.name || p) + (p.gm ? ' (mestre)' : '')));

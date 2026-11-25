@@ -15,7 +15,9 @@ import java.util.stream.Stream;
 
 /**
  * Backups automaticos da mesa, guardados dentro dela em {@code backups/}: uma copia .zip a cada tanto
- * tempo (so se algo mudou desde a ultima), mantendo as {@link #KEEP} mais novas.
+ * tempo (so se algo mudou desde a ultima), mantendo as {@link #KEEP} mais novas e, alem delas, a ultima de cada
+ * dia dos ultimos {@link #KEEP_DAYS} dias (da pra voltar pra "como estava ontem"). Opcionalmente uma copia vai pra
+ * outra pasta ({@link #mirror}), por exemplo a do Google Drive, com as imagens e sons junto.
  * <p>
  * As imagens e os sons ({@code assets/}) ficam de fora: eles nunca mudam depois de guardados (o nome e o
  * hash do conteudo), entao copiar em todo backup so encheria o disco. Restaurar copia esses arquivos da
@@ -24,6 +26,7 @@ import java.util.stream.Stream;
 public final class AutoBackup {
     public static final String DIR = "backups";
     public static final int KEEP = 20;
+    public static final int KEEP_DAYS = 14;
     private static final DateTimeFormatter STAMP = DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss");
 
     /** Um backup da lista: arquivo, quando, tamanho e motivo ("auto", "abertura", "manual"). */
@@ -57,7 +60,11 @@ public final class AutoBackup {
 
     /** Backups da mesa, do mais novo pro mais velho. */
     public static List<Entry> list(Path mesaRoot) {
-        Path dir = dir(mesaRoot);
+        return listDir(dir(mesaRoot));
+    }
+
+    /** Backups (nossos .zip) de uma pasta qualquer, do mais novo pro mais velho. */
+    static List<Entry> listDir(Path dir) {
         List<Entry> out = new ArrayList<>();
         if (!Files.isDirectory(dir)) return out;
         try (Stream<Path> files = Files.list(dir)) {
@@ -108,8 +115,53 @@ public final class AutoBackup {
     }
 
     static void prune(Path mesaRoot, int keep) throws IOException {
-        List<Entry> all = list(mesaRoot);
-        for (int i = keep; i < all.size(); i++) Files.deleteIfExists(all.get(i).file());
+        pruneDir(dir(mesaRoot), keep);
+    }
+
+    static void pruneDir(Path dir, int keep) throws IOException {
+        for (Entry e : toDelete(listDir(dir), keep, KEEP_DAYS, java.time.LocalDate.now())) Files.deleteIfExists(e.file());
+    }
+
+    /**
+     * Quais apagar: ficam as {@code keep} mais novas e a ultima de cada dia dos ultimos {@code keepDays} dias.
+     * {@code all} vem do mais novo pro mais velho.
+     */
+    static List<Entry> toDelete(List<Entry> all, int keep, int keepDays, java.time.LocalDate today) {
+        java.util.Set<java.time.LocalDate> daysKept = new java.util.HashSet<>();
+        List<Entry> out = new ArrayList<>();
+        for (int i = 0; i < all.size(); i++) {
+            Entry e = all.get(i);
+            java.time.LocalDate day = e.when().toLocalDate();
+            boolean recentDay = !day.isBefore(today.minusDays(keepDays - 1L));
+            boolean firstOfDay = daysKept.add(day); // a lista vem do mais novo: o primeiro do dia e o ultimo feito nele
+            if (i < keep || (recentDay && firstOfDay)) continue;
+            out.add(e);
+        }
+        return out;
+    }
+
+    /**
+     * Copia o backup pra outra pasta ({@code mirrorRoot/<mesa>/}), com as imagens e sons que ainda nao estao la
+     * (eles nunca mudam: so copia os novos). Apaga la os velhos com a mesma regra daqui.
+     */
+    public static Path mirror(Entry made, Path mesaRoot, Path mirrorRoot, String mesaName) throws IOException {
+        Path dir = mirrorRoot.resolve(MesaBackup.safeName(mesaName == null || mesaName.isBlank() ? "mesa" : mesaName));
+        Files.createDirectories(dir);
+        Path out = dir.resolve(made.file().getFileName().toString());
+        Files.copy(made.file(), out, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.COPY_ATTRIBUTES);
+        Path assets = mesaRoot.resolve("assets");
+        if (Files.isDirectory(assets)) {
+            try (Stream<Path> walk = Files.walk(assets)) {
+                for (Path p : (Iterable<Path>) walk.filter(Files::isRegularFile)::iterator) {
+                    Path to = dir.resolve(mesaRoot.relativize(p).toString()).normalize();
+                    if (!to.startsWith(dir) || Files.exists(to)) continue;
+                    Files.createDirectories(to.getParent());
+                    Files.copy(p, to, StandardCopyOption.COPY_ATTRIBUTES);
+                }
+            }
+        }
+        pruneDir(dir, KEEP);
+        return out;
     }
 
     /**

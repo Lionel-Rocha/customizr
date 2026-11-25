@@ -869,6 +869,12 @@ public class GameServer {
                 }
                 case "shop_request" -> {
                     if (msg.shopRequest == null) break;
+                    // so com a propria ficha (senao um jogador gastaria o ouro de outro)
+                    if (!from.isGm() && (msg.shopRequest.sheetId == null || from.getSession().playerId() == null
+                            || !from.getSession().playerId().equals(characterOwners.get(msg.shopRequest.sheetId)))) {
+                        from.send(NetMessage.chat("servidor", "A loja só aceita pedido com a sua própria ficha."));
+                        break;
+                    }
                     msg.shopRequest.player = from.getSession().playerName();
                     boolean any = false;
                     for (ClientHandler c : clients) {

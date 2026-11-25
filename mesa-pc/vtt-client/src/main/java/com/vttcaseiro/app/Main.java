@@ -4171,7 +4171,8 @@ public class Main extends Application {
             int current = autoBackupMinutes();
             for (int i = 0; i < BACKUP_MINUTES.length; i++) if (BACKUP_MINUTES[i] == current) backupEvery.getSelectionModel().select(i);
             backupEvery.setTooltip(new Tooltip("Cópia automática da mesa (só quando algo mudou). Ficam as "
-                    + com.vttcaseiro.library.AutoBackup.KEEP + " mais novas, na pasta backups da mesa."));
+                    + com.vttcaseiro.library.AutoBackup.KEEP + " mais novas e a última de cada dia dos últimos "
+                    + com.vttcaseiro.library.AutoBackup.KEEP_DAYS + " dias, na pasta backups da mesa."));
             backupEvery.setOnAction(e -> {
                 int i = backupEvery.getSelectionModel().getSelectedIndex();
                 if (i < 0) return;
@@ -4188,8 +4189,34 @@ public class Main extends Application {
             backupStatus.getStyleClass().add("live-status");
             backupStatus.getStyleClass().add("label-muted");
             backupStatus.setWrapText(true);
+            Label mirrorLabel = new Label();
+            mirrorLabel.setWrapText(true);
+            mirrorLabel.getStyleClass().add("label-muted");
+            Runnable showMirror = () -> {
+                String dir = AppSettings.getString("backupMirrorDir", "");
+                mirrorLabel.setText(dir.isBlank() ? "Cópia em outra pasta: desligada." : "Cópia também em: " + dir);
+            };
+            showMirror.run();
+            Button mirrorButton = new Button("Copiar também pra outra pasta...");
+            mirrorButton.setTooltip(new Tooltip("Cada backup vai também pra uma pasta sua (ex.: a do Google Drive ou um pen drive),"
+                    + " com as imagens e sons. Se o computador der problema, a mesa está lá: tela de mesas > Importar backup."));
+            mirrorButton.setOnAction(e -> {
+                javafx.stage.DirectoryChooser chooser = new javafx.stage.DirectoryChooser();
+                chooser.setTitle("Pasta pra cópia dos backups");
+                java.io.File f = chooser.showDialog(mesaSettingsWindow);
+                if (f == null) return;
+                AppSettings.setString("backupMirrorDir", f.getAbsolutePath());
+                showMirror.run();
+                runBackup("manual", true);
+            });
+            Button mirrorOff = new Button("Parar a cópia");
+            mirrorOff.setOnAction(e -> {
+                AppSettings.setString("backupMirrorDir", "");
+                showMirror.run();
+            });
             settings.getChildren().addAll(sectionLabel("Backups automáticos"), backupEvery,
-                    new javafx.scene.layout.FlowPane(6, 6, backupNow, restoreButton), backupStatus);
+                    new javafx.scene.layout.FlowPane(6, 6, backupNow, restoreButton), backupStatus,
+                    new javafx.scene.layout.FlowPane(6, 6, mirrorButton, mirrorOff), mirrorLabel);
 
             compactHints(settings);
             groupIntoCards(settings, "");
@@ -4560,18 +4587,13 @@ public class Main extends Application {
         groupSaveButton.setOnAction(e -> onGroupSave());
         groupSaveButton.setGraphic(com.vttcaseiro.view.Icons.icon("spark", 14));
         Button shortRestButton = new Button("Descanso curto");
-        shortRestButton.setTooltip(new Tooltip("Cada personagem no mapa gasta dados de vida até ficar quase cheio."));
-        shortRestButton.setOnAction(e -> table.groupShortRest());
+        shortRestButton.setTooltip(new Tooltip("Quem você escolher gasta dados de vida até ficar quase cheio e recupera "
+                + "o que volta no descanso curto."));
+        shortRestButton.setOnAction(e -> chooseRestSheets(false).ifPresent(table::groupShortRest));
         Button longRestButton = new Button("Descanso longo");
-        longRestButton.setTooltip(new Tooltip("Personagens no mapa recuperam PV, dados de vida e espaços de magia."));
-        longRestButton.setOnAction(e -> {
-            Alert confirm = new Alert(Alert.AlertType.CONFIRMATION,
-                    "Descanso longo pra todos os personagens com token no mapa?");
-            confirm.setHeaderText(null);
-            confirm.initOwner(stage);
-            confirm.showAndWait().filter(b -> b == javafx.scene.control.ButtonType.OK)
-                    .ifPresent(b -> table.groupLongRest());
-        });
+        longRestButton.setTooltip(new Tooltip("Quem você escolher recupera PV, dados de vida, espaços de magia e recursos; "
+                + "o chat mostra o que cada um recuperou."));
+        longRestButton.setOnAction(e -> chooseRestSheets(true).ifPresent(table::groupLongRest));
         Button calcButton = new Button("Dificuldade...", com.vttcaseiro.view.Icons.icon("perigo", 14));
         calcButton.setTooltip(new Tooltip("Calculadora de encontro: dificuldade (2024) dos monstros do mapa (ou dos "
                 + "selecionados) pro nível do grupo."));
@@ -7707,6 +7729,44 @@ public class Main extends Application {
         announce(com.vttcaseiro.service.XpService.summary(awards, reason));
     }
 
+    /** Quem descansa: as fichas do mapa e do grupo, todas marcadas (vazio = cancelou). */
+    Optional<List<CharacterSheet>> chooseRestSheets(boolean longRest) {
+        java.util.LinkedHashMap<String, CharacterSheet> all = new java.util.LinkedHashMap<>();
+        for (CharacterSheet s : table.sheetsOnScene()) all.putIfAbsent(s.getId(), s);
+        for (CharacterSheet s : partySheets()) all.putIfAbsent(s.getId(), s);
+        if (all.isEmpty()) {
+            showError("Ninguém pra descansar: ponha os tokens no mapa ou monte o grupo (Party > Membros).");
+            return Optional.empty();
+        }
+        javafx.scene.control.Dialog<javafx.scene.control.ButtonType> d = new javafx.scene.control.Dialog<>();
+        d.initOwner(stage);
+        d.setTitle(longRest ? "Descanso longo" : "Descanso curto");
+        d.setHeaderText(longRest ? "Quem faz o descanso longo?" : "Quem faz o descanso curto?");
+        List<CheckBox> boxes = new ArrayList<>();
+        VBox list = new VBox(6);
+        for (CharacterSheet s : all.values()) {
+            String hp = s.getHpCurrent() == null || s.getHpMax() == null ? "" : "  (" + s.getHpCurrent() + "/" + s.getHpMax() + " PV, "
+                    + s.hitDiceRemaining() + " dados de vida)";
+            CheckBox cb = new CheckBox(s.getName() + hp);
+            cb.setSelected(true);
+            boxes.add(cb);
+            list.getChildren().add(cb);
+        }
+        Label hint = new Label(longRest ? "PV, dados de vida, espaços de magia, recursos e -1 de exaustão. O chat mostra o que cada um recuperou."
+                : "Gasta dados de vida enquanto faltar PV e recupera os recursos de descanso curto.");
+        hint.getStyleClass().add("label-muted");
+        hint.setWrapText(true);
+        VBox content = new VBox(10, list, hint);
+        content.setPrefWidth(420);
+        d.getDialogPane().setContent(content);
+        d.getDialogPane().getButtonTypes().addAll(javafx.scene.control.ButtonType.OK, javafx.scene.control.ButtonType.CANCEL);
+        if (d.showAndWait().filter(b -> b == javafx.scene.control.ButtonType.OK).isEmpty()) return Optional.empty();
+        List<CharacterSheet> chosen = new ArrayList<>();
+        int i = 0;
+        for (CharacterSheet s : all.values()) if (boxes.get(i++).isSelected()) chosen.add(s);
+        return chosen.isEmpty() ? Optional.empty() : Optional.of(chosen);
+    }
+
     /** Marco: o grupo sobe de nivel (sem XP). */
     void onMilestone() {
         List<CharacterSheet> sheets = partySheetsForXp();
@@ -9803,6 +9863,15 @@ public class Main extends Application {
         backupExecutor.submit(() -> {
             try {
                 Optional<com.vttcaseiro.library.AutoBackup.Entry> made = com.vttcaseiro.library.AutoBackup.create(root, kind, force);
+                String mirrorDir = AppSettings.getString("backupMirrorDir", "");
+                if (made.isPresent() && !mirrorDir.isBlank()) {
+                    try {
+                        com.vttcaseiro.library.AutoBackup.mirror(made.get(), root, Path.of(mirrorDir), mesaService.getName());
+                    } catch (IOException | RuntimeException ex) {
+                        Platform.runLater(() -> logEntries.add(LogEntry.error("Backup feito, mas a cópia pra " + mirrorDir
+                                + " falhou: " + ex.getMessage())));
+                    }
+                }
                 Platform.runLater(() -> {
                     if (backupStatus != null) backupStatus.setText(lastBackupText());
                     if (force) logEntries.add(LogEntry.system(made.map(m -> "Backup feito: " + describeBackup(m))

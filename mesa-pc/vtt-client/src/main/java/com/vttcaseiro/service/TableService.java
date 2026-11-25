@@ -1047,7 +1047,7 @@ public class TableService {
     // Descanso do grupo (fichas ligadas aos tokens da cena)
     // ------------------------------------------------------------------
 
-    private List<CharacterSheet> sheetsOnScene() {
+    public List<CharacterSheet> sheetsOnScene() {
         java.util.LinkedHashMap<String, CharacterSheet> found = new java.util.LinkedHashMap<>();
         for (TokenModel t : scene().getTokens()) {
             linkedSheet(t).ifPresent(s -> found.putIfAbsent(s.getId(), s));
@@ -1057,24 +1057,50 @@ public class TableService {
 
     /** Descanso longo pra todo personagem com token no mapa. */
     public List<CharacterSheet> groupLongRest() {
+        return groupLongRest(null);
+    }
+
+    /** Descanso longo pras fichas escolhidas (null = as do mapa), com o que cada uma recuperou. */
+    public List<CharacterSheet> groupLongRest(List<CharacterSheet> chosen) {
         if (!port.isGm()) {
             port.error("Só o mestre decreta o descanso do grupo.");
             return List.of();
         }
-        List<CharacterSheet> sheets = sheetsOnScene();
+        List<CharacterSheet> sheets = chosen == null ? sheetsOnScene() : chosen;
         if (sheets.isEmpty()) {
-            port.error("Nenhum personagem com token no mapa.");
+            port.error(chosen == null ? "Nenhum personagem com token no mapa." : "Ninguém escolhido pro descanso.");
             return sheets;
         }
-        List<String> names = new ArrayList<>();
+        StringBuilder text = new StringBuilder("Descanso longo:");
         for (CharacterSheet s : sheets) {
-            s.longRest();
+            text.append("\n  ").append(s.getName()).append(": ").append(longRestDetail(s));
             afterSheetEditedOutside(s);
-            names.add(s.getName());
         }
-        port.announce("Descanso longo: " + String.join(", ", names)
-                + " recuperam PV, dados de vida e espacos de magia (e -1 de exaustão).");
+        port.announce(text.toString());
         return sheets;
+    }
+
+    /** Faz o descanso longo na ficha e conta o que voltou: "+12 PV, 2 dados de vida, 3 espaços de magia, Rage". */
+    public static String longRestDetail(CharacterSheet s) {
+        int hpBefore = s.getHpCurrent() == null ? 0 : s.getHpCurrent();
+        int diceBefore = s.hitDiceRemaining();
+        int slotsMissing = 0;
+        for (int lvl = com.vttcaseiro.character.SpellSlots.MIN_LEVEL; lvl <= com.vttcaseiro.character.SpellSlots.MAX_LEVEL; lvl++) {
+            slotsMissing += Math.max(0, s.getSpellSlots().getMax(lvl) - s.getSpellSlots().getCurrent(lvl));
+        }
+        List<String> resources = new ArrayList<>();
+        for (com.vttcaseiro.character.Resource r : s.getResources()) if (r.getCurrent() < r.getMax()) resources.add(r.getName());
+        int exhaustion = s.getExhaustionLevel();
+        s.longRest();
+        List<String> parts = new ArrayList<>();
+        int hp = (s.getHpCurrent() == null ? 0 : s.getHpCurrent()) - hpBefore;
+        if (hp > 0) parts.add("+" + hp + " PV");
+        int dice = s.hitDiceRemaining() - diceBefore;
+        if (dice > 0) parts.add(dice + (dice == 1 ? " dado de vida" : " dados de vida"));
+        if (slotsMissing > 0) parts.add(slotsMissing + (slotsMissing == 1 ? " espaço de magia" : " espaços de magia"));
+        if (!resources.isEmpty()) parts.add(String.join(", ", resources));
+        if (exhaustion > s.getExhaustionLevel()) parts.add("-1 de exaustão");
+        return parts.isEmpty() ? "já estava inteiro" : String.join(", ", parts);
     }
 
     /**
@@ -1084,13 +1110,18 @@ public class TableService {
      * diferente gasta na propria ficha.
      */
     public List<CharacterSheet> groupShortRest() {
+        return groupShortRest(null);
+    }
+
+    /** Descanso curto pras fichas escolhidas (null = as do mapa). */
+    public List<CharacterSheet> groupShortRest(List<CharacterSheet> chosen) {
         if (!port.isGm()) {
             port.error("Só o mestre decreta o descanso do grupo.");
             return List.of();
         }
-        List<CharacterSheet> sheets = sheetsOnScene();
+        List<CharacterSheet> sheets = chosen == null ? sheetsOnScene() : chosen;
         if (sheets.isEmpty()) {
-            port.error("Nenhum personagem com token no mapa.");
+            port.error(chosen == null ? "Nenhum personagem com token no mapa." : "Ninguém escolhido pro descanso.");
             return sheets;
         }
         StringBuilder text = new StringBuilder("Descanso curto:");
