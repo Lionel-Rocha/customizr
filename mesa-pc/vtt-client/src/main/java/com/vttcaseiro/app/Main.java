@@ -312,6 +312,9 @@ public class Main extends Application {
         if (!tableStore.exists()) tableStore.save(new java.util.ArrayList<>(com.vttcaseiro.model.RandomTable.samples()));
         this.deckStore = new com.vttcaseiro.library.JsonListStore<>(mesa.getRoot(), "baralhos.json",
                 new com.google.gson.reflect.TypeToken<List<com.vttcaseiro.model.CardDeck>>() { }.getType());
+        this.shopStore = new com.vttcaseiro.library.JsonListStore<>(mesa.getRoot(), "lojas.json",
+                new com.google.gson.reflect.TypeToken<List<com.vttcaseiro.model.Shop>>() { }.getType());
+        this.shopsWorking = null;
         try {
             this.audioStore = new com.vttcaseiro.library.AudioAssetStore(mesa.getRoot());
         } catch (IOException ex) {
@@ -3339,6 +3342,12 @@ public class Main extends Application {
         openCompendium.setTooltip(new Tooltip("Conteúdo pronto 2024, importar do 5etools e buscar algo pra anexar na ficha."));
         openCompendium.setOnAction(e -> showCompendiumWindow(compendium));
         box.getChildren().addAll(sectionHeader("Compêndio", iconize(openCompendium)), compendiumSummary, divider());
+        Button shopsButton = new Button("Lojas (comprar e vender)", com.vttcaseiro.view.Icons.icon("loja", 14));
+        shopsButton.setMaxWidth(Double.MAX_VALUE);
+        shopsButton.setTooltip(new Tooltip("Mestre: cria lojas e itens com preço e estoque e abre pros jogadores. Jogador: "
+                + "compra e vende com a sua ficha (o dinheiro e o item mudam sozinhos)."));
+        shopsButton.setOnAction(e -> openShops());
+        box.getChildren().addAll(sectionLabel("Lojas"), shopsButton);
 
         Label hint = new Label("Dica: arraste o retrato (ou a silhueta) da janela "
                 + "da ficha para cima do mapa -- isso cria um token vinculado a "
@@ -3868,7 +3877,10 @@ public class Main extends Application {
         campaignWired = true;
         campaignSave.setOnFinished(e -> pushCampaign());
         networkService.statusProperty().addListener((o, a, b) -> Platform.runLater(() -> {
-            if (networkService.isConnected() && networkService.isGm()) networkService.sendCampaign(campaign);
+            if (networkService.isConnected() && networkService.isGm()) {
+                networkService.sendCampaign(campaign);
+                if (shopStore != null) networkService.sendShops(workingShops());
+            }
         }));
     }
 
@@ -4521,7 +4533,11 @@ public class Main extends Application {
                 + "selecionados) pro nível do grupo."));
         calcButton.setOnAction(e -> onEncounterCalculator());
         groupSaveButton.setTooltip(new Tooltip("Salvaguarda em grupo: " + groupSaveButton.getTooltip().getText()));
-        box.getChildren().add(buttonGrid(groupSaveButton, shortRestButton, longRestButton, calcButton));
+        Button gmScreenButton = new Button("Escudo do mestre", com.vttcaseiro.view.Icons.icon("party", 14));
+        gmScreenButton.setTooltip(new Tooltip("O grupo todo de uma vez: PV, CA, Percepção/Intuição/Investigação passivas, "
+                + "CD de magia, idiomas e condições"));
+        gmScreenButton.setOnAction(e -> showGmScreen());
+        box.getChildren().add(buttonGrid(groupSaveButton, shortRestButton, longRestButton, calcButton, gmScreenButton));
         gmCombatCard = groupSaveButton;
         CheckBox groupBox = new CheckBox("Agrupar monstros iguais");
         groupBox.setTooltip(new Tooltip("Monstros da mesma ficha (4 Goblins) rolam uma iniciativa só, aparecem numa linha "
@@ -4994,6 +5010,26 @@ public class Main extends Application {
             @Override
             public Runnable undoFor(LogEntry entry) {
                 return hpUndos.get(entry);
+            }
+
+            @Override
+            public com.vttcaseiro.view.ChatListCell.PollView pollFor(LogEntry entry) {
+                PollState p = pollByEntry.get(entry);
+                return p == null ? null : new com.vttcaseiro.view.ChatListCell.PollView(p.question, p.options, p.counts, p.myVote);
+            }
+
+            @Override
+            public void vote(LogEntry entry, int option) {
+                PollState p = pollByEntry.get(entry);
+                if (p == null) return;
+                if (networkService.isConnected()) {
+                    networkService.sendPollVote(p.id, option);
+                } else {
+                    if (p.myVote != null && p.myVote < p.counts.size()) p.counts.set(p.myVote, p.counts.get(p.myVote) - 1);
+                    p.myVote = option;
+                    p.counts.set(option, p.counts.get(option) + 1);
+                    if (chatListView != null) chatListView.refresh();
+                }
             }
         }));
         VBox.setVgrow(chatList, Priority.ALWAYS);
@@ -6195,6 +6231,284 @@ public class Main extends Application {
                 token.setY(p.getY());
                 return;
             }
+        }
+    }
+
+    // ---------------- enquetes no chat
+
+    /** Uma enquete: o servidor conta os votos; offline conta aqui. */
+    private static final class PollState {
+        String id;
+        String author;
+        String question;
+        List<String> options;
+        List<Integer> counts;
+        Integer myVote;
+        LogEntry entry;
+    }
+
+    private final java.util.Map<String, PollState> pollsById = new java.util.HashMap<>();
+    private final java.util.Map<LogEntry, PollState> pollByEntry = new java.util.IdentityHashMap<>();
+
+    /** /votar Pergunta? | A | B: cria a enquete (online o servidor guarda e conta). */
+    void startPoll(String rest) {
+        List<String> parts = com.vttcaseiro.service.ChatCommands.pollParts(rest);
+        if (parts == null) {
+            logEntries.add(LogEntry.error("Use: /votar Pergunta? | Opção 1 | Opção 2   (de 2 a 10 opções)"));
+            return;
+        }
+        String id = java.util.UUID.randomUUID().toString();
+        List<String> options = parts.subList(1, parts.size());
+        if (networkService.isConnected()) {
+            networkService.sendPoll(id, parts.get(0), new ArrayList<>(options));
+        } else {
+            List<Integer> zero = new ArrayList<>();
+            for (int i = 0; i < options.size(); i++) zero.add(0);
+            upsertPoll(id, networkService.getPlayerName(), parts.get(0), options, zero, null);
+        }
+    }
+
+    /** Enquete nova vira uma linha no chat; voto novo so atualiza a linha. */
+    void upsertPoll(String id, String author, String question, List<String> options, List<Integer> counts, Integer myVote) {
+        PollState p = pollsById.get(id);
+        if (p == null) {
+            p = new PollState();
+            p.id = id;
+            p.entry = LogEntry.chat(author == null ? "?" : author, "enquete");
+            pollsById.put(id, p);
+            pollByEntry.put(p.entry, p);
+            p.author = author;
+            p.question = question == null ? "" : question;
+            p.options = new ArrayList<>(options);
+            p.counts = new ArrayList<>(counts);
+            p.myVote = myVote;
+            logEntries.add(p.entry);
+            return;
+        }
+        p.counts = new ArrayList<>(counts);
+        p.myVote = myVote;
+        if (chatListView != null) chatListView.refresh();
+    }
+
+    // ---------------- lojas
+
+    private com.vttcaseiro.library.JsonListStore<com.vttcaseiro.model.Shop> shopStore;
+    private List<com.vttcaseiro.model.Shop> shopsWorking;
+    private List<com.vttcaseiro.model.Shop> receivedShops = new ArrayList<>();
+    private com.vttcaseiro.view.ShopWindow shopWindow;
+
+    /** Mestre (ou sozinho): edita e vende direto; jogador online: so as lojas abertas, e o pedido vai pro mestre. */
+    private boolean runsShops() {
+        return !networkService.isConnected() || networkService.isGm();
+    }
+
+    private List<com.vttcaseiro.model.Shop> workingShops() {
+        if (shopsWorking == null) shopsWorking = new ArrayList<>(shopStore.load());
+        return shopsWorking;
+    }
+
+    void openShops() {
+        if (shopWindow == null || !shopWindow.isShowing()) {
+            shopWindow = new com.vttcaseiro.view.ShopWindow(stage, new com.vttcaseiro.view.ShopWindow.Actions() {
+                @Override
+                public List<com.vttcaseiro.model.Shop> shops() {
+                    return runsShops() ? new ArrayList<>(workingShops()) : new ArrayList<>(receivedShops);
+                }
+
+                @Override
+                public boolean isGm() {
+                    return runsShops();
+                }
+
+                @Override
+                public List<CharacterSheet> sheets() {
+                    return shopSheets();
+                }
+
+                @Override
+                public void shopsChanged(List<com.vttcaseiro.model.Shop> shops) {
+                    shopsWorking = new ArrayList<>(shops);
+                    shopStore.save(shopsWorking);
+                    if (networkService.isConnected() && networkService.isGm()) networkService.sendShops(shopsWorking);
+                }
+
+                @Override
+                public void buy(com.vttcaseiro.model.Shop shop, com.vttcaseiro.model.Shop.Item item, int qty, CharacterSheet sheet) {
+                    shopTrade(shop.getId(), item.getName(), qty, sheet, false, networkService.getPlayerName());
+                }
+
+                @Override
+                public void sell(com.vttcaseiro.model.Shop shop, com.vttcaseiro.inventory.InventoryItem item, int qty, CharacterSheet sheet) {
+                    shopTrade(shop.getId(), item.getName(), qty, sheet, true, networkService.getPlayerName());
+                }
+            });
+        }
+        shopWindow.show();
+    }
+
+    /** Fichas que aparecem na loja: as minhas (jogador) ou as do grupo no mapa e da party (mestre/sozinho). */
+    private List<CharacterSheet> shopSheets() {
+        java.util.LinkedHashMap<String, CharacterSheet> out = new java.util.LinkedHashMap<>();
+        if (runsShops()) {
+            for (CharacterSheet s : partySheets()) out.put(s.getId(), s);
+            if (lastOpenedCharacter != null) out.putIfAbsent(lastOpenedCharacter.getId(), lastOpenedCharacter);
+        } else {
+            for (String name : characterService.list()) {
+                try {
+                    CharacterSheet s = characterService.open(name);
+                    if (networkService.getPlayerId().equals(s.getOwnerPlayerId())) {
+                        CharacterSheetView v = openSheetViews.get(s.getId());
+                        out.put(s.getId(), v != null ? v.getSheet() : s);
+                    }
+                } catch (IOException | RuntimeException ignored) {
+                    // ficha estragada: fica de fora
+                }
+            }
+        }
+        return new ArrayList<>(out.values());
+    }
+
+    /** Compra/venda: quem roda a loja aplica na hora; jogador online manda o pedido pro mestre. */
+    private void shopTrade(String shopId, String item, int qty, CharacterSheet sheet, boolean sell, String who) {
+        if (!runsShops()) {
+            com.vttcaseiro.net.NetMessage.ShopRequest r = new com.vttcaseiro.net.NetMessage.ShopRequest();
+            r.shopId = shopId;
+            r.item = item;
+            r.quantity = qty;
+            r.sheetId = sheet.getId();
+            r.sell = sell;
+            networkService.sendShopRequest(r);
+            logEntries.add(LogEntry.system("Pedido enviado pro mestre: " + (sell ? "vender " : "comprar ") + qty + "x " + item + "."));
+            return;
+        }
+        com.vttcaseiro.model.Shop shop = workingShops().stream().filter(s -> s.getId().equals(shopId)).findFirst().orElse(null);
+        if (shop == null) {
+            showError("Essa loja não existe mais.");
+            return;
+        }
+        long before = sheet.getInventory().getMoney().totalInCopper();
+        String err = sell ? com.vttcaseiro.service.ShopService.sell(shop, item, qty, sheet)
+                : com.vttcaseiro.service.ShopService.buy(shop, item, qty, sheet);
+        if (err != null) {
+            if (who != null && !who.equals(networkService.getPlayerName()) && networkService.isConnected()) {
+                onChatInput("/w \"" + who + "\" " + err);
+            } else {
+                showError(err);
+            }
+            return;
+        }
+        long diff = Math.abs(sheet.getInventory().getMoney().totalInCopper() - before);
+        saveTradedSheet(sheet);
+        shopStore.save(workingShops());
+        if (networkService.isConnected()) networkService.sendShops(workingShops());
+        announce(sheet.getName() + (sell ? " vendeu " : " comprou ") + qty + "x " + item + " em " + shop.getName() + " por "
+                + com.vttcaseiro.service.ShopService.coins(diff) + ".");
+        if (shopWindow != null && shopWindow.isShowing()) shopWindow.refresh();
+    }
+
+    private void saveTradedSheet(CharacterSheet sheet) {
+        try {
+            characterService.save(sheet);
+            networkService.sendCharacterSync(sheet);
+            CharacterSheetView v = openSheetViews.get(sheet.getId());
+            if (v != null && v.getSheet() != sheet) v.reload(sheet);
+            else if (v != null) v.reload(sheet);
+        } catch (IOException ex) {
+            showError("Não deu pra salvar a ficha " + sheet.getName() + ": " + ex.getMessage());
+        }
+    }
+
+    /** Mestre recebe o pedido de um jogador e aplica (dinheiro e item na ficha dele). */
+    private void handleShopRequest(com.vttcaseiro.net.NetMessage.ShopRequest r) {
+        if (!networkService.isGm() || r.sheetId == null) return;
+        CharacterSheet sheet = characterService.findOpen(r.sheetId).or(() -> characterService.findById(r.sheetId)).orElse(null);
+        if (sheet == null) {
+            onChatInput("/w \"" + r.player + "\" A loja não achou a sua ficha (ela está nesta mesa?).");
+            return;
+        }
+        CharacterSheetView v = openSheetViews.get(sheet.getId());
+        if (v != null) sheet = v.getSheet();
+        shopTrade(r.shopId, r.item, Math.max(1, Math.min(999, r.quantity)), sheet, r.sell, r.player);
+    }
+
+    // ---------------- escudo do mestre
+
+    /** Fichas do grupo: as ligadas a tokens na cena e as da party. */
+    private List<CharacterSheet> partySheets() {
+        java.util.LinkedHashMap<String, CharacterSheet> out = new java.util.LinkedHashMap<>();
+        java.util.List<String> ids = new ArrayList<>();
+        for (TokenModel t : sceneService.getScene().getTokens()) if (t.getCharacterSheetId() != null) ids.add(t.getCharacterSheetId());
+        ids.addAll(partyService.getParty().getCharacterIds());
+        for (String id : ids) {
+            if (id == null || out.containsKey(id)) continue;
+            CharacterSheetView v = openSheetViews.get(id);
+            CharacterSheet s = v != null ? v.getSheet() : characterService.findOpen(id).or(() -> characterService.findById(id)).orElse(null);
+            if (s != null) out.put(id, s);
+        }
+        return new ArrayList<>(out.values());
+    }
+
+    private Stage gmScreenStage;
+
+    /** O grupo todo numa tabela: PV, CA, passivas, CD de magia, idiomas e condicoes. */
+    void showGmScreen() {
+        javafx.scene.layout.GridPane g = new javafx.scene.layout.GridPane();
+        g.setHgap(14);
+        g.setVgap(6);
+        g.setPadding(new Insets(12));
+        String[] head = {"Personagem", "PV", "CA", "Percepção", "Intuição", "Investigação", "CD magia", "Idiomas", "Condições"};
+        for (int c = 0; c < head.length; c++) {
+            Label h = new Label(head[c]);
+            h.getStyleClass().add("label-section");
+            g.add(h, c, 0);
+        }
+        List<CharacterSheet> sheets = partySheets();
+        int row = 1;
+        for (CharacterSheet s : sheets) {
+            TokenModel tk = sceneService.getScene().getTokens().stream().filter(t -> s.getId().equals(t.getCharacterSheetId())).findFirst().orElse(null);
+            String hp = (s.getHpCurrent() == null ? "?" : s.getHpCurrent()) + "/" + (s.getHpMax() == null ? "?" : s.getHpMax())
+                    + (s.getHpTemp() > 0 ? " (+" + s.getHpTemp() + ")" : "");
+            String conds = tk == null ? "" : String.join(", ", tk.getConditions().stream().map(this::conditionName).toList());
+            String[] cells = {s.getName() + (s.getPlayerName() == null || s.getPlayerName().isBlank() ? "" : " (" + s.getPlayerName() + ")"),
+                    hp, String.valueOf(s.totalArmorClass()), String.valueOf(s.passivePerception()),
+                    String.valueOf(10 + s.skillBonus(com.vttcaseiro.character.Skill.INSIGHT)),
+                    String.valueOf(10 + s.skillBonus(com.vttcaseiro.character.Skill.INVESTIGATION)),
+                    s.getSpellcastingAbility() == null ? "-" : String.valueOf(s.spellSaveDc()),
+                    String.join(", ", s.getLanguages()), conds};
+            for (int c = 0; c < cells.length; c++) {
+                Label l = new Label(cells[c]);
+                l.setWrapText(c >= 7);
+                if (c >= 7) l.setMaxWidth(220);
+                if (c == 0) l.setStyle("-fx-font-weight: bold;");
+                g.add(l, c, row);
+            }
+            row++;
+        }
+        if (sheets.isEmpty()) g.add(new Label("Nenhum personagem: ponha os tokens das fichas no mapa ou na party."), 0, 1, 9, 1);
+        Button refresh = new Button("Atualizar", com.vttcaseiro.view.Icons.icon("undo", 14));
+        refresh.setOnAction(e -> showGmScreen());
+        Label tip = new Label("Grupo = fichas com token nesta cena + as da party. Passivas = 10 + perícia.");
+        tip.getStyleClass().add("label-muted");
+        HBox bottom = new HBox(10, refresh, tip);
+        bottom.setAlignment(Pos.CENTER_LEFT);
+        bottom.setPadding(new Insets(0, 12, 12, 12));
+        VBox root = new VBox(new ScrollPane(g), bottom);
+        if (gmScreenStage == null) {
+            gmScreenStage = new Stage();
+            gmScreenStage.initOwner(stage);
+            gmScreenStage.setTitle("Escudo do mestre");
+            com.vttcaseiro.view.Icons.applyTo(gmScreenStage);
+        }
+        gmScreenStage.setScene(new Scene(root, 1000, Math.min(700, 140 + 34 * Math.max(1, sheets.size()))));
+        gmScreenStage.show();
+        gmScreenStage.toFront();
+    }
+
+    private String conditionName(String key) {
+        try {
+            return com.vttcaseiro.model.Condition.valueOf(key).label();
+        } catch (RuntimeException ex) {
+            return key;
         }
     }
 
@@ -9048,6 +9362,25 @@ public class Main extends Application {
         }
 
         @Override
+        public void onPoll(String id, String author, String question, List<String> options, List<Integer> counts,
+                           Integer myVote) {
+            Platform.runLater(() -> upsertPoll(id, author, question, options, counts, myVote));
+        }
+
+        @Override
+        public void onShops(List<com.vttcaseiro.model.Shop> shops) {
+            Platform.runLater(() -> {
+                receivedShops = new ArrayList<>(shops);
+                if (shopWindow != null && shopWindow.isShowing()) shopWindow.refresh();
+            });
+        }
+
+        @Override
+        public void onShopRequest(com.vttcaseiro.net.NetMessage.ShopRequest r) {
+            Platform.runLater(() -> handleShopRequest(r));
+        }
+
+        @Override
         public void onZonesSync(List<com.vttcaseiro.model.MapZone> zones) {
             Platform.runLater(() -> {
                 sceneService.getScene().setZones(zones);
@@ -9406,6 +9739,11 @@ public class Main extends Application {
             }
             case TEXT, EMOTE -> say(cmd.text());
             case TABLE -> rollRandomTable(cmd.text(), gmOnlyMode());
+            case LANGUAGE -> {
+                if (networkService.isConnected()) networkService.sendChatLanguage(cmd.text(), cmd.target());
+                else logEntries.add(LogEntry.chat(networkService.getPlayerName(), "[" + cmd.target() + "] " + cmd.text()));
+            }
+            case POLL -> startPoll(cmd.text());
         }
     }
 

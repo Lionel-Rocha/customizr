@@ -396,6 +396,7 @@ function handle(m) {
       S.camLock = !!m.locked; $('camBanner').classList.toggle('hidden', !S.camLock);
       if (S.camLock && m.x != null) slideTo(m.x, m.y, m.zoom); break;
     case 'zones_sync': if (S.scene) { S.scene.zones = m.zones || []; markDirty(); } break;
+    case 'poll': renderPoll(m); break;
     case 'handout_sync': {
       const isNew = !S.handouts[m.handout.id]; S.handouts[m.handout.id] = m.handout;
       addLog({ kind: 'system', text: (isNew ? 'Nova anotação no diário: ' : 'Anotação atualizada: ') + (m.handout.title || '') });
@@ -1283,6 +1284,27 @@ function el(tag, attrs, ...kids) {
   for (const k of kids) if (k != null) e.append(k.nodeType ? k : String(k));
   return e;
 }
+/** Enquete no chat: um cartao por enquete, atualizado a cada voto. */
+function renderPoll(m) {
+  S.polls = S.polls || {};
+  let card = S.polls[m.text];
+  if (!card) {
+    card = el('div', { class: 'msg chat' });
+    S.polls[m.text] = card;
+    $('log').append(card);
+    $('log').scrollTop = $('log').scrollHeight;
+  }
+  card.innerHTML = '';
+  const counts = m.pollCounts || [], total = counts.reduce((a, b) => a + b, 0);
+  card.append(el('div', { class: 'who' }, (m.player || '') + '  •  enquete'), el('b', {}, m.label || 'Enquete'));
+  (m.pollOptions || []).forEach((opt, i) => {
+    const n = counts[i] || 0, mine = m.pollVote === i, pct = total ? Math.round(n * 100 / total) : 0;
+    const b = el('button', { style: `display:block;width:100%;text-align:left;margin-top:4px;background:linear-gradient(to right, #6b3a14 ${pct}%, #2a201b ${pct}%)`,
+      onclick: () => send({ type: 'poll_vote', text: m.text, pollVote: i }) }, (mine ? '✓ ' : '') + opt + '   ' + n + (n === 1 ? ' voto' : ' votos'));
+    card.append(b);
+  });
+  card.append(el('div', { class: 'muted', style: 'font-size:12px;margin-top:4px' }, total + (total === 1 ? ' voto' : ' votos') + ' · toque pra votar'));
+}
 function addLog(e) {
   const log = $('log');
   const cls = ['msg', e.kind];
@@ -1348,8 +1370,16 @@ function runChatLine(text) {
     send({ type: 'chat', text: m[3], whisperTo: m[1] || m[2] });
   } else if (/^\/me\s+\S/i.test(text)) {
     send({ type: 'chat', text });
+  } else if ((m = text.match(/^\/(?:em|idioma)\s+(?:"([^"]+)"|(\S+))\s+(.+)$/i))) {
+    send({ type: 'chat', text: m[3], language: m[1] || m[2] }); // quem nao conhece o idioma recebe embaralhado
+  } else if ((m = text.match(/^\/(?:votar|enquete)\s+(.+)$/i))) {
+    let parts = m[1].includes('|') ? m[1].split('|').map(x => x.trim()).filter(Boolean)
+      : [...m[1].matchAll(/"([^"]+)"|(\S+)/g)].map(x => (x[1] || x[2]).trim());
+    const question = parts.length && parts[0].endsWith('?') ? parts.shift() : '';
+    if (parts.length < 2) addLog({ kind: 'system', text: 'Use: /votar Pergunta? | Opção 1 | Opção 2' });
+    else send({ type: 'poll', text: 'w' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8), label: question, pollOptions: parts.slice(0, 10) });
   } else if (/^\/(ajuda|help|\?)$/i.test(text)) {
-    addLog({ kind: 'system', text: 'Comandos: /r 2d6+3 (rola) | /gr 1d20 (escondida: só você e o mestre) | /w Nome mensagem (sussurro) | /w mestre msg | /me ação | [[1d20+5]] no meio do texto' });
+    addLog({ kind: 'system', text: 'Comandos: /r 2d6+3 (rola) | /gr 1d20 (escondida: só você e o mestre) | /w Nome mensagem (sussurro) | /w mestre msg | /me ação | [[1d20+5]] no meio do texto | /em Elvish texto (idioma) | /votar Pergunta? | A | B (enquete)' });
   } else if (text.startsWith('/')) {
     addLog({ kind: 'system', text: 'Comando desconhecido. Digite /ajuda.' });
   } else send({ type: 'chat', text });

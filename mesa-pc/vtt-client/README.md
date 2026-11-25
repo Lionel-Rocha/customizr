@@ -380,6 +380,32 @@ Escolha **um token seu** (clique nele) e aparece embaixo do mapa uma faixa com o
 - O mestre ve a barra dos monstros tambem (acoes com acerto ou dano do bloco do monstro; rolagem escondida, como
   na ficha do monstro).
 
+### Escudo do mestre
+
+Combate > Mestre > **Escudo do mestre**: o grupo inteiro numa tabela: PV (e temporarios), CA, Percepcao, Intuicao e
+Investigacao passivas, CD de magia, idiomas e condicoes de cada personagem. Grupo = fichas com token na cena + as da
+party. "Atualizar" refaz com os numeros de agora.
+
+### Lojas
+
+Fichas > **Lojas (comprar e vender)**. O mestre (ou quem joga sozinho) cria lojas, poe itens com preco (em po) e
+estoque (vazio = sem fim), escolhe quanto a loja paga quando o jogador vende (padrao: metade) e marca **Aberta pros
+jogadores**. O jogador abre a mesma janela, escolhe a ficha e compra ou vende: o pedido vai pro programa do mestre, que
+tira o dinheiro, poe o item no inventario, baixa o estoque e avisa no chat. Sem dinheiro ou sem estoque, o jogador
+recebe um sussurro dizendo o porque. (Pelo navegador ainda nao tem loja.)
+
+### Idiomas no chat
+
+**/em Elvish texto** (ou /idioma; idioma com espaco entre aspas: /em "Deep Speech" texto): quem tem o idioma na ficha
+(ou e o mestre) le normal, com "[Elvish]" na frente; os outros recebem as palavras embaralhadas -- o texto certo nem
+sai do servidor. A mesma palavra embaralha sempre igual. Funciona no navegador tambem.
+
+### Enquetes
+
+**/votar Pergunta? | Opcao 1 | Opcao 2** (ou opcoes entre aspas): vira um cartao no chat; cada um clica pra votar (da
+pra trocar) e as contas aparecem na hora, pra todos (programa e navegador). Ate 10 opcoes; quem entra depois ve as
+enquetes abertas.
+
 ### Copiar e colar tokens
 
 Escolha um ou varios tokens (Shift+clique) e **Ctrl+C**; **Ctrl+V** cola uma casa ao lado, com numero no nome ("Goblin 2",

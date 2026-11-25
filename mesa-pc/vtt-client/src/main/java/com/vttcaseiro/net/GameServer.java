@@ -58,6 +58,42 @@ public class GameServer {
     private String groupKey;
     private final Map<String, SceneModel> sideScenes = new java.util.LinkedHashMap<>();
     private String ctxKey;
+    /** Enquetes abertas: id -> pergunta, opcoes, quem criou e o voto de cada jogador (pelo id). */
+    private static final class PollState {
+        String author;
+        String question;
+        List<String> options;
+        final Map<String, Integer> votes = new java.util.LinkedHashMap<>();
+    }
+
+    private final Map<String, PollState> polls = new java.util.LinkedHashMap<>();
+    /** Lojas abertas pelo mestre (quem entra depois recebe). */
+    private volatile List<com.vttcaseiro.model.Shop> sharedShops = List.of();
+
+    private NetMessage pollFor(String id, PollState p, ClientHandler c) {
+        List<Integer> counts = new java.util.ArrayList<>();
+        for (int i = 0; i < p.options.size(); i++) counts.add(0);
+        p.votes.values().forEach(v -> { if (v >= 0 && v < counts.size()) counts.set(v, counts.get(v) + 1); });
+        Integer mine = c.getSession() == null ? null : p.votes.get(c.getSession().playerId());
+        return NetMessage.poll(id, p.author, p.question, p.options, counts, mine);
+    }
+
+    private void broadcastPoll(String id, PollState p) {
+        for (ClientHandler c : clients) if (c.getSession() != null) c.send(pollFor(id, p, c));
+    }
+
+    /** Este cliente conhece o idioma? (mestre sempre; jogador pelas fichas dele) */
+    private boolean knowsLanguage(ClientHandler c, String language) {
+        if (c.isGm() || c.getSession() == null) return true;
+        String me = c.getSession().playerId();
+        for (CharacterSheet s : sharedCharacters.values()) {
+            String owner = characterOwners.get(s.getId());
+            if (owner == null) owner = s.getOwnerPlayerId();
+            if (me.equals(owner) && com.vttcaseiro.service.LanguageScramble.knows(s.getLanguages(), language)) return true;
+        }
+        return false;
+    }
+
     /** Camera travada pelo mestre, por cena ("" = a do grupo): quem entra depois ja chega travado. */
     private final Map<String, NetMessage> cameraLocks = new java.util.HashMap<>();
     private final List<ClientHandler> clients = new CopyOnWriteArrayList<>();
@@ -557,7 +593,20 @@ public class GameServer {
                     msg.speakAs = null;
                     // [[1d20+5]] no texto: quem rola e o servidor (e ninguem forja o resultado).
                     msg.text = com.vttcaseiro.dice.InlineRolls.expand(msg.text);
-                    if (msg.whisperTo == null || msg.whisperTo.isBlank()) {
+                    if (msg.language != null && !msg.language.isBlank() && (msg.whisperTo == null || msg.whisperTo.isBlank())) {
+                        // idioma do jogo: quem conhece le; os outros recebem embaralhado (o texto certo nem sai)
+                        String lang = msg.language.strip();
+                        if (lang.length() > 30) lang = lang.substring(0, 30);
+                        String original = msg.text;
+                        for (ClientHandler c : clients) {
+                            if (c.getSession() == null) continue;
+                            boolean reads = c == from || knowsLanguage(c, lang);
+                            NetMessage copy = NetMessage.chat(msg.player, "[" + lang + "] "
+                                    + (reads ? original : com.vttcaseiro.service.LanguageScramble.scramble(original, lang)));
+                            copy.language = lang;
+                            c.send(copy);
+                        }
+                    } else if (msg.whisperTo == null || msg.whisperTo.isBlank()) {
                         broadcast(msg);
                     } else {
                         deliverWhisper(msg, from);
@@ -743,6 +792,8 @@ public class GameServer {
                     com.vttcaseiro.model.Campaign camp = sharedCampaign;
                     if (camp != null) from.send(NetMessage.campaignSync(from.isGm() ? camp : camp.publicCopy()));
                     playingAudio.values().forEach(a -> from.send(NetMessage.audio(a)));
+                    if (!sharedShops.isEmpty()) from.send(NetMessage.shopsSync(sharedShops));
+                    polls.forEach((id, p) -> from.send(pollFor(id, p, from)));
                     if (sharedParty != null) {
                         from.send(NetMessage.partySync(sharedParty));
                     }
@@ -752,6 +803,44 @@ public class GameServer {
                     broadcastPresence();
                 }
                 case "split_scene" -> splitScene(msg, from);
+                case "poll" -> {
+                    if (msg.text == null || msg.pollOptions == null || msg.pollOptions.size() < 2 || polls.size() > 200) break;
+                    PollState p = new PollState();
+                    p.author = from.getSession().playerName();
+                    p.question = msg.label == null ? "" : msg.label.length() > 200 ? msg.label.substring(0, 200) : msg.label;
+                    p.options = new java.util.ArrayList<>();
+                    for (String o : msg.pollOptions.subList(0, Math.min(10, msg.pollOptions.size()))) {
+                        p.options.add(o == null ? "" : o.length() > 80 ? o.substring(0, 80) : o);
+                    }
+                    polls.put(msg.text, p);
+                    broadcastPoll(msg.text, p);
+                }
+                case "poll_vote" -> {
+                    PollState p = msg.text == null ? null : polls.get(msg.text);
+                    if (p == null || msg.pollVote == null || msg.pollVote < 0 || msg.pollVote >= p.options.size()) break;
+                    p.votes.put(from.getSession().playerId(), msg.pollVote); // um voto por pessoa (da pra trocar)
+                    broadcastPoll(msg.text, p);
+                }
+                case "shops_sync" -> {
+                    if (!from.isGm()) break;
+                    List<com.vttcaseiro.model.Shop> open = new java.util.ArrayList<>();
+                    if (msg.shops != null) for (com.vttcaseiro.model.Shop s : msg.shops) if (s != null && s.isOpen()) open.add(s);
+                    sharedShops = open;
+                    NetMessage out = NetMessage.shopsSync(open);
+                    for (ClientHandler c : clients) if (c != from && c.getSession() != null) c.send(out);
+                }
+                case "shop_request" -> {
+                    if (msg.shopRequest == null) break;
+                    msg.shopRequest.player = from.getSession().playerName();
+                    boolean any = false;
+                    for (ClientHandler c : clients) {
+                        if (c.isGm() && c != from) {
+                            c.send(msg);
+                            any = true;
+                        }
+                    }
+                    if (!any && !from.isGm()) from.send(NetMessage.chat("servidor", "Nenhum mestre conectado pra atender a loja."));
+                }
                 case "gm_view" -> {
                     if (!from.isGm()) break;
                     String key = msg.sceneKey != null && sideScenes.containsKey(msg.sceneKey) ? msg.sceneKey : null;

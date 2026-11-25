@@ -86,6 +86,29 @@ public class NetMessage {
     public Boolean locked;
     public Double zoom;
 
+    /** "chat" falado num idioma do jogo: quem nao conhece (pela ficha) recebe o texto embaralhado. */
+    public String language;
+
+    /** "poll" (text = id, label = pergunta, player = quem criou) e "poll_vote" (text = id, pollVote = opcao). */
+    public java.util.List<String> pollOptions;
+    public java.util.List<Integer> pollCounts;
+    public Integer pollVote;
+
+    /** "shops_sync": lojas abertas. "shop_request": jogador quer comprar/vender (o mestre aplica). */
+    public java.util.List<com.vttcaseiro.model.Shop> shops;
+    public ShopRequest shopRequest;
+
+    /** Pedido de compra/venda numa loja. */
+    public static class ShopRequest {
+        public String shopId;
+        public String item;
+        public int quantity = 1;
+        public String sheetId;
+        public boolean sell;
+        /** Preenchido pelo servidor: quem pediu. */
+        public String player;
+    }
+
     /** "zones_sync": zonas da cena (o servidor tira as escondidas pra quem nao e mestre). */
     public java.util.List<com.vttcaseiro.model.MapZone> zones;
 
@@ -511,6 +534,41 @@ public class NetMessage {
         m.playerId = playerId;
         m.sceneKey = sceneKey;
         m.scene = scene;
+        return m;
+    }
+
+    public static NetMessage poll(String id, String author, String question, java.util.List<String> options,
+                                  java.util.List<Integer> counts, Integer myVote) {
+        NetMessage m = new NetMessage();
+        m.type = "poll";
+        m.text = id;
+        m.player = author;
+        m.label = question;
+        m.pollOptions = options;
+        m.pollCounts = counts;
+        m.pollVote = myVote;
+        return m;
+    }
+
+    public static NetMessage pollVote(String id, int option) {
+        NetMessage m = new NetMessage();
+        m.type = "poll_vote";
+        m.text = id;
+        m.pollVote = option;
+        return m;
+    }
+
+    public static NetMessage shopsSync(java.util.List<com.vttcaseiro.model.Shop> shops) {
+        NetMessage m = new NetMessage();
+        m.type = "shops_sync";
+        m.shops = shops;
+        return m;
+    }
+
+    public static NetMessage shopRequest(ShopRequest r) {
+        NetMessage m = new NetMessage();
+        m.type = "shop_request";
+        m.shopRequest = r;
         return m;
     }
 

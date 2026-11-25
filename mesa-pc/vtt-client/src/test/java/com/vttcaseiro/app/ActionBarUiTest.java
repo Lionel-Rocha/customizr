@@ -262,6 +262,53 @@ class ActionBarUiTest {
                         && tn.getModel().getId().equals(goblin.getId())), "os outros aparecem");
                 weather.invoke(main, "");
                 ((Stage) field(main, "tvStage")).close();
+                // --- escudo do mestre: a Lyra (token na cena) aparece com CA e passivas
+                Method gmScreen = Main.class.getDeclaredMethod("showGmScreen");
+                gmScreen.setAccessible(true);
+                gmScreen.invoke(main);
+                Stage gs = (Stage) field(main, "gmScreenStage");
+                assertTrue(gs.isShowing(), "abriu o escudo do mestre");
+                java.util.List<String> labels = new java.util.ArrayList<>();
+                java.util.ArrayDeque<javafx.scene.Parent> todo = new java.util.ArrayDeque<>(List.of(gs.getScene().getRoot()));
+                while (!todo.isEmpty()) {
+                    javafx.scene.Parent par = todo.pop();
+                    if (par instanceof javafx.scene.control.ScrollPane sp && sp.getContent() instanceof javafx.scene.Parent cp) todo.push(cp);
+                    for (Node n : par.getChildrenUnmodifiable()) {
+                        if (n instanceof javafx.scene.control.Label lb) labels.add(lb.getText());
+                        if (n instanceof javafx.scene.Parent pp) todo.push(pp);
+                    }
+                }
+                assertTrue(labels.stream().anyMatch(x -> x.startsWith("Lyra")), "Lyra na tabela: " + labels);
+                gs.close();
+
+                // --- loja (jogando sozinho = mestre): compra tira o dinheiro e poe o item na ficha
+                Method working = Main.class.getDeclaredMethod("workingShops");
+                working.setAccessible(true);
+                @SuppressWarnings("unchecked")
+                java.util.List<com.vttcaseiro.model.Shop> shopsNow = (java.util.List<com.vttcaseiro.model.Shop>) working.invoke(main);
+                com.vttcaseiro.model.Shop smith = new com.vttcaseiro.model.Shop("Ferreiro");
+                smith.getItems().add(new com.vttcaseiro.model.Shop.Item("Dagger", 200, -1, ""));
+                shopsNow.add(smith);
+                lyra.getInventory().getMoney().add(com.vttcaseiro.inventory.Currency.GOLD, 5);
+                Method trade = Main.class.getDeclaredMethod("shopTrade", String.class, String.class, int.class,
+                        CharacterSheet.class, boolean.class, String.class);
+                trade.setAccessible(true);
+                trade.invoke(main, smith.getId(), "Dagger", 1, lyra, false, "eu");
+                assertEquals(300, lyra.getInventory().getMoney().totalInCopper(), "5 po - 2 po");
+                assertTrue(lyra.getInventory().findByName("Dagger").isPresent(), "a adaga entrou no inventario");
+                Method openShops = Main.class.getDeclaredMethod("openShops");
+                openShops.setAccessible(true);
+                openShops.invoke(main);
+                com.vttcaseiro.view.ShopWindow sw = (com.vttcaseiro.view.ShopWindow) field(main, "shopWindow");
+                assertTrue(sw.isShowing(), "a janela das lojas abre");
+
+                // --- enquete jogando sozinho: vira uma linha do chat e conta o voto
+                Method poll = Main.class.getDeclaredMethod("startPoll", String.class);
+                poll.setAccessible(true);
+                poll.invoke(main, "Por onde? | Floresta | Estrada");
+                @SuppressWarnings("unchecked")
+                java.util.Map<String, Object> polls = (java.util.Map<String, Object>) field(main, "pollsById");
+                assertEquals(1, polls.size(), "enquete criada");
                 stage.close();
             } catch (Exception e) {
                 throw new RuntimeException(e);

@@ -57,6 +57,16 @@ public class NetworkService {
         default void onMapPull(String player, double x, double y) {
         }
 
+        default void onPoll(String id, String author, String question, java.util.List<String> options,
+                            java.util.List<Integer> counts, Integer myVote) {
+        }
+
+        default void onShops(java.util.List<com.vttcaseiro.model.Shop> shops) {
+        }
+
+        default void onShopRequest(com.vttcaseiro.net.NetMessage.ShopRequest request) {
+        }
+
         default void onCameraLock(boolean locked, double x, double y, double zoom) {
         }
 
@@ -507,6 +517,22 @@ public class NetworkService {
             }
 
             @Override
+            public void onPoll(String id, String author, String question, List<String> options, List<Integer> counts,
+                               Integer myVote) {
+                listener.onPoll(id, author, question, options, counts, myVote);
+            }
+
+            @Override
+            public void onShops(List<com.vttcaseiro.model.Shop> shops) {
+                listener.onShops(shops);
+            }
+
+            @Override
+            public void onShopRequest(com.vttcaseiro.net.NetMessage.ShopRequest request) {
+                listener.onShopRequest(request);
+            }
+
+            @Override
             public void onCameraLock(boolean locked, double x, double y, double zoom) {
                 listener.onCameraLock(locked, x, y, zoom);
             }
@@ -951,6 +977,26 @@ public class NetworkService {
 
     public void sendMapPull(double x, double y) {
         if (client != null) client.sendMapPull(x, y);
+    }
+
+    public void sendChatLanguage(String text, String language) {
+        if (client != null) client.sendChatLanguage(playerName, text, language);
+    }
+
+    public void sendPoll(String id, String question, List<String> options) {
+        if (client != null) client.sendPoll(id, question, options);
+    }
+
+    public void sendPollVote(String id, int option) {
+        if (client != null) client.sendPollVote(id, option);
+    }
+
+    public void sendShops(List<com.vttcaseiro.model.Shop> shops) {
+        if (client != null) client.sendShops(shops);
+    }
+
+    public void sendShopRequest(com.vttcaseiro.net.NetMessage.ShopRequest r) {
+        if (client != null) client.sendShopRequest(r);
     }
 
     public void sendCameraLock(boolean locked, double x, double y, double zoom) {

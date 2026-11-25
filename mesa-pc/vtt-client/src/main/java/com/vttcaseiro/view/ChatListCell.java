@@ -20,6 +20,10 @@ import javafx.scene.layout.VBox;
  */
 public class ChatListCell extends ListCell<LogEntry> {
 
+    /** Enquete pra desenhar: pergunta, opcoes, votos de cada uma e o meu voto (null = nao votei). */
+    public record PollView(String question, java.util.List<String> options, java.util.List<Integer> counts, Integer myVote) {
+    }
+
     /** O que o chat pede pro resto do programa. */
     public interface ChatActions {
         /** multiplier: 1 = normal, 0.5 = resistencia, 2 = vulnerabilidade. */
@@ -49,6 +53,15 @@ public class ChatListCell extends ListCell<LogEntry> {
 
         /** Salva a imagem num arquivo. */
         default void saveImage(String assetId) {
+        }
+
+        /** Enquete desta linha (null = nao e enquete). */
+        default PollView pollFor(LogEntry entry) {
+            return null;
+        }
+
+        /** Votar na opcao {@code option} da enquete desta linha. */
+        default void vote(LogEntry entry, int option) {
         }
 
         /** Esta linha (dano/cura aplicado) pode ser desfeita? Devolve o que fazer, ou null. */
@@ -169,6 +182,33 @@ public class ChatListCell extends ListCell<LogEntry> {
                     textBox.getChildren().add(quick);
                 }
             }
+        }
+        PollView poll = actions == null ? null : actions.pollFor(entry);
+        if (poll != null) {
+            textBox.getChildren().removeIf(n -> n != meta);
+            Label q = new Label(poll.question().isBlank() ? "Enquete" : poll.question());
+            q.setWrapText(true);
+            q.setStyle("-fx-font-weight: bold;");
+            VBox opts = new VBox(4);
+            int total = poll.counts().stream().mapToInt(Integer::intValue).sum();
+            for (int i = 0; i < poll.options().size(); i++) {
+                int idx = i;
+                int n = i < poll.counts().size() ? poll.counts().get(i) : 0;
+                boolean mine = poll.myVote() != null && poll.myVote() == i;
+                javafx.scene.control.Button b = new javafx.scene.control.Button((mine ? "✓ " : "") + poll.options().get(i)
+                        + "   " + n + (n == 1 ? " voto" : " votos"));
+                b.setMaxWidth(Double.MAX_VALUE);
+                b.getStyleClass().add("roll-chip");
+                if (mine) b.getStyleClass().add("roll-chip-primary");
+                double pct = total == 0 ? 0 : (double) n / total;
+                b.setStyle("-fx-background-color: linear-gradient(to right, -c-accent-deep " + (pct * 100) + "%, -c-raised "
+                        + (pct * 100) + "%);");
+                b.setOnAction(e -> actions.vote(entry, idx));
+                opts.getChildren().add(b);
+            }
+            Label hint = new Label(total + (total == 1 ? " voto" : " votos") + " · clique pra votar (dá pra trocar)");
+            hint.getStyleClass().add("label-muted");
+            textBox.getChildren().addAll(q, opts, hint);
         }
         Runnable undo = actions == null ? null : actions.undoFor(entry);
         if (undo != null) {

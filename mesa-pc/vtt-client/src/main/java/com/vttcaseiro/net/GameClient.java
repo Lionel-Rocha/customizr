@@ -55,6 +55,19 @@ public class GameClient {
         default void onSideSceneClosed(String sceneKey, SceneModel scene) {
         }
 
+        /** Enquete nova ou com votos novos. */
+        default void onPoll(String id, String author, String question, java.util.List<String> options,
+                            java.util.List<Integer> counts, Integer myVote) {
+        }
+
+        /** Lojas abertas pelo mestre. */
+        default void onShops(java.util.List<com.vttcaseiro.model.Shop> shops) {
+        }
+
+        /** So pro mestre: um jogador quer comprar/vender. */
+        default void onShopRequest(NetMessage.ShopRequest request) {
+        }
+
         /** O mestre puxou a tela pra este ponto. */
         default void onMapPull(String player, double x, double y) {
             onMapPing(player, x, y);
@@ -440,6 +453,12 @@ public class GameClient {
                 }
             }
             case "side_scene_closed" -> listener.onSideSceneClosed(msg.sceneKey, msg.scene);
+            case "poll" -> {
+                if (msg.text != null && msg.pollOptions != null) listener.onPoll(msg.text, msg.player, msg.label,
+                        msg.pollOptions, msg.pollCounts == null ? java.util.List.of() : msg.pollCounts, msg.pollVote);
+            }
+            case "shops_sync" -> listener.onShops(msg.shops == null ? java.util.List.of() : msg.shops);
+            case "shop_request" -> { if (msg.shopRequest != null) listener.onShopRequest(msg.shopRequest); }
             case "camera_lock" -> {
                 if (msg.x != null && msg.y != null) listener.onCameraLock(Boolean.TRUE.equals(msg.locked), msg.x, msg.y,
                         msg.zoom == null ? 1 : msg.zoom);
@@ -774,6 +793,29 @@ public class GameClient {
     }
 
     /** Mestre leva um jogador pra uma cena (null = volta pro grupo). */
+    /** Fala num idioma do jogo (quem nao conhece recebe embaralhado). */
+    public void sendChatLanguage(String player, String text, String language) {
+        NetMessage m = NetMessage.chat(player, text);
+        m.language = language;
+        send(m);
+    }
+
+    public void sendPoll(String id, String question, java.util.List<String> options) {
+        send(NetMessage.poll(id, null, question, options, null, null));
+    }
+
+    public void sendPollVote(String id, int option) {
+        send(NetMessage.pollVote(id, option));
+    }
+
+    public void sendShops(java.util.List<com.vttcaseiro.model.Shop> shops) {
+        send(NetMessage.shopsSync(shops));
+    }
+
+    public void sendShopRequest(NetMessage.ShopRequest r) {
+        send(NetMessage.shopRequest(r));
+    }
+
     public void sendMapPull(double x, double y) {
         send(NetMessage.mapPull(x, y));
     }
