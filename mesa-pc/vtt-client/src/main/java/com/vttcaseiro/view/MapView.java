@@ -68,6 +68,7 @@ public class MapView extends Pane {
      * ficava sem espaco ("Texture ... is null").
      */
     public void release() {
+        stopWeather();
         backgroundView.setImage(null);
         gridCanvas.setWidth(1);
         gridCanvas.setHeight(1);
@@ -123,6 +124,38 @@ public class MapView extends Pane {
     private double measureStartY;
     private final Line measureLine = new Line();
     private final Label measureLabel = new Label();
+    /** Regua com paradas (Espaco durante a medicao): trechos ja medidos e quantas casas somam. */
+    private final java.util.List<double[]> measureWaypoints = new java.util.ArrayList<>();
+    private final javafx.scene.shape.Polyline measurePath = new javafx.scene.shape.Polyline();
+    private long measureWaypointCells;
+    private double[] measureEnd;
+    /** Paradas do token sendo arrastado (centros) e o ultimo ponto do arrasto. */
+    private final java.util.List<double[]> dragWaypoints = new java.util.ArrayList<>();
+    private double[] lastDragProgress;
+    private javafx.scene.shape.Polyline dragPath;
+
+    /**
+     * Espaco durante a medicao ou o arrasto de um token: marca uma parada e a regua passa a somar o caminho (contornar
+     * parede, dobrar esquina). Devolve true se tinha medicao/arrasto acontecendo.
+     */
+    public boolean addRulerWaypoint() {
+        if (lastDragProgress != null && moveRulerLine != null) {
+            dragWaypoints.add(new double[]{moveRulerLine.getEndX(), moveRulerLine.getEndY()});
+            return true;
+        }
+        if (measuring && measureLine.isVisible() && measureEnd != null) {
+            measureWaypointCells += scene.getGrid().cellsBetween(measureStartX, measureStartY, measureEnd[0], measureEnd[1]);
+            if (measurePath.getPoints().isEmpty()) measurePath.getPoints().addAll(measureStartX, measureStartY);
+            measurePath.getPoints().addAll(measureEnd[0], measureEnd[1]);
+            measureWaypoints.add(measureEnd.clone());
+            measureStartX = measureEnd[0];
+            measureStartY = measureEnd[1];
+            measureLine.setStartX(measureStartX);
+            measureLine.setStartY(measureStartY);
+            return true;
+        }
+        return false;
+    }
 
     /** Templates de area de efeito (Fase 3): clique-e-arraste no mapa
      * vazio (com {@link #setTemplating} ativado) desenha um circulo, cone,
@@ -165,6 +198,11 @@ public class MapView extends Pane {
                 + " -fx-padding: 2 6 2 6; -fx-background-radius: 4;");
         measureLabel.setVisible(false);
         measureLabel.setMouseTransparent(true);
+        measurePath.setStroke(Color.web("#E8A23E"));
+        measurePath.setStrokeWidth(2);
+        measurePath.getStrokeDashArray().addAll(6.0, 4.0);
+        measurePath.setMouseTransparent(true);
+        measurePath.visibleProperty().bind(measureLine.visibleProperty());
         templateGroup.setMouseTransparent(true);
         fogCanvas.setMouseTransparent(true);
         fogPreview.setFill(Color.web("#FFCF7F", 0.15));
@@ -177,7 +215,7 @@ public class MapView extends Pane {
         // Desenhos ficam embaixo dos tokens e da neblina (nao revelam area escondida).
         // A mascara de visao fica por cima dos tokens (esconde o que o jogador nao ve).
         content.getChildren().addAll(backgroundView, gridCanvas, objectLayer, drawingLayer, zoneLayer, wallLayer, lightLayer, auraLayer, tokenLayer, visionLayer,
-                fogCanvas, pinLayer, fogPreview, measureLine, measureLabel, templateGroup);
+                fogCanvas, pinLayer, fogPreview, measurePath, measureLine, measureLabel, templateGroup);
         getChildren().add(content);
         setStyle("-fx-background-color: -c-bg;");
         // trocou o tema: a cor de fundo muda e o tabuleiro e a grade acompanham
@@ -202,6 +240,12 @@ public class MapView extends Pane {
 
         setOnScroll(this::onScroll);
         // Alt+clique em qualquer lugar (ate em cima de token) = ping.
+        getChildren().add(weatherCanvas);
+        weatherCanvas.setManaged(false);
+        weatherCanvas.setMouseTransparent(true);
+        weatherCanvas.widthProperty().bind(widthProperty());
+        weatherCanvas.heightProperty().bind(heightProperty());
+        setWeather(scene.getWeather());
         getChildren().add(ringLayer);
         ringLayer.setManaged(false);
         addEventFilter(MouseEvent.MOUSE_PRESSED, e -> {
@@ -257,6 +301,19 @@ public class MapView extends Pane {
     public static final String TOOL_PEN = "pen";
     public static final String TOOL_TEXT = "text";
     public static final String TOOL_ERASER = "eraser";
+    public static final String TOOL_RECT = "rect";
+    public static final String TOOL_CIRCLE = "circle";
+    public static final String TOOL_ARROW = "arrow";
+    private double[] shapeStart;
+    private javafx.scene.Node shapePreview;
+
+    private static String shapeKind(String tool) {
+        return switch (tool) {
+            case TOOL_RECT -> com.vttcaseiro.model.Drawing.RECT;
+            case TOOL_CIRCLE -> com.vttcaseiro.model.Drawing.CIRCLE;
+            default -> com.vttcaseiro.model.Drawing.ARROW;
+        };
+    }
 
     private final javafx.scene.Group drawingLayer = new javafx.scene.Group();
     private String drawTool;
@@ -292,6 +349,7 @@ public class MapView extends Pane {
     private static javafx.scene.Node nodeFor(com.vttcaseiro.model.Drawing d) {
         java.util.List<Double> p = d.getPoints();
         if (p.size() < 2) return null;
+        if (d.isShape()) return shapeNode(d.getKind(), p.get(0), p.get(1), p.get(2), p.get(3), d.getColor(), d.getWidth());
         if (com.vttcaseiro.model.Drawing.TEXT.equals(d.getKind())) {
             Label text = new Label(d.getText());
             text.setStyle("-fx-text-fill: " + d.getColor() + "; -fx-font-size: 16px; -fx-font-weight: bold;"
@@ -309,6 +367,38 @@ public class MapView extends Pane {
         line.setStrokeLineJoin(javafx.scene.shape.StrokeLineJoin.ROUND);
         line.setFill(null);
         return line;
+    }
+
+    /** Retangulo, circulo ou seta (com ponta) do desenho. */
+    static javafx.scene.Node shapeNode(String kind, double x1, double y1, double x2, double y2, String color, double width) {
+        Color c = Color.web(color);
+        javafx.scene.shape.Shape main;
+        javafx.scene.Group g = new javafx.scene.Group();
+        switch (kind) {
+            case com.vttcaseiro.model.Drawing.RECT -> {
+                main = new javafx.scene.shape.Rectangle(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1), Math.abs(y2 - y1));
+                main.setFill(Color.color(c.getRed(), c.getGreen(), c.getBlue(), 0.12));
+            }
+            case com.vttcaseiro.model.Drawing.CIRCLE -> {
+                main = new javafx.scene.shape.Circle(x1, y1, Math.hypot(x2 - x1, y2 - y1));
+                main.setFill(Color.color(c.getRed(), c.getGreen(), c.getBlue(), 0.12));
+            }
+            default -> {
+                main = new Line(x1, y1, x2, y2);
+                double ang = Math.atan2(y2 - y1, x2 - x1), head = Math.max(12, width * 4);
+                javafx.scene.shape.Polygon tip = new javafx.scene.shape.Polygon(x2, y2,
+                        x2 - head * Math.cos(ang - 0.45), y2 - head * Math.sin(ang - 0.45),
+                        x2 - head * Math.cos(ang + 0.45), y2 - head * Math.sin(ang + 0.45));
+                tip.setFill(c);
+                g.getChildren().add(tip);
+            }
+        }
+        main.setStroke(c);
+        main.setStrokeWidth(width);
+        main.setStrokeLineCap(javafx.scene.shape.StrokeLineCap.ROUND);
+        g.getChildren().add(0, main);
+        g.setMouseTransparent(true);
+        return g;
     }
 
     /** Desenho mais perto do ponto (ate {@code max} px), pra borracha. */
@@ -349,11 +439,23 @@ public class MapView extends Pane {
             case TOOL_ERASER -> drawingNear(p.getX(), p.getY(), 12).ifPresent(d -> {
                 if (drawHandler != null) drawHandler.remove(d);
             });
+            case TOOL_RECT, TOOL_CIRCLE, TOOL_ARROW -> {
+                shapeStart = new double[]{p.getX(), p.getY()};
+                shapePreview = shapeNode(shapeKind(drawTool), p.getX(), p.getY(), p.getX(), p.getY(), drawColor, drawWidth);
+                content.getChildren().add(shapePreview);
+            }
             default -> { }
         }
     }
 
     private void continueDrawing(Point2D p) {
+        if (shapeStart != null) {
+            content.getChildren().remove(shapePreview);
+            shapePreview = shapeNode(shapeKind(drawTool), shapeStart[0], shapeStart[1], p.getX(), p.getY(), drawColor, drawWidth);
+            content.getChildren().add(shapePreview);
+            lastShapeEnd = new double[]{p.getX(), p.getY()};
+            return;
+        }
         if (drawingPoints == null) return;
         int n = drawingPoints.size();
         // Pula pontos muito proximos: traco leve, mensagem pequena.
@@ -364,7 +466,20 @@ public class MapView extends Pane {
         drawingPreview.getPoints().addAll(p.getX(), p.getY());
     }
 
+    private double[] lastShapeEnd;
+
     private void finishDrawing() {
+        if (shapeStart != null) {
+            content.getChildren().remove(shapePreview);
+            double[] a = shapeStart, b = lastShapeEnd;
+            shapeStart = null;
+            shapePreview = null;
+            lastShapeEnd = null;
+            if (b != null && Math.hypot(b[0] - a[0], b[1] - a[1]) >= 6 && drawHandler != null) {
+                drawHandler.add(com.vttcaseiro.model.Drawing.shape(shapeKind(drawTool), a[0], a[1], b[0], b[1], drawColor, drawWidth));
+            }
+            return;
+        }
         if (drawingPoints == null) return;
         content.getChildren().remove(drawingPreview);
         java.util.List<Double> pts = drawingPoints;
@@ -439,7 +554,7 @@ public class MapView extends Pane {
     /** Desenha as zonas (chamado junto com as paredes). */
     public void redrawZones() {
         zoneLayer.getChildren().clear();
-        boolean gm = tokenActions == null || tokenActions.isGm();
+        boolean gm = isGmView();
         boolean editing = TOOL_ZONE.equals(wallTool);
         for (com.vttcaseiro.model.MapZone z : scene.getZones()) {
             if (!gm && !z.isVisibleToPlayers()) continue;
@@ -568,6 +683,153 @@ public class MapView extends Pane {
         else if (drawTool == null) setCursor(Cursor.DEFAULT);
     }
 
+    // ---------------- tela dos jogadores (TV)
+
+    /** Tela da TV / segundo monitor: mostra o que os jogadores veem, nunca a visao do mestre, e nao mexe em nada. */
+    private boolean playerScreen;
+
+    public void setPlayerScreen(boolean on) {
+        this.playerScreen = on;
+        rebuildTokens();
+        redrawWalls();
+        redrawZones();
+        redrawPins();
+        redrawObjects();
+        redrawFog();
+        updateVision();
+    }
+
+    /** Desenho do mestre (tudo visivel, ocultos com selo)? Tela da TV: nunca. */
+    boolean isGmView() {
+        return !playerScreen && (tokenActions == null || tokenActions.isGm());
+    }
+
+    // ---------------- clima animado por cima do mapa
+
+    private final Canvas weatherCanvas = new Canvas();
+    private javafx.animation.AnimationTimer weatherTimer;
+    private String weather = "";
+    private double[][] particles = new double[0][];
+    private final java.util.Random weatherRandom = new java.util.Random();
+    private long lastFlash;
+
+    public String getWeather() {
+        return weather;
+    }
+
+    /** Liga o clima ("" desliga): chuva, tempestade, neve, neblina ou cinzas. */
+    public void setWeather(String kind) {
+        String k = kind == null ? "" : kind;
+        if (k.equals(weather) && (k.isEmpty() || weatherTimer != null)) return;
+        weather = k;
+        stopWeather();
+        if (k.isEmpty()) return;
+        int n = switch (k) {
+            case "tempestade" -> 420;
+            case "chuva" -> 260;
+            case "neve" -> 180;
+            case "neblina" -> 9;
+            default -> 120;
+        };
+        particles = new double[n][];
+        for (int i = 0; i < n; i++) particles[i] = newParticle(true);
+        weatherTimer = new javafx.animation.AnimationTimer() {
+            private long last;
+
+            @Override
+            public void handle(long now) {
+                double dt = last == 0 ? 0.016 : Math.min(0.05, (now - last) / 1e9);
+                last = now;
+                stepWeather(dt, now);
+            }
+        };
+        weatherTimer.start();
+    }
+
+    private void stopWeather() {
+        if (weatherTimer != null) weatherTimer.stop();
+        weatherTimer = null;
+        GraphicsContext g = weatherCanvas.getGraphicsContext2D();
+        g.clearRect(0, 0, weatherCanvas.getWidth(), weatherCanvas.getHeight());
+    }
+
+    /** {x, y, velocidade, tamanho, fase} em fracoes da tela (0..1), pra nao depender do tamanho da janela. */
+    private double[] newParticle(boolean anywhere) {
+        double y = anywhere ? weatherRandom.nextDouble() : -0.05;
+        if ("cinzas".equals(weather) && !anywhere) y = 1.05;
+        return new double[]{weatherRandom.nextDouble() * 1.1 - 0.05, y, 0.6 + weatherRandom.nextDouble() * 0.8,
+                weatherRandom.nextDouble(), weatherRandom.nextDouble() * Math.PI * 2};
+    }
+
+    private void stepWeather(double dt, long now) {
+        double w = weatherCanvas.getWidth(), h = weatherCanvas.getHeight();
+        GraphicsContext g = weatherCanvas.getGraphicsContext2D();
+        g.clearRect(0, 0, w, h);
+        if (w <= 0 || h <= 0) return;
+        switch (weather) {
+            case "chuva", "tempestade" -> {
+                boolean storm = "tempestade".equals(weather);
+                g.setStroke(Color.rgb(175, 195, 225, storm ? 0.5 : 0.4));
+                g.setLineWidth(storm ? 1.6 : 1.2);
+                for (int i = 0; i < particles.length; i++) {
+                    double[] p = particles[i];
+                    p[1] += dt * p[2] * (storm ? 1.9 : 1.4);
+                    p[0] += dt * p[2] * (storm ? 0.45 : 0.15);
+                    if (p[1] > 1.05) particles[i] = newParticle(false);
+                    double len = (storm ? 26 : 18) * p[2];
+                    double x = p[0] * w, y = p[1] * h;
+                    g.strokeLine(x, y, x - len * (storm ? 0.25 : 0.1), y - len);
+                }
+                if (storm) {
+                    if (now - lastFlash > 4_000_000_000L && weatherRandom.nextDouble() < dt * 0.25) lastFlash = now;
+                    double since = (now - lastFlash) / 1e9;
+                    if (since < 0.35) {
+                        g.setFill(Color.rgb(255, 255, 255, 0.35 * (1 - since / 0.35)));
+                        g.fillRect(0, 0, w, h);
+                    }
+                }
+            }
+            case "neve" -> {
+                g.setFill(Color.rgb(250, 250, 255, 0.85));
+                for (int i = 0; i < particles.length; i++) {
+                    double[] p = particles[i];
+                    p[4] += dt * 1.5;
+                    p[1] += dt * p[2] * 0.12;
+                    p[0] += dt * Math.sin(p[4]) * 0.03;
+                    if (p[1] > 1.05) particles[i] = newParticle(false);
+                    double r = 1.2 + p[3] * 2.6;
+                    g.fillOval(p[0] * w - r, p[1] * h - r, r * 2, r * 2);
+                }
+            }
+            case "neblina" -> {
+                for (double[] p : particles) {
+                    p[0] += dt * 0.012 * p[2];
+                    if (p[0] > 1.3) p[0] = -0.3;
+                    double r = Math.max(w, h) * (0.25 + p[3] * 0.25);
+                    javafx.scene.paint.RadialGradient fog = new javafx.scene.paint.RadialGradient(0, 0, p[0] * w, p[1] * h, r,
+                            false, javafx.scene.paint.CycleMethod.NO_CYCLE,
+                            new javafx.scene.paint.Stop(0, Color.rgb(205, 210, 215, 0.22)),
+                            new javafx.scene.paint.Stop(1, Color.rgb(205, 210, 215, 0)));
+                    g.setFill(fog);
+                    g.fillRect(0, 0, w, h);
+                }
+            }
+            default -> { // cinzas: sobem devagar, cinza com brasa
+                for (int i = 0; i < particles.length; i++) {
+                    double[] p = particles[i];
+                    p[4] += dt;
+                    p[1] -= dt * p[2] * 0.06;
+                    p[0] += dt * Math.sin(p[4]) * 0.02;
+                    if (p[1] < -0.05) particles[i] = newParticle(false);
+                    boolean ember = p[3] > 0.8;
+                    g.setFill(ember ? Color.rgb(255, 140, 60, 0.8) : Color.rgb(150, 145, 140, 0.6));
+                    double r = 1 + p[3] * 2;
+                    g.fillOval(p[0] * w - r, p[1] * h - r, r * 2, r * 2);
+                }
+            }
+        }
+    }
+
     /** Tokens cuja visao o mestre esta usando ("ver como"); null = visao normal do mestre. */
     private java.util.Set<String> perspectiveIds;
 
@@ -595,7 +857,7 @@ public class MapView extends Pane {
 
     public void redrawWalls() {
         wallLayer.getChildren().clear();
-        boolean gm = tokenActions == null || tokenActions.isGm();
+        boolean gm = isGmView();
         for (com.vttcaseiro.model.Wall w : scene.getWalls()) {
             // jogador nao ve paredes nem janelas (so a escuridao atras), e a porta secreta so quando aberta
             if (!gm && (!w.isDoor() || (w.isSecret() && !w.isOpen()))) continue;
@@ -835,9 +1097,10 @@ public class MapView extends Pane {
     public void updateVision() {
         visionLayer.getChildren().clear();
         visibleArea = null;
-        boolean asPlayer = perspectiveIds != null && (tokenActions == null || tokenActions.isGm());
-        // "ver como": o mestre ve exatamente o que aquele jogador ve (escuro de verdade, sem os ocultos)
-        boolean gm = (tokenActions == null || tokenActions.isGm()) && !asPlayer;
+        boolean asPlayer = (perspectiveIds != null && isGmView()) || playerScreen;
+        // "ver como": o mestre ve exatamente o que aquele jogador ve (escuro de verdade, sem os ocultos);
+        // a tela da TV ve como o grupo todo (os tokens dos jogadores)
+        boolean gm = isGmView() && !asPlayer;
         if (asPlayer && !scene.isVisionEnabled()) {
             for (javafx.scene.Node n : tokenLayer.getChildren()) {
                 if (n instanceof TokenNode tn) tn.setVisible(!tn.getModel().isHiddenFromPlayers());
@@ -850,7 +1113,8 @@ public class MapView extends Pane {
         }
         java.util.List<TokenModel> viewers = new java.util.ArrayList<>();
         for (TokenModel t : scene.getTokens()) {
-            boolean mine = asPlayer ? perspectiveIds.contains(t.getId())
+            boolean mine = playerScreen ? (t.getCharacterSheetId() != null || t.getOwnerId() != null)
+                    : asPlayer ? perspectiveIds.contains(t.getId())
                     : gm ? (t.getCharacterSheetId() != null || t.getOwnerId() != null) : tokenActions.canControl(t);
             if (mine) viewers.add(t);
         }
@@ -955,6 +1219,7 @@ public class MapView extends Pane {
             TokenModel t = tn.getModel();
             double[] c = centerOf(t);
             boolean seenNow = eyes.canSee(t) && !(asPlayer && t.isHiddenFromPlayers());
+            if (playerScreen && t.isHiddenFromPlayers()) seenNow = false;
             tn.setVisible(gm || viewers.contains(t) || seenNow);
             // sentido (sismico, tocha ao longe) sem enxergar o lugar: aparece meio apagado
             tn.setSensedOnly(!(gm || viewers.contains(t) || visibleArea.contains(c[0], c[1])));
@@ -1145,7 +1410,7 @@ public class MapView extends Pane {
         gc.clearRect(0, 0, mapW, mapH);
         com.vttcaseiro.model.Fog fog = scene.getFog();
         if (!fog.isEnabled()) return;
-        boolean gm = (tokenActions == null || tokenActions.isGm()) && perspectiveIds == null;
+        boolean gm = isGmView() && perspectiveIds == null;
         gc.setFill(gm ? Color.rgb(0, 0, 0, 0.55) : Color.web("#0B0C0E"));
         double cell = Math.max(10, scene.getGrid().getCellSize());
         if (scene.getGrid().isHex()) {
@@ -1180,7 +1445,7 @@ public class MapView extends Pane {
     private void updateEmptyStateVisibility() {
         // o cartao "Comece aqui" da tela principal faz o papel de tabuleiro vazio; aqui so fica o aviso da
         // cena escondida (jogador: o mestre esta preparando, o servidor nem mandou o que tem nela)
-        boolean gm = tokenActions == null || tokenActions.isGm();
+        boolean gm = isGmView();
         boolean curtain = scene.isHiddenFromPlayers() && !gm;
         if (curtain) {
             emptyStateLabel.setText("O mestre está preparando a cena...\nEla aparece aqui assim que ele mostrar.");
@@ -1302,7 +1567,7 @@ public class MapView extends Pane {
 
     public void redrawObjects() {
         objectLayer.getChildren().clear();
-        boolean gm = tokenActions == null || tokenActions.isGm();
+        boolean gm = isGmView();
         objectLayer.setMouseTransparent(!(objectEditing && gm));
         for (com.vttcaseiro.model.MapObject o : scene.getObjects()) {
             if (o.isHidden() && !gm) continue;
@@ -1479,7 +1744,7 @@ public class MapView extends Pane {
 
     public void redrawPins() {
         pinLayer.getChildren().clear();
-        boolean gm = tokenActions == null || tokenActions.isGm();
+        boolean gm = isGmView();
         for (com.vttcaseiro.model.MapPin pin : scene.getPins()) {
             if (pin.isHidden() && !gm) continue;
             pinLayer.getChildren().add(pinNode(pin, gm));
@@ -2313,9 +2578,13 @@ public class MapView extends Pane {
         drawAuras();
         updateEmptyStateVisibility();
         redrawFog();
-        for (TokenModel token : scene.getTokens()) {
-            boolean canControl = tokenActions == null || tokenActions.canControl(token);
-            boolean canSeeHp = tokenActions == null || tokenActions.canSeeHp(token);
+        java.util.List<TokenModel> stacked = new java.util.ArrayList<>(scene.getTokens());
+        stacked.sort(java.util.Comparator.comparingInt(TokenModel::getLayer)); // estavel: empate fica na ordem da cena
+        for (TokenModel token : stacked) {
+            if (playerScreen && token.isHiddenFromPlayers()) continue; // tela da TV: o oculto nem aparece
+            boolean canControl = !playerScreen && (tokenActions == null || tokenActions.canControl(token));
+            boolean canSeeHp = playerScreen ? (token.isHpVisibleToAll() || token.getCharacterSheetId() != null)
+                    : tokenActions == null || tokenActions.canSeeHp(token);
             TokenNode node = new TokenNode(token, scene.getGrid(), imageAssetService, canSeeHp);
             node.setDraggable(canControl);
             node.setSelected(token == selectedToken || selectedIds.contains(token.getId()));
@@ -2393,6 +2662,7 @@ public class MapView extends Pane {
                     sizeMenu(token),
                     rotateMenu(token),
                     shapeMenu(token),
+                    orderMenu(token),
                     menuItem("Visão e luz...", () -> askVision(token)),
                     menuItem("Altura...", () -> askElevation(token)),
                     facingMenu(token),
@@ -2516,6 +2786,21 @@ public class MapView extends Pane {
     }
 
     /** Submenu "Girar" (tambem: tecla R / Shift+R com o token selecionado). */
+    /** Submenu "Ordem": quem fica por cima quando um token esta em cima do outro. */
+    private javafx.scene.control.Menu orderMenu(TokenModel token) {
+        javafx.scene.control.Menu menu = new javafx.scene.control.Menu("Ordem (por cima / por baixo)");
+        menu.getItems().addAll(
+                menuItem("Trazer pra frente (fica por cima)", () -> {
+                    int top = scene.getTokens().stream().mapToInt(TokenModel::getLayer).max().orElse(0);
+                    tokenActions.editToken(token, "Trazer pra frente", t -> t.setLayer(top + 1));
+                }),
+                menuItem("Mandar pra trás (fica por baixo)", () -> {
+                    int bottom = scene.getTokens().stream().mapToInt(TokenModel::getLayer).min().orElse(0);
+                    tokenActions.editToken(token, "Mandar pra trás", t -> t.setLayer(bottom - 1));
+                }));
+        return menu;
+    }
+
     /** Submenu "Formato": quadrado, redondo, hexagono ou octogono (o atual vem marcado). */
     private javafx.scene.control.Menu shapeMenu(TokenModel token) {
         javafx.scene.control.Menu menu = new javafx.scene.control.Menu("Formato");
@@ -2569,11 +2854,15 @@ public class MapView extends Pane {
 
     private void onTokenDragProgress(TokenModel token, double[] p) {
         if (p == null) {
-            content.getChildren().removeAll(moveRulerLine, moveRulerLabel);
+            content.getChildren().removeAll(moveRulerLine, moveRulerLabel, dragPath);
             moveRulerLine = null;
             moveRulerLabel = null;
+            dragPath = null;
+            dragWaypoints.clear();
+            lastDragProgress = null;
             return;
         }
+        lastDragProgress = p;
         double cell = scene.getGrid().getCellSize();
         double half = cell * token.getWidthCells() / 2;
         if (moveRulerLine == null) {
@@ -2585,12 +2874,38 @@ public class MapView extends Pane {
             moveRulerLabel.setMouseTransparent(true);
             content.getChildren().addAll(moveRulerLine, moveRulerLabel);
         }
-        moveRulerLine.setStartX(p[0] + half);
-        moveRulerLine.setStartY(p[1] + half);
+        // com paradas (Espaco): soma os trechos desde o comeco, passando por cada parada
+        java.util.List<double[]> path = new java.util.ArrayList<>();
+        path.add(new double[]{p[0] + half, p[1] + half});
+        path.addAll(dragWaypoints);
+        double[] from = path.get(path.size() - 1);
+        moveRulerLine.setStartX(from[0]);
+        moveRulerLine.setStartY(from[1]);
         moveRulerLine.setEndX(p[2] + half);
         moveRulerLine.setEndY(p[3] + half);
-        long straight = cellsBetween(p[0] + half, p[1] + half, p[2] + half, p[3] + half);
-        long extra = com.vttcaseiro.service.ZoneRules.terrainExtra(scene, p[0] + half, p[1] + half, p[2] + half, p[3] + half, straight);
+        path.add(new double[]{p[2] + half, p[3] + half});
+        long straight = 0;
+        long extra = 0;
+        for (int i = 0; i + 1 < path.size(); i++) {
+            double[] a = path.get(i), b = path.get(i + 1);
+            long seg = cellsBetween(a[0], a[1], b[0], b[1]);
+            straight += seg;
+            extra += com.vttcaseiro.service.ZoneRules.terrainExtra(scene, a[0], a[1], b[0], b[1], seg);
+        }
+        if (dragWaypoints.isEmpty()) {
+            if (dragPath != null) dragPath.setVisible(false);
+        } else {
+            if (dragPath == null) {
+                dragPath = new javafx.scene.shape.Polyline();
+                dragPath.setStrokeWidth(3);
+                dragPath.getStrokeDashArray().addAll(10.0, 6.0);
+                dragPath.setMouseTransparent(true);
+                content.getChildren().add(content.getChildren().indexOf(moveRulerLine), dragPath);
+            }
+            dragPath.setVisible(true);
+            dragPath.getPoints().clear();
+            for (int i = 0; i < path.size() - 1; i++) dragPath.getPoints().addAll(path.get(i)[0], path.get(i)[1]);
+        }
         long cells = straight + extra;
         long feet = Math.round(cells * scene.getGrid().getFeetPerCell());
         int speed = speedProvider == null ? 0 : speedProvider.applyAsInt(token);
@@ -2598,6 +2913,7 @@ public class MapView extends Pane {
         boolean dash = speed > 0 && feet > speed && feet <= speed * 2L;
         String color = !over ? "#3FBE6E" : dash ? "#E8A23E" : "#D9544C";
         moveRulerLine.setStroke(Color.web(color));
+        if (dragPath != null) dragPath.setStroke(Color.web(color));
         moveRulerLabel.setText(Distances.feetAndMeters(feet) + " · " + cells + " casa" + (cells == 1 ? "" : "s")
                 + (extra > 0 ? " (terreno difícil)" : "")
                 + (speed > 0 ? "  /  " + Distances.feetAndMeters(speed) + (over ? (dash ? "  - precisa de Disparada" : "  - longe demais") : "") : ""));
@@ -2977,6 +3293,10 @@ public class MapView extends Pane {
             e.consume();
         } else if (measuring && e.getButton() == MouseButton.PRIMARY) {
             Point2D p = content.sceneToLocal(e.getSceneX(), e.getSceneY());
+            measureWaypoints.clear();
+            measurePath.getPoints().clear();
+            measureWaypointCells = 0;
+            measureEnd = null;
             measureStartX = p.getX();
             measureStartY = p.getY();
             measureLine.setStartX(measureStartX);
@@ -3063,6 +3383,7 @@ public class MapView extends Pane {
             Point2D p = content.sceneToLocal(e.getSceneX(), e.getSceneY());
             measureLine.setEndX(p.getX());
             measureLine.setEndY(p.getY());
+            measureEnd = new double[]{p.getX(), p.getY()};
             updateMeasureLabel(measureStartX, measureStartY, p.getX(), p.getY());
             e.consume();
         } else if (templating && e.getButton() == MouseButton.PRIMARY) {
@@ -3234,7 +3555,7 @@ public class MapView extends Pane {
     private void updateMeasureLabel(double x1, double y1, double x2, double y2) {
         double cellSize = scene.getGrid().getCellSize();
         double feetPerCell = scene.getGrid().getFeetPerCell();
-        long cells = scene.getGrid().cellsBetween(x1, y1, x2, y2);
+        long cells = scene.getGrid().cellsBetween(x1, y1, x2, y2) + measureWaypointCells;
         long feet = Math.round(cells * feetPerCell);
         measureLabel.setText(Distances.feetAndMeters(feet) + " · " + cells + " casa" + (cells == 1 ? "" : "s"));
         measureLabel.setLayoutX((x1 + x2) / 2);

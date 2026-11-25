@@ -1163,8 +1163,20 @@ public class Main extends Application {
         };
         networkService.statusProperty().addListener((o, a, b) -> Platform.runLater(cameraButtonByRole));
         cameraButtonByRole.run();
-        bar.getChildren().addAll(brand, sep, title, sceneStrip, spacer, returnSceneButton, cameraLockButton, playersStrip, hint,
-                campaignButton, gear, netStatusLabel);
+        Button tvButton = new Button("TV", com.vttcaseiro.view.Icons.icon("image", 14));
+        tvButton.getStyleClass().add("button-flat");
+        tvButton.setTooltip(new Tooltip("Tela da mesa pra TV ou segundo monitor (jogo presencial): mostra o mapa como os "
+                + "jogadores veem e segue a sua câmera. Clique duplo nela = tela cheia."));
+        tvButton.setOnAction(e -> openTvWindow());
+        Runnable tvByRole = () -> {
+            boolean show = !networkService.isConnected() || networkService.isGm();
+            tvButton.setVisible(show);
+            tvButton.setManaged(show);
+        };
+        networkService.statusProperty().addListener((o, a, b) -> Platform.runLater(tvByRole));
+        tvByRole.run();
+        bar.getChildren().addAll(brand, sep, title, sceneStrip, spacer, returnSceneButton, cameraLockButton, tvButton,
+                playersStrip, hint, campaignButton, gear, netStatusLabel);
         return bar;
     }
 
@@ -2161,7 +2173,10 @@ public class Main extends Application {
             logEntries.add(LogEntry.system("Você chamou a atenção de todos pra esse ponto do mapa."));
             return true;
         });
-        mapView.setViewListener(this::scheduleCameraSend);
+        mapView.setViewListener(() -> {
+            scheduleCameraSend();
+            syncTvView();
+        });
         javafx.scene.Node hint = buildEmptyMapHint();
         stack.getChildren().add(hint);
         StackPane.setAlignment(hint, Pos.CENTER);
@@ -2351,6 +2366,12 @@ public class Main extends Application {
         textBtn.getStyleClass().add("tool-button");
         ToggleButton eraserBtn = new ToggleButton("Borracha");
         eraserBtn.getStyleClass().add("tool-button");
+        ToggleButton rectBtn = new ToggleButton("Retângulo");
+        rectBtn.getStyleClass().add("tool-button");
+        ToggleButton circleBtn = new ToggleButton("Círculo");
+        circleBtn.getStyleClass().add("tool-button");
+        ToggleButton arrowBtn = new ToggleButton("Seta");
+        arrowBtn.getStyleClass().add("tool-button");
         javafx.scene.control.ColorPicker colorPicker = new javafx.scene.control.ColorPicker(
                 javafx.scene.paint.Color.web("#E2483F"));
         colorPicker.getStyleClass().addAll("button", "tool-color");
@@ -2360,6 +2381,9 @@ public class Main extends Application {
         tip(penBtn, "Arraste no mapa para desenhar");
         tip(textBtn, "Clique no mapa para escrever um texto");
         tip(eraserBtn, "Clique num desenho para apagar (os seus; o mestre apaga qualquer um)");
+        tip(rectBtn, "Arraste de um canto ao outro pra marcar uma área");
+        tip(circleBtn, "Arraste do centro até a borda");
+        tip(arrowBtn, "Arraste de onde pra onde (mostrar um caminho, uma direção)");
         tip(clearDrawBtn, "Apaga os seus desenhos (o mestre apaga todos)");
         MapView.DrawHandler drawHandler = new MapView.DrawHandler() {
             @Override
@@ -2379,9 +2403,11 @@ public class Main extends Application {
             }
         };
         Runnable applyDraw = () -> mapView.setDrawTool(penBtn.isSelected() ? MapView.TOOL_PEN
-                : textBtn.isSelected() ? MapView.TOOL_TEXT : eraserBtn.isSelected() ? MapView.TOOL_ERASER : null,
+                : textBtn.isSelected() ? MapView.TOOL_TEXT : eraserBtn.isSelected() ? MapView.TOOL_ERASER
+                : rectBtn.isSelected() ? MapView.TOOL_RECT : circleBtn.isSelected() ? MapView.TOOL_CIRCLE
+                : arrowBtn.isSelected() ? MapView.TOOL_ARROW : null,
                 drawHandler);
-        List<ToggleButton> drawToggles = List.of(penBtn, textBtn, eraserBtn);
+        List<ToggleButton> drawToggles = List.of(penBtn, textBtn, eraserBtn, rectBtn, circleBtn, arrowBtn);
         for (ToggleButton t : drawToggles) {
             t.setOnAction(e -> {
                 if (t.isSelected()) {
@@ -2493,7 +2519,7 @@ public class Main extends Application {
         };
         // Todas as ferramentas de arrastar no mapa vazio sao exclusivas entre si.
         List<ToggleButton> allTools = List.of(measureBtn, templateBtn, fogRevealBtn, fogCoverBtn,
-                penBtn, textBtn, eraserBtn, wallBtn, doorBtn, windowBtn, lightBtn, wallEraseBtn, zoneBtn, pinBtn);
+                penBtn, textBtn, eraserBtn, rectBtn, circleBtn, arrowBtn, wallBtn, doorBtn, windowBtn, lightBtn, wallEraseBtn, zoneBtn, pinBtn);
         for (ToggleButton t : allTools) {
             t.addEventHandler(javafx.event.ActionEvent.ACTION, e -> {
                 if (t.isSelected()) for (ToggleButton o : allTools) if (o != t) o.setSelected(false);
@@ -2572,7 +2598,7 @@ public class Main extends Application {
         // assim o mapa fica livre e cada coisa tem um lugar facil de achar.
         HBox tokenBox = toolGroup(addTokenBtn, addTokenFromGalleryBtn, npcBtn);
         HBox measureBox = toolGroup(measureBtn, templateShapeCombo, templateBtn, clearTemplateBtn, effectImageBtn);
-        HBox drawBox = toolGroup(penBtn, textBtn, eraserBtn, colorPicker, clearDrawBtn);
+        HBox drawBox = toolGroup(penBtn, rectBtn, circleBtn, arrowBtn, textBtn, eraserBtn, colorPicker, clearDrawBtn);
         drawLabel.setVisible(false);
         drawLabel.setManaged(false);
         fogLabel.setVisible(false);
@@ -2652,7 +2678,7 @@ public class Main extends Application {
         // Atalho de teclado (1-9) liga uma ferramenta: abre a categoria dela tambem.
         java.util.Map<ToggleButton, Integer> catOf = new java.util.HashMap<>();
         for (ToggleButton t : List.of(measureBtn, templateBtn)) catOf.put(t, 1);
-        for (ToggleButton t : List.of(penBtn, textBtn, eraserBtn)) catOf.put(t, 2);
+        for (ToggleButton t : List.of(penBtn, textBtn, eraserBtn, rectBtn, circleBtn, arrowBtn)) catOf.put(t, 2);
         catOf.put(pinBtn, 3);
         for (ToggleButton t : List.of(fogRevealBtn, fogCoverBtn)) catOf.put(t, 5);
         for (ToggleButton t : List.of(wallBtn, doorBtn, windowBtn, lightBtn, wallEraseBtn)) catOf.put(t, 6);
@@ -6172,6 +6198,59 @@ public class Main extends Application {
         }
     }
 
+    // ---------------- copiar e colar tokens (Ctrl+C / Ctrl+V)
+
+    private final List<TokenModel> tokenClipboard = new ArrayList<>();
+
+    /** Copia os tokens escolhidos que eu controlo (o mestre copia qualquer um). */
+    void copyTokens() {
+        List<TokenModel> mine = mapView.getSelectedTokens().stream().filter(table::canControl).toList();
+        if (mine.isEmpty()) {
+            logEntries.add(LogEntry.system("Escolha um token (ou vários, com Shift) pra copiar."));
+            return;
+        }
+        tokenClipboard.clear();
+        for (TokenModel t : mine) tokenClipboard.add(com.vttcaseiro.service.UndoService.copy(t));
+        logEntries.add(LogEntry.system(mine.size() == 1 ? mine.get(0).getName() + " copiado. Ctrl+V cola."
+                : mine.size() + " tokens copiados. Ctrl+V cola."));
+    }
+
+    /**
+     * Cola os tokens copiados uma casa ao lado (cada Ctrl+V cria mais), com numero no nome ("Goblin 2", "Goblin 3").
+     * So o mestre cola (jogador criaria token a vontade); offline sempre.
+     */
+    void pasteTokens() {
+        if (tokenClipboard.isEmpty()) return;
+        if (networkService.isConnected() && !networkService.isGm()) {
+            showError("Só o mestre cola tokens.");
+            return;
+        }
+        double cell = Math.max(10, sceneService.getScene().getGrid().getCellSize());
+        List<TokenModel> pasted = new ArrayList<>();
+        for (TokenModel src : tokenClipboard) {
+            TokenModel t = com.vttcaseiro.service.UndoService.copy(src);
+            t.regenerateId();
+            t.setName(nextCopyName(src.getName()));
+            t.setX(src.getX() + cell * src.getWidthCells());
+            t.setInitiative(null);
+            src.setX(t.getX()); // o proximo Ctrl+V vai mais uma casa pro lado
+            addTokenToScene(t);
+            pasted.add(t);
+        }
+        logEntries.add(LogEntry.system(pasted.size() == 1 ? "Colado: " + pasted.get(0).getName() + "."
+                : pasted.size() + " tokens colados."));
+    }
+
+    /** "Goblin" -> "Goblin 2"; "Goblin 2" -> o proximo numero livre na cena. */
+    String nextCopyName(String name) {
+        String base = name == null ? "Token" : name.replaceAll("\\s+\\d+$", "").strip();
+        java.util.Set<String> used = new java.util.HashSet<>();
+        for (TokenModel t : sceneService.getScene().getTokens()) if (t.getName() != null) used.add(t.getName().strip());
+        int n = 2;
+        while (used.contains(base + " " + n)) n++;
+        return base + " " + n;
+    }
+
     private void addTokenToScene(TokenModel token) {
         if (preparing() && !undoing) token.setHiddenFromPlayers(true);
         if (!undoing) undo.record("Adicionar " + token.getName(), null, token);
@@ -6960,7 +7039,7 @@ public class Main extends Application {
             config.setOnAction(a -> showSceneConfig());
             javafx.scene.control.MenuItem list = new javafx.scene.control.MenuItem("Ver em Mundo > Cenas");
             list.setOnAction(a -> openPanel("Mapa"));
-            m.getItems().addAll(toggle, config, list);
+            m.getItems().addAll(toggle, config, weatherMenu(), list);
             m.show(current, javafx.geometry.Side.BOTTOM, 0, 4);
         });
         sceneStrip.getChildren().add(current);
@@ -7050,6 +7129,123 @@ public class Main extends Application {
     }
 
     // ---------------- camera guiada pelo mestre
+
+    /** Submenu "Clima no mapa": chuva, tempestade, neve, neblina, cinzas (pra todos). */
+    javafx.scene.control.Menu weatherMenu() {
+        javafx.scene.control.Menu menu = new javafx.scene.control.Menu("Clima no mapa");
+        String[][] opts = {{"", "Nenhum"}, {"chuva", "Chuva"}, {"tempestade", "Tempestade (com raios)"}, {"neve", "Neve"},
+                {"neblina", "Neblina"}, {"cinzas", "Cinzas e brasas"}};
+        javafx.scene.control.ToggleGroup group = new javafx.scene.control.ToggleGroup();
+        String now = sceneService.getScene().getWeather();
+        for (String[] o : opts) {
+            javafx.scene.control.RadioMenuItem it = new javafx.scene.control.RadioMenuItem(o[1]);
+            it.setToggleGroup(group);
+            it.setSelected(o[0].equals(now));
+            it.setOnAction(e -> setSceneWeather(o[0]));
+            menu.getItems().add(it);
+        }
+        return menu;
+    }
+
+    /** Muda o clima da cena aberta: aqui, na TV e pra todos (vai com a cena). */
+    void setSceneWeather(String kind) {
+        sceneService.getScene().setWeather(kind);
+        mapView.setWeather(sceneService.getScene().getWeather());
+        if (tvView != null) tvView.setWeather(sceneService.getScene().getWeather());
+        if (networkService.isGm() && networkService.isConnected()) networkService.sendSceneSwitch(sceneService.getScene());
+        scheduleSceneAutosave();
+        logEntries.add(LogEntry.system(kind.isEmpty() ? "Clima do mapa desligado." : "Clima no mapa: " + kind + "."));
+    }
+
+    // ---------------- tela da mesa pra TV (jogo presencial)
+
+    private Stage tvStage;
+    private MapView tvView;
+    private final javafx.animation.PauseTransition tvRefresh = new javafx.animation.PauseTransition(javafx.util.Duration.millis(60));
+    private boolean tvListening;
+
+    /**
+     * Segunda janela com o mapa como os jogadores veem (visao do grupo, escuro, neblina, sem o oculto), seguindo a
+     * camera do mestre. Arraste pra TV/segundo monitor; clique duplo (ou F11) liga a tela cheia.
+     */
+    void openTvWindow() {
+        if (tvStage != null) {
+            tvStage.toFront();
+            return;
+        }
+        tvStage = new Stage();
+        tvStage.setTitle("Customizr - Tela da mesa");
+        com.vttcaseiro.view.Icons.applyTo(tvStage);
+        StackPane root = new StackPane();
+        root.setStyle("-fx-background-color: #000000;");
+        Scene sc = new Scene(root, 1280, 720);
+        sc.getStylesheets().add(getClass().getResource("/style.css").toExternalForm());
+        tvStage.setScene(sc);
+        buildTvView(root);
+        sc.setOnKeyPressed(k -> {
+            if (k.getCode() == javafx.scene.input.KeyCode.F11) tvStage.setFullScreen(!tvStage.isFullScreen());
+        });
+        root.setOnMouseClicked(e -> {
+            if (e.getClickCount() == 2) tvStage.setFullScreen(!tvStage.isFullScreen());
+        });
+        tvStage.setFullScreenExitHint("Esc sai da tela cheia");
+        tvStage.setOnHidden(e -> {
+            if (tvView != null) tvView.release();
+            tvView = null;
+            tvStage = null;
+        });
+        if (!tvListening) {
+            tvListening = true;
+            tvRefresh.setOnFinished(e -> refreshTv());
+            sceneService.addListener(new SceneService.SceneChangeListener() {
+                @Override public void onTokenAdded(TokenModel t) { tvRefresh.playFromStart(); }
+                @Override public void onTokenMoved(TokenModel t) { tvRefresh.playFromStart(); }
+                @Override public void onTokenRemoved(TokenModel t) { tvRefresh.playFromStart(); }
+                @Override public void onTokenUpdated(TokenModel t) { tvRefresh.playFromStart(); }
+                @Override public void onFogChanged() { tvRefresh.playFromStart(); }
+                @Override public void onWallsChanged() { tvRefresh.playFromStart(); }
+                @Override public void onDrawingsChanged() { tvRefresh.playFromStart(); }
+                @Override public void onPinsChanged() { tvRefresh.playFromStart(); }
+                @Override public void onObjectsChanged() { tvRefresh.playFromStart(); }
+                @Override public void onGridChanged() { tvRefresh.playFromStart(); }
+                @Override public void onSceneReplaced(SceneModel s) {
+                    Platform.runLater(() -> { if (tvStage != null) buildTvView((StackPane) tvStage.getScene().getRoot()); });
+                }
+            });
+        }
+        tvStage.show();
+        Platform.runLater(this::syncTvView);
+        logEntries.add(LogEntry.system("Tela da mesa aberta: arraste a janela pra TV e dê clique duplo pra tela cheia. "
+                + "Ela mostra o que os jogadores veem e segue a sua câmera."));
+    }
+
+    private void buildTvView(StackPane root) {
+        if (tvView != null) tvView.release();
+        tvView = new MapView(sceneService.getScene(), imageAssetService);
+        tvView.setPlayerScreen(true);
+        tvView.setCameraLocked(true); // quem manda na camera e o mestre
+        root.getChildren().setAll(tvView);
+        Platform.runLater(this::syncTvView);
+    }
+
+    private void refreshTv() {
+        if (tvView == null) return;
+        tvView.rebuildTokens();
+        tvView.redrawWalls();
+        tvView.redrawDrawings();
+        tvView.redrawPins();
+        tvView.redrawObjects();
+        tvView.redrawZones();
+        tvView.redrawFog();
+        tvView.updateVision();
+    }
+
+    /** A TV mostra o mesmo pedaco do mapa que o mestre esta olhando. */
+    private void syncTvView() {
+        if (tvView == null || mapView == null) return;
+        double[] c = mapView.viewCenter();
+        tvView.applyView(c[0], c[1], mapView.getZoom());
+    }
 
     private ToggleButton cameraLockButton;
     private final Label cameraBanner = new Label("O mestre está guiando a câmera");
@@ -9608,6 +9804,16 @@ public class Main extends Application {
         if (stage.getScene() == null || mapView == null) return;
         javafx.scene.Node focus = stage.getScene().getFocusOwner();
         if (focus instanceof javafx.scene.control.TextInputControl || focus instanceof javafx.scene.control.ComboBoxBase) return;
+        if (e.isShortcutDown() && !e.isAltDown() && e.getCode() == javafx.scene.input.KeyCode.C) {
+            copyTokens();
+            e.consume();
+            return;
+        }
+        if (e.isShortcutDown() && !e.isAltDown() && e.getCode() == javafx.scene.input.KeyCode.V) {
+            pasteTokens();
+            e.consume();
+            return;
+        }
         if (e.isControlDown() || e.isAltDown() || e.isMetaDown()) return;
         List<TokenModel> sel = mapView.getSelectedTokens();
         boolean handled = true;
@@ -9639,6 +9845,10 @@ public class Main extends Application {
                 }
             }
             e.consume();
+            return;
+        }
+        if (e.getCode() == javafx.scene.input.KeyCode.SPACE && mapView.addRulerWaypoint()) {
+            e.consume(); // Espaco medindo/arrastando: parada na regua
             return;
         }
         switch (e.getCode()) {

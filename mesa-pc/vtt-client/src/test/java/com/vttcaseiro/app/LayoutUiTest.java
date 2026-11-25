@@ -212,7 +212,19 @@ class LayoutUiTest {
                         ss.addToken(tk);
                         assertEquals(shapes[i], tk.getShape());
                     }
+                    // formas de desenho e clima (chuva) por cima
+                    ss.getScene().addDrawing(com.vttcaseiro.model.Drawing.shape("rect", 760, 560, 940, 680, "#3FB968", 3));
+                    ss.getScene().addDrawing(com.vttcaseiro.model.Drawing.shape("circle", 1050, 200, 1100, 260, "#5B9BEF", 3));
+                    ss.getScene().addDrawing(com.vttcaseiro.model.Drawing.shape("arrow", 620, 760, 900, 760, "#E2483F", 4));
+                    mv.redrawDrawings();
+                    mv.setWeather("chuva");
+                    Method step = com.vttcaseiro.view.MapView.class.getDeclaredMethod("stepWeather", double.class, long.class);
+                    step.setAccessible(true);
+                    for (int f = 0; f < 5; f++) step.invoke(mv, 0.016, System.nanoTime());
                     snapStage(stage, "tela-zonas.png");
+                    mv.setWeather("");
+                    ss.getScene().getDrawings().clear();
+                    mv.redrawDrawings();
                     for (String sh : shapes) ss.getScene().getTokens().stream().filter(x -> sh.equals(x.getName())).toList()
                             .forEach(x -> ss.removeToken(x.getId()));
                     ss.getScene().getZones().clear();

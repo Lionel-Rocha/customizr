@@ -12,6 +12,10 @@ import java.util.UUID;
 public class Drawing {
     public static final String PATH = "path";
     public static final String TEXT = "text";
+    /** Formas: dois pontos (canto/centro e ponta). */
+    public static final String RECT = "rect";
+    public static final String CIRCLE = "circle";
+    public static final String ARROW = "arrow";
     /** Limites pra um desenho nao virar um arquivo/mensagem gigante. */
     public static final int MAX_POINTS = 4000;
     public static final int MAX_TEXT = 200;
@@ -46,8 +50,26 @@ public class Drawing {
         return d;
     }
 
+    /** Retangulo (canto a canto), circulo (centro e borda) ou seta (de onde pra onde). */
+    public static Drawing shape(String kind, double x1, double y1, double x2, double y2, String color, double width) {
+        Drawing d = new Drawing();
+        d.kind = kind;
+        d.setPoints(List.of(x1, y1, x2, y2));
+        d.color = color;
+        d.width = width;
+        return d;
+    }
+
     public String getId() { return id; }
-    public String getKind() { return TEXT.equals(kind) ? TEXT : PATH; }
+    public String getKind() {
+        if (TEXT.equals(kind) || RECT.equals(kind) || CIRCLE.equals(kind) || ARROW.equals(kind)) return kind;
+        return PATH;
+    }
+
+    public boolean isShape() {
+        String k = getKind();
+        return (RECT.equals(k) || CIRCLE.equals(k) || ARROW.equals(k)) && getPoints().size() >= 4;
+    }
 
     public List<Double> getPoints() {
         if (points == null) points = new ArrayList<>();
@@ -90,6 +112,15 @@ public class Drawing {
             double dx = Math.max(0, Math.max(p.get(0) - x, x - (p.get(0) + w)));
             double dy = Math.max(0, Math.max(p.get(1) - 20 - y, y - (p.get(1) + 4)));
             return Math.hypot(dx, dy);
+        }
+        if (isShape()) {
+            double x1 = p.get(0), y1 = p.get(1), x2 = p.get(2), y2 = p.get(3);
+            if (CIRCLE.equals(getKind())) return Math.abs(Math.hypot(x - x1, y - y1) - Math.hypot(x2 - x1, y2 - y1));
+            if (RECT.equals(getKind())) {
+                return Math.min(Math.min(segment(x, y, x1, y1, x2, y1), segment(x, y, x2, y1, x2, y2)),
+                        Math.min(segment(x, y, x2, y2, x1, y2), segment(x, y, x1, y2, x1, y1)));
+            }
+            return segment(x, y, x1, y1, x2, y2);
         }
         double best = Double.MAX_VALUE;
         for (int i = 0; i + 3 < p.size(); i += 2) {

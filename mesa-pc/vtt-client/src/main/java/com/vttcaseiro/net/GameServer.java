@@ -1015,6 +1015,9 @@ public class GameServer {
         for (TokenModel t : scene.getTokens()) {
             if (c.isGm() || !t.isHiddenFromPlayers()) out.add(t.getId());
         }
+        // condicao Invisivel: os outros jogadores nem recebem o token (o dono e o mestre continuam vendo)
+        if (!c.isGm()) out.removeIf(id -> scene.findToken(id)
+                .map(t -> t.hasCondition(com.vttcaseiro.model.Condition.INVISIBLE) && !controls(c, t)).orElse(false));
         if (c.isGm() || !scene.isVisionEnabled()) return out;
         List<TokenModel> mine = new java.util.ArrayList<>();
         for (TokenModel t : scene.getTokens()) if (out.contains(t.getId()) && controls(c, t)) mine.add(t);

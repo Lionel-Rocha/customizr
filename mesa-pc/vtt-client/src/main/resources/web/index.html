@@ -710,7 +710,8 @@ function image(scene, assetId, data) {
 function render(now) {
   requestAnimationFrame(render);
   S.pings = S.pings.filter(p => now - p.t0 < 2500);
-  if (!S.dirty && S.pings.length === 0) return;
+  const weather = S.scene && S.scene.weather;
+  if (!S.dirty && S.pings.length === 0 && !weather) return;
   S.dirty = false;
   const dpr = window.devicePixelRatio || 1;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -751,6 +752,20 @@ function render(now) {
     const p = d.points || []; if (p.length < 2) continue;
     ctx.strokeStyle = ctx.fillStyle = d.color || '#E2483F';
     if (d.kind === 'text') { ctx.font = 'bold 16px Segoe UI, sans-serif'; ctx.shadowColor = '#000'; ctx.shadowBlur = 3; ctx.fillText(d.text || '', p[0], p[1] - 4); ctx.shadowBlur = 0; continue; }
+    if ((d.kind === 'rect' || d.kind === 'circle' || d.kind === 'arrow') && p.length >= 4) {
+      const [x1, y1, x2, y2] = p, col = d.color || '#E2483F';
+      ctx.save(); ctx.lineWidth = d.width || 3; ctx.lineCap = 'round'; ctx.strokeStyle = col; ctx.fillStyle = col + '1f';
+      ctx.beginPath();
+      if (d.kind === 'rect') { ctx.rect(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1), Math.abs(y2 - y1)); ctx.fill(); ctx.stroke(); }
+      else if (d.kind === 'circle') { ctx.arc(x1, y1, Math.hypot(x2 - x1, y2 - y1), 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+      else {
+        ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+        const a = Math.atan2(y2 - y1, x2 - x1), hd = Math.max(12, (d.width || 3) * 4);
+        ctx.beginPath(); ctx.moveTo(x2, y2); ctx.lineTo(x2 - hd * Math.cos(a - 0.45), y2 - hd * Math.sin(a - 0.45));
+        ctx.lineTo(x2 - hd * Math.cos(a + 0.45), y2 - hd * Math.sin(a + 0.45)); ctx.closePath(); ctx.fillStyle = col; ctx.fill();
+      }
+      ctx.restore(); continue;
+    }
     ctx.lineWidth = d.width || 3; ctx.lineCap = ctx.lineJoin = 'round'; ctx.beginPath(); ctx.moveTo(p[0], p[1]);
     for (let i = 2; i < p.length; i += 2) ctx.lineTo(p[i], p[i + 1]);
     if (p.length === 2) ctx.lineTo(p[0] + 0.1, p[1] + 0.1);
@@ -781,8 +796,9 @@ function render(now) {
       if (canSee(vis, (col + 0.5) * c, (row + 0.5) * c)) S.explored.add(col + ',' + row);
     }
   }
-  // Tokens
-  for (const t of sc.tokens) {
+  // Tokens (empilhados pela camada: maior por cima)
+  const stacked = sc.tokens.map((t, i) => [t, i]).sort((a, b) => ((a[0].layer || 0) - (b[0].layer || 0)) || (a[1] - b[1])).map(p => p[0]);
+  for (const t of stacked) {
     const mine = isMine(t), [cx, cy] = centerOf(t);
     if (!mine && !canSeeToken(vis, t)) continue;
     const x = (S.drag && S.drag.t === t) ? S.drag.x : t.x, y = (S.drag && S.drag.t === t) ? S.drag.y : t.y;
@@ -790,6 +806,7 @@ function render(now) {
     const img = image(sc, t.imageAssetId, t.imageData);
     ctx.save();
     if ((t.conditions || []).includes('UNCONSCIOUS')) ctx.globalAlpha = 0.55;
+    if ((t.conditions || []).includes('INVISIBLE')) ctx.globalAlpha = Math.min(ctx.globalAlpha, 0.45);
     const shaped = t.shape === 'circle' || t.shape === 'hex' || t.shape === 'octagon';
     if (shaped) { tokenShapePath(ctx, t.shape, x, y, w, h, 0); ctx.clip(); }
     if (img) {
@@ -929,6 +946,7 @@ function render(now) {
     ctx.fillStyle = '#FFCF7F'; ctx.beginPath(); ctx.arc(p.x, p.y, 5, 0, 7); ctx.fill();
     if (p.who) { ctx.font = 'bold 13px Segoe UI'; ctx.textAlign = 'left'; ctx.fillStyle = '#000000bb'; const tw = ctx.measureText(p.who).width + 10; ctx.fillRect(p.x + 10, p.y - 28, tw, 18); ctx.fillStyle = '#FFCF7F'; ctx.fillText(p.who, p.x + 15, p.y - 26); }
   }
+  drawWeather(now);
 }
 requestAnimationFrame(render);
 
@@ -972,6 +990,58 @@ function renderActionBar() {
   bar.append(el('button', { title: 'Abrir a ficha', onclick: () => document.querySelector('nav button[data-tab="sheet"]').click() }, 'Ficha'));
   bar.classList.remove('hidden');
 }
+/** Clima animado por cima do mapa (chuva, tempestade, neve, neblina, cinzas), em coordenadas da tela. */
+const WEATHER = { kind: '', parts: [], flash: 0, last: 0 };
+function drawWeather(now) {
+  const kind = (S.scene && S.scene.weather) || '';
+  const W = canvas.width, H = canvas.height;
+  if (kind !== WEATHER.kind) {
+    WEATHER.kind = kind;
+    const n = { tempestade: 420, chuva: 260, neve: 180, neblina: 9, cinzas: 120 }[kind] || 0;
+    WEATHER.parts = Array.from({ length: n }, () => [Math.random() * 1.1 - 0.05, Math.random(), 0.6 + Math.random() * 0.8, Math.random(), Math.random() * 6.28]);
+  }
+  if (!kind) return;
+  const dt = WEATHER.last ? Math.min(0.05, (now - WEATHER.last) / 1000) : 0.016; WEATHER.last = now;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  const P = WEATHER.parts, fresh = up => [Math.random() * 1.1 - 0.05, up ? 1.05 : -0.05, 0.6 + Math.random() * 0.8, Math.random(), Math.random() * 6.28];
+  if (kind === 'chuva' || kind === 'tempestade') {
+    const storm = kind === 'tempestade';
+    ctx.strokeStyle = storm ? 'rgba(175,195,225,0.5)' : 'rgba(175,195,225,0.4)'; ctx.lineWidth = (storm ? 1.6 : 1.2) * (window.devicePixelRatio || 1);
+    ctx.beginPath();
+    for (let i = 0; i < P.length; i++) {
+      const p = P[i]; p[1] += dt * p[2] * (storm ? 1.9 : 1.4); p[0] += dt * p[2] * (storm ? 0.45 : 0.15);
+      if (p[1] > 1.05) P[i] = fresh(false);
+      const len = (storm ? 26 : 18) * p[2] * (window.devicePixelRatio || 1), x = p[0] * W, y = p[1] * H;
+      ctx.moveTo(x, y); ctx.lineTo(x - len * (storm ? 0.25 : 0.1), y - len);
+    }
+    ctx.stroke();
+    if (storm) {
+      if (now - WEATHER.flash > 4000 && Math.random() < dt * 0.25) WEATHER.flash = now;
+      const since = (now - WEATHER.flash) / 1000;
+      if (since < 0.35) { ctx.fillStyle = `rgba(255,255,255,${0.35 * (1 - since / 0.35)})`; ctx.fillRect(0, 0, W, H); }
+    }
+  } else if (kind === 'neve') {
+    ctx.fillStyle = 'rgba(250,250,255,0.85)';
+    for (let i = 0; i < P.length; i++) {
+      const p = P[i]; p[4] += dt * 1.5; p[1] += dt * p[2] * 0.12; p[0] += dt * Math.sin(p[4]) * 0.03;
+      if (p[1] > 1.05) P[i] = fresh(false);
+      const r = (1.2 + p[3] * 2.6) * (window.devicePixelRatio || 1); ctx.beginPath(); ctx.arc(p[0] * W, p[1] * H, r, 0, 6.28); ctx.fill();
+    }
+  } else if (kind === 'neblina') {
+    for (const p of P) {
+      p[0] += dt * 0.012 * p[2]; if (p[0] > 1.3) p[0] = -0.3;
+      const r = Math.max(W, H) * (0.25 + p[3] * 0.25), g = ctx.createRadialGradient(p[0] * W, p[1] * H, 0, p[0] * W, p[1] * H, r);
+      g.addColorStop(0, 'rgba(205,210,215,0.22)'); g.addColorStop(1, 'rgba(205,210,215,0)'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    }
+  } else {
+    for (let i = 0; i < P.length; i++) {
+      const p = P[i]; p[4] += dt; p[1] -= dt * p[2] * 0.06; p[0] += dt * Math.sin(p[4]) * 0.02;
+      if (p[1] < -0.05) P[i] = fresh(true);
+      ctx.fillStyle = p[3] > 0.8 ? 'rgba(255,140,60,0.8)' : 'rgba(150,145,140,0.6)';
+      const r = (1 + p[3] * 2) * (window.devicePixelRatio || 1); ctx.beginPath(); ctx.arc(p[0] * W, p[1] * H, r, 0, 6.28); ctx.fill();
+    }
+  }
+}
 function centerView() {
   const r = $('mapwrap').getBoundingClientRect();
   const mine = S.scene ? S.scene.tokens.find(isMine) : null;
@@ -999,9 +1069,15 @@ function drawingNear(x, y) {
   let best = null, bd = 12 / S.view.zoom;
   for (const d of S.scene.drawings || []) {
     const p = d.points || []; let dist = Infinity;
+    const seg = (x1, y1, x2, y2) => { const dx = x2 - x1, dy = y2 - y1, len = dx * dx + dy * dy;
+      const t = len === 0 ? 0 : Math.max(0, Math.min(1, ((x - x1) * dx + (y - y1) * dy) / len)); return Math.hypot(x - (x1 + t * dx), y - (y1 + t * dy)); };
     if (d.kind === 'text') {
       const w = Math.max(20, (d.text || '').length * 8);
       dist = Math.hypot(Math.max(0, p[0] - x, x - (p[0] + w)), Math.max(0, p[1] - 20 - y, y - (p[1] + 4)));
+    } else if (d.kind === 'circle' && p.length >= 4) {
+      dist = Math.abs(Math.hypot(x - p[0], y - p[1]) - Math.hypot(p[2] - p[0], p[3] - p[1]));
+    } else if (d.kind === 'rect' && p.length >= 4) {
+      const [x1, y1, x2, y2] = p; dist = Math.min(seg(x1, y1, x2, y1), seg(x2, y1, x2, y2), seg(x2, y2, x1, y2), seg(x1, y2, x1, y1));
     } else {
       for (let i = 0; i + 3 < p.length; i += 2) {
         const x1 = p[i], y1 = p[i + 1], dx = p[i + 2] - x1, dy = p[i + 3] - y1, len = dx * dx + dy * dy;
@@ -1039,11 +1115,13 @@ function toWorld(ev) {
 }
 function tokenAt(x, y) {
   if (!S.scene) return null; const c = cell();
-  for (let i = S.scene.tokens.length - 1; i >= 0; i--) {
-    const t = S.scene.tokens[i];
-    if (x >= t.x && x <= t.x + c * (t.widthCells || 1) && y >= t.y && y <= t.y + c * (t.heightCells || 1)) return t;
-  }
-  return null;
+  let best = null, bestKey = null;
+  S.scene.tokens.forEach((t, i) => { // o de cima (maior camada; empate, o ultimo) ganha o toque
+    if (!(x >= t.x && x <= t.x + c * (t.widthCells || 1) && y >= t.y && y <= t.y + c * (t.heightCells || 1))) return;
+    const key = [(t.layer || 0), i];
+    if (!bestKey || key[0] > bestKey[0] || (key[0] === bestKey[0] && key[1] > bestKey[1])) { best = t; bestKey = key; }
+  });
+  return best;
 }
 function doorAt(x, y) {
   if (!S.scene) return null;

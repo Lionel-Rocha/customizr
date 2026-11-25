@@ -26,6 +26,34 @@ class TokenShapeTest {
     }
 
     @Test
+    void shapesWeatherAndLayerTravel() {
+        Drawing arrow = Drawing.shape(Drawing.ARROW, 0, 0, 100, 0, "#E2483F", 3);
+        Drawing back = NetCodec.deepCopy(arrow, Drawing.class);
+        assertEquals(Drawing.ARROW, back.getKind(), "a forma vai pela rede");
+        assertEquals(0, back.distanceTo(50, 0), 0.01);
+        Drawing circle = Drawing.shape(Drawing.CIRCLE, 0, 0, 30, 40, "#E2483F", 3);
+        assertEquals(0, circle.distanceTo(50, 0), 0.01, "borracha pega na borda do circulo (raio 50)");
+        Drawing rect = Drawing.shape(Drawing.RECT, 0, 0, 100, 50, "#E2483F", 3);
+        assertEquals(0, rect.distanceTo(100, 25), 0.01);
+        assertEquals(25, rect.distanceTo(50, 25), 0.01, "no meio fica longe das bordas");
+
+        SceneModel s = new SceneModel();
+        s.setWeather("neve");
+        assertEquals("neve", NetCodec.deepCopy(s, SceneModel.class).getWeather(), "clima vai com a cena");
+        s.setWeather("granizo");
+        assertEquals("", s.getWeather(), "clima desconhecido: nenhum");
+
+        TokenModel a = new TokenModel("A", null);
+        a.setLayer(7);
+        TokenModel b = new TokenModel("B", null);
+        b.copyStateFrom(a);
+        assertEquals(7, b.getLayer(), "quem fica por cima vai pela rede");
+        String old = a.getId();
+        a.regenerateId();
+        assertNotEquals(old, a.getId());
+    }
+
+    @Test
     void sizesGoFromTinyToCustom() {
         TokenModel t = new TokenModel("Rato", null);
         assertEquals(1.0, t.getWidthCells());

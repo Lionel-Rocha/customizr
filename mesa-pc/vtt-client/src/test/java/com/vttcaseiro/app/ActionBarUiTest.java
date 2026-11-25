@@ -193,6 +193,75 @@ class ActionBarUiTest {
                 assertNotNull(got.get());
                 assertTrue(got.get().stream().anyMatch(x -> x.getId().equals(goblin.getId())), "goblin dentro da esfera");
                 assertFalse(got.get().stream().anyMatch(x -> x.getId().equals(t.getId())), "Lyra longe, fora");
+                // --- copiar e colar: id novo, numero no nome, uma casa ao lado
+                mv.selectTokens(List.of(goblin));
+                Method copy = Main.class.getDeclaredMethod("copyTokens");
+                copy.setAccessible(true);
+                copy.invoke(main);
+                Method paste = Main.class.getDeclaredMethod("pasteTokens");
+                paste.setAccessible(true);
+                paste.invoke(main);
+                paste.invoke(main);
+                SceneService ssv = (SceneService) field(main, "sceneService");
+                List<TokenModel> gobs = ssv.getScene().getTokens().stream().filter(x -> x.getName().startsWith("Goblin")).toList();
+                assertEquals(3, gobs.size(), "colou duas vezes");
+                assertTrue(gobs.stream().anyMatch(x -> x.getName().equals("Goblin 2")));
+                assertTrue(gobs.stream().anyMatch(x -> x.getName().equals("Goblin 3")));
+                assertEquals(3, gobs.stream().map(TokenModel::getId).distinct().count(), "cada copia com id novo");
+
+                // --- quem fica por cima: a camada maior e o ultimo desenhado
+                TokenModel g2 = gobs.stream().filter(x -> x.getName().equals("Goblin 2")).findFirst().orElseThrow();
+                g2.setLayer(-5);
+                goblin.setLayer(9);
+                mv.rebuildTokens();
+                java.util.List<String> order = new java.util.ArrayList<>();
+                for (Node n : layer.getChildrenUnmodifiable()) {
+                    if (n instanceof com.vttcaseiro.view.TokenNode tn) order.add(tn.getModel().getName());
+                }
+                assertEquals("Goblin 2", order.get(0), "camada menor: por baixo");
+                assertEquals("Goblin", order.get(order.size() - 1), "camada maior: por cima");
+
+                // --- regua com paradas: Espaco no meio da medicao soma os trechos
+                mv.setMeasuring(true);
+                double cl = ssv.getScene().getGrid().getCellSize();
+                java.util.function.BiConsumer<javafx.event.EventType<javafx.scene.input.MouseEvent>, double[]> fire = (type, w) -> {
+                    javafx.geometry.Point2D sp = content.localToScene(w[0], w[1]);
+                    mv.fireEvent(new javafx.scene.input.MouseEvent(type, sp.getX(), sp.getY(), 0, 0,
+                            javafx.scene.input.MouseButton.PRIMARY, 1, false, false, false, false, true, false, false, true,
+                            false, true, null));
+                };
+                fire.accept(javafx.scene.input.MouseEvent.MOUSE_PRESSED, new double[]{cl * 0.5, cl * 0.5});
+                fire.accept(javafx.scene.input.MouseEvent.MOUSE_DRAGGED, new double[]{cl * 4.5, cl * 0.5});
+                assertTrue(mv.addRulerWaypoint(), "parada marcada");
+                fire.accept(javafx.scene.input.MouseEvent.MOUSE_DRAGGED, new double[]{cl * 4.5, cl * 3.5});
+                Field ml = MapView.class.getDeclaredField("measureLabel");
+                ml.setAccessible(true);
+                String measured = ((javafx.scene.control.Label) ml.get(mv)).getText();
+                assertTrue(measured.contains("7 casas"), "4 pra direita + 3 pra baixo: " + measured);
+                fire.accept(javafx.scene.input.MouseEvent.MOUSE_RELEASED, new double[]{cl * 4.5, cl * 3.5});
+                mv.setMeasuring(false);
+
+                // --- clima liga e desliga
+                Method weather = Main.class.getDeclaredMethod("setSceneWeather", String.class);
+                weather.setAccessible(true);
+                weather.invoke(main, "neve");
+                assertEquals("neve", mv.getWeather());
+                assertEquals("neve", ssv.getScene().getWeather(), "vai salvo com a cena");
+
+                // --- tela da TV: o que os jogadores veem (sem o oculto), com o clima
+                Method tv = Main.class.getDeclaredMethod("openTvWindow");
+                tv.setAccessible(true);
+                tv.invoke(main);
+                MapView tvView = (MapView) field(main, "tvView");
+                assertNotNull(tvView, "abriu a tela da mesa");
+                assertEquals("neve", tvView.getWeather());
+                javafx.scene.Parent tvLayer = (javafx.scene.Parent) tl.get(tvView);
+                assertFalse(tvLayer.getChildrenUnmodifiable().stream().anyMatch(n -> n instanceof com.vttcaseiro.view.TokenNode tn
+                        && tn.getModel().getId().equals(spy.getId())), "token oculto nem aparece na TV");
+                assertTrue(tvLayer.getChildrenUnmodifiable().stream().anyMatch(n -> n instanceof com.vttcaseiro.view.TokenNode tn
+                        && tn.getModel().getId().equals(goblin.getId())), "os outros aparecem");
+                weather.invoke(main, "");
+                ((Stage) field(main, "tvStage")).close();
                 stage.close();
             } catch (Exception e) {
                 throw new RuntimeException(e);

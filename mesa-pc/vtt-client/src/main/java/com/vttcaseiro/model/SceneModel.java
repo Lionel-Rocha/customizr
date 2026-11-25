@@ -36,6 +36,19 @@ public class SceneModel {
     private List<Wall> walls = new ArrayList<>();
     /** Visao dinamica: cada jogador so ve o que os tokens dele enxergam. */
     private boolean visionEnabled;
+    /** Clima animado por cima do mapa: "" (nenhum), chuva, tempestade, neve, neblina, cinzas. */
+    private String weather;
+
+    public static final String[] WEATHERS = {"", "chuva", "tempestade", "neve", "neblina", "cinzas"};
+
+    public String getWeather() {
+        for (String w : WEATHERS) if (w.equals(weather)) return w;
+        return "";
+    }
+
+    public void setWeather(String weather) {
+        this.weather = weather == null || weather.isBlank() ? null : weather;
+    }
     /** Cena escura: so enxerga ate a visao no escuro / luz do token. */
     private boolean dark;
     public static final int MAX_WALLS = 3000;

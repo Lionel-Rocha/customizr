@@ -380,6 +380,45 @@ Escolha **um token seu** (clique nele) e aparece embaixo do mapa uma faixa com o
 - O mestre ve a barra dos monstros tambem (acoes com acerto ou dano do bloco do monstro; rolagem escondida, como
   na ficha do monstro).
 
+### Copiar e colar tokens
+
+Escolha um ou varios tokens (Shift+clique) e **Ctrl+C**; **Ctrl+V** cola uma casa ao lado, com numero no nome ("Goblin 2",
+"Goblin 3"). Cada Ctrl+V cola de novo, mais uma casa pro lado. Online, so o mestre cola.
+
+### Quem fica por cima
+
+Botao direito no token > ... > **Ordem**: "Trazer pra frente" (fica por cima) ou "Mandar pra tras" (fica por baixo),
+pra quando um token esta em cima do outro. Vale pra todos e fica salvo na cena.
+
+### Invisivel pros outros jogadores
+
+Dois jeitos de sumir com um token:
+- **Esconder dos jogadores** (botao direito > ... ou tecla H, so o mestre): ninguem alem do mestre recebe o token
+  (monstro escondido, emboscada).
+- **Condicao Invisivel** (Condicoes > Invisivel): os outros jogadores nem recebem o token; o dono e o mestre continuam
+  vendo, meio transparente. Tirou a condicao, ele aparece pra todos.
+
+### Regua com paradas
+
+Medindo (ferramenta Medir) ou arrastando um token, aperte **Espaco** pra marcar uma parada: a regua passa a somar o
+caminho todo (contornar uma parede, dobrar uma esquina), com terreno dificil contando em dobro.
+
+### Desenhar formas
+
+Ferramentas de desenho: **Retangulo** (de um canto ao outro), **Circulo** (do centro a borda) e **Seta** (de onde pra
+onde), alem do lapis e do texto. Usam a cor escolhida, vao pra todos e a borracha apaga.
+
+### Clima no mapa
+
+Clique na cena atual (barra de cima) > **Clima no mapa**: chuva, tempestade (com raios), neve, neblina ou cinzas e
+brasas, animados por cima do mapa pra todos (programa e navegador). Fica salvo na cena.
+
+### Tela da mesa pra TV (jogo presencial)
+
+Botao **TV** na barra de cima (mestre, ou jogando sozinho): abre uma segunda janela com o mapa como os jogadores veem
+(visao do grupo, escuro, neblina, sem o que esta oculto, sem zonas nem paredes), seguindo a camera do mestre e com o
+clima. Arraste pra TV ou segundo monitor e de **clique duplo** (ou F11) pra tela cheia; Esc sai.
+
 ### Formato do token
 
 Botao direito no token > ... > **Formato**: quadrado (o de sempre), redondo, hexagono ou octogono. A imagem e

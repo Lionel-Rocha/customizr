@@ -81,6 +81,17 @@ public class TokenModel {
 
     public String getId() { return id; }
 
+    /** Copia colada (Ctrl+V): mesmo token com id novo. */
+    public void regenerateId() {
+        this.id = UUID.randomUUID().toString();
+    }
+
+    /** Ordem de empilhar no mapa: maior fica por cima (empate: a ordem em que entraram na cena). */
+    private int layer;
+
+    public int getLayer() { return layer; }
+    public void setLayer(int layer) { this.layer = layer; }
+
     /** Id novo (copia de um token salvo num encontro pronto vira outro token). */
     public void assignNewId() { this.id = java.util.UUID.randomUUID().toString(); }
 
@@ -292,6 +303,7 @@ public class TokenModel {
         if (other == null) return;
         this.name = other.name;
         setShape(other.shape);
+        this.layer = other.layer;
         this.currentHp = other.currentHp;
         this.maxHp = other.maxHp;
         this.tempHp = other.tempHp;

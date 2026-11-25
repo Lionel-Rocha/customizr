@@ -296,6 +296,10 @@ public class TokenNode extends StackPane {
             // Token caido fica apagado -- da pra ver de longe quem esta no chao.
             setOpacity(0.55);
         }
+        if (model.hasCondition(Condition.INVISIBLE)) {
+            // invisivel: so o mestre e o dono recebem o token; pra eles aparece meio transparente
+            setOpacity(Math.min(getOpacity(), 0.45));
+        }
         if (model.isHiddenFromPlayers()) {
             // So o mestre chega a ver este token (o servidor nem manda pros jogadores).
             setOpacity(0.45);
