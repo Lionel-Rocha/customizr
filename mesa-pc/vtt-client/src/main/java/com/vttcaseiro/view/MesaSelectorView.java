@@ -42,7 +42,12 @@ public class MesaSelectorView {
 
     /** Dados pra entrar na mesa de outra pessoa (endereco ou codigo da ponte, senhas). */
     public record JoinRequest(String playerName, String host, String port, String relayCode, String tablePassword,
-                              boolean tls, boolean asGm, String masterPassword) {
+                              boolean tls, boolean asGm, String masterPassword, boolean spectator) {
+        /** Jogador ou mestre (sem espectador). */
+        public JoinRequest(String playerName, String host, String port, String relayCode, String tablePassword,
+                           boolean tls, boolean asGm, String masterPassword) {
+            this(playerName, host, port, relayCode, tablePassword, tls, asGm, masterPassword, false);
+        }
     }
 
     /** Pasta (escondida da lista) onde fica o que vem de uma mesa online: fichas, imagens e cenas recebidas. */
@@ -680,10 +685,22 @@ public class MesaSelectorView {
         password.setPromptText("se a mesa tiver");
         javafx.scene.control.CheckBox tls = new javafx.scene.control.CheckBox("Mesa criptografada (TLS)");
         tls.setSelected(AppSettings.getBool("online.tls", false));
-        javafx.scene.control.CheckBox gm = new javafx.scene.control.CheckBox("Entrar como mestre");
+        // como entrar: jogador (padrao), mestre (com a senha de mestre) ou so assistindo
+        javafx.scene.control.ToggleGroup roleGroup = new javafx.scene.control.ToggleGroup();
+        javafx.scene.control.RadioButton asPlayer = new javafx.scene.control.RadioButton("Jogador");
+        javafx.scene.control.RadioButton asGm = new javafx.scene.control.RadioButton("Mestre");
+        javafx.scene.control.RadioButton asSpectator = new javafx.scene.control.RadioButton("Espectador");
+        asPlayer.setTooltip(new javafx.scene.control.Tooltip("Joga com os seus personagens e tokens."));
+        asGm.setTooltip(new javafx.scene.control.Tooltip("Comanda a mesa. Precisa da senha de mestre (se a mesa tiver)."));
+        asSpectator.setTooltip(new javafx.scene.control.Tooltip("Só assiste: vê o que os jogadores veem e conversa no chat, sem mexer em nada."));
+        for (javafx.scene.control.RadioButton r : java.util.List.of(asPlayer, asGm, asSpectator)) r.setToggleGroup(roleGroup);
+        String lastRole = AppSettings.getString("online.papel", "jogador");
+        ("mestre".equals(lastRole) ? asGm : "espectador".equals(lastRole) ? asSpectator : asPlayer).setSelected(true);
+        HBox roleRow = new HBox(14, asPlayer, asGm, asSpectator);
         javafx.scene.control.PasswordField gmPassword = new javafx.scene.control.PasswordField();
         gmPassword.setPromptText("senha de mestre");
-        gmPassword.disableProperty().bind(gm.selectedProperty().not());
+        gmPassword.visibleProperty().bind(asGm.selectedProperty());
+        gmPassword.managedProperty().bind(asGm.selectedProperty());
         javafx.scene.layout.GridPane grid = new javafx.scene.layout.GridPane();
         grid.setHgap(10);
         grid.setVgap(8);
@@ -692,7 +709,7 @@ public class MesaSelectorView {
         grid.addRow(2, new Label("Código da ponte"), code);
         grid.addRow(3, new Label("Senha da mesa"), password);
         grid.add(tls, 1, 4);
-        grid.add(gm, 1, 5);
+        grid.addRow(5, new Label("Entrar como"), roleRow);
         grid.add(gmPassword, 1, 6);
         HBox.setHgrow(host, Priority.ALWAYS);
         grid.setPrefWidth(460);
@@ -705,7 +722,9 @@ public class MesaSelectorView {
                 () -> name.getText().isBlank() || host.getText().isBlank(), name.textProperty(), host.textProperty()));
         if (dialog.showAndWait().filter(b -> b == enter).isEmpty()) return Optional.empty();
         JoinRequest req = new JoinRequest(name.getText().trim(), host.getText().trim(), port.getText().trim(),
-                code.getText().trim(), password.getText(), tls.isSelected(), gm.isSelected(), gmPassword.getText());
+                code.getText().trim(), password.getText(), tls.isSelected(), asGm.isSelected(),
+                asGm.isSelected() ? gmPassword.getText() : "", asSpectator.isSelected());
+        AppSettings.setString("online.papel", asGm.isSelected() ? "mestre" : asSpectator.isSelected() ? "espectador" : "jogador");
         AppSettings.setString("online.nome", req.playerName());
         AppSettings.setString("online.host", req.host());
         AppSettings.setString("online.porta", req.port());

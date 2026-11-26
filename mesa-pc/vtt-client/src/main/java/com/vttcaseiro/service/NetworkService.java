@@ -377,6 +377,7 @@ public class NetworkService {
         // (ownerId guarda esse id, nao o nome).
         client = new GameClient(adapt(listener), imageAssetStore, AppSettings.getOrCreatePlayerId());
         client.setPlayerSecret(AppSettings.getOrCreatePlayerKey());
+        client.setSpectator(false); // quem cria a mesa e sempre o mestre
         if (tlsOn) client.useTls((hp, fp, prev) -> true); // a propria mesa: confia no proprio certificado
         try {
             client.connect("localhost", server.getPort(), playerName, true, tablePassword, masterPassword);
@@ -423,6 +424,18 @@ public class NetworkService {
     private String pendingRelayCode;
 
     /** Proxima conexao vai pela ponte com este codigo (host/porta = endereco da ponte). */
+    /** Proxima conexao entra so pra assistir (espectador). */
+    private boolean joinAsSpectator;
+
+    public void setJoinAsSpectator(boolean spectator) {
+        this.joinAsSpectator = spectator;
+    }
+
+    /** Conectado como espectador (ve e conversa; nao mexe). */
+    public boolean isSpectator() {
+        return client != null && client.getSession() != null && client.getSession().spectator();
+    }
+
     public void connectThroughRelay(String code) {
         this.pendingRelayCode = code == null || code.isBlank() ? null : code;
     }
@@ -435,6 +448,7 @@ public class NetworkService {
         this.playerName = playerName;
         client = new GameClient(adapt(listener), imageAssetStore, AppSettings.getOrCreatePlayerId());
         client.setPlayerSecret(AppSettings.getOrCreatePlayerKey());
+        client.setSpectator(joinAsSpectator);
         if (tlsOn) client.useTls(prompt);
         client.useRelay(pendingRelayCode);
         String relayCodeUsed = pendingRelayCode;

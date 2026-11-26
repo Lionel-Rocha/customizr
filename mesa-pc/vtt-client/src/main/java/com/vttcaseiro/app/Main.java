@@ -290,6 +290,7 @@ public class Main extends Application {
     private void onJoinOnline(MesaRepository mesa, MesaSelectorView.JoinRequest req) {
         onMesaChosen(mesa);
         networkService.connectThroughRelay(req.relayCode());
+        networkService.setJoinAsSpectator(req.spectator());
         onConnect(req.playerName(), req.host(), req.port(), req.tablePassword(), req.asGm(), req.masterPassword(), req.tls());
     }
 
@@ -4818,6 +4819,7 @@ public class Main extends Application {
         joinButton.setOnAction(e -> MesaSelectorView.askJoin(stage).ifPresent(req -> {
             nameField.setText(req.playerName());
             networkService.connectThroughRelay(req.relayCode());
+            networkService.setJoinAsSpectator(req.spectator());
             onConnect(req.playerName(), req.host(), req.port(), req.tablePassword(), req.asGm(), req.masterPassword(), req.tls());
         }));
         box.getChildren().add(joinButton);
@@ -11176,6 +11178,10 @@ public class Main extends Application {
             Platform.runLater(() -> {
                 connecting = false;
                 if (failure == null) logEntries.add(LogEntry.system("Conectado ao servidor."));
+                if (failure == null && networkService.isSpectator()) {
+                    logEntries.add(LogEntry.system("Você entrou como espectador: vê o que os jogadores veem e conversa "
+                            + "no chat, mas não mexe em tokens, fichas nem no mapa."));
+                }
                 else showError("Não foi possível conectar: " + failure);
             });
         }, "conectar-mesa");

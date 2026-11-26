@@ -41,6 +41,8 @@ public class NetMessage {
     // so hello
     public String playerId;
     public Boolean isGm;
+    /** Hello: entrar so pra assistir (ve o que os jogadores veem, conversa, nao mexe em nada). */
+    public Boolean spectator;
     public Integer protocolVersion;
     /** Senha da mesa (pra entrar) -- null/vazio e tratado como "mesa sem
      * senha" (ver GameServer.passwordMatches), nao como senha errada. */
@@ -191,6 +193,15 @@ public class NetMessage {
             this.playerId = playerId;
             this.name = name;
             this.gm = gm;
+        }
+
+        /** Esta so assistindo. */
+        public boolean spectator;
+
+        static PlayerInfo of(PlayerSession s) {
+            PlayerInfo p = new PlayerInfo(s.playerId(), s.playerName(), s.gm());
+            p.spectator = s.spectator();
+            return p;
         }
     }
 

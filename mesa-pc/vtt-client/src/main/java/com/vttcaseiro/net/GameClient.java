@@ -290,6 +290,13 @@ public class GameClient {
         this.playerSecret = secret;
     }
 
+    /** Entrar so pra assistir (vale pra proxima conexao). */
+    private volatile boolean spectator;
+
+    public void setSpectator(boolean spectator) {
+        this.spectator = spectator;
+    }
+
     /** Null ate connect() ser chamado. */
     public PlayerSession getSession() {
         return mySession;
@@ -321,7 +328,7 @@ public class GameClient {
      * como antes (mesa sem senha, pedido de mestre sem senha). */
     public void connect(String host, int port, String playerName, boolean isGm,
             String tablePassword, String masterPassword) throws IOException {
-        this.mySession = new PlayerSession(playerId, playerName, isGm);
+        this.mySession = new PlayerSession(playerId, playerName, isGm && !spectator, spectator);
         this.tablePassword = tablePassword;
         this.masterPassword = masterPassword;
         if (relayCode != null) {
@@ -584,6 +591,10 @@ public class GameClient {
             case "challenge" -> {
                 NetMessage hello = NetMessage.hello(pendingName, playerId, pendingGm, tablePassword, masterPassword, msg.challenge);
                 hello.playerSecret = playerSecret;
+                if (spectator) {
+                    hello.spectator = true;
+                    hello.isGm = false;
+                }
                 send(hello);
             }
             default -> log.warn("Cliente recebeu tipo desconhecido: " + msg.type);

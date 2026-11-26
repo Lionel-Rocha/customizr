@@ -323,6 +323,9 @@ public class GameServer {
         return playerKeys;
     }
 
+    /** O que um espectador pode mandar: conversar, apontar no mapa e pedir imagem que ainda nao chegou. */
+    static final java.util.Set<String> SPECTATOR_MAY = java.util.Set.of("hello", "chat", "map_ping", "image_request");
+
     /** Quanto de imagem um jogador manda por conexao (o mestre nao tem limite). */
     static final long MAX_PLAYER_IMAGE_BYTES = 200L * 1024 * 1024;
 
@@ -347,6 +350,10 @@ public class GameServer {
             if (msg.y != null && !Double.isFinite(msg.y)) msg.y = null;
             if (msg.token != null && (!Double.isFinite(msg.token.getX()) || !Double.isFinite(msg.token.getY()))) {
                 log.warn("Token com posição inválida de " + from.getPlayerName() + " -- ignorado.");
+                return;
+            }
+            if (from.isSpectator() && !SPECTATOR_MAY.contains(msg.type)) {
+                if (!"image_data".equals(msg.type)) from.send(NetMessage.chat("servidor", "Você está assistindo (espectador): não dá pra mexer na mesa."));
                 return;
             }
             if (from.sideScene != null && !sideScenes.containsKey(from.sideScene)) from.sideScene = null;
@@ -652,6 +659,10 @@ public class GameServer {
                     if (msg.text == null) msg.text = "";
                     // "falar como": mestre fala como qualquer PdM; jogador so como personagem dele, e todo mundo ve
                     // quem esta falando ("Lyra (Ana)"). Nome que nao e dele: sai com o nome da conta.
+                    if (from.isSpectator()) {
+                        msg.player = from.getSession().playerName() + " (espectador)";
+                        msg.speakAs = null;
+                    }
                     if (msg.speakAs != null && !msg.speakAs.isBlank()) {
                         String as = msg.speakAs.strip();
                         if (as.length() > 40) as = as.substring(0, 40);
@@ -862,7 +873,9 @@ public class GameServer {
                         from.close();
                         break;
                     }
-                    PlayerSession session = new PlayerSession(msg.playerId, msg.player, gmAccepted);
+                    // espectador: pediu pra so assistir (mestre que provou a senha continua mestre)
+                    boolean spectator = !gmAccepted && Boolean.TRUE.equals(msg.spectator);
+                    PlayerSession session = new PlayerSession(msg.playerId, msg.player, gmAccepted, spectator);
                     from.setSession(session);
                     from.send(NetMessage.sceneSync(sceneFor(from)));
                     NetMessage lock = cameraLocks.get("");
@@ -888,7 +901,7 @@ public class GameServer {
                     }
                     sendKnownImageAssets(from);
                     broadcast(NetMessage.chat("servidor", session.playerName() + " entrou na mesa"
-                            + (session.gm() ? " como mestre." : ".")));
+                            + (session.gm() ? " como mestre." : session.spectator() ? " pra assistir (espectador)." : ".")));
                     broadcastPresence();
                 }
                 case "split_scene" -> splitScene(msg, from);
@@ -1014,14 +1027,14 @@ public class GameServer {
                 .collect(Collectors.toList());
         NetMessage presence = NetMessage.presence(names);
         presence.players = getConnectedSessions().stream()
-                .map(s -> new NetMessage.PlayerInfo(s.playerId(), s.playerName(), s.gm()))
+                .map(NetMessage.PlayerInfo::of)
                 .collect(Collectors.toList());
         NetMessage forGm = NetMessage.presence(names);
         forGm.players = new java.util.ArrayList<>();
         for (ClientHandler c : clients) {
             PlayerSession s = c.getSession();
             if (s == null) continue;
-            NetMessage.PlayerInfo info = new NetMessage.PlayerInfo(s.playerId(), s.playerName(), s.gm());
+            NetMessage.PlayerInfo info = NetMessage.PlayerInfo.of(s);
             info.sceneKey = c.sideScene;
             forGm.players.add(info);
         }
@@ -1141,6 +1154,7 @@ public class GameServer {
      * ficha mesmo que o token tenha sido colocado no mapa pelo mestre. */
     private boolean ownsLinkedSheet(ClientHandler from, TokenModel token) {
         String sheetId = token.getCharacterSheetId();
+        if (from.isSpectator()) return false;
         return sheetId != null && from.getSession() != null
                 && from.getSession().playerId() != null
                 && from.getSession().playerId().equals(characterOwners.get(sheetId));
@@ -1203,8 +1217,16 @@ public class GameServer {
         if (!c.isGm()) out.removeIf(id -> scene.findToken(id)
                 .map(t -> t.hasCondition(com.vttcaseiro.model.Condition.INVISIBLE) && !controls(c, t)).orElse(false));
         if (c.isGm() || !scene.isVisionEnabled()) return out;
+        java.util.Set<String> gmIds = new java.util.HashSet<>();
+        if (c.isSpectator()) for (ClientHandler o : clients) if (o.isGm()) gmIds.add(o.getSession().playerId());
         List<TokenModel> mine = new java.util.ArrayList<>();
-        for (TokenModel t : scene.getTokens()) if (out.contains(t.getId()) && controls(c, t)) mine.add(t);
+        for (TokenModel t : scene.getTokens()) {
+            if (!out.contains(t.getId())) continue;
+            // espectador: os olhos sao os tokens dos jogadores (com dono ou ligados a ficha de alguem)
+            boolean eyes = c.isSpectator() ? (t.getOwnerId() != null && !gmIds.contains(t.getOwnerId()))
+                    || (t.getCharacterSheetId() != null && characterOwners.containsKey(t.getCharacterSheetId())) : controls(c, t);
+            if (eyes) mine.add(t);
+        }
         com.vttcaseiro.vision.VisionCheck eyes = com.vttcaseiro.vision.VisionCheck.of(scene, mine);
         out.removeIf(id -> scene.findToken(id).map(t -> !mine.contains(t) && !eyes.canSee(t)).orElse(true));
         return out;

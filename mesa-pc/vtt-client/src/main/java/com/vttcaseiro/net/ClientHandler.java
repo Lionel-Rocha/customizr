@@ -84,6 +84,11 @@ class ClientHandler implements Runnable {
         return session != null && session.gm();
     }
 
+    /** So assistindo: o servidor recusa tudo que muda a mesa. */
+    boolean isSpectator() {
+        return session != null && session.spectator();
+    }
+
     /** Tokens que ESTE cliente tem na tela agora (o servidor manda so os que ele ve). */
     final java.util.Set<String> knownTokens = java.util.concurrent.ConcurrentHashMap.newKeySet();
     /** Grupo dividido: cena separada em que este cliente esta (null = a do grupo). Pro mestre: a que ele olha. */

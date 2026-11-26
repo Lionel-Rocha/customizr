@@ -952,6 +952,17 @@ ficha de monstro, a Party (com o inventario compartilhado) e troca de
 mapa/cena entre todos os conectados -- incluindo quem entra DEPOIS de
 algo ja ter sido sincronizado. Ver `HANDOFF.md`.
 
+## Rede: mestre, jogador ou espectador
+
+Quem cria a mesa ("Hospedar aqui") é sempre o mestre. Quem entra ("Entrar numa mesa online", ou pelo navegador)
+escolhe como:
+
+- **Jogador**: joga com os personagens e tokens dele.
+- **Mestre**: comanda a mesa; precisa da senha de mestre (se a mesa tiver uma).
+- **Espectador**: só assiste. Vê o que os jogadores veem juntos (a visão somada dos tokens deles, sem nada oculto),
+  conversa no chat (aparece "Nome (espectador)") e aponta no mapa, mas o servidor recusa qualquer mudança: mover
+  ou criar token, ficha, desenho, porta, rolagem, loja... A escolha fica lembrada pra próxima vez.
+
 ## Rede: ninguém entra no lugar de outro jogador
 
 Todo mundo entra com a mesma senha da mesa, e o id de cada jogador aparece pros outros (é o "dono" dos tokens).

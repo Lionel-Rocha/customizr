@@ -32,7 +32,7 @@
   #loginError { color: var(--red); min-height: 1.2em; }
   input[type=range], input[type=checkbox], input[type=radio] { accent-color: var(--gold); }
   button:disabled { opacity: .45; cursor: not-allowed; }
-  #login label > input:not([type=checkbox]) { display: block; width: 100%; box-sizing: border-box; margin-top: 4px; }
+  #login label > input:not([type=checkbox]), #login label > select { display: block; width: 100%; box-sizing: border-box; margin-top: 4px; }
 
   #app { display: grid; grid-template-rows: auto 1fr; grid-template-columns: minmax(0, 1fr); height: 100%; }
   header { display: flex; align-items: center; gap: 10px; padding: 8px 14px; background: var(--panel);
@@ -163,7 +163,13 @@
   <div class="muted">Entre na mesa pelo navegador.</div>
   <label>Seu nome <input id="loginName" required maxlength="40" autocomplete="nickname"></label>
   <label>Senha da mesa <input id="loginPass" type="password" placeholder="(se tiver)" autocomplete="current-password"></label>
-  <label><input type="checkbox" id="loginGm"> Sou o mestre</label>
+  <label>Entrar como
+    <select id="loginRole">
+      <option value="jogador">Jogador</option>
+      <option value="mestre">Mestre</option>
+      <option value="espectador">Espectador (só assiste)</option>
+    </select>
+  </label>
   <label id="gmPassRow" class="hidden">Senha de mestre <input id="loginMaster" type="password" placeholder="(se tiver)"></label>
   <button class="primary" type="submit">Entrar</button>
   <div id="loginError"></div>
@@ -352,7 +358,10 @@ $('login').addEventListener('submit', e => {
   e.preventDefault();
   S.me.name = $('loginName').value.trim();
   S.password = $('loginPass').value;
-  S.wantGm = $('loginGm').checked;
+  S.role = $('loginRole').value;
+  S.wantGm = S.role === 'mestre';
+  S.spectator = S.role === 'espectador';
+  try { localStorage.setItem('vtt.role', S.role); } catch (ex) {}
   S.master = $('loginMaster').value;
   if (!S.me.name) return;
   try { localStorage.setItem('vtt.name', S.me.name); } catch (ex) {}
@@ -386,11 +395,13 @@ function handle(m) {
   switch (m.type) {
     case 'challenge':
       send({ type: 'hello', player: S.me.name, playerId: S.me.id, playerSecret: S.me.key, isGm: S.wantGm,
+             spectator: S.spectator || null,
              protocolVersion: m.protocolVersion || 3, passwordProof: prove(S.password, m.challenge),
              masterProof: S.wantGm ? prove(S.master, m.challenge) : null });
       break;
     case 'scene_sync':
-      if (!S.joined) { S.joined = true; $('login').classList.add('hidden'); $('app').classList.remove('hidden'); setStatus('na mesa como ' + S.me.name, 'ok'); resize(); }
+      if (!S.joined) { S.joined = true; $('login').classList.add('hidden'); $('app').classList.remove('hidden'); setStatus('na mesa como ' + S.me.name + (S.spectator ? ' (espectador)' : ''), 'ok'); resize();
+        if (S.spectator) addLog({ kind: 'system', text: 'Você está assistindo: vê o que os jogadores veem e conversa no chat, sem mexer na mesa.' }); }
       if (S.retry) { S.retry = 0; $('reconnectBanner').classList.add('hidden'); setStatus('na mesa como ' + S.me.name + (S.gm ? ' (mestre)' : ''), 'ok'); addLog({ kind: 'system', text: 'Reconectado! A mesa voltou.' }); }
       S.scene = m.scene; if (!S.camLock) S.view.init = false; closePinCard(); S.selectedToken = null; renderActionBar(); $('sceneName').textContent = S.scene.name || 'mesa'; S.encounter = S.scene.encounter;
       renderEncounter(); markDirty(); break;
@@ -1102,7 +1113,8 @@ function centerView() {
 $('btnCenter').onclick = centerView;
 $('btnPing').onclick = () => { S.pingMode = !S.pingMode; $('btnPing').classList.toggle('on', S.pingMode); };
 $('btnTarget').onclick = () => { S.targetMode = !S.targetMode; $('btnTarget').classList.toggle('on', S.targetMode); };
-$('loginGm').onchange = () => $('gmPassRow').classList.toggle('hidden', !$('loginGm').checked);
+$('loginRole').onchange = () => $('gmPassRow').classList.toggle('hidden', $('loginRole').value !== 'mestre');
+try { const r = localStorage.getItem('vtt.role'); if (r) { $('loginRole').value = r; $('loginRole').onchange(); } } catch (ex) {}
 for (const [id, tool] of [['btnPen', 'pen'], ['btnText', 'text'], ['btnErase', 'erase']]) {
   $(id).onclick = () => {
     S.tool = S.tool === tool ? null : tool;
