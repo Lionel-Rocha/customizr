@@ -3028,12 +3028,16 @@ public class Main extends Application {
         importMapButton.setTooltip(new Tooltip("Masmorra do One Page Dungeon (JSON) e Universal VTT (.dd2vtt) viram cena com "
                 + "paredes e portas; mundo do Azgaar e cidades/vilas do Watabou entram como imagem (PNG/JPG)."));
         importMapButton.setOnAction(e -> onImportGeneratedMap());
+        Button regionButton = new Button("Região de um mundo (Azgaar)...", com.vttcaseiro.view.Icons.icon("map", 14));
+        regionButton.setTooltip(new Tooltip("Abre a região em volta de uma cidade de um mundo do Azgaar como cena nova, "
+                + "ampliada e com os pins de lá (o mundo vem de Importar mapa > \"Azgaar - mundo salvo (.map)\")."));
+        regionButton.setOnAction(e -> onAzgaarRegion());
         Button configButton = new Button("Configurar cena...", com.vttcaseiro.view.Icons.icon("tune", 14));
         configButton.setTooltip(new Tooltip("Grade (quadrada, hexagonal, sem grade), tamanho da casa, pés por casa e tamanho do mapa"));
         configButton.setOnAction(e -> showSceneConfig());
         saveSceneButton.setGraphic(com.vttcaseiro.view.Icons.icon("save", 14));
         // cabecalho enxuto: o titulo e os icones (o nome de cada um fica na dica)
-        for (Button b : List.of(newSceneButton, importMapButton, newFolderButton, saveSceneButton, configButton)) {
+        for (Button b : List.of(newSceneButton, importMapButton, regionButton, newFolderButton, saveSceneButton, configButton)) {
             if (b.getTooltip() == null) b.setTooltip(new Tooltip(b.getText()));
             else b.getTooltip().setText(b.getText() + ": " + b.getTooltip().getText());
             b.setContentDisplay(javafx.scene.control.ContentDisplay.GRAPHIC_ONLY);
@@ -3043,7 +3047,7 @@ public class Main extends Application {
         Label scenesTitle = sectionLabel("Cenas desta mesa");
         Region headerGrow = new Region();
         HBox.setHgrow(headerGrow, Priority.ALWAYS);
-        HBox scenesHeader = new HBox(4, scenesTitle, headerGrow, newSceneButton, importMapButton, newFolderButton,
+        HBox scenesHeader = new HBox(4, scenesTitle, headerGrow, newSceneButton, importMapButton, regionButton, newFolderButton,
                 saveSceneButton, configButton);
         scenesHeader.setAlignment(Pos.CENTER_LEFT);
         scenesHeader.getStyleClass().add("label-section-row");
@@ -5638,19 +5642,21 @@ public class Main extends Application {
         String city = "Watabou - cidade, vila, caverna... (imagem .png/.jpg)";
         String world = "Azgaar - mapa do mundo (imagem .png/.jpg + .json opcional com as cidades)";
         String uvtt = "Dungeondraft / Universal VTT (.dd2vtt, .uvtt, .df2vtt): mapa com paredes, portas e luzes";
-        javafx.scene.control.ChoiceDialog<String> pick = new javafx.scene.control.ChoiceDialog<>(dungeon, dungeon, city, world, uvtt);
+        String saved = "Azgaar - mundo salvo (.map + a imagem PNG): reinos viram facções, cidades e marcadores viram pins";
+        javafx.scene.control.ChoiceDialog<String> pick = new javafx.scene.control.ChoiceDialog<>(saved, saved, dungeon, city, world, uvtt);
         pick.initOwner(stage);
         pick.setTitle("Importar mapa");
         pick.setHeaderText("De onde vem o mapa?\n"
                 + "No One Page Dungeon: botão direito no mapa > Export > JSON.\n"
-                + "No Azgaar: Menu > Export > PNG (e, se quiser as cidades, JSON > Full).\n"
+                + "No Azgaar: Save > \"Save to machine\" (o .map) e Export > PNG (a imagem do mesmo mundo).\n"
                 + "Nos outros geradores do Watabou: exporte como PNG.\n"
                 + "No Dungeondraft: File > Export > Universal VTT (imagem em PNG).");
         pick.setContentText("Tipo:");
         Optional<String> choice = pick.showAndWait();
         if (choice.isEmpty()) return;
         try {
-            if (choice.get().equals(dungeon)) importWatabouDungeon();
+            if (choice.get().equals(saved)) importAzgaarMap();
+            else if (choice.get().equals(dungeon)) importWatabouDungeon();
             else if (choice.get().equals(uvtt)) importUniversalVtt();
             else importGeneratorImage(choice.get().equals(world));
         } catch (IOException | RuntimeException ex) {
@@ -5685,6 +5691,189 @@ public class Main extends Application {
         logEntries.add(LogEntry.system("Mapa Universal VTT importado: " + m.widthCells() + " × " + m.heightCells()
                 + " casas, " + (m.walls().size() - m.doors()) + " paredes, " + m.doors() + " portas, "
                 + m.lights().size() + " luzes." + (m.walls().isEmpty() ? "" : " Visão ligada.")));
+    }
+
+    // ---------------- mundo salvo do Azgaar (.map)
+
+    private com.vttcaseiro.library.JsonListStore<com.vttcaseiro.model.SavedWorld> worldStore() {
+        return new com.vttcaseiro.library.JsonListStore<>(mesaRepository.getRoot(), "mundos.json",
+                new com.google.gson.reflect.TypeToken<List<com.vttcaseiro.model.SavedWorld>>() { }.getType());
+    }
+
+    /**
+     * Mundo salvo do Azgaar: o .map traz os reinos, os povoados, os marcadores, as culturas e as religioes; a imagem
+     * vem do PNG exportado do mesmo mundo. Reinos viram faccoes, povoados e marcadores viram pins, o resto vai pro
+     * Diario. O mundo fica guardado na mesa pra abrir regioes dele depois.
+     */
+    private void importAzgaarMap() throws IOException {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Mundo salvo do Azgaar (.map)");
+        chooser.getExtensionFilters().addAll(new FileChooser.ExtensionFilter("Mapa do Azgaar", "*.map", "*.gz"),
+                new FileChooser.ExtensionFilter("Todos", "*.*"));
+        File file = chooser.showOpenDialog(stage);
+        if (file == null) return;
+        if (file.length() > 300L * 1024 * 1024) throw new IOException("Arquivo grande demais (mais de 300 MB).");
+        byte[] raw = java.nio.file.Files.readAllBytes(file.toPath());
+        com.vttcaseiro.importer.AzgaarMap.World world = com.vttcaseiro.importer.AzgaarMap.read(raw);
+
+        FileChooser ic = new FileChooser();
+        ic.setTitle("Imagem do mesmo mundo (no Azgaar: Export > PNG)");
+        ic.getExtensionFilters().add(com.vttcaseiro.view.ImageFiles.filter());
+        File imgFile = com.vttcaseiro.view.ImagePicker.open(ic, stage);
+        if (imgFile == null) return;
+        com.vttcaseiro.importer.MapImageFit.Fitted img = com.vttcaseiro.importer.MapImageFit.fit(
+                java.nio.file.Files.readAllBytes(imgFile.toPath()), imgFile.getName());
+
+        CheckBox factions = new CheckBox("Reinos viram facções na Campanha (" + world.states().size() + ")");
+        factions.setSelected(!world.states().isEmpty());
+        CheckBox burgs = new CheckBox("Cidades viram pins no mapa (as " + Math.min(60, world.burgs().size()) + " maiores)");
+        burgs.setSelected(true);
+        CheckBox markers = new CheckBox("Marcadores viram pins escondidos (" + world.markers().size() + ")");
+        markers.setSelected(!world.markers().isEmpty());
+        CheckBox journal = new CheckBox("Reinos, culturas, religiões e maiores cidades no Diário");
+        journal.setSelected(true);
+        TextField sceneName = new TextField(world.mapName());
+        javafx.scene.control.Dialog<javafx.scene.control.ButtonType> d = new javafx.scene.control.Dialog<>();
+        d.initOwner(stage);
+        d.setTitle("Mundo do Azgaar");
+        d.setHeaderText(world.mapName() + ": " + world.states().size() + " reinos, " + world.burgs().size() + " povoados, "
+                + world.markers().size() + " marcadores");
+        VBox content = new VBox(8, new Label("Nome da cena"), sceneName, factions, burgs, markers, journal);
+        content.setPrefWidth(460);
+        d.getDialogPane().setContent(content);
+        d.getDialogPane().getButtonTypes().addAll(javafx.scene.control.ButtonType.OK, javafx.scene.control.ButtonType.CANCEL);
+        if (d.showAndWait().filter(b -> b == javafx.scene.control.ButtonType.OK).isEmpty()) return;
+        String name = sceneName.getText().strip().isEmpty() ? world.mapName() : sceneName.getText().strip();
+
+        SceneModel scene = new SceneModel();
+        String assetId = mesaRepository.getImageAssetStore().store(img.bytes(), "mundo" + img.extension());
+        scene.setBackgroundImageAssetId(assetId);
+        scene.getGrid().setVisible(false);
+        double mapPxPerImagePx = world.width() > 0 ? world.width() / (double) img.width() : 1;
+        scene.getGrid().setFeetPerCell(Math.max(1, Math.round(scene.getGrid().getCellSize() * mapPxPerImagePx * world.feetPerPixel())));
+        if (burgs.isSelected() || markers.isSelected()) {
+            scene.setPins(world.pins(img.width(), img.height(), burgs.isSelected() ? 60 : 0, markers.isSelected()));
+        }
+        createImportedScene(scene, name, journal.isSelected() ? world.mapName() : null, journal.isSelected() ? world.journalText() : null);
+
+        int addedFactions = 0;
+        if (factions.isSelected() && editsCampaign()) {
+            java.util.Set<String> have = new java.util.HashSet<>();
+            for (com.vttcaseiro.model.Campaign.Faction f : campaign.getFactions()) have.add(f.name);
+            for (com.vttcaseiro.model.Campaign.Faction f : world.factions()) {
+                if (have.add(f.name)) {
+                    campaign.getFactions().add(f);
+                    addedFactions++;
+                }
+            }
+            if (addedFactions > 0) {
+                pushCampaign();
+                if (campaignView != null && campaignView.isShowing()) campaignView.reload(campaign);
+            }
+        }
+
+        // guarda o mundo pra abrir regioes depois
+        java.nio.file.Path dir = mesaRepository.getRoot().resolve("mundos");
+        java.nio.file.Files.createDirectories(dir);
+        String fileName = com.vttcaseiro.library.MesaBackup.safeName(name) + "-" + System.currentTimeMillis() + ".map";
+        java.nio.file.Files.write(dir.resolve(fileName), raw);
+        var store = worldStore();
+        List<com.vttcaseiro.model.SavedWorld> worlds = store.load();
+        worlds.add(new com.vttcaseiro.model.SavedWorld(name, "mundos/" + fileName, assetId, name));
+        store.save(worlds);
+
+        logEntries.add(LogEntry.system("Mundo do Azgaar importado: " + world.states().size() + " reinos"
+                + (addedFactions > 0 ? " (" + addedFactions + " facções novas na Campanha)" : "") + ", "
+                + world.burgs().size() + " povoados, " + world.markers().size() + " marcadores. "
+                + "Pra jogar de perto: Mundo > Cenas > \"Região de um mundo\"."
+                + (img.changed() ? " Imagem reduzida pra caber na mesa (" + img.width() + "x" + img.height() + ")." : "")));
+    }
+
+    /** Abre a regiao em volta de um povoado de um mundo guardado como cena nova (com os pins de la e a regua certa). */
+    void onAzgaarRegion() {
+        List<com.vttcaseiro.model.SavedWorld> worlds = worldStore().load();
+        if (worlds.isEmpty()) {
+            showError("Nenhum mundo do Azgaar nesta mesa ainda. Importe um: Importar mapa > \"Azgaar - mundo salvo (.map)\".");
+            return;
+        }
+        ComboBox<com.vttcaseiro.model.SavedWorld> worldBox = new ComboBox<>(FXCollections.observableArrayList(worlds));
+        worldBox.getSelectionModel().select(worlds.size() - 1);
+        ComboBox<String> placeBox = new ComboBox<>();
+        placeBox.setEditable(true);
+        placeBox.setPrefWidth(280);
+        javafx.scene.control.Spinner<Integer> radius = new javafx.scene.control.Spinner<>(1, 2000, 25, 5);
+        radius.setEditable(true);
+        Label unit = new Label();
+        com.vttcaseiro.importer.AzgaarMap.World[] loaded = {null};
+        Runnable load = () -> {
+            com.vttcaseiro.model.SavedWorld sw = worldBox.getValue();
+            placeBox.getItems().clear();
+            loaded[0] = null;
+            if (sw == null) return;
+            try {
+                loaded[0] = com.vttcaseiro.importer.AzgaarMap.read(java.nio.file.Files.readAllBytes(
+                        mesaRepository.getRoot().resolve(sw.getMapFile())));
+                List<com.vttcaseiro.importer.AzgaarMap.Burg> list = new ArrayList<>(loaded[0].burgs());
+                list.sort(java.util.Comparator.comparing(com.vttcaseiro.importer.AzgaarMap.Burg::capital)
+                        .thenComparingDouble(com.vttcaseiro.importer.AzgaarMap.Burg::population).reversed());
+                for (var b : list) placeBox.getItems().add(b.name());
+                for (var m : loaded[0].markers()) if (m.name() != null) placeBox.getItems().add(m.name() + " (marcador)");
+                if (!placeBox.getItems().isEmpty()) placeBox.getSelectionModel().select(0);
+                unit.setText("de raio (" + loaded[0].distanceUnit() + ")");
+            } catch (IOException | RuntimeException ex) {
+                showError("Não deu pra ler esse mundo: " + ex.getMessage());
+            }
+        };
+        worldBox.setOnAction(e -> load.run());
+        load.run();
+        javafx.scene.control.Dialog<javafx.scene.control.ButtonType> d = new javafx.scene.control.Dialog<>();
+        d.initOwner(stage);
+        d.setTitle("Região de um mundo");
+        d.setHeaderText("Abre a região em volta de um lugar como cena nova, ampliada, com os pins de lá.");
+        javafx.scene.layout.GridPane g = new javafx.scene.layout.GridPane();
+        g.setHgap(8);
+        g.setVgap(8);
+        g.addRow(0, new Label("Mundo"), worldBox);
+        g.addRow(1, new Label("Em volta de"), placeBox);
+        g.addRow(2, new Label("Tamanho"), new HBox(6, radius, unit));
+        d.getDialogPane().setContent(g);
+        d.getDialogPane().getButtonTypes().addAll(javafx.scene.control.ButtonType.OK, javafx.scene.control.ButtonType.CANCEL);
+        if (d.showAndWait().filter(b -> b == javafx.scene.control.ButtonType.OK).isEmpty() || loaded[0] == null) return;
+        com.vttcaseiro.importer.AzgaarMap.World w = loaded[0];
+        String place = placeBox.getEditor().getText() == null ? "" : placeBox.getEditor().getText().strip();
+        double cx = w.width() / 2.0, cy = w.height() / 2.0;
+        boolean found = false;
+        for (var b : w.burgs()) if (b.name().equals(place)) { cx = b.x(); cy = b.y(); found = true; break; }
+        if (!found) {
+            for (var m : w.markers()) {
+                if (m.name() != null && (m.name() + " (marcador)").equals(place)) { cx = m.x(); cy = m.y(); found = true; break; }
+            }
+        }
+        if (!found) {
+            showError("Não achei \"" + place + "\" nesse mundo. Escolha um lugar da lista.");
+            return;
+        }
+        double perPixel = w.distanceScale() > 0 ? w.distanceScale() : 3;
+        double[] rect = com.vttcaseiro.importer.AzgaarRegion.square(cx, cy, radius.getValue() / perPixel, w.width(), w.height());
+        try {
+            com.vttcaseiro.model.SavedWorld sw = worldBox.getValue();
+            com.vttcaseiro.importer.AzgaarRegion.Cut cut = com.vttcaseiro.importer.AzgaarRegion.crop(
+                    imageAssetService.readBytes(sw.getImageAssetId()), w.width(), w.height(), rect);
+            Optional<String> name = askSceneName(place.replace(" (marcador)", "") + " (região)");
+            if (name.isEmpty()) return;
+            com.vttcaseiro.importer.MapImageFit.Fitted img = com.vttcaseiro.importer.MapImageFit.fit(cut.png(), "regiao.png");
+            SceneModel scene = new SceneModel();
+            scene.setBackgroundImageAssetId(mesaRepository.getImageAssetStore().store(img.bytes(), "regiao" + img.extension()));
+            scene.getGrid().setVisible(false);
+            double mapPxPerImagePx = cut.w() / img.width();
+            scene.getGrid().setFeetPerCell(Math.max(1, Math.round(scene.getGrid().getCellSize() * mapPxPerImagePx * w.feetPerPixel())));
+            scene.setPins(w.pinsIn(cut.x(), cut.y(), cut.w(), cut.h(), img.width(), img.height(), 80, true));
+            createImportedScene(scene, name.get(), null, null);
+            logEntries.add(LogEntry.system("Região de " + sw.getName() + " aberta: " + Math.round(2 * radius.getValue()) + " "
+                    + w.distanceUnit() + " de lado, " + scene.getPins().size() + " pins."));
+        } catch (IOException | RuntimeException ex) {
+            showError("Não deu pra abrir a região: " + ex.getMessage());
+        }
     }
 
     private void importWatabouDungeon() throws IOException {

@@ -217,7 +217,21 @@ no mapa vazio):
   historia e as notas pro Diario.
 - **Watabou - cidades, vilas, cavernas etc.**: exporte como **PNG** e escolha a
   opcao de imagem.
-- **Azgaar's Fantasy Map Generator**: Menu > Export > **PNG** (ou JPEG). Se
+- **Azgaar - mundo salvo (.map)** (o melhor jeito): no gerador, **Save** (o arquivo `.map`) e
+  **Export > PNG** do mesmo mundo. No Customizr, "Azgaar - mundo salvo": escolha o `.map` e depois o PNG.
+  Vem tudo que o gerador sabe do mundo:
+  - **reinos viram Facções** na Campanha (forma de governo, capital, anotação, e de quem são amigos e inimigos
+    pela diplomacia: aliado, guerra, rival, desconfiança, vassalo/suserano), escondidas até você revelar;
+  - **cidades viram pins** (as 60 maiores, capitais primeiro, com reino, população, anotação e o link do
+    gerador de cidade do Watabou);
+  - **marcadores viram pins escondidos** (masmorra, taverna, templo, tesouro, perigo... pelo tipo), com a
+    anotação de cada um;
+  - **Diário**: descrição e ano do mundo, reinos, culturas, religiões e maiores cidades;
+  - a **régua** já mede na escala do mundo (km ou milhas, como no gerador).
+  O mundo fica guardado na mesa. **Mundo > Cenas > "Região de um mundo"**: escolha uma cidade (ou marcador) e o
+  tamanho, e a região em volta vira uma cena nova, ampliada, com os pins de lá e a régua na escala certa.
+  Lê `.map` das versões novas e antigas do gerador (compactado ou não).
+- **Azgaar's Fantasy Map Generator** (só a imagem): Menu > Export > **PNG** (ou JPEG). Se
   quiser, escolha tambem o **JSON "Full"** do mesmo mundo: os reinos e as maiores
   cidades vao pro Diario e as capitais podem ser marcadas no mapa. A grade fica
   escondida e cada celula vale 1 milha na regua.
