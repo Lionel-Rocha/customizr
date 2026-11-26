@@ -3437,21 +3437,43 @@ public class Main extends Application {
         configButton.setOnAction(e -> showSceneConfig());
         saveSceneButton.setGraphic(com.vttcaseiro.view.Icons.icon("save", 14));
         // cabecalho enxuto: o titulo e os icones (o nome de cada um fica na dica)
-        for (Button b : List.of(newSceneButton, importMapButton, regionButton, worldEditButton, newFolderButton, saveSceneButton, configButton)) {
+        for (Button b : List.of(newSceneButton, importMapButton, newFolderButton, saveSceneButton, configButton)) {
             if (b.getTooltip() == null) b.setTooltip(new Tooltip(b.getText()));
             else b.getTooltip().setText(b.getText() + ": " + b.getTooltip().getText());
             b.setContentDisplay(javafx.scene.control.ContentDisplay.GRAPHIC_ONLY);
             b.getStyleClass().add("panel-icon-button");
             b.setMinWidth(Region.USE_PREF_SIZE);
         }
-        Label scenesTitle = sectionLabel("Cenas desta mesa");
+        // mundos do Azgaar (abrir regiao, editar) num menu so: o cabecalho cabia o titulo cortado
+        javafx.scene.control.MenuItem regionItem = new javafx.scene.control.MenuItem(regionButton.getText(),
+                com.vttcaseiro.view.Icons.icon("map", 14));
+        regionItem.setOnAction(e -> onAzgaarRegion());
+        javafx.scene.control.MenuItem worldEditItem = new javafx.scene.control.MenuItem(worldEditButton.getText(),
+                com.vttcaseiro.view.Icons.icon("edit", 14));
+        worldEditItem.setOnAction(e -> onEditWorld());
+        javafx.scene.control.MenuButton worldMenu = new javafx.scene.control.MenuButton(null,
+                com.vttcaseiro.view.Icons.icon("map", 14), regionItem, worldEditItem);
+        worldMenu.getStyleClass().add("panel-icon-button");
+        worldMenu.setTooltip(new Tooltip("Mundos do Azgaar: abrir a região em volta de uma cidade, ou editar nomes, cores e "
+                + "populações (o mapa é redesenhado)."));
+        worldMenu.setMinWidth(Region.USE_PREF_SIZE);
+        Label scenesTitle = sectionLabel("Cenas");
+        scenesTitle.setMinWidth(Region.USE_PREF_SIZE);
         Region headerGrow = new Region();
         HBox.setHgrow(headerGrow, Priority.ALWAYS);
-        HBox scenesHeader = new HBox(4, scenesTitle, headerGrow, newSceneButton, importMapButton, regionButton, worldEditButton, newFolderButton,
+        HBox scenesHeader = new HBox(4, scenesTitle, headerGrow, newSceneButton, importMapButton, worldMenu, newFolderButton,
                 saveSceneButton, configButton);
         scenesHeader.setAlignment(Pos.CENTER_LEFT);
         scenesHeader.getStyleClass().add("label-section-row");
-        box.getChildren().addAll(scenesHeader, mapListView, treeHint, sceneSaveStatus);
+        // lista vazia: diz o que fazer (a arvore nao tem "placeholder" proprio como a ListView)
+        Label noScenes = emptyHint("Nenhuma cena ainda.\nCrie com + ou importe um mapa.");
+        noScenes.setMouseTransparent(true);
+        Runnable showNoScenes = () -> noScenes.setVisible(mapListView.getRoot() == null || mapListView.getRoot().getChildren().isEmpty());
+        mapListView.rootProperty().addListener((o, a, b) -> showNoScenes.run());
+        showNoScenes.run();
+        StackPane sceneList = new StackPane(mapListView, noScenes);
+        sceneList.setMinHeight(120);
+        box.getChildren().addAll(scenesHeader, sceneList, treeHint, sceneSaveStatus);
         box.getChildren().add(buildSceneQueue());
 
         // grade, pes e tamanho: janela "Configurar cena" (montada uma vez; os campos continuam vivos)
