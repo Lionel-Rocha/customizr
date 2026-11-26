@@ -312,6 +312,9 @@ public class GameServer {
     /** Chamado pelo ClientHandler quando chega uma mensagem desse cliente
      * (exceto "ping", que o proprio ClientHandler responde sem passar por
      * aqui). */
+    /** Quanto de imagem um jogador manda por conexao (o mestre nao tem limite). */
+    static final long MAX_PLAYER_IMAGE_BYTES = 200L * 1024 * 1024;
+
     void handleIncoming(NetMessage msg, ClientHandler from) {
         synchronized (lock) {
             // Antes do "hello" aceito (senha conferida), a conexao nao pode
@@ -327,6 +330,13 @@ public class GameServer {
             if (from.getSession() != null && ("chat".equals(msg.type) || "roll".equals(msg.type)
                     || "map_ping".equals(msg.type) || "gm_request".equals(msg.type))) {
                 msg.player = from.getSession().playerName();
+            }
+            // numero que nao e numero (NaN/infinito) nao entra: estragaria a cena de todos
+            if (msg.x != null && !Double.isFinite(msg.x)) msg.x = null;
+            if (msg.y != null && !Double.isFinite(msg.y)) msg.y = null;
+            if (msg.token != null && (!Double.isFinite(msg.token.getX()) || !Double.isFinite(msg.token.getY()))) {
+                log.warn("Token com posição inválida de " + from.getPlayerName() + " -- ignorado.");
+                return;
             }
             if (from.sideScene != null && !sideScenes.containsKey(from.sideScene)) from.sideScene = null;
             enter(from.sideScene);
@@ -354,10 +364,15 @@ public class GameServer {
                 }
                 case "add_token" -> {
                     if (msg.token != null) {
-                        if (msg.token.getOwnerId() == null && !from.isGm()) {
+                        if (!from.isGm()) {
+                            // token de jogador e sempre dele (nao cria token "de" outra pessoa)
                             msg.token.setOwnerId(from.getSession() != null ? from.getSession().playerId() : null);
+                            msg.token.setHiddenFromPlayers(false);
                         }
-                        if (!from.isGm()) msg.token.setHiddenFromPlayers(false);
+                        if (msg.token.getImageAssetId() != null
+                                && !com.vttcaseiro.library.ImageAssetStore.isValidAssetId(msg.token.getImageAssetId())) {
+                            msg.token.setImageAssetId(null);
+                        }
                         scene.addToken(msg.token);
                         routeTokenChange(msg, msg.token.getId());
                     }
@@ -509,6 +524,12 @@ public class GameServer {
                 }
                 case "drawing_add" -> {
                     if (msg.drawing == null) break;
+                    // mesmo id de um desenho de outra pessoa = trocaria o desenho dela (so o mestre pode)
+                    Optional<com.vttcaseiro.model.Drawing> existing = scene.findDrawing(msg.drawing.getId());
+                    if (existing.isPresent() && !from.isGm()
+                            && !java.util.Objects.equals(existing.get().getOwnerId(), from.getSession().playerId())) {
+                        break;
+                    }
                     // O dono e quem mandou (o cliente nao escolhe), e o tamanho tem limite.
                     msg.drawing.setOwnerId(from.getSession().playerId());
                     msg.drawing.setPoints(msg.drawing.getPoints());
@@ -678,6 +699,11 @@ public class GameServer {
                     }
                 }
                 case "mob_sync" -> {
+                    if (!from.isGm()) {
+                        // monstro e do mestre: o programa dele grava o que chega no disco
+                        from.send(NetMessage.chat("servidor", "Só o mestre mexe nos monstros."));
+                        break;
+                    }
                     if (msg.mob != null && msg.mob.getId() != null) {
                         sharedMobs.put(msg.mob.getId(), msg.mob);
                         String line = NetCodec.encode(msg);
@@ -712,6 +738,12 @@ public class GameServer {
                     // Guarda localmente (dedup automatico -- ver
                     // ImageAssetStore) e repassa pra todo mundo, pra quem
                     // ja esta conectado tambem receber a imagem nova.
+                    long size = msg.assetBase64 == null ? 0 : msg.assetBase64.length() * 3L / 4;
+                    if (!from.isGm() && from.uploadedImageBytes + size > MAX_PLAYER_IMAGE_BYTES) {
+                        from.send(NetMessage.chat("servidor", "Limite de imagens enviadas nesta sessão atingido."));
+                        break;
+                    }
+                    from.uploadedImageBytes += size;
                     ImageAssetRelay.storeIncoming(imageAssetStore, msg);
                     broadcast(msg);
                 }

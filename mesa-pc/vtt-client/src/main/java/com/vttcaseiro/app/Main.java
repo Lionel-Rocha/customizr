@@ -6102,22 +6102,29 @@ public class Main extends Application {
         if (file == null) return;
         if (file.length() > 400L * 1024 * 1024) throw new IOException("Arquivo grande demais (mais de 400 MB).");
         boolean json;
-        try (java.io.InputStream in = java.nio.file.Files.newInputStream(file.toPath())) {
-            byte[] head = in.readNBytes(64);
+        boolean gz;
+        try (java.io.InputStream in = new java.io.BufferedInputStream(java.nio.file.Files.newInputStream(file.toPath()))) {
+            in.mark(4);
+            gz = in.read() == 0x1f && in.read() == 0x8b; // compactado (.gz): olha o que tem dentro
+            in.reset();
+            java.io.InputStream body = gz ? new java.util.zip.GZIPInputStream(in) : in;
+            byte[] head = body.readNBytes(64);
             String h = new String(head, java.nio.charset.StandardCharsets.UTF_8).stripLeading();
             json = h.startsWith("{") || h.startsWith("﻿{");
         }
         boolean isJson = json;
+        boolean isGz = gz;
         inBackground("Lendo o mundo do Azgaar", () -> isJson
-                ? com.vttcaseiro.importer.AzgaarJson.read(new java.io.InputStreamReader(
-                        new java.io.BufferedInputStream(java.nio.file.Files.newInputStream(file.toPath())), java.nio.charset.StandardCharsets.UTF_8))
+                ? com.vttcaseiro.importer.AzgaarJson.read(new java.io.InputStreamReader(isGz
+                        ? new java.util.zip.GZIPInputStream(new java.io.BufferedInputStream(java.nio.file.Files.newInputStream(file.toPath())))
+                        : new java.io.BufferedInputStream(java.nio.file.Files.newInputStream(file.toPath())), java.nio.charset.StandardCharsets.UTF_8))
                 : new com.vttcaseiro.importer.AzgaarJson.Result(
                         com.vttcaseiro.importer.AzgaarMap.read(java.nio.file.Files.readAllBytes(file.toPath())), null),
-                r -> continueAzgaarImport(file, isJson, r));
+                r -> continueAzgaarImport(file, isJson, isGz, r));
     }
 
     /** Segunda parte da importacao (o mundo ja lido): o que trazer, de onde vem a imagem, e cria a cena. */
-    private void continueAzgaarImport(File file, boolean isJson, com.vttcaseiro.importer.AzgaarJson.Result r) throws IOException {
+    private void continueAzgaarImport(File file, boolean isJson, boolean isGz, com.vttcaseiro.importer.AzgaarJson.Result r) throws IOException {
         com.vttcaseiro.importer.AzgaarMap.World world = r.world();
         boolean canDraw = r.geometry() != null;
         CheckBox factions = new CheckBox("Reinos viram facções na Campanha (" + world.states().size() + ")");
@@ -6202,7 +6209,9 @@ public class Main extends Application {
             java.nio.file.Files.createDirectories(dir);
             String base = com.vttcaseiro.library.MesaBackup.safeName(name) + "-" + System.currentTimeMillis();
             String stored = isJson ? base + ".json.gz" : base + ".map";
-            if (isJson) {
+            if (isJson && isGz) {
+                java.nio.file.Files.copy(file.toPath(), dir.resolve(stored)); // ja vem compactado
+            } else if (isJson) {
                 try (java.io.InputStream in = java.nio.file.Files.newInputStream(file.toPath());
                      java.io.OutputStream out = new java.util.zip.GZIPOutputStream(java.nio.file.Files.newOutputStream(dir.resolve(stored)))) {
                     in.transferTo(out);

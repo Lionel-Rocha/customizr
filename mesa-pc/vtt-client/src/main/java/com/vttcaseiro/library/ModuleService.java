@@ -221,8 +221,9 @@ public final class ModuleService {
         for (MobSheet mob : nonNull(m.mobs)) {
             if (mob == null) continue;
             if (mob.getId() == null || mobIds.contains(mob.getId())) mob.assignNewId();
-            String name = free(MesaRepository.fileNameOf(mob.getName() == null ? "Monstro" : mob.getName()), mobNames);
-            if (!name.equals(MesaRepository.fileNameOf(mob.getName()))) mob.setName(name);
+            String display = freeDisplay(mob.getName() == null || mob.getName().isBlank() ? "Monstro" : mob.getName(), mobNames);
+            mob.setName(display);
+            String name = MesaRepository.fileNameOf(display);
             repo.saveMob(mob, name);
             mobNames.add(name);
             mobIds.add(mob.getId());
@@ -242,8 +243,9 @@ public final class ModuleService {
             if (c == null) continue;
             if (c.getId() == null || charIds.contains(c.getId())) c.assignNewId();
             c.setOwnerPlayerId(null); // a ficha chega sem dono (e PdM do mestre ate ele entregar)
-            String name = free(MesaRepository.fileNameOf(c.getName() == null ? "Ficha" : c.getName()), charNames);
-            if (!name.equals(MesaRepository.fileNameOf(c.getName()))) c.setName(name);
+            String display = freeDisplay(c.getName() == null || c.getName().isBlank() ? "Ficha" : c.getName(), charNames);
+            c.setName(display);
+            String name = MesaRepository.fileNameOf(display);
             repo.saveCharacter(c, name);
             charNames.add(name);
             charIds.add(c.getId());
@@ -300,6 +302,17 @@ public final class ModuleService {
     }
 
     /** "Nome", ou "Nome 2", "Nome 3"... o primeiro que nao esta em {@code taken}. */
+    /**
+     * Nome livre mantendo acento e virgula ("Dragão" -> "Dragão 2"); taken sao nomes de arquivo (que perdem
+     * acento). Antes o nome ficava o do arquivo: "Drag_o 2".
+     */
+    static String freeDisplay(String display, Set<String> taken) {
+        if (!taken.contains(MesaRepository.fileNameOf(display))) return display;
+        int n = 2;
+        while (taken.contains(MesaRepository.fileNameOf(display + " " + n))) n++;
+        return display + " " + n;
+    }
+
     static String free(String name, Set<String> taken) {
         if (!taken.contains(name)) return name;
         int n = 2;

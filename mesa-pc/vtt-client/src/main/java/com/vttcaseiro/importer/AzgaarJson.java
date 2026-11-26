@@ -160,7 +160,7 @@ public final class AzgaarJson {
                 if (i <= 0 || st.has("removed")) continue;
                 stateColors[i] = Json.str(st, "color");
                 JsonArray pole = Json.arr(st, "pole");
-                if (pole.size() == 2 && Json.str(st, "name") != null) {
+                if (pole.size() == 2 && isNum(pole.get(0)) && isNum(pole.get(1)) && Json.str(st, "name") != null) {
                     poles.add(new double[]{pole.get(0).getAsDouble(), pole.get(1).getAsDouble()});
                     names.add(Json.str(st, "name"));
                     ids.add(i);
@@ -182,7 +182,7 @@ public final class AzgaarJson {
                 double[] xs = new double[pts.size()], ys = new double[pts.size()];
                 for (int i = 0; i < pts.size(); i++) {
                     JsonArray pt = pts.get(i).isJsonArray() ? pts.get(i).getAsJsonArray() : null;
-                    if (pt == null || pt.size() < 2) continue;
+                    if (pt == null || pt.size() < 2 || !isNum(pt.get(0)) || !isNum(pt.get(1))) continue; // ponto sem numero: pula
                     xs[i] = pt.get(0).getAsDouble();
                     ys[i] = pt.get(1).getAsDouble();
                 }
@@ -305,5 +305,10 @@ public final class AzgaarJson {
 
     private static JsonArray arr(JsonElement e) {
         return e != null && e.isJsonArray() ? e.getAsJsonArray() : new JsonArray();
+    }
+
+    /** Numero de verdade (o JSON pode trazer null num ponto). */
+    private static boolean isNum(com.google.gson.JsonElement e) {
+        return e != null && e.isJsonPrimitive() && e.getAsJsonPrimitive().isNumber();
     }
 }

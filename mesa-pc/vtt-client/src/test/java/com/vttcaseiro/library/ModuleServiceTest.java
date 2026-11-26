@@ -98,4 +98,12 @@ class ModuleServiceTest {
             return com.vttcaseiro.repository.MesaRepository.fileNameOf(n);
         }
     }
+
+    @Test
+    void repeatedNameKeepsAccentsInsteadOfTheFileName() {
+        java.util.Set<String> taken = new java.util.HashSet<>(java.util.List.of(
+                com.vttcaseiro.repository.MesaRepository.fileNameOf("Dragão Vermelho")));
+        org.junit.jupiter.api.Assertions.assertEquals("Dragão Vermelho 2", ModuleService.freeDisplay("Dragão Vermelho", taken));
+        org.junit.jupiter.api.Assertions.assertEquals("Lyra", ModuleService.freeDisplay("Lyra", taken));
+    }
 }

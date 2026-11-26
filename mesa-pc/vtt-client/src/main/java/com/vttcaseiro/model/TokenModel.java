@@ -317,8 +317,8 @@ public class TokenModel {
         this.characterSheetId = other.characterSheetId;
         this.mobSheetId = other.mobSheetId;
         this.hiddenFromPlayers = other.hiddenFromPlayers;
-        this.visionFeet = other.visionFeet;
-        this.lightFeet = other.lightFeet;
+        setVisionFeet(other.visionFeet); // (pelos setters: valor da rede fica no limite)
+        setLightFeet(other.lightFeet);
         setDimLightFeet(other.dimLightFeet);
         setBlindsightFeet(other.blindsightFeet);
         setTremorsenseFeet(other.tremorsenseFeet);

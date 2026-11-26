@@ -108,6 +108,15 @@ class AzgaarJsonTest {
     }
 
     @Test
+    void aPointWithoutNumbersIsSkippedNotFatal() throws Exception {
+        String json = fakeFull().replace("[[260,190,1],[400,210,2],[540,230,3]]", "[[260,190,1],[null,null,2],[540,230,3]]")
+                .replace("\"pole\":[500,200]", "\"pole\":[null,200]");
+        AzgaarJson.Result r = AzgaarJson.read(new StringReader(json));
+        assertEquals(1, r.geometry().routes().size());
+        assertEquals(1, r.geometry().statePoles().size(), "reino sem polo fica sem nome no mapa, o resto entra");
+    }
+
+    @Test
     void rejectsJsonThatIsNotAzgaar() {
         assertThrows(java.io.IOException.class, () -> AzgaarJson.read(new StringReader("{\"foo\":1}")));
     }

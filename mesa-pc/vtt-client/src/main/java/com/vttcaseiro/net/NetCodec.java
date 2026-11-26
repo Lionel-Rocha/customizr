@@ -1,6 +1,8 @@
 package com.vttcaseiro.net;
 
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.Strictness;
 
 /**
  * Uma NetMessage = uma linha de JSON (sem pretty-print -- o Gson por
@@ -9,7 +11,11 @@ import com.google.gson.Gson;
  * do GameServer/GameClient espera).
  */
 public final class NetCodec {
-    private static final Gson GSON = new Gson();
+    /**
+     * JSON estrito: sem NaN/Infinity (o leitor padrao aceita, e depois o servidor nao conseguia mais escrever a
+     * cena -- um jogador travava a mesa de todos com uma posicao "NaN").
+     */
+    private static final Gson GSON = new GsonBuilder().setStrictness(Strictness.STRICT).create();
 
     private NetCodec() {
     }
