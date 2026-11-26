@@ -194,6 +194,10 @@
         <button id="btnPing" title="Próximo toque no mapa marca um ping (ou Alt+clique)">Ping</button>
         <button id="btnTarget" title="Liga/desliga: tocar num token marca/desmarca como alvo (ou Ctrl+clique)">Mirar</button>
         <span id="targetsInfo" class="muted" style="align-self:center;font-size:12px"></span>
+        <button id="btnRuler" title="Arraste pra medir (em mapa de mundo: distância e dias de viagem)">Régua</button>
+        <input id="placeSearch" list="placeList" placeholder="Procurar lugar..." title="Nome de um lugar do mapa (pin ou rótulo): a tela vai até ele"
+               style="width:140px">
+        <datalist id="placeList"></datalist>
         <button id="btnPen" title="Arraste pra desenhar">Lápis</button>
         <button id="btnText" title="Toque pra escrever">Texto</button>
         <button id="btnErase" title="Toque num desenho seu pra apagar">Borracha</button>
@@ -966,6 +970,20 @@ function render(now) {
     ctx.restore();
   }
   // Desenho em andamento
+  if (S.ruler && (S.ruler.x !== S.ruler.sx || S.ruler.y !== S.ruler.sy)) {
+    const R = S.ruler, fpc = (sc.grid && sc.grid.feetPerCell) || 5;
+    const label = fpc >= 500 ? travelText(Math.hypot(R.x - R.sx, R.y - R.sy) / c * fpc)
+      : (() => { const n = cellsBetween(R.sx, R.sy, R.x, R.y); return Math.round(n * fpc) + ' pés (' + n + (n === 1 ? ' casa)' : ' casas)'); })();
+    ctx.save(); ctx.strokeStyle = '#FFCF7F'; ctx.lineWidth = 3 / z; ctx.setLineDash([10 / z, 6 / z]);
+    ctx.beginPath(); ctx.moveTo(R.sx, R.sy); ctx.lineTo(R.x, R.y); ctx.stroke(); ctx.setLineDash([]);
+    ctx.font = `bold ${13 / z}px Segoe UI`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    const tw = ctx.measureText(label).width + 14 / z, ly = R.y;
+    // nao cabe a direita da ponta: o texto vai pro outro lado (senao os dias de viagem somem na borda)
+    const right = (canvas.width / (window.devicePixelRatio || 1) - S.view.tx) / z;
+    const lx = R.x + 10 / z + tw > right ? R.x - 10 / z - tw : R.x + 10 / z;
+    ctx.fillStyle = '#1B1411e6'; ctx.fillRect(lx, ly - 11 / z, tw, 22 / z); ctx.fillStyle = '#FFCF7F'; ctx.fillText(label, lx + 7 / z, ly);
+    ctx.restore();
+  }
   if (S.drawPts && S.drawPts.length >= 2) {
     ctx.strokeStyle = $('drawColor').value; ctx.lineWidth = 3; ctx.lineCap = ctx.lineJoin = 'round';
     ctx.beginPath(); ctx.moveTo(S.drawPts[0], S.drawPts[1]);
@@ -1115,12 +1133,34 @@ $('btnPing').onclick = () => { S.pingMode = !S.pingMode; $('btnPing').classList.
 $('btnTarget').onclick = () => { S.targetMode = !S.targetMode; $('btnTarget').classList.toggle('on', S.targetMode); };
 $('loginRole').onchange = () => $('gmPassRow').classList.toggle('hidden', $('loginRole').value !== 'mestre');
 try { const r = localStorage.getItem('vtt.role'); if (r) { $('loginRole').value = r; $('loginRole').onchange(); } } catch (ex) {}
-for (const [id, tool] of [['btnPen', 'pen'], ['btnText', 'text'], ['btnErase', 'erase']]) {
+for (const [id, tool] of [['btnRuler', 'ruler'], ['btnPen', 'pen'], ['btnText', 'text'], ['btnErase', 'erase']]) {
   $(id).onclick = () => {
     S.tool = S.tool === tool ? null : tool;
-    for (const b of ['btnPen', 'btnText', 'btnErase']) $(b).classList.toggle('on', S.tool && b === id);
+    for (const b of ['btnRuler', 'btnPen', 'btnText', 'btnErase']) $(b).classList.toggle('on', S.tool && b === id);
+    if (S.tool !== 'ruler') { S.ruler = null; markDirty(); }
   };
 }
+// Procurar lugar: os pins e rotulos que voce ve (sem acento nem maiuscula); escolher leva a tela ate la e marca um ping
+function fold(t) { return String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim(); }
+function visiblePlaces() { return ((S.scene && S.scene.pins) || []).filter(p => (S.gm || !p.hidden) && p.title); }
+function refreshPlaceList() {
+  const list = $('placeList'); list.replaceChildren();
+  const seen = new Set();
+  for (const p of visiblePlaces()) { if (seen.has(p.title)) continue; seen.add(p.title); const o = document.createElement('option'); o.value = p.title; list.append(o); }
+}
+function goToPlace(q) {
+  const f = fold(q); if (!f) return;
+  const places = visiblePlaces();
+  const p = places.find(x => fold(x.title) === f) || places.find(x => fold(x.title).startsWith(f)) || places.find(x => fold(x.title).includes(f));
+  if (!p) { toast('Nenhum lugar com esse nome nesta cena.'); return; }
+  const r = $('mapwrap').getBoundingClientRect();
+  S.view.tx = r.width / 2 - p.x * S.view.zoom; S.view.ty = r.height / 2 - p.y * S.view.zoom;
+  S.pings.push({ x: p.x, y: p.y, who: null, t0: performance.now() }); markDirty();
+}
+$('placeSearch').addEventListener('focus', refreshPlaceList);
+$('placeSearch').addEventListener('input', refreshPlaceList);
+$('placeSearch').addEventListener('change', e => goToPlace(e.target.value));
+$('placeSearch').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); goToPlace(e.target.value); } });
 function newId() { return 'w' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10); }
 function sendDrawing(d) {
   const drawing = Object.assign({ id: newId(), color: $('drawColor').value.toUpperCase(), width: 3, ownerId: S.me.id }, d);
@@ -1279,6 +1319,7 @@ canvas.addEventListener('pointerdown', ev => {
     S.pingMode = false; $('btnPing').classList.remove('on');
     S.pings.push({ x, y, who: null, t0: performance.now() }); send({ type: 'map_ping', x, y }); markDirty(); return;
   }
+  if (S.tool === 'ruler') { S.ruler = { sx: x, sy: y, x, y, live: true }; markDirty(); return; }
   if (S.tool === 'pen') { S.drawPts = [x, y]; return; }
   if (S.tool === 'text') {
     const txt = prompt('Texto no mapa:');
@@ -1316,6 +1357,7 @@ canvas.addEventListener('pointermove', ev => {
     const mx = S.pinch.mx - r.left, my = S.pinch.my - r.top;
     S.view.tx = mx - (mx - S.pinch.tx) * z / S.pinch.zoom; S.view.ty = my - (my - S.pinch.ty) * z / S.pinch.zoom; S.view.zoom = z; markDirty(); return;
   }
+  if (S.ruler && S.ruler.live) { const [x, y] = toWorld(ev); S.ruler.x = x; S.ruler.y = y; markDirty(); return; }
   if (S.drawPts) {
     const [x, y] = toWorld(ev), n = S.drawPts.length;
     if (Math.hypot(x - S.drawPts[n - 2], y - S.drawPts[n - 1]) * S.view.zoom >= 3 && n < 8000) { S.drawPts.push(x, y); markDirty(); }
@@ -1327,6 +1369,7 @@ canvas.addEventListener('pointermove', ev => {
 function endPointer(ev) {
   S.pointers.delete(ev.pointerId);
   if (S.pointers.size < 2) S.pinch = null;
+  if (S.ruler && S.ruler.live) S.ruler.live = false; // a medida fica na tela ate a proxima
   if (S.drawPts) {
     if (S.drawPts.length >= 2) sendDrawing({ kind: 'path', points: S.drawPts, width: 3 });
     S.drawPts = null; markDirty();

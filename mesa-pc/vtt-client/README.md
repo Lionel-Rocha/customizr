@@ -490,6 +490,12 @@ Sem ligar pra acento ou maiúscula; o que começa com o texto vem primeiro. Seta
 que a lista daquilo abriria (a cena troca, a ficha abre, o lugar centraliza com um ping, a Campanha abre na aba
 certa). Jogador só acha o que vê.
 
+### No navegador: régua e procurar lugar
+
+Na barra do mapa da página web: **Régua** (arraste pra medir; em mapa de mundo mostra km/mi e dias de viagem, igual
+ao programa) e a caixa **Procurar lugar** (lista os pins e rótulos que você vê; escolher leva a tela até lá com um
+ping só na sua tela).
+
 ### Procurar no mapa
 
 Lupa na faixa de ferramentas (ou **Ctrl+F**): digite parte do nome (sem ligar pra acento ou maiúscula) e escolha;
