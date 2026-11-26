@@ -10,6 +10,7 @@ import java.awt.RenderingHints;
 import java.awt.font.GlyphVector;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Path2D;
+import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -52,7 +53,7 @@ public final class AzgaarRender {
         gr.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         gr.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
         gr.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
-        gr.setColor(new Color(0x34, 0x5c, 0x96));
+        gr.setColor(SEA_DEEP); // fora das celulas: mar aberto
         gr.fillRect(0, 0, outW, outH);
         double s = outW / rw;
         AffineTransform base = gr.getTransform();
@@ -91,6 +92,7 @@ public final class AzgaarRender {
         for (int i = 0; i < n; i++) {
             if (!visible[i]) continue;
             Color c = cellColor(g, i, style);
+            if (g.height()[i] < 20 && touchesLand(g, i)) c = SEA_SHORE;
             gr.setColor(c);
             gr.fill(polys[i]);
             gr.setStroke(new BasicStroke(px * 0.8f)); // tampa a fresta entre poligonos vizinhos
@@ -163,12 +165,14 @@ public final class AzgaarRender {
         gr.setTransform(base);
         double sy = outH / rh;
         // nomes dos reinos
+        List<Rectangle2D> taken = new ArrayList<>(); // caixas dos nomes ja escritos, pra nao encavalar
+        List<Rectangle2D> stateBoxes = new ArrayList<>(); // reinos so evitam reinos: o nome e transparente e a capital nao some
         Font stateFont = new Font(Font.SERIF, Font.BOLD | Font.ITALIC, Math.max(14, Math.min(40, (int) (outW / 45.0))));
         for (int i = 0; i < g.statePoles().size(); i++) {
             double[] pole = g.statePoles().get(i);
             double x = (pole[0] - rx) * s, y = (pole[1] - ry) * sy;
             if (x < 0 || y < 0 || x > outW || y > outH) continue;
-            label(gr, g.stateNames().get(i).toUpperCase(), stateFont, x, y, new Color(70, 35, 30, 175), new Color(255, 250, 235, 70));
+            label(gr, g.stateNames().get(i).toUpperCase(), stateFont, x, y, new Color(70, 35, 30, 175), new Color(255, 250, 235, 70), outW, stateBoxes);
         }
         // povoados: capitais sempre; os outros conforme cabem (os maiores primeiro)
         List<AzgaarMap.Burg> burgs = new ArrayList<>();
@@ -186,9 +190,8 @@ public final class AzgaarRender {
             gr.setColor(new Color(0x22, 0x1c, 0x18));
             gr.setStroke(new BasicStroke(b.capital() ? 1.6f : 1.1f));
             gr.draw(new java.awt.geom.Ellipse2D.Double(x - r, y - r, 2 * r, 2 * r));
-            if (labeled < maxLabels) {
-                label(gr, b.name(), b.capital() ? capFont : townFont, x, y - r - 4, new Color(0x1e, 0x18, 0x14),
-                        new Color(255, 250, 240, 200));
+            if (labeled < maxLabels && label(gr, b.name(), b.capital() ? capFont : townFont, x, y - r - 4, new Color(0x1e, 0x18, 0x14),
+                    new Color(255, 250, 240, 200), outW, taken)) {
                 labeled++;
             }
         }
@@ -200,8 +203,9 @@ public final class AzgaarRender {
     static Color cellColor(AzgaarJson.Geometry g, int i, Style style) {
         int h = g.height()[i];
         if (h < 20) {
+            // pouco contraste: no mar aberto as celulas sao enormes e cores muito diferentes viram mosaico
             double t = Math.max(0, Math.min(1, h / 20.0));
-            return mix(new Color(0x23, 0x46, 0x7c), new Color(0x5d, 0x8f, 0xc9), t);
+            return mix(SEA_DEEP, SEA_SHALLOW, t * t);
         }
         int b = g.biome()[i];
         Color biome = parse(b >= 0 && b < g.biomeColors().length ? g.biomeColors()[b] : null, new Color(0xc8, 0xd6, 0x8f));
@@ -233,11 +237,31 @@ public final class AzgaarRender {
         return null;
     }
 
-    private static void label(Graphics2D gr, String text, Font font, double x, double y, Color fill, Color halo) {
-        if (text == null || text.isBlank()) return;
+    static final Color SEA_DEEP = new Color(0x3a, 0x64, 0x9c);
+    static final Color SEA_SHALLOW = new Color(0x4f, 0x7f, 0xb9);
+    static final Color SEA_SHORE = new Color(0x62, 0x93, 0xc9);
+
+    /** Celula de mar encostada em terra (faixa clara na costa). */
+    static boolean touchesLand(AzgaarJson.Geometry g, int i) {
+        if (i >= g.cellNeighbors().length) return false;
+        for (int j : g.cellNeighbors()[i]) if (j >= 0 && j < g.cells() && g.height()[j] >= 20) return true;
+        return false;
+    }
+
+    /**
+     * Escreve o texto centrado em x, empurrado pra dentro da imagem (largura outW); se encavalar num nome ja
+     * escrito (taken), nao escreve. Devolve se escreveu.
+     */
+    static boolean label(Graphics2D gr, String text, Font font, double x, double y, Color fill, Color halo,
+                         int outW, List<Rectangle2D> taken) {
+        if (text == null || text.isBlank()) return false;
         FontMetrics fm = gr.getFontMetrics(font);
-        float tx = (float) (x - fm.stringWidth(text) / 2.0);
+        int w = fm.stringWidth(text);
+        float tx = (float) Math.max(2, Math.min(outW - w - 2, x - w / 2.0));
         float ty = (float) y;
+        Rectangle2D box = new Rectangle2D.Double(tx - 2, ty - fm.getAscent(), w + 4, fm.getAscent() + fm.getDescent());
+        for (Rectangle2D t : taken) if (t.intersects(box)) return false;
+        taken.add(box);
         GlyphVector gv = font.createGlyphVector(gr.getFontRenderContext(), text);
         java.awt.Shape shape = gv.getOutline(tx, ty);
         gr.setColor(halo);
@@ -245,6 +269,7 @@ public final class AzgaarRender {
         gr.draw(shape);
         gr.setColor(fill);
         gr.fill(shape);
+        return true;
     }
 
     private static Color parse(String hex, Color fallback) {
