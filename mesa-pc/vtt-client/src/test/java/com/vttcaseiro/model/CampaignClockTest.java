@@ -52,7 +52,7 @@ class CampaignClockTest {
         assertEquals(24.0 / 4.5, Campaign.travelHours(24, 1, false), 1e-9);
         assertEquals(16, Campaign.travelHours(24, 0, true), 1e-9, "lento em terreno difícil");
         assertEquals("2 dias", Campaign.travelText(16));
-        assertEquals("1 dia e 2.5 h", Campaign.travelText(10.5));
+        assertEquals("1 dia e 2,5 h", Campaign.travelText(10.5));
 
         Campaign camp = new Campaign();
         Campaign.CalendarEvent secret = new Campaign.CalendarEvent();

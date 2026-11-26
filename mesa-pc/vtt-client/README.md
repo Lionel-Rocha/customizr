@@ -231,7 +231,11 @@ no mapa vazio):
   - **marcadores viram pins escondidos** (masmorra, taverna, templo, tesouro, perigo... pelo tipo), com a
     anotação de cada um;
   - **Diário**: descrição e ano do mundo, reinos, culturas, religiões e maiores cidades;
-  - a **régua** já mede na escala do mundo (km ou milhas, como no gerador).
+  - a **régua** já mede na escala do mundo e mostra a **viagem**: "120 km (75 mi) · a pé: 3 dias e 3 h ·
+    rápido: 2 dias e 4 h" (8 h de marcha por dia; Espaço marca paradas pra somar um caminho). Vale pra qualquer
+    cena com 500 pés ou mais por casa, e no navegador ao arrastar o token do grupo;
+  - opção de pôr o **calendário da Campanha no ano do mundo** (ex.: 4001 After the Callendar), mantendo dia, mês
+    e hora.
   O mundo fica guardado na mesa. **Mundo > Cenas > "Região de um mundo"**: escolha uma cidade (ou marcador) e o
   tamanho, e a região em volta vira uma cena nova, com os pins de lá e a régua na escala certa (do JSON ela é
   desenhada de perto; do `.map`, recortada do PNG). Ler e desenhar um mundo grande leva alguns segundos e não
@@ -477,6 +481,11 @@ Dois jeitos de sumir com um token:
   (monstro escondido, emboscada).
 - **Condicao Invisivel** (Condicoes > Invisivel): os outros jogadores nem recebem o token; o dono e o mestre continuam
   vendo, meio transparente. Tirou a condicao, ele aparece pra todos.
+
+### Procurar no mapa
+
+Lupa na faixa de ferramentas (ou **Ctrl+F**): digite parte do nome (sem ligar pra acento ou maiúscula) e escolha;
+a tela vai até o pin ou rótulo e marca com um ping (só na sua tela). Jogador só acha o que vê.
 
 ### Regua com paradas
 

@@ -232,7 +232,8 @@ public class Campaign {
         if (days > 0) sb.append(days).append(days == 1 ? " dia" : " dias");
         if (rest > 0.05) {
             if (sb.length() > 0) sb.append(" e ");
-            sb.append(rest == Math.rint(rest) ? String.valueOf((int) rest) : String.format(java.util.Locale.ROOT, "%.1f", rest)).append(" h");
+            double r1 = Math.round(rest * 10) / 10.0;
+            sb.append(r1 == Math.rint(r1) ? String.valueOf((int) r1) : String.valueOf(r1).replace('.', ',')).append(" h");
         }
         return sb.length() == 0 ? "0 h" : sb.toString();
     }
@@ -316,6 +317,12 @@ public class Campaign {
             for (int i = 0; i < month - 1; i++) total += Math.max(1, months.get(i).days);
             if (dayOfMonth > Math.max(1, months.get(month - 1).days)) return -1;
             return total + dayOfMonth - 1;
+        }
+
+        /** Muda o ano mantendo o dia e o mes (e a hora). Ano menor que 1 vira 1. */
+        public void setYear(long year) {
+            long doy = Math.max(0, day) % yearLength();
+            day = (Math.max(1, year) - 1) * yearLength() + doy;
         }
 
         public int yearLength() {

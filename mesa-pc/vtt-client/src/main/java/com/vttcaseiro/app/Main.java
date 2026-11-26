@@ -359,6 +359,10 @@ public class Main extends Application {
         scene.addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, this::onSidebarKey);
         scene.getAccelerators().put(new javafx.scene.input.KeyCodeCombination(javafx.scene.input.KeyCode.Z,
                 javafx.scene.input.KeyCombination.SHORTCUT_DOWN), this::onUndo);
+        scene.getAccelerators().put(new javafx.scene.input.KeyCodeCombination(javafx.scene.input.KeyCode.F,
+                javafx.scene.input.KeyCombination.SHORTCUT_DOWN), () -> {
+            if (mapFindAnchor != null && mapFindAnchor.getScene() != null) showMapFind(mapFindAnchor);
+        });
         stage.setTitle("Customizr - " + mesaService.getName());
         com.vttcaseiro.view.Icons.applyTo(stage);
         stage.setScene(scene);
@@ -1327,6 +1331,91 @@ public class Main extends Application {
                         + "tamanho, Shift+roda gira. Desligue em Objetos > Editar objetos quando terminar."));
             }
         }
+    }
+
+    /** Botao "Procurar no mapa" (a janelinha abre ao lado dele). */
+    private javafx.scene.Node mapFindAnchor;
+
+    /**
+     * Procurar no mapa: lista os pins e rotulos da cena (o jogador so os que ve) filtrando pelo nome, sem ligar pra
+     * acento nem maiuscula; escolher leva a tela ate o lugar e marca com um ping (so na sua tela).
+     */
+    private void showMapFind(javafx.scene.Node anchor) {
+        boolean gm = networkService.isGm() || !networkService.isConnected();
+        List<com.vttcaseiro.model.MapPin> all = new ArrayList<>();
+        for (com.vttcaseiro.model.MapPin p : sceneService.getScene().getPins()) if (gm || !p.isHidden()) all.add(p);
+        all.sort(java.util.Comparator.comparing(p -> foldText(p.getTitle())));
+        javafx.stage.Popup popup = new javafx.stage.Popup();
+        popup.setAutoHide(true);
+        TextField query = new TextField();
+        query.setPromptText(all.isEmpty() ? "Esta cena não tem pins nem rótulos" : "Nome do lugar (" + all.size() + " nesta cena)");
+        javafx.collections.transformation.FilteredList<com.vttcaseiro.model.MapPin> shown =
+                new javafx.collections.transformation.FilteredList<>(FXCollections.observableArrayList(all));
+        ListView<com.vttcaseiro.model.MapPin> list = new ListView<>(shown);
+        list.setPrefSize(320, 300);
+        list.setPlaceholder(emptyHint(all.isEmpty() ? "Nada pra procurar aqui." : "Nenhum lugar com esse nome."));
+        list.setCellFactory(lv -> new ListCell<>() {
+            @Override protected void updateItem(com.vttcaseiro.model.MapPin p, boolean empty) {
+                super.updateItem(p, empty);
+                if (empty || p == null) {
+                    setText(null);
+                    setGraphic(null);
+                    return;
+                }
+                setText(p.getTitle() + (p.isHidden() ? "  (oculto)" : ""));
+                setGraphic(pinSwatch(p.getKind()));
+            }
+        });
+        query.textProperty().addListener((o, a, q) -> {
+            String t = foldText(q);
+            list.getSelectionModel().clearSelection(); // (filtrar com item escolhido estoura o indice no JavaFX)
+            shown.setPredicate(p -> t.isEmpty() || foldText(p.getTitle()).contains(t));
+            if (!shown.isEmpty()) list.getSelectionModel().select(0);
+        });
+        Runnable go = () -> {
+            com.vttcaseiro.model.MapPin p = list.getSelectionModel().getSelectedItem();
+            if (p == null && !shown.isEmpty()) p = shown.get(0);
+            if (p == null) return;
+            popup.hide();
+            mapView.centerOn(p.getX(), p.getY(), true);
+            com.vttcaseiro.model.MapPin target = p;
+            javafx.animation.PauseTransition wait = new javafx.animation.PauseTransition(javafx.util.Duration.millis(400));
+            wait.setOnFinished(ev -> mapView.showPing(target.getX(), target.getY(), null));
+            wait.play();
+        };
+        query.setOnAction(e -> go.run());
+        query.setOnKeyPressed(e -> {
+            if (e.getCode() == javafx.scene.input.KeyCode.DOWN) {
+                list.requestFocus();
+                if (list.getSelectionModel().isEmpty() && !shown.isEmpty()) list.getSelectionModel().select(0);
+                e.consume();
+            } else if (e.getCode() == javafx.scene.input.KeyCode.ESCAPE) {
+                popup.hide();
+            }
+        });
+        list.setOnMouseClicked(e -> {
+            if (e.getClickCount() >= 1 && list.getSelectionModel().getSelectedItem() != null) go.run();
+        });
+        list.setOnKeyPressed(e -> {
+            if (e.getCode() == javafx.scene.input.KeyCode.ENTER) go.run();
+            else if (e.getCode() == javafx.scene.input.KeyCode.ESCAPE) popup.hide();
+        });
+        VBox box = new VBox(6, query, list);
+        box.setPadding(new Insets(8));
+        box.getStyleClass().add("map-find");
+        box.setStyle("-fx-background-color: -c-surface; -fx-background-radius: 8; -fx-border-color: -c-border;"
+                + " -fx-border-radius: 8; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.5), 14, 0.2, 0, 4);");
+        popup.getContent().add(box);
+        javafx.geometry.Bounds b = anchor.localToScreen(anchor.getBoundsInLocal());
+        popup.show(anchor, b.getMaxX() + 6, b.getMinY());
+        Platform.runLater(query::requestFocus);
+    }
+
+    /** Texto pra comparar: sem acento, minusculo ("Árvore" e "arvore" batem). */
+    static String foldText(String s) {
+        if (s == null) return "";
+        return java.text.Normalizer.normalize(s, java.text.Normalizer.Form.NFD).replaceAll("\\p{M}", "")
+                .toLowerCase(java.util.Locale.ROOT).strip();
     }
 
     private void onCreatePin(double x, double y) {
@@ -2759,11 +2848,17 @@ public class Main extends Application {
         targetsLabel.textProperty().addListener((o, a, b) -> showTargets.run());
         showTargets.run();
         // faixa vertical na borda do mapa: so icones; o nome (e a tecla) fica na dica
-        VBox editGroup = new VBox(4, undoBtn, centerBtn);
+        Button findBtn = new Button("Procurar no mapa", com.vttcaseiro.view.Icons.icon("search", 14));
+        findBtn.getStyleClass().add("tool-button");
+        findBtn.setOnAction(e -> showMapFind(findBtn));
+        tip(findBtn, "Acha um pin ou rótulo desta cena pelo nome e leva a tela até ele (Ctrl+F)");
+        mapFindAnchor = findBtn;
+        VBox editGroup = new VBox(4, undoBtn, centerBtn, findBtn);
         editGroup.getStyleClass().addAll("tool-group", "tool-column");
         java.util.List<javafx.scene.control.Labeled> iconOnly = new java.util.ArrayList<>(List.of(catButtons));
         iconOnly.add(undoBtn);
         iconOnly.add(centerBtn);
+        iconOnly.add(findBtn);
         for (javafx.scene.control.Labeled l : iconOnly) {
             if (l.getTooltip() == null) l.setTooltip(new Tooltip(l.getText()));
             else if (!l.getTooltip().getText().startsWith(l.getText())) {
@@ -5769,6 +5864,14 @@ public class Main extends Application {
         CheckBox journal = new CheckBox("Reinos, culturas, religiões e maiores cidades no Diário");
         journal.setSelected(true);
         TextField sceneName = new TextField(world.mapName());
+        // o ano do mundo vai pro calendario da Campanha (so marcado de saida se o calendario ainda esta no ano 1)
+        CheckBox useYear = new CheckBox("Calendário da Campanha no ano do mundo: " + world.year()
+                + (world.era() == null || world.era().isBlank() ? "" : " " + world.era()));
+        useYear.setTooltip(new Tooltip("Muda só o ano (e a era) do calendário da Campanha; o dia, o mês e a hora continuam."));
+        boolean hasYear = world.year() > 0 && editsCampaign();
+        useYear.setSelected(hasYear && campaign.getCalendar().date()[0] == 1);
+        useYear.setVisible(hasYear);
+        useYear.setManaged(hasYear);
         javafx.scene.control.ToggleGroup imgGroup = new javafx.scene.control.ToggleGroup();
         javafx.scene.control.RadioButton drawRelief = new javafx.scene.control.RadioButton("Desenhar o mapa aqui (relevo e biomas)");
         javafx.scene.control.RadioButton drawPolitical = new javafx.scene.control.RadioButton("Desenhar o mapa aqui (político: cor de cada reino)");
@@ -5793,7 +5896,7 @@ public class Main extends Application {
                 + world.markers().size() + " marcadores");
         burgs.disableProperty().bind(namesAsLabels.selectedProperty().and(usePng.selectedProperty().not()));
         VBox content = new VBox(8, new Label("Nome da cena"), sceneName, new Label("Imagem"), drawRelief, drawPolitical, usePng,
-                imgHint, namesAsLabels, new Label("O que trazer"), factions, burgs, markers, journal);
+                imgHint, namesAsLabels, new Label("O que trazer"), factions, burgs, markers, journal, useYear);
         content.setPrefWidth(480);
         d.getDialogPane().setContent(content);
         d.getDialogPane().getButtonTypes().addAll(javafx.scene.control.ButtonType.OK, javafx.scene.control.ButtonType.CANCEL);
@@ -5815,6 +5918,7 @@ public class Main extends Application {
         boolean bringFactions = factions.isSelected(), bringBurgs = burgs.isSelected(), bringMarkers = markers.isSelected(),
                 bringJournal = journal.isSelected();
         boolean labels = pngFile == null && canDraw && namesAsLabels.isSelected();
+        boolean setYear = useYear.isVisible() && useYear.isSelected();
         int[] renderSize = com.vttcaseiro.importer.AzgaarRender.outSize(world.width(), world.height(), 4096);
         inBackground(pngFile == null ? "Desenhando o mapa" : "Preparando a imagem", () -> {
             byte[] bytes;
@@ -5862,6 +5966,12 @@ public class Main extends Application {
             scene.setPins(pins);
             createImportedScene(scene, name, bringJournal ? world.mapName() : null, bringJournal ? world.journalText() : null);
 
+            boolean yearSet = false;
+            if (setYear && editsCampaign()) {
+                campaign.getCalendar().setYear(world.year());
+                if (world.era() != null && !world.era().isBlank()) campaign.getCalendar().era = world.era().strip();
+                yearSet = true;
+            }
             int addedFactions = 0;
             if (bringFactions && editsCampaign()) {
                 java.util.Set<String> have = new java.util.HashSet<>();
@@ -5872,10 +5982,10 @@ public class Main extends Application {
                         addedFactions++;
                     }
                 }
-                if (addedFactions > 0) {
-                    pushCampaign();
-                    if (campaignView != null && campaignView.isShowing()) campaignView.reload(campaign);
-                }
+            }
+            if (addedFactions > 0 || yearSet) {
+                pushCampaign();
+                if (campaignView != null && campaignView.isShowing()) campaignView.reload(campaign);
             }
             var store = worldStore();
             List<com.vttcaseiro.model.SavedWorld> worlds = store.load();
@@ -5886,6 +5996,7 @@ public class Main extends Application {
             store.save(worlds);
             logEntries.add(LogEntry.system("Mundo do Azgaar importado: " + world.states().size() + " reinos"
                     + (addedFactions > 0 ? " (" + addedFactions + " facções novas na Campanha)" : "") + ", "
+                    + (yearSet ? "calendário no ano " + world.year() + ", " : "")
                     + world.burgs().size() + " povoados, " + world.markers().size() + " marcadores. "
                     + "Pra jogar de perto: Mundo > Cenas > \"Região de um mundo\"."
                     + (img.changed() ? " Imagem reduzida pra caber na mesa (" + img.width() + "x" + img.height() + ")." : "")));
@@ -6058,7 +6169,9 @@ public class Main extends Application {
         sForm.setHgap(8);
         sForm.setVgap(8);
         sForm.addRow(0, new Label("Nome"), sName);
-        sForm.addRow(1, new Label("Nome completo"), sFull);
+        Label fullLabel = new Label("Nome completo");
+        fullLabel.setMinWidth(Region.USE_PREF_SIZE);
+        sForm.addRow(1, fullLabel, sFull);
         sForm.addRow(2, new Label("Cor"), sColor);
         sForm.add(sOrig, 1, 3);
         if (!canColor) {
@@ -6153,8 +6266,9 @@ public class Main extends Application {
         if (!allBurgs.isEmpty()) burgList.getSelectionModel().select(0);
 
         String redraw = sw.isDrawn() && raw.geometry() != null
-                ? "Ao salvar, o mapa" + (sw.getRegions().isEmpty() ? "" : " e as " + sw.getRegions().size() + " regiões abertas dele")
-                + " são redesenhados; pins, rótulos e facções com o nome antigo passam pro novo."
+                ? "Ao salvar, " + (sw.getRegions().isEmpty() ? "o mapa é redesenhado"
+                : "o mapa e " + (sw.getRegions().size() == 1 ? "a região aberta dele são redesenhados" : "as " + sw.getRegions().size() + " regiões abertas dele são redesenhados"))
+                + "; pins, rótulos e facções com o nome antigo passam pro novo."
                 : "Ao salvar, pins, rótulos e facções com o nome antigo passam pro novo. A imagem deste mundo veio de um PNG"
                 + " (ou foi importada antes desta versão): ela não é redesenhada.";
         Label hint = new Label(redraw);

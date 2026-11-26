@@ -128,6 +128,8 @@ public class MapView extends Pane {
     private final java.util.List<double[]> measureWaypoints = new java.util.ArrayList<>();
     private final javafx.scene.shape.Polyline measurePath = new javafx.scene.shape.Polyline();
     private long measureWaypointCells;
+    /** Comprimento dos trechos ja fechados em pixels (mapa de mundo: viagem em linha reta, nao casas). */
+    private double measureWaypointPx;
     private double[] measureEnd;
     /** Paradas do token sendo arrastado (centros) e o ultimo ponto do arrasto. */
     private final java.util.List<double[]> dragWaypoints = new java.util.ArrayList<>();
@@ -145,6 +147,7 @@ public class MapView extends Pane {
         }
         if (measuring && measureLine.isVisible() && measureEnd != null) {
             measureWaypointCells += scene.getGrid().cellsBetween(measureStartX, measureStartY, measureEnd[0], measureEnd[1]);
+            measureWaypointPx += Math.hypot(measureEnd[0] - measureStartX, measureEnd[1] - measureStartY);
             if (measurePath.getPoints().isEmpty()) measurePath.getPoints().addAll(measureStartX, measureStartY);
             measurePath.getPoints().addAll(measureEnd[0], measureEnd[1]);
             measureWaypoints.add(measureEnd.clone());
@@ -3338,6 +3341,7 @@ public class MapView extends Pane {
             measureWaypoints.clear();
             measurePath.getPoints().clear();
             measureWaypointCells = 0;
+            measureWaypointPx = 0;
             measureEnd = null;
             measureStartX = p.getX();
             measureStartY = p.getY();
@@ -3599,7 +3603,13 @@ public class MapView extends Pane {
         double feetPerCell = scene.getGrid().getFeetPerCell();
         long cells = scene.getGrid().cellsBetween(x1, y1, x2, y2) + measureWaypointCells;
         long feet = Math.round(cells * feetPerCell);
-        measureLabel.setText(Distances.feetAndMeters(feet) + " · " + cells + " casa" + (cells == 1 ? "" : "s"));
+        if (Distances.isWorldScale(feetPerCell) && cellSize > 0) {
+            // mapa de mundo: distancia de viagem em linha reta e quanto tempo leva
+            double px = measureWaypointPx + Math.hypot(x2 - x1, y2 - y1);
+            measureLabel.setText(Distances.travel(px / cellSize * feetPerCell));
+        } else {
+            measureLabel.setText(Distances.feetAndMeters(feet) + " · " + cells + " casa" + (cells == 1 ? "" : "s"));
+        }
         measureLabel.setLayoutX((x1 + x2) / 2);
         measureLabel.setLayoutY((y1 + y2) / 2 - 10);
     }

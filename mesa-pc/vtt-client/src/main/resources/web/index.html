@@ -638,6 +638,15 @@ function tokenShapePath(c, shape, x, y, w, h, grow) {
   c.moveTo(X + p[0], Y + p[1]); for (let i = 2; i < p.length; i += 2) c.lineTo(X + p[i], Y + p[i + 1]); c.closePath();
 }
 function cell() { return Math.max(10, (S.scene && S.scene.grid && S.scene.grid.cellSize) || 70); }
+// Mapa de mundo (500+ pes por casa): distancia de viagem e tempo (8 h de marcha por dia; normal 4,5 km/h, rapido 6)
+function travelText(feet) {
+  const km = feet * 0.3048 / 1000, mi = feet / 5280, one = v => String(Math.round(v * 10) / 10).replace('.', ',');
+  const dist = km < 1 ? Math.round(km * 1000) + ' m' : km < 10 ? one(km) + ' km (' + one(mi) + ' mi)' : Math.round(km) + ' km (' + Math.round(mi) + ' mi)';
+  if (km < 0.5) return dist;
+  const t = h => { const d = Math.floor(h / 8), r = h - d * 8; let out = d > 0 ? d + (d === 1 ? ' dia' : ' dias') : '';
+    if (r > 0.05) out += (out ? ' e ' : '') + String(Math.round(r * 10) / 10).replace('.', ',') + ' h'; return out || '0 h'; };
+  return dist + ' · a pé: ' + t(km / 4.5) + ' · rápido: ' + t(km / 6);
+}
 function feetToPx(ft) { const g = S.scene.grid || {}; return ft / (g.feetPerCell > 0 ? g.feetPerCell : 5) * (g.cellSize || 70); }
 function centerOf(t) { const c = cell(); return [t.x + c * (t.widthCells || 1) / 2, t.y + c * (t.heightCells || 1) / 2]; }
 
@@ -929,7 +938,8 @@ function render(now) {
     const color = !over ? '#3FBE6E' : dash ? '#E8A23E' : '#D9544C';
     ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = 3 / z; ctx.setLineDash([10 / z, 6 / z]);
     ctx.beginPath(); ctx.moveTo(S.drag.sx + half, S.drag.sy + half); ctx.lineTo(S.drag.x + half, S.drag.y + half); ctx.stroke();
-    const label = feet + ' pés (' + cells + (cells === 1 ? ' casa)' : ' casas)') + (extra > 0 ? ' terreno difícil' : '') + (speed > 0 ? '  /  ' + speed + ' pés' + (over ? (dash ? '  - precisa de Disparada' : '  - longe demais') : '') : '');
+    const fpc = (sc.grid && sc.grid.feetPerCell) || 5;
+    const label = fpc >= 500 ? travelText(Math.hypot(S.drag.x - S.drag.sx, S.drag.y - S.drag.sy) / c * fpc) : feet + ' pés (' + cells + (cells === 1 ? ' casa)' : ' casas)') + (extra > 0 ? ' terreno difícil' : '') + (speed > 0 ? '  /  ' + speed + ' pés' + (over ? (dash ? '  - precisa de Disparada' : '  - longe demais') : '') : '');
     ctx.setLineDash([]); ctx.font = `bold ${13 / z}px Segoe UI`; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
     const tw = ctx.measureText(label).width + 14 / z, lx = S.drag.x + half * 2 + 6 / z, ly = S.drag.y + 8 / z;
     ctx.fillStyle = '#1B1411e6'; ctx.fillRect(lx, ly - 11 / z, tw, 22 / z); ctx.fillStyle = color; ctx.fillText(label, lx + 7 / z, ly);
