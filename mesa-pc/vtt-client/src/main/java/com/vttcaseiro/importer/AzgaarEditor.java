@@ -58,7 +58,7 @@ public final class AzgaarEditor {
             }
             g = g.withStates(colors, names);
         }
-        return new AzgaarJson.Result(nw, g);
+        return new AzgaarJson.Result(nw, g, r.names());
     }
 
     private static String pick(String edited, String original) {

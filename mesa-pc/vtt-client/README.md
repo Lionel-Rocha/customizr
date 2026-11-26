@@ -234,6 +234,9 @@ no mapa vazio):
   - a **régua** já mede na escala do mundo e mostra a **viagem**: "120 km (75 mi) · a pé: 3 dias e 3 h ·
     rápido: 2 dias e 4 h" (8 h de marcha por dia; Espaço marca paradas pra somar um caminho). Vale pra qualquer
     cena com 500 pés ou mais por casa, e no navegador ao arrastar o token do grupo;
+  - **nomes no estilo de cada cultura**: no NPC rápido, escolha a cultura (ex.: "Katalian · Hawaiian") e
+    "Sugerir nome" inventa um nome que soa daquele povo, como o gerador faz (aprende das bases de nomes do JSON).
+    Mundo do JSON importado antes: as culturas são lidas uma vez, sozinhas, na primeira vez que o NPC rápido abre;
   - opção de pôr o **calendário da Campanha no ano do mundo** (ex.: 4001 After the Callendar), mantendo dia, mês
     e hora.
   O mundo fica guardado na mesa. **Mundo > Cenas > "Região de um mundo"**: escolha uma cidade (ou marcador) e o

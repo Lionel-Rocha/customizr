@@ -46,7 +46,11 @@ public final class AzgaarJson {
     public record Route(String group, double[] xs, double[] ys) {
     }
 
-    public record Result(AzgaarMap.World world, Geometry geometry) {
+    /** names: bases de nomes e culturas (null no .map). */
+    public record Result(AzgaarMap.World world, Geometry geometry, AzgaarNames.Book names) {
+        public Result(AzgaarMap.World world, Geometry geometry) {
+            this(world, geometry, null);
+        }
     }
 
     /** O texto parece um JSON "Full" do Azgaar? (tem "info" com a descricao do gerador e "pack") */
@@ -59,7 +63,7 @@ public final class AzgaarJson {
         JsonObject settings = null;
         JsonArray states = new JsonArray(), burgs = new JsonArray(), markers = new JsonArray(),
                 cultures = new JsonArray(), religions = new JsonArray(), rivers = new JsonArray(), routes = new JsonArray(),
-                notes = new JsonArray();
+                notes = new JsonArray(), nameBases = new JsonArray();
         JsonElement biomes = null;
         List<int[]> cellV = new ArrayList<>(), cellC = new ArrayList<>();
         List<double[]> cellP = new ArrayList<>();
@@ -75,6 +79,7 @@ public final class AzgaarJson {
                     case "info" -> info = obj(JsonParser.parseReader(r));
                     case "settings" -> settings = obj(JsonParser.parseReader(r));
                     case "notes" -> notes = arr(JsonParser.parseReader(r));
+                    case "nameBases" -> nameBases = arr(JsonParser.parseReader(r));
                     case "pack" -> {
                         r.beginObject();
                         while (r.hasNext()) {
@@ -191,7 +196,7 @@ public final class AzgaarJson {
             geo = new Geometry(cellV.toArray(new int[0][]), cellC.toArray(new int[0][]), cx, cy, h, b, s, vx, vy,
                     biomeColors(biomes), stateColors, poles, names, ids, riverList, routeList);
         }
-        return new Result(world, geo);
+        return new Result(world, geo, AzgaarNames.read(nameBases, cultures));
     }
 
     /** Cores dos biomas: lista de objetos {color} (versoes novas) ou {color: [...]} (antigas). */

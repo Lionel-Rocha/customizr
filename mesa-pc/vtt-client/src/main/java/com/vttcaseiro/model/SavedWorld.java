@@ -20,6 +20,8 @@ public class SavedWorld {
     /** Os nomes viraram rotulos da mesa (o desenho saiu sem nomes). */
     private boolean labelsAsPins;
     private WorldEdits edits;
+    /** Bases de nomes e culturas (arquivo pequeno ao lado do mundo; so do JSON). */
+    private String namesFile;
     private List<Region> regions;
 
     /** Uma regiao aberta deste mundo (pra redesenhar quando o mundo for editado). */
@@ -57,6 +59,9 @@ public class SavedWorld {
 
     public boolean isLabelsAsPins() { return labelsAsPins; }
     public void setLabelsAsPins(boolean labelsAsPins) { this.labelsAsPins = labelsAsPins; }
+
+    public String getNamesFile() { return namesFile; }
+    public void setNamesFile(String namesFile) { this.namesFile = namesFile; }
 
     public WorldEdits getEdits() {
         if (edits == null) edits = new WorldEdits();

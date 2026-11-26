@@ -6354,6 +6354,7 @@ public class Main extends Application {
             List<com.vttcaseiro.model.SavedWorld> worlds = store.load();
             com.vttcaseiro.model.SavedWorld saved = new com.vttcaseiro.model.SavedWorld(name, storedFile, assetId, name);
             saved.setStyle(pngFile != null ? com.vttcaseiro.model.SavedWorld.STYLE_PNG : style.name());
+            saveWorldNames(saved, r.names());
             saved.setLabelsAsPins(labels);
             worlds.add(saved);
             store.save(worlds);
@@ -6396,6 +6397,93 @@ public class Main extends Application {
     @FunctionalInterface
     private interface IoConsumer<T> {
         void accept(T value) throws IOException;
+    }
+
+    /** Guarda as bases de nomes do mundo ao lado dele (pra sugerir nome de NPC sem ler o mundo inteiro). */
+    private void saveWorldNames(com.vttcaseiro.model.SavedWorld sw, com.vttcaseiro.importer.AzgaarNames.Book book) {
+        if (book == null || book.usableCultures().isEmpty() || sw.getMapFile() == null) return;
+        try {
+            String file = sw.getMapFile().replaceAll("\\.json\\.gz$|\\.map$", "") + ".nomes.json";
+            java.nio.file.Path p = mesaRepository.getRoot().resolve(file);
+            java.nio.file.Files.createDirectories(p.getParent());
+            com.vttcaseiro.library.AtomicFiles.writeString(p, new com.google.gson.Gson().toJson(book));
+            sw.setNamesFile(file);
+        } catch (IOException ex) {
+            // sem os nomes: o resto do mundo funciona igual
+        }
+    }
+
+    /** Bases de nomes guardadas de um mundo (null se nao tem). */
+    private com.vttcaseiro.importer.AzgaarNames.Book loadWorldNames(com.vttcaseiro.model.SavedWorld sw) {
+        if (sw.getNamesFile() == null) return null;
+        try {
+            return new com.google.gson.Gson().fromJson(java.nio.file.Files.readString(
+                    mesaRepository.getRoot().resolve(sw.getNamesFile()), java.nio.charset.StandardCharsets.UTF_8),
+                    com.vttcaseiro.importer.AzgaarNames.Book.class);
+        } catch (IOException | RuntimeException ex) {
+            return null;
+        }
+    }
+
+    /** Uma cultura de um mundo, na lista do NPC rapido. */
+    private record CultureChoice(com.vttcaseiro.importer.AzgaarNames.Book book, int culture, String label) {
+        @Override public String toString() { return label; }
+    }
+
+    /**
+     * Linha "Nome no estilo de" do NPC rapido: as culturas dos mundos do Azgaar desta mesa e um botao que sugere um
+     * nome no estilo dela. Mundo importado antes disso (JSON sem as bases guardadas): le uma vez, em segundo plano.
+     */
+    private javafx.scene.Node cultureNameRow(TextField name) {
+        ComboBox<CultureChoice> cultures = new ComboBox<>();
+        cultures.setPromptText("cultura de um mundo do Azgaar");
+        cultures.setMaxWidth(Double.MAX_VALUE);
+        Button suggest = new Button("Sugerir nome", com.vttcaseiro.view.Icons.icon("spark", 13));
+        suggest.disableProperty().bind(cultures.valueProperty().isNull());
+        java.util.Random rnd = new java.util.Random();
+        suggest.setOnAction(e -> {
+            CultureChoice c = cultures.getValue();
+            if (c == null) return;
+            String n = c.book().suggest(c.culture(), rnd);
+            if (n != null) name.setText(n);
+            AppSettings.setString("npc.cultura", c.label());
+        });
+        Runnable fill = () -> {
+            List<CultureChoice> items = new ArrayList<>();
+            List<com.vttcaseiro.model.SavedWorld> worlds = worldStore().load();
+            for (com.vttcaseiro.model.SavedWorld sw : worlds) {
+                com.vttcaseiro.importer.AzgaarNames.Book book = loadWorldNames(sw);
+                if (book == null) continue;
+                for (var cu : book.usableCultures()) {
+                    String base = book.bases().get(cu.base()).name();
+                    items.add(new CultureChoice(book, cu.id(), cu.name() + (worlds.size() > 1 ? " (" + sw.getName() + ")" : "")
+                            + (base == null || base.isBlank() ? "" : " · " + base)));
+                }
+            }
+            cultures.getItems().setAll(items);
+            String last = AppSettings.getString("npc.cultura", "");
+            items.stream().filter(i -> i.label().equals(last)).findFirst().ifPresent(cultures::setValue);
+        };
+        fill.run();
+        // mundos do JSON importados antes desta versao: le as bases uma vez e guarda
+        for (com.vttcaseiro.model.SavedWorld sw : worldStore().load()) {
+            if (sw.getNamesFile() != null || sw.getMapFile() == null || !sw.getMapFile().endsWith(".json.gz")) continue;
+            inBackground("Lendo as culturas do mundo " + sw.getName(), () -> readSavedWorldRaw(sw).names(), book -> {
+                saveWorldNames(sw, book);
+                if (sw.getNamesFile() != null) {
+                    saveWorld(sw);
+                    fill.run();
+                }
+            });
+        }
+        HBox row = new HBox(6, cultures, suggest);
+        HBox.setHgrow(cultures, Priority.ALWAYS);
+        row.setAlignment(Pos.CENTER_LEFT);
+        boolean any = !cultures.getItems().isEmpty() || worldStore().load().stream()
+                .anyMatch(sw -> sw.getMapFile() != null && sw.getMapFile().endsWith(".json.gz"));
+        row.setVisible(any);
+        row.setManaged(any);
+        return row;
     }
 
     /** Le o mundo guardado com as edicoes do mestre aplicadas. */
@@ -7369,6 +7457,9 @@ public class Main extends Application {
         g.setHgap(8);
         g.setVgap(6);
         g.addRow(0, new Label("Nome"), name);
+        javafx.scene.Node cultureRow = cultureNameRow(name);
+        g.add(cultureRow, 1, 6, 5, 1);
+        if (cultureRow.isManaged()) g.add(new Label("Estilo"), 0, 6);
         g.addRow(1, new Label("CA"), ac, new Label("PV"), hp, new Label("DES"), dex);
         g.addRow(2, new Label("Ataque"), atkName, new Label("bonus"), atkBonus);
         g.addRow(3, new Label("Dano"), atkDamage);
