@@ -33,7 +33,13 @@ public final class AzgaarRender {
     /** Desenha o recorte (rx, ry, rw, rh em pixels do mapa) em outW x outH e devolve o PNG. */
     public static byte[] png(AzgaarMap.World world, AzgaarJson.Geometry g, double rx, double ry, double rw, double rh,
                              int outW, int outH, Style style) throws IOException {
-        BufferedImage img = image(world, g, rx, ry, rw, rh, outW, outH, style);
+        return png(world, g, rx, ry, rw, rh, outW, outH, style, true);
+    }
+
+    /** Idem; names = false deixa os nomes fora do desenho (eles viram rotulos editaveis na mesa: ver placeLabels). */
+    public static byte[] png(AzgaarMap.World world, AzgaarJson.Geometry g, double rx, double ry, double rw, double rh,
+                             int outW, int outH, Style style, boolean names) throws IOException {
+        BufferedImage img = image(world, g, rx, ry, rw, rh, outW, outH, style, names);
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         ImageIO.write(img, "png", out);
         return out.toByteArray();
@@ -47,6 +53,11 @@ public final class AzgaarRender {
 
     public static BufferedImage image(AzgaarMap.World world, AzgaarJson.Geometry g, double rx, double ry, double rw, double rh,
                                       int outW, int outH, Style style) {
+        return image(world, g, rx, ry, rw, rh, outW, outH, style, true);
+    }
+
+    public static BufferedImage image(AzgaarMap.World world, AzgaarJson.Geometry g, double rx, double ry, double rw, double rh,
+                                      int outW, int outH, Style style, boolean names) {
         BufferedImage img = new BufferedImage(outW, outH, BufferedImage.TYPE_INT_RGB);
         Graphics2D gr = img.createGraphics();
         gr.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
@@ -164,35 +175,21 @@ public final class AzgaarRender {
         // a partir daqui, em pixels da imagem (letras e pontos com tamanho fixo)
         gr.setTransform(base);
         double sy = outH / rh;
-        // nomes dos reinos
-        List<Rectangle2D> taken = new ArrayList<>(); // caixas dos nomes ja escritos, pra nao encavalar
-        List<Rectangle2D> stateBoxes = new ArrayList<>(); // reinos so evitam reinos: o nome e transparente e a capital nao some
-        Font stateFont = new Font(Font.SERIF, Font.BOLD | Font.ITALIC, Math.max(14, Math.min(40, (int) (outW / 45.0))));
-        for (int i = 0; i < g.statePoles().size(); i++) {
-            double[] pole = g.statePoles().get(i);
-            double x = (pole[0] - rx) * s, y = (pole[1] - ry) * sy;
-            if (x < 0 || y < 0 || x > outW || y > outH) continue;
-            label(gr, g.stateNames().get(i).toUpperCase(), stateFont, x, y, new Color(70, 35, 30, 175), new Color(255, 250, 235, 70), outW, stateBoxes);
-        }
-        // povoados: capitais sempre; os outros conforme cabem (os maiores primeiro)
-        List<AzgaarMap.Burg> burgs = new ArrayList<>();
-        for (AzgaarMap.Burg b : world.burgs()) if (b.x() >= rx && b.y() >= ry && b.x() <= rx + rw && b.y() <= ry + rh) burgs.add(b);
-        burgs.sort(Comparator.comparing(AzgaarMap.Burg::capital).thenComparingDouble(AzgaarMap.Burg::population).reversed());
-        int maxLabels = Math.max(12, (int) (outW * outH / 60000.0));
-        Font capFont = new Font(Font.SANS_SERIF, Font.BOLD, Math.max(12, outW / 110));
-        Font townFont = new Font(Font.SANS_SERIF, Font.PLAIN, Math.max(10, outW / 150));
-        int labeled = 0;
-        for (AzgaarMap.Burg b : burgs) {
+        // povoados: o pontinho de cada um
+        for (AzgaarMap.Burg b : world.burgs()) {
+            if (b.x() < rx || b.y() < ry || b.x() > rx + rw || b.y() > ry + rh) continue;
             double x = (b.x() - rx) * s, y = (b.y() - ry) * sy;
-            double r = b.capital() ? 5 : b.population() >= 2000 ? 3.5 : 2.5;
+            double r = dotRadius(b);
             gr.setColor(Color.WHITE);
             gr.fill(new java.awt.geom.Ellipse2D.Double(x - r, y - r, 2 * r, 2 * r));
             gr.setColor(new Color(0x22, 0x1c, 0x18));
             gr.setStroke(new BasicStroke(b.capital() ? 1.6f : 1.1f));
             gr.draw(new java.awt.geom.Ellipse2D.Double(x - r, y - r, 2 * r, 2 * r));
-            if (labeled < maxLabels && label(gr, b.name(), b.capital() ? capFont : townFont, x, y - r - 4, new Color(0x1e, 0x18, 0x14),
-                    new Color(255, 250, 240, 200), outW, taken)) {
-                labeled++;
+        }
+        if (names) {
+            for (Placed p : placeLabels(world, g, rx, ry, rw, rh, outW, outH)) {
+                if (p.state()) drawLabel(gr, p, new Color(70, 35, 30, 175), new Color(255, 250, 235, 70));
+                else drawLabel(gr, p, new Color(0x1e, 0x18, 0x14), new Color(255, 250, 240, 200));
             }
         }
         gr.dispose();
@@ -237,6 +234,79 @@ public final class AzgaarRender {
         return null;
     }
 
+    /**
+     * Um nome posto no desenho: texto, canto esquerdo (x) e linha de base (y) em pixels da imagem, a letra, largura
+     * e altura acima/abaixo da base. state = nome de reino (id = numero do reino); senao povoado (id = numero dele).
+     */
+    public record Placed(String text, double x, double y, Font font, double width, double ascent, double descent,
+                         boolean state, int id) {
+        /** Centro do texto (onde fica o rotulo na mesa). */
+        public double centerX() { return x + width / 2; }
+        public double centerY() { return y - (ascent - descent) / 2; }
+    }
+
+    static double dotRadius(AzgaarMap.Burg b) {
+        return b.capital() ? 5 : b.population() >= 2000 ? 3.5 : 2.5;
+    }
+
+    /**
+     * Onde vao os nomes num recorte desenhado em outW x outH: reinos no polo (so evitam outros reinos: sao
+     * transparentes), povoados acima do ponto (capitais e maiores primeiro, so os que cabem sem encavalar).
+     * Tudo empurrado pra dentro da imagem.
+     */
+    public static List<Placed> placeLabels(AzgaarMap.World world, AzgaarJson.Geometry g, double rx, double ry, double rw,
+                                           double rh, int outW, int outH) {
+        BufferedImage scratch = new BufferedImage(1, 1, BufferedImage.TYPE_INT_RGB);
+        Graphics2D gr = scratch.createGraphics();
+        gr.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        double s = outW / rw, sy = outH / rh;
+        List<Placed> out = new ArrayList<>();
+        if (g != null) {
+            List<Rectangle2D> stateBoxes = new ArrayList<>();
+            Font stateFont = new Font(Font.SERIF, Font.BOLD | Font.ITALIC, Math.max(14, Math.min(40, (int) (outW / 45.0))));
+            for (int i = 0; i < g.statePoles().size(); i++) {
+                double[] pole = g.statePoles().get(i);
+                double x = (pole[0] - rx) * s, y = (pole[1] - ry) * sy;
+                if (x < 0 || y < 0 || x > outW || y > outH) continue;
+                int id = i < g.stateIds().size() ? g.stateIds().get(i) : 0;
+                Placed p = place(gr, g.stateNames().get(i).toUpperCase(), stateFont, x, y, outW, stateBoxes, true, id);
+                if (p != null) out.add(p);
+            }
+        }
+        List<AzgaarMap.Burg> burgs = new ArrayList<>();
+        for (AzgaarMap.Burg b : world.burgs()) if (b.x() >= rx && b.y() >= ry && b.x() <= rx + rw && b.y() <= ry + rh) burgs.add(b);
+        burgs.sort(Comparator.comparing(AzgaarMap.Burg::capital).thenComparingDouble(AzgaarMap.Burg::population).reversed());
+        int maxLabels = Math.max(12, (int) (outW * outH / 60000.0));
+        Font capFont = new Font(Font.SANS_SERIF, Font.BOLD, Math.max(12, outW / 110));
+        Font townFont = new Font(Font.SANS_SERIF, Font.PLAIN, Math.max(10, outW / 150));
+        List<Rectangle2D> taken = new ArrayList<>();
+        int labeled = 0;
+        for (AzgaarMap.Burg b : burgs) {
+            if (labeled >= maxLabels) break;
+            double x = (b.x() - rx) * s, y = (b.y() - ry) * sy;
+            Placed p = place(gr, b.name(), b.capital() ? capFont : townFont, x, y - dotRadius(b) - 4, outW, taken, false, b.id());
+            if (p != null) {
+                out.add(p);
+                labeled++;
+            }
+        }
+        gr.dispose();
+        return out;
+    }
+
+    /** Centra o texto em x (empurrado pra dentro da largura outW); se encavalar num ja posto (taken), devolve null. */
+    private static Placed place(Graphics2D gr, String text, Font font, double x, double y, int outW,
+                                List<Rectangle2D> taken, boolean state, int id) {
+        if (text == null || text.isBlank()) return null;
+        FontMetrics fm = gr.getFontMetrics(font);
+        int w = fm.stringWidth(text);
+        double tx = Math.max(2, Math.min(outW - w - 2, x - w / 2.0));
+        Rectangle2D box = new Rectangle2D.Double(tx - 2, y - fm.getAscent(), w + 4, fm.getAscent() + fm.getDescent());
+        for (Rectangle2D t : taken) if (t.intersects(box)) return null;
+        taken.add(box);
+        return new Placed(text, tx, y, font, w, fm.getAscent(), fm.getDescent(), state, id);
+    }
+
     static final Color SEA_DEEP = new Color(0x3a, 0x64, 0x9c);
     static final Color SEA_SHALLOW = new Color(0x4f, 0x7f, 0xb9);
     static final Color SEA_SHORE = new Color(0x62, 0x93, 0xc9);
@@ -248,28 +318,14 @@ public final class AzgaarRender {
         return false;
     }
 
-    /**
-     * Escreve o texto centrado em x, empurrado pra dentro da imagem (largura outW); se encavalar num nome ja
-     * escrito (taken), nao escreve. Devolve se escreveu.
-     */
-    static boolean label(Graphics2D gr, String text, Font font, double x, double y, Color fill, Color halo,
-                         int outW, List<Rectangle2D> taken) {
-        if (text == null || text.isBlank()) return false;
-        FontMetrics fm = gr.getFontMetrics(font);
-        int w = fm.stringWidth(text);
-        float tx = (float) Math.max(2, Math.min(outW - w - 2, x - w / 2.0));
-        float ty = (float) y;
-        Rectangle2D box = new Rectangle2D.Double(tx - 2, ty - fm.getAscent(), w + 4, fm.getAscent() + fm.getDescent());
-        for (Rectangle2D t : taken) if (t.intersects(box)) return false;
-        taken.add(box);
-        GlyphVector gv = font.createGlyphVector(gr.getFontRenderContext(), text);
-        java.awt.Shape shape = gv.getOutline(tx, ty);
+    private static void drawLabel(Graphics2D gr, Placed p, Color fill, Color halo) {
+        GlyphVector gv = p.font().createGlyphVector(gr.getFontRenderContext(), p.text());
+        java.awt.Shape shape = gv.getOutline((float) p.x(), (float) p.y());
         gr.setColor(halo);
-        gr.setStroke(new BasicStroke(Math.max(2.5f, font.getSize() / 5f), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        gr.setStroke(new BasicStroke(Math.max(2.5f, p.font().getSize() / 5f), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
         gr.draw(shape);
         gr.setColor(fill);
         gr.fill(shape);
-        return true;
     }
 
     private static Color parse(String hex, Color fallback) {

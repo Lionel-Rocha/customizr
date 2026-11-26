@@ -30,6 +30,11 @@ public final class AzgaarMap {
     private AzgaarMap() {
     }
 
+    /** Origem dos pins (MapPin.ref), pra o editor do mundo achar o pin certo. */
+    public static final String REF_STATE = "azgaar:state:";
+    public static final String REF_BURG = "azgaar:burg:";
+    public static final String REF_MARKER = "azgaar:marker:";
+
     /** Reino: nome curto e completo, forma de governo, capital (povoado), anotacao e diplomacia com os outros. */
     public record State(int id, String name, String fullName, String form, int capital, String note, List<String> diplomacy) {
         public String title() {
@@ -133,13 +138,8 @@ public final class AzgaarMap {
                 if (b.x < rx || b.y < ry || b.x > rx + rw || b.y > ry + rh) continue;
                 String kind = b.capital ? "capital" : b.population >= 2000 ? "cidade" : "vila";
                 MapPin pin = new MapPin((b.x - rx) * sx, (b.y - ry) * sy, b.name, kind);
-                StringBuilder t = new StringBuilder();
-                String st = stateName(b.state);
-                if (b.capital) t.append("Capital").append(st != null ? " de " + st : "").append(".\n");
-                else if (st != null) t.append("Reino: ").append(st).append("\n");
-                if (b.population > 0) t.append("População: ~").append(thousands(b.population)).append(" habitantes\n");
-                if (b.note != null) t.append("\n").append(b.note);
-                pin.setText(t.toString().strip());
+                pin.setText(burgText(b));
+                pin.setRef(REF_BURG + b.id);
                 pin.setGeneratorUrl(GeneratorLinks.forPlace(b.name, kind, b.population));
                 out.add(pin);
                 n++;
@@ -151,11 +151,23 @@ public final class AzgaarMap {
                     MapPin pin = new MapPin((m.x - rx) * sx, (m.y - ry) * sy, generic ? typeLabel(m.type) : m.name,
                             markerKind(m.type));
                     pin.setText(((generic ? "" : typeLabel(m.type) + ".\n") + (m.note == null ? "" : m.note)).strip());
+                    pin.setRef(REF_MARKER + m.id);
                     pin.setHidden(true); // marcador costuma ser segredo (masmorra, tesouro, monstro): o mestre revela
                     out.add(pin);
                 }
             }
             return out;
+        }
+
+        /** Texto do cartao de um povoado: capital de quem / reino, populacao e a anotacao. */
+        public String burgText(Burg b) {
+            StringBuilder t = new StringBuilder();
+            String st = stateName(b.state);
+            if (b.capital) t.append("Capital").append(st != null ? " de " + st : "").append(".\n");
+            else if (st != null) t.append("Reino: ").append(st).append("\n");
+            if (b.population > 0) t.append("População: ~").append(thousands(b.population)).append(" habitantes\n");
+            if (b.note != null) t.append("\n").append(b.note);
+            return t.toString().strip();
         }
 
         /** Texto do diario: o mundo, os reinos, as culturas, as religioes e as maiores cidades. */

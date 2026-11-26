@@ -70,6 +70,7 @@ public final class Icons {
             Map.entry("masmorra", "M12 2C7.58 2 4 5.58 4 10c0 2.96 1.61 5.54 4 6.92V20h2v-2h1v2h2v-2h1v2h2v-3.08c2.39-1.38 4-3.96 4-6.92 0-4.42-3.58-8-8-8zM8.5 13C7.67 13 7 12.33 7 11.5S7.67 10 8.5 10s1.5.67 1.5 1.5S9.33 13 8.5 13zm7 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"),
             Map.entry("perigo", "M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"),
             Map.entry("tesouro", "M6 3h12l4 6-10 12L2 9l4-6z"),
+            Map.entry("rotulo", "M5 4v3h5.5v12h3V7H19V4z"),
             Map.entry("info", "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"),
             Map.entry("pin", "M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"));
 
@@ -85,6 +86,7 @@ public final class Icons {
             case "masmorra" -> "#7D7D7D";
             case "perigo" -> "#D9544C";
             case "tesouro" -> "#3FA7D6";
+            case "rotulo" -> "#8A6A4A";
             default -> "#5B8DEF";
         };
     }

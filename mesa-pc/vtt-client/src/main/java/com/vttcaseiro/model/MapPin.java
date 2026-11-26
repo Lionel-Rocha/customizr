@@ -13,7 +13,12 @@ public class MapPin {
 
     /** Tipos de pin (o icone desenhado). */
     public static final String[] KINDS = {"cidade", "capital", "vila", "loja", "taverna", "templo", "masmorra",
-            "perigo", "tesouro", "info"};
+            "perigo", "tesouro", "info", "rotulo"};
+    /** Rotulo: so o texto escrito no mapa (nome de reino, cidade, rio...), do tamanho do mapa (cresce com o zoom). */
+    public static final String LABEL = "rotulo";
+    /** Estilo do rotulo: titulo (serifa italica, pra reinos e regioes) ou lugar (letra simples). */
+    public static final String STYLE_TITLE = "titulo";
+    public static final String STYLE_PLACE = "lugar";
 
     private String id = UUID.randomUUID().toString();
     private double x;
@@ -27,6 +32,11 @@ public class MapPin {
     private boolean hidden;
     /** Link pra gerar o mapa deste lugar num gerador (ex.: cidade do Watabou). Opcional. */
     private String generatorUrl;
+    /** Rotulo: altura da letra em pixels do mapa (0 = padrao). */
+    private double labelSize;
+    private String labelStyle;
+    /** De onde veio (ex.: "azgaar:burg:12"), pra o editor do mundo achar o pin quando renomeia. */
+    private String ref;
 
     public MapPin() {
     }
@@ -75,6 +85,17 @@ public class MapPin {
     }
     public void setGeneratorUrl(String generatorUrl) { this.generatorUrl = generatorUrl; }
 
+    public boolean isLabel() { return LABEL.equals(getKind()); }
+
+    public double getLabelSize() { return labelSize > 0 ? Math.max(6, Math.min(400, labelSize)) : 24; }
+    public void setLabelSize(double labelSize) { this.labelSize = labelSize; }
+
+    public String getLabelStyle() { return STYLE_TITLE.equals(labelStyle) ? STYLE_TITLE : STYLE_PLACE; }
+    public void setLabelStyle(String labelStyle) { this.labelStyle = labelStyle; }
+
+    public String getRef() { return ref == null || ref.isBlank() ? null : ref; }
+    public void setRef(String ref) { this.ref = ref == null ? null : ref.length() > 60 ? ref.substring(0, 60) : ref; }
+
     /** Limpa o que veio pela rede (tamanhos, tipo, link so https). */
     public void sanitize() {
         setTitle(title);
@@ -83,5 +104,7 @@ public class MapPin {
         if (generatorUrl != null && !generatorUrl.startsWith("https://")) generatorUrl = null;
         if (!Double.isFinite(x)) x = 0;
         if (!Double.isFinite(y)) y = 0;
+        if (!Double.isFinite(labelSize)) labelSize = 0;
+        setRef(ref);
     }
 }

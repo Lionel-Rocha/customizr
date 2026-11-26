@@ -1783,16 +1783,55 @@ public class MapView extends Pane {
         return false;
     }
 
+    /**
+     * Rotulo: so o texto (nome de reino, cidade, rio), centrado no ponto e no tamanho do mapa: cresce com o zoom
+     * como se estivesse desenhado. Contorno claro pra ler em cima do desenho; oculto fica meio apagado.
+     */
+    static Group labelNode(com.vttcaseiro.model.MapPin pin) {
+        boolean title = com.vttcaseiro.model.MapPin.STYLE_TITLE.equals(pin.getLabelStyle());
+        javafx.scene.text.Font font = title
+                ? javafx.scene.text.Font.font("Georgia", javafx.scene.text.FontWeight.BOLD, javafx.scene.text.FontPosture.ITALIC, pin.getLabelSize())
+                : javafx.scene.text.Font.font("Segoe UI", javafx.scene.text.FontWeight.SEMI_BOLD, pin.getLabelSize());
+        String text = pin.getTitle().isEmpty() ? "(rótulo)" : pin.getTitle();
+        javafx.scene.text.Text halo = new javafx.scene.text.Text(text);
+        halo.setFont(font);
+        halo.setFill(null);
+        halo.setStroke(title ? Color.rgb(255, 250, 235, 0.45) : Color.rgb(255, 250, 240, 0.8));
+        halo.setStrokeWidth(Math.max(2, pin.getLabelSize() / 5));
+        halo.setStrokeLineJoin(javafx.scene.shape.StrokeLineJoin.ROUND);
+        javafx.scene.text.Text fill = new javafx.scene.text.Text(text);
+        fill.setFont(font);
+        fill.setFill(title ? Color.rgb(70, 35, 30, 0.8) : Color.rgb(0x1e, 0x18, 0x14));
+        for (javafx.scene.text.Text t : java.util.List.of(halo, fill)) {
+            t.setTextOrigin(javafx.geometry.VPos.CENTER);
+            t.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
+        }
+        double w = fill.getLayoutBounds().getWidth();
+        halo.setLayoutX(-w / 2);
+        fill.setLayoutX(-w / 2);
+        Group g = new Group(halo, fill);
+        g.setUserData("rotulo");
+        if (pin.isHidden()) g.setOpacity(0.5);
+        return g;
+    }
+
     /** Pins ficam do mesmo tamanho na tela com qualquer zoom (senao somem no mapa-mundo). */
     private void updatePinScale() {
         double s = 1.0 / zoom;
         for (javafx.scene.Node n : pinLayer.getChildren()) {
+            if ("rotulo".equals(n.getUserData())) continue; // rotulo e do tamanho do mapa
             n.setScaleX(s);
             n.setScaleY(s);
         }
     }
 
     private javafx.scene.Node pinNode(com.vttcaseiro.model.MapPin pin, boolean gm) {
+        Group node;
+        javafx.scene.Node tipTarget;
+        if (pin.isLabel()) {
+            node = labelNode(pin);
+            tipTarget = node;
+        } else {
         Color color = Color.web(Icons.pinColor(pin.getKind()));
         javafx.scene.shape.Circle disc = new javafx.scene.shape.Circle(0, 0, 16, color);
         disc.setStroke(Color.web("#1B1411"));
@@ -1830,13 +1869,15 @@ public class MapView extends Pane {
             label.setLayoutX(-b.getWidth() / 2);
             label.setLayoutY(20);
         });
-        Group node = new Group(marker, label);
+        node = new Group(marker, label);
+        tipTarget = marker;
+        }
         node.setLayoutX(pin.getX());
         node.setLayoutY(pin.getY());
         node.setCursor(Cursor.HAND);
         String tip = pin.getTitle() + (pin.getLinkedScene() != null ? "\nAbre: " + pin.getLinkedScene() : "")
                 + (pin.isHidden() ? "\n(oculto: só você vê)" : "");
-        javafx.scene.control.Tooltip.install(marker, new javafx.scene.control.Tooltip(tip));
+        javafx.scene.control.Tooltip.install(tipTarget, new javafx.scene.control.Tooltip(tip));
 
         double[] press = new double[4];
         boolean[] dragging = {false};

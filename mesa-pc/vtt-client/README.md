@@ -237,6 +237,15 @@ no mapa vazio):
   desenhada de perto; do `.map`, recortada do PNG). Ler e desenhar um mundo grande leva alguns segundos e não
   trava a mesa.
   Lê `.map` das versões novas e antigas do gerador (compactado ou não).
+  - **Nomes como rótulos da mesa** (JSON, ao importar ou abrir uma região): o desenho sai sem os nomes e cada nome
+    de reino e de cidade vira um **rótulo** (pin do tipo "Rótulo": só o texto, do tamanho do mapa, cresce com o
+    zoom). Arraste, renomeie, mude o tamanho da letra ou esconda dos jogadores; clicar no nome de uma cidade abre
+    o cartão dela. Dá pra criar rótulos à mão também (ferramenta de pin, tipo "Rótulo").
+  - **Mundo > Cenas > "Editar mundo"**: troca nome, nome completo e cor dos reinos e nome e população das
+    cidades. O mapa e as regiões abertas dele são redesenhados, e os pins, rótulos e facções com o nome antigo
+    passam pro novo (o que você já tinha renomeado à mão fica). As mudanças ficam guardadas na mesa; o arquivo do
+    Azgaar não muda, e "Voltar tudo ao original" desfaz. Mundo de PNG (ou importado antes desta versão): só os
+    nomes mudam, a imagem não é redesenhada.
 - **Azgaar's Fantasy Map Generator** (só a imagem): Menu > Export > **PNG** (ou JPEG). Se
   quiser, escolha tambem o **JSON "Full"** do mesmo mundo: os reinos e as maiores
   cidades vao pro Diario e as capitais podem ser marcadas no mapa. A grade fica

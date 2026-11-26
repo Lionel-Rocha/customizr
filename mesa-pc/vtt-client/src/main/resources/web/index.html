@@ -948,6 +948,7 @@ function render(now) {
   // Pins (pontos de informacao): mesmo tamanho na tela com qualquer zoom
   for (const pin of sc.pins || []) {
     if (pin.hidden && !S.gm) continue;
+    if (pin.kind === 'rotulo') { drawMapLabel(pin); continue; }
     const k = 1 / z;
     ctx.save(); ctx.translate(pin.x, pin.y); ctx.scale(k, k);
     ctx.globalAlpha = pin.hidden ? 0.6 : 1;
@@ -1181,10 +1182,28 @@ const PIN_PATHS = {
   perigo: 'M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z',
   tesouro: 'M6 3h12l4 6-10 12L2 9l4-6z',
   info: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z' };
+// Rotulo: so o texto, no tamanho do mapa (cresce com o zoom), com contorno claro pra ler em cima do desenho
+function drawMapLabel(pin) {
+  const title = pin.labelStyle === 'titulo', size = pin.labelSize > 0 ? Math.min(400, Math.max(6, pin.labelSize)) : 24;
+  ctx.save();
+  ctx.globalAlpha = pin.hidden ? 0.5 : 1;
+  ctx.font = (title ? 'italic bold ' : '600 ') + size + 'px ' + (title ? 'Georgia, serif' : 'Segoe UI, sans-serif');
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+  ctx.lineWidth = Math.max(2, size / 5); ctx.strokeStyle = title ? '#fffaeb66' : '#fffaf0cc';
+  ctx.strokeText(pin.title || '', pin.x, pin.y);
+  ctx.fillStyle = title ? '#46231ecc' : '#1e1814'; ctx.fillText(pin.title || '', pin.x, pin.y);
+  ctx.restore();
+}
 function pinAt(x, y) {
   let best = null, bd = 20 / S.view.zoom;
   for (const pin of (S.scene && S.scene.pins) || []) {
     if (pin.hidden && !S.gm) continue;
+    if (pin.kind === 'rotulo') {
+      // rotulo: dentro da caixa do texto
+      const size = pin.labelSize > 0 ? pin.labelSize : 24, hw = (pin.title || '').length * size * 0.3;
+      if (Math.abs(pin.x - x) <= hw && Math.abs(pin.y - y) <= size * 0.6 && !best) best = pin;
+      continue;
+    }
     const d = Math.hypot(pin.x - x, pin.y - y);
     if (d < bd) { bd = d; best = pin; }
   }

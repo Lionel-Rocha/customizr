@@ -26,10 +26,16 @@ public final class AzgaarJson {
     /** A geometria do mapa: poligonos das celulas, altura (0-100; abaixo de 20 e agua), bioma, reino e cores. */
     public record Geometry(int[][] cellVertices, int[][] cellNeighbors, double[] cellX, double[] cellY, int[] height,
                            int[] biome, int[] state, double[] vertexX, double[] vertexY, String[] biomeColors,
-                           String[] stateColors, List<double[]> statePoles, List<String> stateNames,
+                           String[] stateColors, List<double[]> statePoles, List<String> stateNames, List<Integer> stateIds,
                            List<River> rivers, List<Route> routes) {
         public int cells() {
             return height.length;
+        }
+
+        /** A mesma geometria com outras cores (por numero do reino) e nomes dos reinos (na ordem de stateIds). */
+        public Geometry withStates(String[] colors, List<String> names) {
+            return new Geometry(cellVertices, cellNeighbors, cellX, cellY, height, biome, state, vertexX, vertexY, biomeColors,
+                    colors, statePoles, names, stateIds, rivers, routes);
         }
     }
 
@@ -143,6 +149,7 @@ public final class AzgaarJson {
             }
             List<double[]> poles = new ArrayList<>();
             List<String> names = new ArrayList<>();
+            List<Integer> ids = new ArrayList<>();
             int maxState = 0;
             for (JsonElement el : states) if (el.isJsonObject()) maxState = Math.max(maxState, Json.intOr(el.getAsJsonObject(), "i", 0));
             String[] stateColors = new String[maxState + 1];
@@ -156,6 +163,7 @@ public final class AzgaarJson {
                 if (pole.size() == 2 && Json.str(st, "name") != null) {
                     poles.add(new double[]{pole.get(0).getAsDouble(), pole.get(1).getAsDouble()});
                     names.add(Json.str(st, "name"));
+                    ids.add(i);
                 }
             }
             List<River> riverList = new ArrayList<>();
@@ -181,7 +189,7 @@ public final class AzgaarJson {
                 routeList.add(new Route(Json.str(el.getAsJsonObject(), "group"), xs, ys));
             }
             geo = new Geometry(cellV.toArray(new int[0][]), cellC.toArray(new int[0][]), cx, cy, h, b, s, vx, vy,
-                    biomeColors(biomes), stateColors, poles, names, riverList, routeList);
+                    biomeColors(biomes), stateColors, poles, names, ids, riverList, routeList);
         }
         return new Result(world, geo);
     }
