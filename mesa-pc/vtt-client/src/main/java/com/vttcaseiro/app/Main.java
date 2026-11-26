@@ -296,6 +296,8 @@ public class Main extends Application {
     private void onMesaChosen(MesaRepository mesa) {
         Theme.install();
         this.mesaRepository = mesa;
+        // quem e quem nesta mesa (chave de cada jogador): fica na pasta da mesa
+        networkService.setPlayerKeysFile(mesa.getRoot().resolve("jogadores-chaves.json"));
         this.mesaService = new MesaService(mesa);
         this.characterService = new CharacterService(mesa);
         this.mobService = new MobService(mesa);
@@ -1653,6 +1655,44 @@ public class Main extends Application {
         if (s == null) return "";
         return java.text.Normalizer.normalize(s, java.text.Normalizer.Form.NFD).replaceAll("\\p{M}", "")
                 .toLowerCase(java.util.Locale.ROOT).strip();
+    }
+
+    /** Mestre libera um jogador que trocou de computador (a chave antiga deixa de valer pra aquele id). */
+    private void onReleasePlayer() {
+        List<com.vttcaseiro.net.PlayerKeys.Entry> known = networkService.isConnected() && networkService.isGm()
+                ? networkService.rememberedPlayers()
+                : new com.vttcaseiro.net.PlayerKeys(mesaRepository.getRoot().resolve("jogadores-chaves.json")).list();
+        if (known.isEmpty()) {
+            showError("Nenhum jogador guardado nesta mesa ainda (eles ficam guardados quando entram).");
+            return;
+        }
+        ListView<com.vttcaseiro.net.PlayerKeys.Entry> list = new ListView<>(FXCollections.observableArrayList(known));
+        java.time.format.DateTimeFormatter fmt = java.time.format.DateTimeFormatter.ofPattern("dd/MM HH:mm");
+        list.setCellFactory(lv -> new ListCell<>() {
+            @Override protected void updateItem(com.vttcaseiro.net.PlayerKeys.Entry en, boolean empty) {
+                super.updateItem(en, empty);
+                setText(empty || en == null ? null : (en.name == null ? "(sem nome)" : en.name) + "  ·  última vez "
+                        + fmt.format(java.time.LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(en.lastSeen),
+                        java.time.ZoneId.systemDefault())));
+            }
+        });
+        list.setPrefSize(380, 240);
+        javafx.scene.control.Dialog<javafx.scene.control.ButtonType> d = new javafx.scene.control.Dialog<>();
+        d.initOwner(stage);
+        d.setTitle("Liberar jogador");
+        d.setHeaderText("Escolha quem trocou de computador. Na próxima vez, quem entrar com o id dele vira o dono de novo.");
+        d.getDialogPane().setContent(list);
+        javafx.scene.control.ButtonType release = new javafx.scene.control.ButtonType("Liberar",
+                javafx.scene.control.ButtonBar.ButtonData.OK_DONE);
+        d.getDialogPane().getButtonTypes().addAll(release, javafx.scene.control.ButtonType.CANCEL);
+        if (!known.isEmpty()) list.getSelectionModel().select(0);
+        if (d.showAndWait().filter(b -> b == release).isEmpty()) return;
+        com.vttcaseiro.net.PlayerKeys.Entry chosen = list.getSelectionModel().getSelectedItem();
+        if (chosen == null) return;
+        if (networkService.forgetPlayer(chosen.id)) {
+            logEntries.add(LogEntry.system("Jogador liberado: " + (chosen.name == null ? chosen.id : chosen.name)
+                    + ". Ele já pode entrar do computador novo."));
+        }
     }
 
     private void onCreatePin(double x, double y) {
@@ -4769,6 +4809,11 @@ public class Main extends Application {
         onlineListView.setPrefHeight(120);
         onlineListView.setPlaceholder(emptyHint("Ninguém conectado."));
         box.getChildren().add(onlineListView);
+        Button releaseButton = new Button("Liberar jogador...");
+        releaseButton.setTooltip(new Tooltip("Cada jogador entra com uma chave guardada no computador dele (assim ninguém "
+                + "entra no lugar de outro). Trocou de computador ou reinstalou? Libere aqui e ele entra de novo."));
+        releaseButton.setOnAction(e -> onReleasePlayer());
+        box.getChildren().add(releaseButton);
 
         return new Tab("Rede", wrapInScroll(box));
     }

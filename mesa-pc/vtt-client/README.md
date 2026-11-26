@@ -952,6 +952,18 @@ ficha de monstro, a Party (com o inventario compartilhado) e troca de
 mapa/cena entre todos os conectados -- incluindo quem entra DEPOIS de
 algo ja ter sido sincronizado. Ver `HANDOFF.md`.
 
+## Rede: ninguém entra no lugar de outro jogador
+
+Todo mundo entra com a mesma senha da mesa, e o id de cada jogador aparece pros outros (é o "dono" dos tokens).
+Por isso cada programa (e cada navegador) tem também uma **chave secreta** guardada só nele. Na primeira vez que um
+jogador entra, o servidor do mestre guarda a impressão dessa chave na pasta da mesa (`jogadores-chaves.json`); dali
+em diante, aquele id só entra com a mesma chave. Quem tentar usar o id de outro recebe "Esse jogador já entrou na mesa
+de outro computador".
+
+Jogador trocou de computador, reinstalou ou limpou o navegador? O mestre vai em **Rede > "Liberar jogador..."**,
+escolhe o nome, e na próxima vez ele entra de novo (os tokens e fichas dele continuam dele). Programa antigo, sem
+chave, ainda entra enquanto o id dele não estiver protegido.
+
 ## Rede: imagens, senha de mesa/mestre e reconexao
 
 - **Imagens pela rede**: token/ficha/monstro/mapa agora levam a imagem

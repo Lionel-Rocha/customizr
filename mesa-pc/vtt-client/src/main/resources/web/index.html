@@ -331,6 +331,13 @@ const S = {
 try {
   S.me.id = localStorage.getItem('vtt.playerId');
   if (!S.me.id) { S.me.id = 'web-' + Math.random().toString(36).slice(2) + Date.now().toString(36); localStorage.setItem('vtt.playerId', S.me.id); }
+  // chave secreta deste navegador: prova que o id e mesmo seu (o id aparece pros outros; a chave nao)
+  S.me.key = localStorage.getItem('vtt.playerKey');
+  if (!S.me.key) {
+    const b = new Uint8Array(32); crypto.getRandomValues(b);
+    S.me.key = Array.from(b, x => x.toString(16).padStart(2, '0')).join('');
+    localStorage.setItem('vtt.playerKey', S.me.key);
+  }
   $('loginName').value = localStorage.getItem('vtt.name') || '';
 } catch (e) { S.me.id = 'web-' + Math.random().toString(36).slice(2); }
 
@@ -378,7 +385,7 @@ function connect() {
 function handle(m) {
   switch (m.type) {
     case 'challenge':
-      send({ type: 'hello', player: S.me.name, playerId: S.me.id, isGm: S.wantGm,
+      send({ type: 'hello', player: S.me.name, playerId: S.me.id, playerSecret: S.me.key, isGm: S.wantGm,
              protocolVersion: m.protocolVersion || 3, passwordProof: prove(S.password, m.challenge),
              masterProof: S.wantGm ? prove(S.master, m.challenge) : null });
       break;

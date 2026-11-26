@@ -280,6 +280,25 @@ public class NetworkService {
     }
 
     /** @throws IllegalStateException se ja estiver conectado */
+    /** Onde o servidor guarda as chaves dos jogadores (pasta da mesa). null = so na memoria. */
+    private java.nio.file.Path playerKeysFile;
+
+    public void setPlayerKeysFile(java.nio.file.Path file) {
+        this.playerKeysFile = file;
+    }
+
+    /** Jogadores que o servidor desta mesa lembra (vazio se nao esta hospedando). */
+    public java.util.List<com.vttcaseiro.net.PlayerKeys.Entry> rememberedPlayers() {
+        return server == null ? java.util.List.of() : server.playerKeys().list();
+    }
+
+    /** Libera um id (o jogador trocou de computador): o proximo que entrar com ele vira o dono. */
+    public boolean forgetPlayer(String playerId) {
+        if (server != null) return server.playerKeys().forget(playerId);
+        if (playerKeysFile == null) return false;
+        return new com.vttcaseiro.net.PlayerKeys(playerKeysFile).forget(playerId);
+    }
+
     public void host(int port, SceneModel scene, String playerName, GameListener listener) throws IOException {
         host(port, scene, playerName, null, listener);
     }
@@ -339,6 +358,7 @@ public class NetworkService {
             hostFingerprint = null;
         }
         this.tls = tlsOn;
+        server.setPlayerKeysFile(playerKeysFile);
         server.start();
         // A parte do navegador abre ANTES do cliente do proprio mestre: a conexao dele ganha uma porta
         // automatica do Windows, que as vezes caia justamente na "porta do jogo + 1".
@@ -356,6 +376,7 @@ public class NetworkService {
         // perderia a propria "posse" dos tokens que ja controlava antes
         // (ownerId guarda esse id, nao o nome).
         client = new GameClient(adapt(listener), imageAssetStore, AppSettings.getOrCreatePlayerId());
+        client.setPlayerSecret(AppSettings.getOrCreatePlayerKey());
         if (tlsOn) client.useTls((hp, fp, prev) -> true); // a propria mesa: confia no proprio certificado
         try {
             client.connect("localhost", server.getPort(), playerName, true, tablePassword, masterPassword);
@@ -413,6 +434,7 @@ public class NetworkService {
         requireNotConnected();
         this.playerName = playerName;
         client = new GameClient(adapt(listener), imageAssetStore, AppSettings.getOrCreatePlayerId());
+        client.setPlayerSecret(AppSettings.getOrCreatePlayerKey());
         if (tlsOn) client.useTls(prompt);
         client.useRelay(pendingRelayCode);
         String relayCodeUsed = pendingRelayCode;

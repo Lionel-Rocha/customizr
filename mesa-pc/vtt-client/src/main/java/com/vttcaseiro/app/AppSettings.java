@@ -24,6 +24,8 @@ public final class AppSettings {
      * que isso precisa ser estavel entre uma conexao e outra (retomada
      * de sessao: o servidor identifica dono de token por este id). */
     private static final Path PLAYER_ID_FILE = Path.of(System.getProperty("user.home"), ".vttcaseiro", "player-id.txt");
+    /** Chave secreta desta instalacao: prova que o id de jogador e mesmo seu (o id e publico, a chave nao sai daqui). */
+    private static final Path PLAYER_KEY_FILE = Path.of(System.getProperty("user.home"), ".vttcaseiro", "player-key.txt");
 
     private AppSettings() {
     }
@@ -138,6 +140,28 @@ public final class AppSettings {
             com.vttcaseiro.library.AtomicFiles.writeString(PLAYER_ID_FILE, generated);
         } catch (IOException ex) {
             System.err.println("Não foi possível salvar o id de jogador: " + ex.getMessage());
+        }
+        return generated;
+    }
+
+    /** A chave secreta desta instalacao (32 bytes aleatorios em hex), criada na primeira vez. */
+    public static String getOrCreatePlayerKey() {
+        try {
+            if (Files.exists(PLAYER_KEY_FILE)) {
+                String saved = Files.readString(PLAYER_KEY_FILE, StandardCharsets.UTF_8).strip();
+                if (saved.length() >= 32) return saved;
+            }
+        } catch (IOException ignored) {
+            // gera uma nova abaixo
+        }
+        byte[] b = new byte[32];
+        new java.security.SecureRandom().nextBytes(b);
+        String generated = java.util.HexFormat.of().formatHex(b);
+        try {
+            Files.createDirectories(PLAYER_KEY_FILE.getParent());
+            com.vttcaseiro.library.AtomicFiles.writeString(PLAYER_KEY_FILE, generated);
+        } catch (IOException ex) {
+            System.err.println("Não foi possível salvar a chave de jogador: " + ex.getMessage());
         }
         return generated;
     }

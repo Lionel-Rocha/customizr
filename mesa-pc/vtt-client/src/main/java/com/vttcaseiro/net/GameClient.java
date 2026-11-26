@@ -283,6 +283,13 @@ public class GameClient {
         return playerId;
     }
 
+    /** Chave secreta desta instalacao (vai no hello; sem ela o id fica sem protecao). */
+    private volatile String playerSecret;
+
+    public void setPlayerSecret(String secret) {
+        this.playerSecret = secret;
+    }
+
     /** Null ate connect() ser chamado. */
     public PlayerSession getSession() {
         return mySession;
@@ -574,8 +581,11 @@ public class GameClient {
                 }
             }
             case "pong" -> lastPongTime = System.currentTimeMillis();
-            case "challenge" -> send(NetMessage.hello(pendingName, playerId, pendingGm, tablePassword,
-                    masterPassword, msg.challenge));
+            case "challenge" -> {
+                NetMessage hello = NetMessage.hello(pendingName, playerId, pendingGm, tablePassword, masterPassword, msg.challenge);
+                hello.playerSecret = playerSecret;
+                send(hello);
+            }
             default -> log.warn("Cliente recebeu tipo desconhecido: " + msg.type);
         }
     }

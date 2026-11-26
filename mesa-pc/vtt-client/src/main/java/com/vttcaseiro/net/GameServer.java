@@ -312,6 +312,17 @@ public class GameServer {
     /** Chamado pelo ClientHandler quando chega uma mensagem desse cliente
      * (exceto "ping", que o proprio ClientHandler responde sem passar por
      * aqui). */
+    /** Chaves dos jogadores (quem e quem); ver PlayerKeys. Sem arquivo: so na memoria. */
+    private PlayerKeys playerKeys = new PlayerKeys(null);
+
+    public void setPlayerKeysFile(java.nio.file.Path file) {
+        playerKeys = new PlayerKeys(file);
+    }
+
+    public PlayerKeys playerKeys() {
+        return playerKeys;
+    }
+
     /** Quanto de imagem um jogador manda por conexao (o mestre nao tem limite). */
     static final long MAX_PLAYER_IMAGE_BYTES = 200L * 1024 * 1024;
 
@@ -842,6 +853,14 @@ public class GameServer {
                     if (claimsGm && !gmAccepted) {
                         log.warn(msg.player + " tentou entrar como mestre com senha de mestre incorreta -- "
                                 + "entrou como jogador comum.");
+                    }
+                    // o id e publico: so entra com ele quem tem a chave que entrou com ele da primeira vez
+                    PlayerKeys.Result who = playerKeys.check(msg.playerId, msg.playerSecret, msg.player, gmAccepted);
+                    if (who == PlayerKeys.Result.MISMATCH) {
+                        from.send(NetMessage.chat("servidor", "Esse jogador já entrou na mesa de outro computador. Se foi "
+                                + "você (trocou de computador ou reinstalou), peça ao mestre: Rede > \"Liberar jogador\"."));
+                        from.close();
+                        break;
                     }
                     PlayerSession session = new PlayerSession(msg.playerId, msg.player, gmAccepted);
                     from.setSession(session);

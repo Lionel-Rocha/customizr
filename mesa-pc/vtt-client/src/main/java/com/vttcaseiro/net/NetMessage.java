@@ -57,6 +57,8 @@ public class NetMessage {
     public String challenge;
     public String passwordProof;
     public String masterProof;
+    /** Hello: chave secreta da instalacao (o servidor guarda so a impressao dela; ver PlayerKeys). */
+    public String playerSecret;
 
     // move_token / remove_token
     public String tokenId;
