@@ -147,9 +147,10 @@ public final class AzgaarMap {
             if (withMarkers) {
                 for (Marker m : markers) {
                     if (m.x < rx || m.y < ry || m.x > rx + rw || m.y > ry + rh) continue;
-                    MapPin pin = new MapPin((m.x - rx) * sx, (m.y - ry) * sy, m.name == null ? typeLabel(m.type) : m.name,
+                    boolean generic = genericName(m.name, m.type);
+                    MapPin pin = new MapPin((m.x - rx) * sx, (m.y - ry) * sy, generic ? typeLabel(m.type) : m.name,
                             markerKind(m.type));
-                    pin.setText(((m.name == null ? "" : typeLabel(m.type) + ".\n") + (m.note == null ? "" : m.note)).strip());
+                    pin.setText(((generic ? "" : typeLabel(m.type) + ".\n") + (m.note == null ? "" : m.note)).strip());
                     pin.setHidden(true); // marcador costuma ser segredo (masmorra, tesouro, monstro): o mestre revela
                     out.add(pin);
                 }
@@ -344,10 +345,41 @@ public final class AzgaarMap {
         return n != null ? n : oldNotes.get(key);
     }
 
+    /** Tipos de marcador do Azgaar em portugues. */
+    private static final Map<String, String> TYPES_PT = Map.ofEntries(
+            Map.entry("volcanoes", "Vulcão"), Map.entry("hot-springs", "Fontes termais"), Map.entry("water-sources", "Nascente"),
+            Map.entry("mines", "Mina"), Map.entry("bridges", "Ponte"), Map.entry("inns", "Taverna"),
+            Map.entry("lighthouses", "Farol"), Map.entry("waterfalls", "Cachoeira"), Map.entry("battlefields", "Campo de batalha"),
+            Map.entry("dungeons", "Masmorra"), Map.entry("lake-monsters", "Monstro do lago"), Map.entry("sea-monsters", "Monstro marinho"),
+            Map.entry("hill-monsters", "Monstro das colinas"), Map.entry("sacred-mountains", "Montanha sagrada"),
+            Map.entry("sacred-forests", "Floresta sagrada"), Map.entry("sacred-pineries", "Pinheiral sagrado"),
+            Map.entry("sacred-palm-groves", "Palmeiral sagrado"), Map.entry("brigands", "Bandidos"), Map.entry("pirates", "Piratas"),
+            Map.entry("statues", "Estátua"), Map.entry("ruins", "Ruínas"), Map.entry("libraries", "Biblioteca"),
+            Map.entry("circuses", "Circo"), Map.entry("jousts", "Torneio"), Map.entry("fairs", "Feira"), Map.entry("canoes", "Canoas"),
+            Map.entry("migration", "Migração"), Map.entry("dances", "Festa"), Map.entry("mirage", "Miragem"), Map.entry("caves", "Caverna"),
+            Map.entry("portals", "Portal"), Map.entry("rifts", "Fenda"), Map.entry("disturbed-burials", "Túmulos violados"),
+            Map.entry("necropolises", "Necrópole"), Map.entry("encounters", "Encontro"), Map.entry("custom", "Marcador"));
+
     static String typeLabel(String type) {
         if (type == null || type.isBlank()) return "Marcador";
+        String pt = TYPES_PT.get(type.toLowerCase(Locale.ROOT));
+        if (pt != null) return pt;
         String t = type.replace('-', ' ').replace('_', ' ');
         return Character.toUpperCase(t.charAt(0)) + t.substring(1);
+    }
+
+    /** Nome pra mostrar do marcador: o nome dele, ou o tipo em portugues quando o nome e generico. */
+    public static String markerTitle(Marker m) {
+        return genericName(m.name(), m.type()) ? typeLabel(m.type()) : m.name();
+    }
+
+    /** O nome e so o tipo em ingles ("Volcanoes", "Hot springs")? Entao nao e um nome de verdade. */
+    static boolean genericName(String name, String type) {
+        if (name == null || name.isBlank()) return true;
+        if (type == null) return false;
+        String n = name.toLowerCase(Locale.ROOT).replaceAll("[^a-z]", "");
+        String t = type.toLowerCase(Locale.ROOT).replaceAll("[^a-z]", "");
+        return n.equals(t);
     }
 
     /** Tipo de marcador do Azgaar -> icone de pin daqui. */

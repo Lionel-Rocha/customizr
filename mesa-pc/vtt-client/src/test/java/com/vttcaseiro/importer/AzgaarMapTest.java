@@ -111,6 +111,14 @@ class AzgaarMapTest {
     }
 
     @Test
+    void genericMarkerNamesShowTheTypeInPortuguese() {
+        assertEquals("Vulcão", AzgaarMap.markerTitle(new AzgaarMap.Marker(1, "volcanoes", "Volcanoes", 0, 0, null)));
+        assertEquals("Fontes termais", AzgaarMap.markerTitle(new AzgaarMap.Marker(2, "hot-springs", "Hot springs", 0, 0, null)));
+        assertEquals("Mount Tother", AzgaarMap.markerTitle(new AzgaarMap.Marker(3, "volcanoes", "Mount Tother", 0, 0, null)));
+        assertEquals("Masmorra", AzgaarMap.markerTitle(new AzgaarMap.Marker(4, "dungeons", null, 0, 0, null)));
+    }
+
+    @Test
     void rejectsSomethingElse() {
         assertThrows(java.io.IOException.class, () -> AzgaarMap.read("{\"pack\":{}}".getBytes(StandardCharsets.UTF_8)));
     }

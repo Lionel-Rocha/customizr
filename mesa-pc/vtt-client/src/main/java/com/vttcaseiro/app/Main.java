@@ -5817,7 +5817,10 @@ public class Main extends Application {
                 list.sort(java.util.Comparator.comparing(com.vttcaseiro.importer.AzgaarMap.Burg::capital)
                         .thenComparingDouble(com.vttcaseiro.importer.AzgaarMap.Burg::population).reversed());
                 for (var b : list) placeBox.getItems().add(b.name());
-                for (var m : loaded[0].markers()) if (m.name() != null) placeBox.getItems().add(m.name() + " (marcador)");
+                for (var m : loaded[0].markers()) {
+                    String t = com.vttcaseiro.importer.AzgaarMap.markerTitle(m) + " (marcador)";
+                    if (!placeBox.getItems().contains(t)) placeBox.getItems().add(t);
+                }
                 if (!placeBox.getItems().isEmpty()) placeBox.getSelectionModel().select(0);
                 unit.setText("de raio (" + loaded[0].distanceUnit() + ")");
             } catch (IOException | RuntimeException ex) {
@@ -5846,7 +5849,7 @@ public class Main extends Application {
         for (var b : w.burgs()) if (b.name().equals(place)) { cx = b.x(); cy = b.y(); found = true; break; }
         if (!found) {
             for (var m : w.markers()) {
-                if (m.name() != null && (m.name() + " (marcador)").equals(place)) { cx = m.x(); cy = m.y(); found = true; break; }
+                if ((com.vttcaseiro.importer.AzgaarMap.markerTitle(m) + " (marcador)").equals(place)) { cx = m.x(); cy = m.y(); found = true; break; }
             }
         }
         if (!found) {
