@@ -25,7 +25,8 @@ class CompendiumToSheetTest {
 
     private static Compendium seed() throws Exception {
         try (InputStream in = CompendiumToSheetTest.class.getResourceAsStream("/seed/compendio.json")) {
-            assertNotNull(in, "seed/compendio.json precisa estar no classpath");
+            // o conteudo dos livros fica fora do repositorio publico: sem ele (ex.: no GitHub), o teste pula
+            org.junit.jupiter.api.Assumptions.assumeTrue(in != null, "sem seed/compendio.json (conteudo local)");
             String json = new String(in.readAllBytes(), StandardCharsets.UTF_8);
             List<CompendiumEntry> entries = new Gson().fromJson(json, new TypeToken<List<CompendiumEntry>>() { }.getType());
             return new Compendium(entries);

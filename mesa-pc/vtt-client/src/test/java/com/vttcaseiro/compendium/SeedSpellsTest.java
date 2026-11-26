@@ -22,6 +22,8 @@ class SeedSpellsTest {
 
     private static String seed() throws Exception {
         try (InputStream in = SeedSpellsTest.class.getResourceAsStream("/seed/compendio.json")) {
+            // o conteudo dos livros fica fora do repositorio publico: sem ele (ex.: no GitHub), o teste pula
+            org.junit.jupiter.api.Assumptions.assumeTrue(in != null, "sem seed/compendio.json (conteudo local)");
             return new String(in.readAllBytes(), StandardCharsets.UTF_8);
         }
     }

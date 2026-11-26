@@ -136,7 +136,10 @@ class UiSmokeTest {
                 stageField.setAccessible(true);
                 stageField.set(main, new Stage());
                 call(main, "onMesaChosen", new Class<?>[]{MesaRepository.class}, new LibraryStorage(dir));
-                call(main, "onLoadSeedContent", new Class<?>[]{});
+                // conteudo dos livros: so existe na maquina local (sem ele, o aviso esperaria um clique)
+                if (UiSmokeTest.class.getResource("/seed/bestiary-xmm.json") != null) {
+                    call(main, "onLoadSeedContent", new Class<?>[]{});
+                }
             });
 
             AtomicReference<CharacterSheet> sheetRef = new AtomicReference<>();
@@ -152,7 +155,16 @@ class UiSmokeTest {
                 call(main, "addTokenToScene", new Class<?>[]{TokenModel.class}, t);
                 @SuppressWarnings("unchecked")
                 javafx.scene.control.ListView<String> mobs = (javafx.scene.control.ListView<String>) field(main, "mobListView");
-                assertTrue(mobs.getItems().size() > 400, "bestiario carregado");
+                if (UiSmokeTest.class.getResource("/seed/bestiary-xmm.json") != null) {
+                    assertTrue(mobs.getItems().size() > 400, "bestiario carregado");
+                } else {
+                    // sem o conteudo dos livros (ex.: no GitHub): um goblin feito na hora faz o mesmo papel
+                    com.vttcaseiro.mob.MobSheet goblinSheet = new com.vttcaseiro.mob.MobSheet("Goblin");
+                    goblinSheet.setArmorClass(15);
+                    goblinSheet.setHitPointsAverage(10); // como o do bestiario
+                    ((com.vttcaseiro.service.MobService) field(main, "mobService")).save(goblinSheet);
+                    call(main, "refreshMobList", new Class<?>[]{});
+                }
                 mobs.getSelectionModel().select(mobs.getItems().stream().filter(n -> n.startsWith("Goblin")).findFirst().orElseThrow());
                 call(main, "onPlaceSelectedMob", new Class<?>[]{});
             });

@@ -1,0 +1,79 @@
+# Testes automaticos a cada envio: o programa da mesa (Windows, com tela pra JavaFX), o servidor do site e o front.
+# O conteudo dos livros (resources/seed) fica fora do repositorio: os testes que dependem dele pulam aqui.
+name: Testes
+
+on:
+  push:
+    branches: [main, seccond-branch]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: testes-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mesa:
+    name: Programa da mesa
+    runs-on: windows-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: mesa-pc/vtt-client
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+          cache-dependency-path: mesa-pc/vtt-client/pom.xml
+      - name: Testes
+        shell: bash
+        run: sh ./mvnw -B -ntp test
+      - name: Relatorio (se falhar)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: relatorio-mesa
+          path: mesa-pc/vtt-client/target/surefire-reports
+          retention-days: 7
+
+  site:
+    name: Servidor do site
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: oracle
+          java-version: '27'
+          cache: maven
+      # banco H2 em memoria (src/test/resources/application.properties): nao toca no banco de producao
+      - name: Testes
+        run: mvn -B -ntp test
+      - name: Relatorio (se falhar)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: relatorio-site
+          path: target/surefire-reports
+          retention-days: 7
+
+  front:
+    name: Front do site (compila)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: front
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: front/package-lock.json
+      - run: npm ci
+      - run: npx ng build
