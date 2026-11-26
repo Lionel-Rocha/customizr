@@ -3,7 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { Api } from '../../core/api';
 import { Auth, errorText } from '../../core/auth';
-import { Campaign } from '../../core/models';
+import { Campaign, Invite } from '../../core/models';
 import { Icon } from '../../shared/icon';
 import { ThemePicker } from '../../shared/theme-picker';
 
@@ -18,6 +18,7 @@ export class CampaignsPage implements OnInit {
   private readonly api = inject(Api);
   private readonly router = inject(Router);
   protected readonly list = signal<Campaign[] | null>(null);
+  protected readonly invites = signal<Invite[]>([]);
   protected readonly error = signal('');
   protected newName = '';
 
@@ -25,6 +26,26 @@ export class CampaignsPage implements OnInit {
     try {
       if (!this.auth.me()) await this.auth.loadMe();
       this.list.set(await this.api.campaigns());
+      this.invites.set((await this.api.invites()) ?? []);
+    } catch (err) {
+      this.error.set(errorText(err));
+    }
+  }
+
+  async accept(i: Invite): Promise<void> {
+    try {
+      await this.api.acceptInvite(i.campaignId);
+      this.invites.set((await this.api.invites()) ?? []);
+      this.list.set(await this.api.campaigns());
+    } catch (err) {
+      this.error.set(errorText(err));
+    }
+  }
+
+  async decline(i: Invite): Promise<void> {
+    try {
+      await this.api.declineInvite(i.campaignId);
+      this.invites.set((await this.api.invites()) ?? []);
     } catch (err) {
       this.error.set(errorText(err));
     }

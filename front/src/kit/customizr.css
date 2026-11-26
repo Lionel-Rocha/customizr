@@ -86,7 +86,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .status-pill-online { background: var(--c-success-bg); border-color: #3FBE6E88; color: var(--c-success-text); }
 
 /* ---------- Layout do jogo: barra de cima | navegacao | painel | mapa | chat ---------- */
-.app { display: grid; grid-template-rows: auto 1fr; height: 100vh; }
+.app { display: grid; grid-template-rows: auto 1fr; grid-template-columns: minmax(0, 1fr); height: 100vh; }
 .top-bar {
     display: flex; align-items: center; gap: 10px;
     background: var(--c-surface);
@@ -174,7 +174,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .empty-state {
     position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
     background: var(--c-surface-glass); border: 1px solid var(--c-accent-55); border-radius: 14px;
-    padding: 22px 28px; text-align: center; max-width: 520px;
+    padding: 22px 28px; text-align: center; width: max-content; max-width: min(520px, calc(100% - 32px));
 }
 .empty-state h2 { font-family: Georgia, serif; color: var(--c-accent-text); margin: 8px 0; font-size: 22px; }
 
@@ -209,13 +209,36 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .action-card .desc { color: var(--c-muted); font-size: 12px; }
 .action-card.primary .desc { color: var(--c-accent-text-4); }
 
+/* ---------- Tela media (notebook pequeno): painel e chat mais estreitos, o mapa nao some ---------- */
+@media (max-width: 1280px) and (min-width: 901px) {
+    .workspace { --panel-width: 290px; --chat-width: 270px; }
+}
+
+/* ---------- Celular: o nome "Customizr" vira so o icone, pra caber o nome da mesa ---------- */
+@media (max-width: 560px) {
+    .top-bar { gap: 6px; padding-left: 10px; padding-right: 10px; }
+    /* numa linha so: o nome da mesa encolhe com "..." (o "Sair" nao desce sozinho) */
+    .app .top-bar { flex-wrap: nowrap; }
+    .top-bar-title { flex: 0 1 auto; }
+    .top-bar .status-pill, .top-bar .button { white-space: nowrap; flex: none; }
+    .top-bar-brand { font-size: 0; gap: 0; }
+    .top-bar-sep { display: none; }
+    .top-bar select { max-width: 112px; }
+}
+
 /* ---------- Celular / tela estreita: um painel por vez ---------- */
 @media (max-width: 900px) {
-    .workspace, .workspace.panel-closed { grid-template-columns: 1fr; grid-template-rows: auto 1fr auto; }
-    .nav-rail { flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--c-border); }
+    /* abas, painel, mapa e chat: o mapa tem a linha dele (antes caia numa linha de altura zero) */
+    .workspace { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(240px, 1fr) auto; }
+    .workspace.panel-closed { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(240px, 1fr) auto; }
+    .map-area { min-height: 240px; }
+    .top-bar { flex-wrap: wrap; row-gap: 6px; }
+    .top-bar-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .nav-rail { flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--c-border); scrollbar-width: none; }
+    .nav-rail::-webkit-scrollbar { display: none; }
     .nav-rail .grow { display: none; }
     .nav-rail-button { border-left: 0; border-bottom: 3px solid transparent; min-width: 64px; }
     .nav-rail-button.selected { border-bottom-color: var(--c-accent); }
-    .side-panel { border-right: 0; max-height: 45vh; }
+    .side-panel { border-right: 0; max-height: 38vh; }
     .chat-panel { border-left: 0; border-top: 1px solid var(--c-border); max-height: 40vh; }
 }

@@ -55,3 +55,11 @@ export interface ChatMessage {
   id: string; type: ChatType; authorName: string; speakerName?: string; content: string; recipientName?: string;
   rollTotal?: number; naturalD20?: number; createdAt?: string;
 }
+
+/** Convite pendente pra entrar numa campanha. */
+export interface Invite {
+  campaignId: string;
+  campaignName: string;
+  masterName: string | null;
+  role: 'MASTER' | 'PLAYER' | 'SPECTATOR';
+}

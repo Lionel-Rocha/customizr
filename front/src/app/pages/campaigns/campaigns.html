@@ -12,6 +12,19 @@
     <p class="label-muted">Cada mesa é uma campanha. Clique pra entrar.</p>
     @if (error()) { <div class="erro">{{ error() }}</div> }
 
+    @if (invites().length) {
+      <section class="panel-card invites">
+        <h2 class="label-section">Convites</h2>
+        @for (i of invites(); track i.campaignId) {
+          <div class="row invite">
+            <span class="grow"><b>{{ i.campaignName }}</b>&nbsp;<span class="label-muted">· mestre {{ i.masterName ?? '?' }}</span></span>
+            <button class="button button-primary" (click)="accept(i)">Entrar</button>
+            <button class="button button-flat" (click)="decline(i)">Recusar</button>
+          </div>
+        }
+      </section>
+    }
+
     <div class="grid">
       @for (c of list() ?? []; track c.id) {
         <button class="action-card" [class.primary]="isMaster(c)" (click)="open(c)">
@@ -22,7 +35,7 @@
           </span>
         </button>
       } @empty {
-        @if (list()) { <div class="panel-card label-muted">Você ainda não está em nenhuma mesa. Crie uma abaixo ou peça um convite ao mestre.</div> }
+        @if (list()) { <div class="panel-card label-muted">Você ainda não está em nenhuma mesa. Crie uma abaixo ou peça pro mestre te convidar pelo seu nome de usuário ({{ auth.me()?.name }}): o convite aparece aqui.</div> }
       }
     </div>
 

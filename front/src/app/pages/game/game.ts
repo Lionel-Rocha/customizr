@@ -136,6 +136,19 @@ export class GamePage implements OnInit, OnDestroy {
 
   // ---------------- combate ----------------
   protected current(i: number): boolean { return this.initiative().entries.length > 0 && i === this.initiative().turnIndex; }
+  protected inviteName = '';
+
+  async invitePlayer(): Promise<void> {
+    const name = this.inviteName.trim();
+    if (!name) return;
+    try {
+      this.say(String(await this.api.invite(this.campaign()!.id, name)));
+      this.inviteName = '';
+    } catch (err) {
+      this.say(errorText(err));
+    }
+  }
+
   async roll(): Promise<void> { await this.run(() => this.api.initiativeRoll(this.campaign()!.id)); }
   async next(): Promise<void> { await this.run(() => this.api.initiativeNext(this.campaign()!.id)); }
   async end(): Promise<void> { await this.run(() => this.api.initiativeEnd(this.campaign()!.id)); }

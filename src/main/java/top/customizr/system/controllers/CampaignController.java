@@ -43,14 +43,15 @@ public class CampaignController {
     }
 
     @PatchMapping("/update/{id}")
-    public ResponseEntity<ErrorResponse> update(@PathVariable UUID id, @RequestBody UpdateCampaignRequest request) {
-        campaignService.updateCampaign(request, id);
+    public ResponseEntity<ErrorResponse> update(@PathVariable UUID id, @RequestBody UpdateCampaignRequest request,
+                                                @AuthenticationPrincipal UserDetails loggedUser) {
+        campaignService.updateCampaign(request, id, loggedUser);
         return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable UUID id) {
-        campaignService.deleteCampaign(id);
+    public ResponseEntity<Void> delete(@PathVariable UUID id, @AuthenticationPrincipal UserDetails loggedUser) {
+        campaignService.deleteCampaign(id, loggedUser);
         return ResponseEntity.noContent().build();  // 204
     }
 
@@ -73,11 +74,21 @@ public class CampaignController {
 
     @PostMapping("/invite")
     public ResponseEntity<String> inviteUser(@RequestBody @NonNull InviteRequest request, @AuthenticationPrincipal UserDetails userLogado) {
-        campaignService.invite(request.campaignId(), request.role(), userLogado, request.username());
-        String response = "Usuário " + request.username() + " convidado com o papel " + request.role();
+        String response = campaignService.invite(request.campaignId(), request.role(), userLogado, request.username());
 
         return ResponseEntity.status(200).body(response);
 
+    }
+
+    @GetMapping("/invites")
+    public List<InviteResponse> myInvites(@AuthenticationPrincipal UserDetails loggedUser) {
+        return campaignService.myInvites(loggedUser);
+    }
+
+    @PostMapping("/decline-invite")
+    public ResponseEntity<Void> declineInvite(@RequestBody AcceptInviteRequest request, @AuthenticationPrincipal UserDetails loggedUser) {
+        campaignService.declineInvite(request.campaignId(), loggedUser);
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/accept-invite")

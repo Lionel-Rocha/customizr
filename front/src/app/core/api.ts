@@ -2,7 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { Auth } from './auth';
-import { Campaign, CharacterSheet, CharacterSummary, ChatMessage, Initiative, RollMode, Scene } from './models';
+import { Campaign, CharacterSheet, CharacterSummary, ChatMessage, Initiative, Invite, RollMode, Scene } from './models';
 
 /** Chamadas ao servidor usadas pelo site (mesmas rotas que a tela /mesa usa). */
 @Injectable({ providedIn: 'root' })
@@ -13,6 +13,16 @@ export class Api {
 
   campaigns() { return firstValueFrom(this.http.get<Campaign[]>('/campaign/')); }
   createCampaign(name: string) { return firstValueFrom(this.http.post<string>('/campaign/create', { name })); }
+  /** Convites que eu ainda nao aceitei. */
+  invites() { return firstValueFrom(this.http.get<Invite[]>('/campaign/invites')); }
+  acceptInvite(campaignId: string) {
+    return firstValueFrom(this.http.post('/campaign/accept-invite', { campaignId }, { responseType: 'text' }));
+  }
+  declineInvite(campaignId: string) { return firstValueFrom(this.http.post('/campaign/decline-invite', { campaignId })); }
+  /** Mestre convida pelo nome de usuario (devolve o texto do servidor: enviado, ja esta na mesa...). */
+  invite(campaignId: string, username: string) {
+    return firstValueFrom(this.http.post('/campaign/invite', { campaignId, username, role: 'PLAYER' }, { responseType: 'text' }));
+  }
   scenes(campaignId: string) { return firstValueFrom(this.http.get<Scene[]>('/live/campaign/' + campaignId + '/scenes')); }
   activateScene(sceneId: string) { return firstValueFrom(this.http.post('/live/scenes/' + sceneId + '/activate', {})); }
   initiative(campaignId: string) { return firstValueFrom(this.http.get<Initiative>('/live/campaign/' + campaignId + '/initiative')); }

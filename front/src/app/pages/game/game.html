@@ -56,6 +56,16 @@
                 <button class="button button-primary" type="submit"><cz-icon name="add" /> Nova ficha</button>
               </form>
             </section>
+            @if (master()) {
+              <section class="panel-card">
+                <h3 class="label-section">Convidar jogador</h3>
+                <p class="label-muted hint">Pelo nome de usuário no site. O convite aparece na lista de mesas da pessoa.</p>
+                <form class="row" (ngSubmit)="invitePlayer()">
+                  <input type="text" name="inviteName" [(ngModel)]="inviteName" placeholder="Nome de usuário" class="grow-input">
+                  <button class="button button-primary" type="submit"><cz-icon name="send" /> Convidar</button>
+                </form>
+              </section>
+            }
           }
           @case ('combate') {
             <section class="panel-card">
@@ -124,6 +134,8 @@
               </div>
             </div>
           }
+        } @empty {
+          <div class="chat-empty label-muted">Nada no chat ainda. Role um dado!</div>
         }
       </div>
       <div class="chat-dice">

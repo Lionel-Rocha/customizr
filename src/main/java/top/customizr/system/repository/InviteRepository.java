@@ -13,4 +13,7 @@ import java.util.UUID;
 public interface InviteRepository extends JpaRepository<Invite, UUID> {
     // Navega: Campaign -> id, e InvitedUser -> userId
     Optional<Invite> findByCampaignIdAndInvitedUserUserId(UUID campaignId, UUID invitedUserId);
+
+    // Convites que esperam o usuario aceitar
+    java.util.List<Invite> findByInvitedUserUserId(UUID invitedUserId);
 }

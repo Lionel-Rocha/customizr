@@ -4,7 +4,9 @@ import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
+import org.springframework.security.access.AccessDeniedException;
 import top.customizr.system.dto.AddSourceRequest;
+import top.customizr.system.dto.InviteResponse;
 import top.customizr.system.dto.UpdateCampaignRequest;
 import top.customizr.system.model.*;
 import top.customizr.system.model.Character;
@@ -94,11 +96,12 @@ public class CampaignService {
         return campaign;
     }
 
-    public Campaign updateCampaign(UpdateCampaignRequest request, UUID id){
+    public Campaign updateCampaign(UpdateCampaignRequest request, UUID id, UserDetails loggedUser){
         //1. pegar a campanha pelo id
 
 
         Campaign campaign = campaignRepository.findById(id).orElseThrow(() -> new EntityNotFoundException("Campanha não encontrada"));
+        requireMaster(campaign, loggedUser);
 
 
         //2. fazer alterações no campo enviado
@@ -109,9 +112,10 @@ public class CampaignService {
         return campaignRepository.save(campaign);
     }
 
-    public String deleteCampaign(UUID id){
+    public String deleteCampaign(UUID id, UserDetails loggedUser){
         //1. pegar campanha pelo id
         Campaign campaign = campaignRepository.findById(id).orElseThrow(() -> new EntityNotFoundException("Campanha não encontrada"));
+        requireMaster(campaign, loggedUser);
 
         //2. drop
         campaignRepository.delete(campaign);
@@ -146,16 +150,51 @@ public class CampaignService {
 
         // Verifica se o logado é o mestre da campanha
         if (!campaign.getMaster().getUserId().equals(master.getUserId())) {
-            return "Você não pode convidar para essa campanha.";
+            throw new AccessDeniedException("Só o mestre convida para essa campanha.");
         }
 
         // Busca o usuário que será convidado (pelo nome passado no DTO)
-        User invitedUser = userRepository.findByName(invitedUsername)
+        User invitedUser = userRepository.findByName(invitedUsername == null ? "" : invitedUsername.strip())
                 .orElseThrow(() -> new EntityNotFoundException("Usuário não encontrado com o nome: " + invitedUsername));
 
-        Invite invite = new Invite(campaign, invitedUser, role);
+        // Quem já está na mesa (ou já foi convidado) não ganha outro convite
+        if (invitedUser.getUserId().equals(master.getUserId())
+                || membershipRepository.findByCampaignIdAndUserId(campaign.getId(), invitedUser.getUserId()).isPresent()) {
+            return invitedUser.getName() + " já está na campanha.";
+        }
+        if (inviteRepository.findByCampaignIdAndInvitedUserUserId(campaign.getId(), invitedUser.getUserId()).isPresent()) {
+            return invitedUser.getName() + " já tem um convite pendente.";
+        }
+
+        // O papel de mestre é só de quem criou a campanha
+        Invite invite = new Invite(campaign, invitedUser, role == null || role == Role.MASTER ? Role.PLAYER : role);
         inviteRepository.save(invite);
         return "Convite enviado para " + invitedUser.getName();
+    }
+
+    /** Convites que o usuário logado ainda não aceitou. */
+    public java.util.List<InviteResponse> myInvites(UserDetails loggedUser) {
+        User user = userRepository.findByName(loggedUser.getUsername())
+                .orElseThrow(() -> new EntityNotFoundException("Usuário logado não encontrado"));
+        return inviteRepository.findByInvitedUserUserId(user.getUserId()).stream()
+                .map(i -> new InviteResponse(i.getCampaign().getId(), i.getCampaign().getName(),
+                        i.getCampaign().getMaster() == null ? null : i.getCampaign().getMaster().getName(), i.getRole()))
+                .toList();
+    }
+
+    /** Recusa um convite (apaga sem entrar na campanha). */
+    @Transactional
+    public void declineInvite(UUID campaignId, UserDetails loggedUser) {
+        User user = userRepository.findByName(loggedUser.getUsername())
+                .orElseThrow(() -> new EntityNotFoundException("Usuário logado não encontrado"));
+        inviteRepository.findByCampaignIdAndInvitedUserUserId(campaignId, user.getUserId()).ifPresent(inviteRepository::delete);
+    }
+
+    private void requireMaster(Campaign campaign, UserDetails loggedUser) {
+        if (loggedUser == null || campaign.getMaster() == null
+                || !campaign.getMaster().getName().equals(loggedUser.getUsername())) {
+            throw new AccessDeniedException("Só o mestre pode mudar ou apagar essa campanha.");
+        }
     }
 
     @Transactional

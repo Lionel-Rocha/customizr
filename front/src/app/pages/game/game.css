@@ -31,3 +31,8 @@
 a.nav-rail-button { text-decoration: none; }
 .list-cell.dim { opacity: .55; cursor: default; }
 .grow-input { flex: 1; min-width: 120px; }
+
+/* chat vazio: um aviso no meio em vez da caixa em branco */
+.chat-empty { margin: auto; text-align: center; padding: 14px; font-size: 12px; }
+
+.hint { font-size: 12px; margin: 0 0 4px; }
