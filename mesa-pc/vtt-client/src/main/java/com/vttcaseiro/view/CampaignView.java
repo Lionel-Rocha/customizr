@@ -69,6 +69,16 @@ public final class CampaignView {
         stage.toFront();
     }
 
+    /** Vai pra aba com esse nome (ex.: "PdMs"); nome que nao existe (jogador nao ve) fica onde esta. */
+    public void showTab(String name) {
+        for (Tab t : tabs.getTabs()) {
+            if (t.getText().equals(name)) {
+                tabs.getSelectionModel().select(t);
+                return;
+            }
+        }
+    }
+
     public boolean isShowing() {
         return stage.isShowing();
     }

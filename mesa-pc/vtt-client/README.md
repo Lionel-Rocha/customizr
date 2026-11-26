@@ -482,6 +482,14 @@ Dois jeitos de sumir com um token:
 - **Condicao Invisivel** (Condicoes > Invisivel): os outros jogadores nem recebem o token; o dono e o mestre continuam
   vendo, meio transparente. Tirou a condicao, ele aparece pra todos.
 
+### Procurar em tudo (Ctrl+K)
+
+Botão **Procurar** no alto (ou **Ctrl+K**): uma caixa só pra achar ficha, monstro/PdM, cena, lugar da cena aberta
+(pin ou rótulo), página do Diário, PdM/facção/missão da Campanha e entrada do compêndio (magia, item, talento...).
+Sem ligar pra acento ou maiúscula; o que começa com o texto vem primeiro. Setas escolhem, Enter abre do mesmo jeito
+que a lista daquilo abriria (a cena troca, a ficha abre, o lugar centraliza com um ping, a Campanha abre na aba
+certa). Jogador só acha o que vê.
+
 ### Procurar no mapa
 
 Lupa na faixa de ferramentas (ou **Ctrl+F**): digite parte do nome (sem ligar pra acento ou maiúscula) e escolha;

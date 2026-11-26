@@ -359,6 +359,8 @@ public class Main extends Application {
         scene.addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, this::onSidebarKey);
         scene.getAccelerators().put(new javafx.scene.input.KeyCodeCombination(javafx.scene.input.KeyCode.Z,
                 javafx.scene.input.KeyCombination.SHORTCUT_DOWN), this::onUndo);
+        scene.getAccelerators().put(new javafx.scene.input.KeyCodeCombination(javafx.scene.input.KeyCode.K,
+                javafx.scene.input.KeyCombination.SHORTCUT_DOWN), this::showGlobalSearch);
         scene.getAccelerators().put(new javafx.scene.input.KeyCodeCombination(javafx.scene.input.KeyCode.F,
                 javafx.scene.input.KeyCombination.SHORTCUT_DOWN), () -> {
             if (mapFindAnchor != null && mapFindAnchor.getScene() != null) showMapFind(mapFindAnchor);
@@ -1193,7 +1195,12 @@ public class Main extends Application {
         };
         networkService.statusProperty().addListener((o, a, b) -> Platform.runLater(tvByRole));
         tvByRole.run();
-        bar.getChildren().addAll(brand, sep, title, sceneStrip, spacer, returnSceneButton, cameraLockButton, tvButton,
+        Button searchButton = new Button("Procurar", com.vttcaseiro.view.Icons.icon("search", 14));
+        searchButton.getStyleClass().add("button-flat");
+        searchButton.setTooltip(new Tooltip("Procura em tudo: fichas, monstros, cenas, lugares do mapa, Diário, Campanha e "
+                + "compêndio (Ctrl+K)"));
+        searchButton.setOnAction(e -> showGlobalSearch());
+        bar.getChildren().addAll(brand, sep, title, sceneStrip, spacer, searchButton, returnSceneButton, cameraLockButton, tvButton,
                 playersStrip, hint, campaignButton, gear, netStatusLabel);
         return bar;
     }
@@ -1331,6 +1338,227 @@ public class Main extends Application {
                         + "tamanho, Shift+roda gira. Desligue em Objetos > Editar objetos quando terminar."));
             }
         }
+    }
+
+    // ---------------- busca unica (Ctrl+K)
+
+    /** Tudo que da pra achar agora: o que este computador tem e o que esta pessoa pode ver. */
+    private List<GlobalSearch.Item> searchItems() {
+        boolean gm = networkService.isGm() || !networkService.isConnected();
+        List<GlobalSearch.Item> items = new ArrayList<>();
+        for (com.vttcaseiro.model.MapPin p : sceneService.getScene().getPins()) {
+            if (gm || !p.isHidden()) items.add(new GlobalSearch.Item(GlobalSearch.Kind.PIN, p.getTitle(),
+                    p.isHidden() ? "oculto" : null, p));
+        }
+        if (gm) {
+            String here = currentMapName != null ? currentMapName : null;
+            for (String m : mesaService.listMaps()) {
+                items.add(new GlobalSearch.Item(GlobalSearch.Kind.CENA, m, m.equals(here) ? "aberta agora" : null, m));
+            }
+        }
+        int[] budget = {400}; // leituras de arquivo por busca (o resto aparece com o nome do arquivo)
+        for (String c : characterService.list()) {
+            items.add(new GlobalSearch.Item(GlobalSearch.Kind.FICHA, displayName("F:", c, budget), null, c));
+        }
+        for (String m : mobService.list()) {
+            items.add(new GlobalSearch.Item(GlobalSearch.Kind.MONSTRO, displayName("M:", m, budget), null, m));
+        }
+        try {
+            for (com.vttcaseiro.model.Handout h : handoutStore.load()) {
+                items.add(new GlobalSearch.Item(GlobalSearch.Kind.DIARIO, h.getTitle(), null, h));
+            }
+        } catch (RuntimeException ignored) {
+            // diario ilegivel: segue sem ele
+        }
+        if (campaign != null) {
+            for (com.vttcaseiro.model.Campaign.Npc n : campaign.getNpcs()) {
+                items.add(new GlobalSearch.Item(GlobalSearch.Kind.PDM, n.name, blankToNull(n.role), n));
+            }
+            for (com.vttcaseiro.model.Campaign.Faction f : campaign.getFactions()) {
+                items.add(new GlobalSearch.Item(GlobalSearch.Kind.FACCAO, f.name, null, f));
+            }
+            for (com.vttcaseiro.model.Campaign.Adventure a : campaign.getAdventures()) {
+                items.add(new GlobalSearch.Item(GlobalSearch.Kind.MISSAO, a.name, blankToNull(a.state), a));
+            }
+        }
+        for (com.vttcaseiro.compendium.CompendiumEntry e : compendiumService.getCompendium().getEntries()) {
+            items.add(new GlobalSearch.Item(GlobalSearch.Kind.COMPENDIO, e.getName(), compendiumTypeLabel(e.getType()), e));
+        }
+        return items;
+    }
+
+    private static String compendiumTypeLabel(com.vttcaseiro.compendium.CompendiumEntryType t) {
+        if (t == null) return null;
+        return switch (t) {
+            case CLASS -> "classe";
+            case SUBCLASS -> "subclasse";
+            case BACKGROUND -> "antecedente";
+            case SPECIES -> "espécie";
+            case FEAT -> "talento";
+            case ITEM -> "item";
+            case SPELL -> "magia";
+        };
+    }
+
+    /** Nome de verdade das fichas cujo arquivo perdeu acento/virgula ("Drag_o" -> "Dragão"), por arquivo. */
+    private final java.util.Map<String, String> searchNames = new java.util.HashMap<>();
+
+    /** O nome do arquivo ja e o nome, a nao ser que tenha "_" (letra trocada): ai le a ficha uma vez e guarda. */
+    private String displayName(String prefix, String file, int[] budget) {
+        if (!file.contains("_")) return file;
+        String cached = searchNames.get(prefix + file);
+        if (cached != null) return cached;
+        if (budget[0]-- <= 0) return file;
+        try {
+            String n = prefix.equals("F:") ? mesaRepository.loadCharacter(file).getName() : mesaRepository.loadMob(file).getName();
+            String name = n == null || n.isBlank() ? file : n;
+            searchNames.put(prefix + file, name);
+            return name;
+        } catch (IOException | RuntimeException ex) {
+            searchNames.put(prefix + file, file);
+            return file;
+        }
+    }
+
+    /** Janelinha no alto da mesa: digita, escolhe com as setas e Enter (ou clique) e abre a coisa. */
+    private void showGlobalSearch() {
+        if (stage == null || stage.getScene() == null) return;
+        List<GlobalSearch.Item> all = searchItems();
+        javafx.stage.Popup popup = new javafx.stage.Popup();
+        popup.setAutoHide(true);
+        TextField query = new TextField();
+        query.setPromptText("Procurar ficha, monstro, cena, lugar, Diário, Campanha, magia, item...");
+        javafx.collections.ObservableList<GlobalSearch.Item> shown = FXCollections.observableArrayList();
+        ListView<GlobalSearch.Item> list = new ListView<>(shown);
+        list.setPrefSize(560, 360);
+        list.setPlaceholder(emptyHint("Digite pra procurar em " + all.size() + " coisas desta mesa."));
+        list.setCellFactory(lv -> new ListCell<>() {
+            @Override protected void updateItem(GlobalSearch.Item it, boolean empty) {
+                super.updateItem(it, empty);
+                if (empty || it == null) {
+                    setText(null);
+                    setGraphic(null);
+                    return;
+                }
+                Label name = new Label(it.title());
+                name.setStyle("-fx-font-weight: bold;");
+                Label kind = new Label(it.kind().label + (it.detail() == null ? "" : " · " + it.detail()));
+                kind.getStyleClass().add("label-muted");
+                Region grow = new Region();
+                HBox.setHgrow(grow, Priority.ALWAYS);
+                HBox row = new HBox(8, name, grow, kind);
+                row.setAlignment(Pos.CENTER_LEFT);
+                setText(null);
+                setGraphic(row);
+            }
+        });
+        query.textProperty().addListener((o, a, q) -> {
+            list.getSelectionModel().clearSelection();
+            shown.setAll(GlobalSearch.filter(all, q, 80));
+            list.setPlaceholder(emptyHint(GlobalSearch.fold(q).isEmpty() ? "Digite pra procurar em " + all.size() + " coisas desta mesa."
+                    : "Nada com esse nome."));
+            if (!shown.isEmpty()) list.getSelectionModel().select(0);
+        });
+        Runnable go = () -> {
+            GlobalSearch.Item it = list.getSelectionModel().getSelectedItem();
+            if (it == null && !shown.isEmpty()) it = shown.get(0);
+            if (it == null) return;
+            popup.hide();
+            openSearchItem(it);
+        };
+        query.setOnAction(e -> go.run());
+        query.addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, e -> {
+            int i = list.getSelectionModel().getSelectedIndex();
+            if (e.getCode() == javafx.scene.input.KeyCode.DOWN && !shown.isEmpty()) {
+                list.getSelectionModel().select(Math.min(shown.size() - 1, i + 1));
+                list.scrollTo(list.getSelectionModel().getSelectedIndex());
+                e.consume();
+            } else if (e.getCode() == javafx.scene.input.KeyCode.UP && !shown.isEmpty()) {
+                list.getSelectionModel().select(Math.max(0, i - 1));
+                list.scrollTo(list.getSelectionModel().getSelectedIndex());
+                e.consume();
+            } else if (e.getCode() == javafx.scene.input.KeyCode.ESCAPE) {
+                popup.hide();
+            }
+        });
+        list.setOnMouseClicked(e -> {
+            if (list.getSelectionModel().getSelectedItem() != null) go.run();
+        });
+        Label tip = new Label("↑ ↓ escolhe · Enter abre · Esc fecha");
+        tip.getStyleClass().add("label-muted");
+        VBox box = new VBox(8, query, list, tip);
+        box.setPadding(new Insets(10));
+        box.setStyle("-fx-background-color: -c-surface; -fx-background-radius: 10; -fx-border-color: -c-border;"
+                + " -fx-border-radius: 10; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.55), 18, 0.2, 0, 6);");
+        popup.getContent().add(box);
+        double x = stage.getX() + (stage.getWidth() - 580) / 2;
+        double y = stage.getY() + 70;
+        popup.show(stage, x, y);
+        Platform.runLater(query::requestFocus);
+    }
+
+    /** Abre o que foi achado, do mesmo jeito que a lista dele abriria. */
+    private void openSearchItem(GlobalSearch.Item it) {
+        try {
+            switch (it.kind()) {
+                case PIN -> {
+                    com.vttcaseiro.model.MapPin p = (com.vttcaseiro.model.MapPin) it.payload();
+                    mapView.centerOn(p.getX(), p.getY(), true);
+                    javafx.animation.PauseTransition wait = new javafx.animation.PauseTransition(javafx.util.Duration.millis(400));
+                    wait.setOnFinished(ev -> mapView.showPing(p.getX(), p.getY(), null));
+                    wait.play();
+                }
+                case CENA -> {
+                    String name = (String) it.payload();
+                    if (!name.equals(currentMapName)) openMapFromMesa(name, false);
+                }
+                case FICHA -> openSheetView(characterService.open((String) it.payload()));
+                case MONSTRO -> openMobView(mobService.open((String) it.payload()), null);
+                case DIARIO -> {
+                    com.vttcaseiro.model.Handout h = (com.vttcaseiro.model.Handout) it.payload();
+                    if (journalList != null) {
+                        journalList.getItems().stream().filter(x -> java.util.Objects.equals(x.getId(), h.getId())).findFirst()
+                                .ifPresent(x -> journalList.getSelectionModel().select(x));
+                    }
+                    openHandoutWindow(h);
+                }
+                case PDM -> openCampaignTab("PdMs");
+                case FACCAO -> openCampaignTab("Facções");
+                case MISSAO -> openCampaignTab("Missões");
+                case COMPENDIO -> showCompendiumEntry((com.vttcaseiro.compendium.CompendiumEntry) it.payload());
+            }
+        } catch (IOException | RuntimeException ex) {
+            showError("Não deu pra abrir \"" + it.title() + "\": " + ex.getMessage());
+        }
+    }
+
+    private void openCampaignTab(String tab) {
+        openCampaign();
+        if (campaignView != null) campaignView.showTab(tab);
+    }
+
+    /** Texto de uma entrada do compendio, pra ler (magia, item, talento...). */
+    private void showCompendiumEntry(com.vttcaseiro.compendium.CompendiumEntry e) {
+        Stage w = new Stage();
+        w.initOwner(stage);
+        w.setTitle(e.getName());
+        Label title = new Label(e.getName());
+        title.getStyleClass().add("label-title");
+        title.setWrapText(true);
+        String type = compendiumTypeLabel(e.getType());
+        Label sub = new Label((type == null ? "" : type) + (e.getSource() == null || e.getSource().isBlank() ? "" : " · " + e.getSource()));
+        sub.getStyleClass().add("label-muted");
+        javafx.scene.control.TextArea body = new javafx.scene.control.TextArea(e.getFullText() == null || e.getFullText().isBlank()
+                ? e.getShortDescription() : e.getFullText());
+        body.setEditable(false);
+        body.setWrapText(true);
+        VBox.setVgrow(body, Priority.ALWAYS);
+        VBox root = new VBox(8, title, sub, body);
+        root.setPadding(new Insets(14));
+        Scene sc = new Scene(root, 520, 480);
+        w.setScene(sc);
+        Theme.apply(sc);
+        w.show();
     }
 
     /** Botao "Procurar no mapa" (a janelinha abre ao lado dele). */
