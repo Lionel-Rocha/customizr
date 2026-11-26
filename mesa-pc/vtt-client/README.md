@@ -961,6 +961,14 @@ ficha de monstro, a Party (com o inventario compartilhado) e troca de
 mapa/cena entre todos os conectados -- incluindo quem entra DEPOIS de
 algo ja ter sido sincronizado. Ver `HANDOFF.md`.
 
+## Aviso de versão nova
+
+O `criar-launcher.cmd` grava ao lado do programa qual versão ele é (`versao.txt`: o commit e a data). Ao abrir, o
+programa pergunta ao GitHub, no máximo a cada 6 horas, qual é a última versão do programa; é só leitura, e nada seu
+vai junto. Se houver uma mais nova, aparece o botão **"Versão nova"** no alto, com a última mudança, o link pro que
+mudou e como atualizar (`git pull` e `criar-launcher.cmd`; jogador pede o programa novo ao mestre). Dá pra desligar o
+aviso na própria janela. Sem internet, ou rodando direto do código, não aparece nada.
+
 ## Rede: mestre, jogador ou espectador
 
 Quem cria a mesa ("Hospedar aqui") é sempre o mestre. Quem entra ("Entrar numa mesa online", ou pelo navegador)

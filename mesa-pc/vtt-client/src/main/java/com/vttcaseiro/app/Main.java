@@ -1199,12 +1199,18 @@ public class Main extends Application {
         };
         networkService.statusProperty().addListener((o, a, b) -> Platform.runLater(tvByRole));
         tvByRole.run();
+        // aviso de versao nova (aparece so quando o GitHub tem um programa mais novo que este)
+        Button updateButton = new Button("Versão nova", com.vttcaseiro.view.Icons.icon("download", 14));
+        updateButton.getStyleClass().add("button-primary");
+        updateButton.setVisible(false);
+        updateButton.setManaged(false);
+        checkForUpdate(updateButton);
         Button searchButton = new Button("Procurar", com.vttcaseiro.view.Icons.icon("search", 14));
         searchButton.getStyleClass().add("button-flat");
         searchButton.setTooltip(new Tooltip("Procura em tudo: fichas, monstros, cenas, lugares do mapa, Diário, Campanha e "
                 + "compêndio (Ctrl+K)"));
         searchButton.setOnAction(e -> showGlobalSearch());
-        bar.getChildren().addAll(brand, sep, title, sceneStrip, spacer, searchButton, returnSceneButton, cameraLockButton, tvButton,
+        bar.getChildren().addAll(brand, sep, title, sceneStrip, spacer, updateButton, searchButton, returnSceneButton, cameraLockButton, tvButton,
                 playersStrip, hint, campaignButton, gear, netStatusLabel);
         return bar;
     }
@@ -1342,6 +1348,76 @@ public class Main extends Application {
                         + "tamanho, Shift+roda gira. Desligue em Objetos > Editar objetos quando terminar."));
             }
         }
+    }
+
+    // ---------------- aviso de versao nova
+
+    /** No maximo uma pergunta ao GitHub a cada 6 h (e so se a pessoa nao desligou o aviso). */
+    static final long UPDATE_CHECK_EVERY_MS = 6L * 60 * 60 * 1000;
+
+    private void checkForUpdate(Button button) {
+        if (!AppSettings.getBool("atualizacao.avisar", true)) return;
+        String last = AppSettings.getString("atualizacao.ultima", "0");
+        long lastMs;
+        try {
+            lastMs = Long.parseLong(last);
+        } catch (NumberFormatException ex) {
+            lastMs = 0;
+        }
+        String known = AppSettings.getString("atualizacao.nova", "");
+        Optional<UpdateCheck.Version> mine = UpdateCheck.local();
+        if (mine.isEmpty()) return; // rodando do codigo: nao ha versao pra comparar
+        if (!known.isEmpty() && !known.startsWith(mine.get().commit())) {
+            // ja sabia de uma nova (de uma pergunta recente): mostra sem perguntar de novo
+            showUpdateButton(button, known);
+        }
+        if (System.currentTimeMillis() - lastMs < UPDATE_CHECK_EVERY_MS) return;
+        Thread t = new Thread(() -> {
+            Optional<UpdateCheck.Version> newer = UpdateCheck.check();
+            Platform.runLater(() -> {
+                AppSettings.setString("atualizacao.ultima", String.valueOf(System.currentTimeMillis()));
+                if (newer.isPresent()) {
+                    String info = newer.get().commit() + "|" + newer.get().date() + "|" + newer.get().message();
+                    AppSettings.setString("atualizacao.nova", info);
+                    showUpdateButton(button, info);
+                } else {
+                    AppSettings.setString("atualizacao.nova", "");
+                }
+            });
+        }, "aviso-versao");
+        t.setDaemon(true);
+        t.start();
+    }
+
+    private void showUpdateButton(Button button, String info) {
+        String[] p = info.split("\\|", 3);
+        String when = p.length > 1 ? p[1].replace('T', ' ').replaceAll(":\\d\\d([+-].*|Z)$", "") : "";
+        String what = p.length > 2 ? p[2] : "";
+        button.setTooltip(new Tooltip("Tem versão nova do Customizr (" + when + "): " + what));
+        button.setVisible(true);
+        button.setManaged(true);
+        button.setOnAction(e -> {
+            javafx.scene.control.Dialog<javafx.scene.control.ButtonType> d = new javafx.scene.control.Dialog<>();
+            d.initOwner(stage);
+            d.setTitle("Versão nova do Customizr");
+            d.setHeaderText("Saiu uma versão nova do programa (" + when + ").");
+            Label last = new Label("Última mudança: " + what);
+            last.setWrapText(true);
+            Label how = new Label("Pra atualizar, quem monta o programa: na pasta do projeto, \"git pull\" e depois "
+                    + "\"criar-launcher.cmd\". Jogador: peça o Customizr novo ao mestre.");
+            how.setWrapText(true);
+            how.getStyleClass().add("label-muted");
+            CheckBox keep = new CheckBox("Avisar quando houver versão nova");
+            keep.setSelected(AppSettings.getBool("atualizacao.avisar", true));
+            keep.setOnAction(ev -> AppSettings.setBool("atualizacao.avisar", keep.isSelected()));
+            VBox box = new VBox(10, last, how, keep);
+            box.setPrefWidth(460);
+            d.getDialogPane().setContent(box);
+            javafx.scene.control.ButtonType history = new javafx.scene.control.ButtonType("Ver o que mudou",
+                    javafx.scene.control.ButtonBar.ButtonData.LEFT);
+            d.getDialogPane().getButtonTypes().addAll(history, javafx.scene.control.ButtonType.CLOSE);
+            d.showAndWait().filter(b -> b == history).ifPresent(b -> getHostServices().showDocument(UpdateCheck.HISTORY_PAGE));
+        });
     }
 
     // ---------------- busca unica (Ctrl+K)

@@ -50,6 +50,8 @@ if exist "target\dist" rmdir /s /q "target\dist"
 mkdir "target\dist\lib"
 copy /y "target\customizr.jar" "target\dist\" >nul
 copy /y "target\lib\*.jar" "target\dist\lib\" >nul
+rem versao: o commit e a data deste programa (o aviso de "versao nova" compara com o GitHub)
+git -C "%~dp0." log -1 --format="%%H %%cI" -- . > "target\dist\versao.txt" 2>nul
 
 echo [3/4] Criando o Customizr.exe ^(leva um minutinho^)...
 if exist "%OUT%\Customizr\Customizr.exe" rmdir /s /q "%OUT%\Customizr"
