@@ -260,19 +260,31 @@ public final class AzgaarMap {
         }
         if (mapName == null || mapName.isBlank()) mapName = "Mundo";
 
+        String svg = d.length > 5 && d[5].contains("<svg") ? d[5] : null;
+        return build(version, mapName, description, width, height, distanceScale, distanceUnit, popRate, urbanization,
+                year, era, parseArray(d.length > 4 ? d[4] : ""), parseArray(d[14]), parseArray(d[15]),
+                parseArray(d.length > 35 ? d[35] : ""), parseArray(d[13]), parseArray(d.length > 29 ? d[29] : ""), svg);
+    }
+
+    /** Monta o mundo a partir das listas (o .map e o JSON do Azgaar trazem os mesmos objetos). */
+    static World build(String version, String mapName, String description, int width, int height, double distanceScale,
+                       String distanceUnit, double popRate, double urbanization, int year, String era, JsonArray notes,
+                       JsonArray stateArr, JsonArray burgArr, JsonArray markerArr, JsonArray cultureArr, JsonArray religionArr,
+                       String svg) {
         // anotacoes das versoes antigas: [{id:"burg3"|"state2"|"marker5", name, legend}]
         Map<String, String> oldNotes = new HashMap<>();
-        JsonArray notes = parseArray(d.length > 4 ? d[4] : "");
+        Map<String, String> oldNames = new HashMap<>();
         for (JsonElement el : notes) {
             if (!el.isJsonObject()) continue;
             JsonObject n = el.getAsJsonObject();
             String id = Json.str(n, "id");
             String legend = Json.stripHtml(Json.str(n, "legend"));
             if (id != null && legend != null) oldNotes.put(id, legend);
+            if (id != null && Json.str(n, "name") != null) oldNames.put(id, Json.str(n, "name"));
         }
 
         List<State> states = new ArrayList<>();
-        for (JsonElement el : parseArray(d[14])) {
+        for (JsonElement el : stateArr) {
             if (!el.isJsonObject()) continue;
             JsonObject s = el.getAsJsonObject();
             int i = Json.intOr(s, "i", 0);
@@ -285,7 +297,7 @@ public final class AzgaarMap {
         }
 
         List<Burg> burgs = new ArrayList<>();
-        for (JsonElement el : parseArray(d[15])) {
+        for (JsonElement el : burgArr) {
             if (!el.isJsonObject()) continue;
             JsonObject b = el.getAsJsonObject();
             String name = Json.str(b, "name");
@@ -298,35 +310,25 @@ public final class AzgaarMap {
         }
 
         List<Marker> markers = new ArrayList<>();
-        for (JsonElement el : parseArray(d.length > 35 ? d[35] : "")) {
+        for (JsonElement el : markerArr) {
             if (!el.isJsonObject()) continue;
             JsonObject m = el.getAsJsonObject();
             Double x = Json.num(m, "x"), y = Json.num(m, "y");
             if (x == null || y == null) continue;
             int i = Json.intOr(m, "i", 0);
-            String note = note(m, oldNotes, "marker" + i);
             String name = Json.str(m, "name");
-            if (name == null) {
-                // nas versoes antigas o nome do marcador fica na nota
-                for (JsonElement ne : notes) {
-                    if (ne.isJsonObject() && ("marker" + i).equals(Json.str(ne.getAsJsonObject(), "id"))) {
-                        name = Json.str(ne.getAsJsonObject(), "name");
-                    }
-                }
-            }
-            markers.add(new Marker(i, Json.str(m, "type"), name, x, y, note));
+            if (name == null) name = oldNames.get("marker" + i); // nas versoes antigas o nome do marcador fica na nota
+            markers.add(new Marker(i, Json.str(m, "type"), name, x, y, note(m, oldNotes, "marker" + i)));
         }
 
-        List<Group> cultures = groups(d[13], oldNotes, "culture");
-        List<Group> religions = groups(d.length > 29 ? d[29] : "", oldNotes, "religion");
-        String svg = d.length > 5 && d[5].contains("<svg") ? d[5] : null;
-        return new World(version, mapName, description, width, height, distanceScale, distanceUnit, year, era,
-                states, burgs, markers, cultures, religions, svg);
+        return new World(version, mapName == null || mapName.isBlank() ? "Mundo" : mapName, description, width, height,
+                distanceScale, distanceUnit, year, era, states, burgs, markers,
+                groups(cultureArr, oldNotes, "culture"), groups(religionArr, oldNotes, "religion"), svg);
     }
 
-    private static List<Group> groups(String json, Map<String, String> oldNotes, String prefix) {
+    private static List<Group> groups(JsonArray arr, Map<String, String> oldNotes, String prefix) {
         List<Group> out = new ArrayList<>();
-        for (JsonElement el : parseArray(json)) {
+        for (JsonElement el : arr) {
             if (!el.isJsonObject()) continue;
             JsonObject c = el.getAsJsonObject();
             int i = Json.intOr(c, "i", 0);

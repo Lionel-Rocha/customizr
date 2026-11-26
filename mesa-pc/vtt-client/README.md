@@ -217,8 +217,12 @@ no mapa vazio):
   historia e as notas pro Diario.
 - **Watabou - cidades, vilas, cavernas etc.**: exporte como **PNG** e escolha a
   opcao de imagem.
-- **Azgaar - mundo salvo (.map)** (o melhor jeito): no gerador, **Save** (o arquivo `.map`) e
-  **Export > PNG** do mesmo mundo. No Customizr, "Azgaar - mundo salvo": escolha o `.map` e depois o PNG.
+- **Azgaar - mundo** (o melhor jeito), de dois jeitos:
+  - **JSON "Full"** (no gerador: Export > JSON > Full): o Customizr **desenha o mapa sozinho** a partir dos dados
+    (relevo e biomas, ou político com a cor de cada reino), com costa, fronteiras, rios, estradas, cidades e nomes
+    dos reinos. Não precisa do PNG, e a região de perto é redesenhada, então fica nítida.
+  - **`.map`** (no gerador: Save): o `.map` não traz o desenho, então escolha também o **PNG** do mesmo mundo
+    (Export > PNG). Dá pra usar o PNG com o JSON também, se preferir o visual do gerador.
   Vem tudo que o gerador sabe do mundo:
   - **reinos viram Facções** na Campanha (forma de governo, capital, anotação, e de quem são amigos e inimigos
     pela diplomacia: aliado, guerra, rival, desconfiança, vassalo/suserano), escondidas até você revelar;
@@ -229,7 +233,9 @@ no mapa vazio):
   - **Diário**: descrição e ano do mundo, reinos, culturas, religiões e maiores cidades;
   - a **régua** já mede na escala do mundo (km ou milhas, como no gerador).
   O mundo fica guardado na mesa. **Mundo > Cenas > "Região de um mundo"**: escolha uma cidade (ou marcador) e o
-  tamanho, e a região em volta vira uma cena nova, ampliada, com os pins de lá e a régua na escala certa.
+  tamanho, e a região em volta vira uma cena nova, com os pins de lá e a régua na escala certa (do JSON ela é
+  desenhada de perto; do `.map`, recortada do PNG). Ler e desenhar um mundo grande leva alguns segundos e não
+  trava a mesa.
   Lê `.map` das versões novas e antigas do gerador (compactado ou não).
 - **Azgaar's Fantasy Map Generator** (só a imagem): Menu > Export > **PNG** (ou JPEG). Se
   quiser, escolha tambem o **JSON "Full"** do mesmo mundo: os reinos e as maiores
