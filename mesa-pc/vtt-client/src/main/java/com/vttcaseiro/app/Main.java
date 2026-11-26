@@ -767,6 +767,7 @@ public class Main extends Application {
     private final TableService.Port tablePort = new TableService.Port() {
         @Override public boolean isConnected() { return networkService.isConnected(); }
         @Override public boolean isGm() { return networkService.isGm(); }
+        @Override public boolean isSpectator() { return networkService.isSpectator(); }
         @Override public String myPlayerId() { return networkService.getPlayerId(); }
         @Override public void sendUpdateToken(TokenModel token) { networkService.sendUpdateToken(token); }
         @Override public void sendRemoveToken(String tokenId) { networkService.sendRemoveToken(tokenId); }
@@ -3104,6 +3105,19 @@ public class Main extends Application {
                 }
             }
             if (!gm) { pinBtn.setSelected(false); applyWall.run(); }
+            // espectador: so olha e mede (Tokens e Desenho mudariam a mesa e o servidor recusaria)
+            boolean watching = networkService.isSpectator();
+            for (int c : new int[]{0, 2}) {
+                catButtons[c].setVisible(!watching);
+                catButtons[c].setManaged(!watching);
+                if (watching && catButtons[c].isSelected()) {
+                    catButtons[c].setSelected(false);
+                    showCat.accept(-1);
+                }
+            }
+            undoBtn.setVisible(!watching);
+            undoBtn.setManaged(!watching);
+            if (watching) toolsOff.run();
         };
         networkService.statusProperty().addListener((o, a, b) -> Platform.runLater(catGmOnly));
         catGmOnly.run();
@@ -4949,6 +4963,12 @@ public class Main extends Application {
         Runnable xpByRole = () -> {
             boolean gm = networkService.isGm();
             for (javafx.scene.Node n : List.of(xpRow, xpHint, splitCoinsButton)) showNode(n, gm);
+            // quem esta no grupo (e o nome dele) e o mestre que decide; o bau e de todos
+            for (Button b : List.of(addMemberButton, removeMemberButton, renamePartyButton)) {
+                b.setDisable(!gm);
+                b.setTooltip(new Tooltip(gm ? b.getText() : b.getText() + " (só o mestre)"));
+            }
+            partyNameField.setEditable(gm);
             javafx.scene.Node label = box.getChildren().get(box.getChildren().indexOf(xpRow) - 1);
             showNode(label, gm);
         };

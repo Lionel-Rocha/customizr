@@ -751,10 +751,18 @@ public class GameServer {
                     }
                 }
                 case "party_sync" -> {
-                    if (msg.party != null) {
-                        sharedParty = msg.party;
-                        broadcast(msg);
+                    if (msg.party == null) break;
+                    if (!from.isGm()) {
+                        // jogador mexe no bau e nas moedas do grupo; quem esta no grupo (e o nome) so o mestre muda
+                        com.vttcaseiro.party.Party merged = sharedParty != null
+                                ? NetCodec.deepCopy(sharedParty, com.vttcaseiro.party.Party.class)
+                                : new com.vttcaseiro.party.Party(msg.party.getName());
+                        if (sharedParty == null) merged.getCharacterIds().clear();
+                        merged.setSharedInventory(msg.party.getSharedInventory());
+                        msg.party = merged;
                     }
+                    sharedParty = msg.party;
+                    broadcast(msg); // inclusive pra quem mandou: volta como ficou de verdade
                 }
                 case "image_data" -> {
                     // Guarda localmente (dedup automatico -- ver

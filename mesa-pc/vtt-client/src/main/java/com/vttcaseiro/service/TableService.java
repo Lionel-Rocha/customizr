@@ -38,6 +38,11 @@ public class TableService {
         /** Mestre -- ou offline, onde quem usa o programa manda em tudo. */
         boolean isGm();
 
+        /** Conectado so pra assistir: nao controla token nem ficha (o servidor recusaria). */
+        default boolean isSpectator() {
+            return false;
+        }
+
         String myPlayerId();
 
         void sendUpdateToken(TokenModel token);
@@ -119,6 +124,7 @@ public class TableService {
 
     /** Dono do token, dono da ficha ligada, ou mestre. */
     public boolean canControl(TokenModel token) {
+        if (port.isConnected() && port.isSpectator()) return false;
         if (!port.isConnected() || port.isGm()) return true;
         String me = port.myPlayerId();
         if (me == null) return false;
@@ -131,6 +137,7 @@ public class TableService {
     }
 
     public boolean canEditSheet(CharacterSheet sheet) {
+        if (port.isConnected() && port.isSpectator()) return false;
         if (!port.isConnected() || port.isGm()) return true;
         return sheet.getOwnerPlayerId() == null || Objects.equals(sheet.getOwnerPlayerId(), port.myPlayerId());
     }
@@ -1539,6 +1546,10 @@ public class TableService {
 
     public void addDrawing(com.vttcaseiro.model.Drawing drawing) {
         if (drawing == null || drawing.getPoints().size() < 2) return;
+        if (port.isConnected() && port.isSpectator()) {
+            port.error("Você está assistindo (espectador): não dá pra desenhar no mapa.");
+            return;
+        }
         if (com.vttcaseiro.model.Drawing.TEXT.equals(drawing.getKind()) && drawing.getText().isBlank()) return;
         drawing.setOwnerId(port.myPlayerId());
         if (!scene().addDrawing(drawing)) {

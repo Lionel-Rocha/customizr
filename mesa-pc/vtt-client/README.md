@@ -961,7 +961,11 @@ escolhe como:
 - **Mestre**: comanda a mesa; precisa da senha de mestre (se a mesa tiver uma).
 - **Espectador**: só assiste. Vê o que os jogadores veem juntos (a visão somada dos tokens deles, sem nada oculto),
   conversa no chat (aparece "Nome (espectador)") e aponta no mapa, mas o servidor recusa qualquer mudança: mover
-  ou criar token, ficha, desenho, porta, rolagem, loja... A escolha fica lembrada pra próxima vez.
+  ou criar token, ficha, desenho, porta, rolagem, loja... A escolha fica lembrada pra próxima vez. Na tela dele, as ferramentas de
+  Tokens e Desenho somem e o desfazer também (sobra medir, apontar e ver tudo).
+
+**Grupo:** qualquer jogador põe e tira coisas do baú e das moedas do grupo; quem está no grupo (e o nome dele) só o
+mestre muda. Se um jogador tentar, o servidor mantém os membros e o nome e só aceita o baú.
 
 ## Rede: ninguém entra no lugar de outro jogador
 

@@ -38,6 +38,7 @@ public class Party {
     public List<String> getCharacterIds() { return characterIds; }
 
     public Inventory getSharedInventory() { return sharedInventory; }
+    public void setSharedInventory(Inventory inventory) { this.sharedInventory = inventory == null ? new Inventory() : inventory; }
 
     public boolean hasMember(String characterId) {
         return characterIds.contains(characterId);
