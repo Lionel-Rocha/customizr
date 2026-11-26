@@ -961,6 +961,15 @@ ficha de monstro, a Party (com o inventario compartilhado) e troca de
 mapa/cena entre todos os conectados -- incluindo quem entra DEPOIS de
 algo ja ter sido sincronizado. Ver `HANDOFF.md`.
 
+## Imagens dos monstros do 5etools (por link)
+
+Botão direito num monstro (Fichas > Monstros e PdMs): **"Imagem do 5etools (por link)..."** baixa o token (ou a
+ilustração inteira) daquele monstro e põe como retrato dele; os tokens dele na cena trocam junto. **"Imagens do
+5etools pra todos sem imagem..."** faz isso pra todos os monstros que sabem de que livro vieram (os importados do
+bestiário a partir desta versão guardam o livro, ex.: XMM). As imagens são baixadas só neste computador e nunca vão
+pro repositório. O 5etools serve em `.webp`; o programa converte pra PNG. Se o site mudar de endereço, a preferência
+`5etools.imagens` troca a base (padrão `https://5e.tools/img`).
+
 ## Aviso de versão nova
 
 O `criar-launcher.cmd` grava ao lado do programa qual versão ele é (`versao.txt`: o commit e a data). Ao abrir, o

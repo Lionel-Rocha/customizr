@@ -8699,6 +8699,126 @@ public class Main extends Application {
         }
     }
 
+    /** Endereco das imagens do 5etools (preferencia desta maquina, se o site mudar de lugar). */
+    private static String fiveToolsImageBase() {
+        return AppSettings.getString("5etools.imagens", com.vttcaseiro.importer.MonsterImages.DEFAULT_BASE);
+    }
+
+    /**
+     * Baixa a imagem de um monstro do 5etools por link (so neste computador) e poe como retrato dele; os tokens dele
+     * nesta cena trocam junto. Monstro sem o livro guardado (importado antes): pergunta o codigo do livro.
+     */
+    private void onMonsterImage(String fileName) {
+        MobSheet mob;
+        try {
+            mob = mobService.open(fileName);
+        } catch (IOException | RuntimeException ex) {
+            showError("Não deu pra abrir o monstro: " + ex.getMessage());
+            return;
+        }
+        TextField source = new TextField(mob.getSourceCode() == null ? "XMM" : mob.getSourceCode());
+        source.setPrefColumnCount(8);
+        TextField lookupName = new TextField(mob.getName());
+        ComboBox<String> kind = new ComboBox<>(FXCollections.observableArrayList("Token (redondo, pro mapa)", "Ilustração inteira"));
+        kind.getSelectionModel().select(0);
+        Label hint = new Label("A imagem é baixada do 5etools só neste computador e vira o retrato do monstro. "
+                + "Livro: o código do 5etools (XMM = Monster Manual 2024, MM = 2014...). O nome tem que ser o de lá, em inglês.");
+        hint.setWrapText(true);
+        hint.getStyleClass().add("label-muted");
+        javafx.scene.layout.GridPane g = new javafx.scene.layout.GridPane();
+        g.setHgap(8);
+        g.setVgap(8);
+        g.addRow(0, new Label("Nome no 5etools"), lookupName);
+        g.addRow(1, new Label("Livro"), source);
+        g.addRow(2, new Label("Tipo"), kind);
+        g.add(hint, 0, 3, 2, 1);
+        g.setPrefWidth(440);
+        javafx.scene.control.Dialog<javafx.scene.control.ButtonType> d = new javafx.scene.control.Dialog<>();
+        d.initOwner(stage);
+        d.setTitle("Imagem do 5etools: " + mob.getName());
+        d.getDialogPane().setContent(g);
+        javafx.scene.control.ButtonType get = new javafx.scene.control.ButtonType("Baixar", javafx.scene.control.ButtonBar.ButtonData.OK_DONE);
+        d.getDialogPane().getButtonTypes().addAll(get, javafx.scene.control.ButtonType.CANCEL);
+        if (d.showAndWait().filter(b -> b == get).isEmpty()) return;
+        String src = source.getText().strip(), nm = lookupName.getText().strip();
+        if (src.isEmpty() || nm.isEmpty()) return;
+        com.vttcaseiro.importer.MonsterImages.Kind k = kind.getSelectionModel().getSelectedIndex() == 1
+                ? com.vttcaseiro.importer.MonsterImages.Kind.ART : com.vttcaseiro.importer.MonsterImages.Kind.TOKEN;
+        String url = com.vttcaseiro.importer.MonsterImages.url(fiveToolsImageBase(), k, src, nm);
+        inBackground("Baixando a imagem de " + nm, () -> com.vttcaseiro.importer.MonsterImages.downloadPng(url), png -> {
+            applyMonsterImage(mob, png, src);
+            logEntries.add(LogEntry.system("Imagem do 5etools posta em " + mob.getName() + "."));
+        });
+    }
+
+    /** Guarda o PNG como retrato do monstro (e o livro, pra proxima) e troca a imagem dos tokens dele na cena. */
+    private void applyMonsterImage(MobSheet mob, byte[] png, String source) throws IOException {
+        String asset = mesaRepository.getImageAssetStore().store(png, "monstro.png");
+        mob.setPortraitImageAssetId(asset);
+        mob.setSourceCode(source);
+        mobService.save(mob);
+        refreshMobList();
+        for (TokenModel t : sceneService.getScene().getTokens()) {
+            if (mob.getId() != null && mob.getId().equals(t.getMobSheetId())) {
+                t.setImageAssetId(asset);
+                table.publishTokenUpdate(t);
+            }
+        }
+    }
+
+    /** Todos os monstros sem retrato que sabem de que livro vieram: baixa o token de cada um, um por vez. */
+    private void onAllMonsterImages() {
+        List<String> files = new ArrayList<>();
+        int noSource = 0;
+        for (String f : mobService.list()) {
+            try {
+                MobSheet m = mobService.open(f);
+                if (m.getPortraitImageAssetId() != null) continue;
+                if (m.getSourceCode() == null) noSource++;
+                else files.add(f);
+            } catch (IOException | RuntimeException ignored) {
+                // ilegivel: pula
+            }
+        }
+        if (files.isEmpty()) {
+            showError(noSource > 0 ? "Os monstros sem imagem não sabem de que livro vieram (foram importados antes). "
+                    + "Use \"Imagem do 5etools (por link)...\" num por um, ou importe o bestiário de novo."
+                    : "Todos os monstros já têm imagem.");
+            return;
+        }
+        Alert ask = new Alert(Alert.AlertType.CONFIRMATION, "Baixar o token do 5etools pra " + files.size()
+                + " monstro(s) sem imagem? As imagens ficam só neste computador. Pode levar alguns minutos.",
+                javafx.scene.control.ButtonType.OK, javafx.scene.control.ButtonType.CANCEL);
+        ask.initOwner(stage);
+        ask.setHeaderText(null);
+        if (ask.showAndWait().filter(b -> b == javafx.scene.control.ButtonType.OK).isEmpty()) return;
+        String base = fiveToolsImageBase();
+        inBackground("Baixando " + files.size() + " imagens do 5etools", () -> {
+            java.util.Map<String, byte[]> got = new java.util.LinkedHashMap<>();
+            int failed = 0;
+            for (String f : files) {
+                try {
+                    MobSheet m = mobService.open(f);
+                    got.put(f, com.vttcaseiro.importer.MonsterImages.downloadPng(com.vttcaseiro.importer.MonsterImages.url(
+                            base, com.vttcaseiro.importer.MonsterImages.Kind.TOKEN, m.getSourceCode(), m.getName())));
+                    Thread.sleep(150); // educado com o site
+                } catch (IOException | RuntimeException ex) {
+                    failed++;
+                }
+            }
+            return new Object[]{got, failed};
+        }, res -> {
+            @SuppressWarnings("unchecked")
+            java.util.Map<String, byte[]> got = (java.util.Map<String, byte[]>) res[0];
+            for (var en : got.entrySet()) {
+                MobSheet m = mobService.open(en.getKey());
+                applyMonsterImage(m, en.getValue(), m.getSourceCode());
+            }
+            logEntries.add(LogEntry.system("Imagens do 5etools: " + got.size() + " baixada(s)"
+                    + ((int) res[1] > 0 ? ", " + res[1] + " sem imagem lá" : "") + "."));
+        });
+    }
+
     private javafx.scene.control.ContextMenu mobMenu(String name) {
         javafx.scene.control.ContextMenu m = new javafx.scene.control.ContextMenu();
         javafx.scene.control.MenuItem open = new javafx.scene.control.MenuItem("Abrir ficha");
@@ -8713,7 +8833,12 @@ public class Main extends Application {
         place.setOnAction(e -> onPlaceSelectedMob());
         javafx.scene.control.MenuItem del = new javafx.scene.control.MenuItem("Apagar... (Delete)");
         del.setOnAction(e -> onDeleteMob(name));
-        m.getItems().addAll(open, edit, dup, ren, place);
+        javafx.scene.control.MenuItem img = new javafx.scene.control.MenuItem("Imagem do 5etools (por link)...");
+        img.setOnAction(e -> onMonsterImage(name));
+        javafx.scene.control.MenuItem allImg = new javafx.scene.control.MenuItem("Imagens do 5etools pra todos sem imagem...");
+        allImg.setOnAction(e -> onAllMonsterImages());
+        m.getItems().addAll(open, edit, dup, ren, place, new javafx.scene.control.SeparatorMenuItem(), img, allImg,
+                new javafx.scene.control.SeparatorMenuItem());
         boolean hidden = false;
         try {
             hidden = mobService.open(name).isHiddenFromPlayers();

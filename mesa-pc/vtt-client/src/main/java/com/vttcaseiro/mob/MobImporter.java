@@ -83,6 +83,7 @@ public final class MobImporter {
 
     private static MobSheet importOne(Map<String, Object> row) {
         MobSheet mob = new MobSheet(nameOrFallback(ClassJsonAnalyzer.text(row, "name")));
+        mob.setSourceCode(ClassJsonAnalyzer.text(row, "source")); // (pra achar a imagem do 5etools depois)
 
         mob.setSize(MobJsonAnalyzer.sizeName(ClassJsonAnalyzer.nestedList(row, "size")));
         mob.setCreatureType(MobJsonAnalyzer.typeName(row.get("type")));

@@ -81,6 +81,8 @@ public class MobSheet {
      * instancias do mesmo monstro (3 goblins na mesma cena) apontam pro
      * MESMO asset, nunca triplicam a imagem no disco. */
     private String portraitImageAssetId;
+    /** Livro de onde veio no 5etools (ex.: "XMM"); serve pra achar a imagem dele por link. */
+    private String sourceCode;
 
     /** Loot deste monstro especifico -- reusa Inventory (mesma classe que
      * CharacterSheet e Party usam), pra poder transferir pro inventario de
@@ -253,6 +255,9 @@ public class MobSheet {
     public void setImageData(String imageData) { this.imageData = imageData; }
 
     public String getPortraitImageAssetId() { return portraitImageAssetId; }
+    public String getSourceCode() { return sourceCode == null || sourceCode.isBlank() ? null : sourceCode; }
+    public void setSourceCode(String sourceCode) { this.sourceCode = sourceCode; }
+
     public void setPortraitImageAssetId(String portraitImageAssetId) { this.portraitImageAssetId = portraitImageAssetId; }
 
     public Inventory getLootInventory() { return lootInventory; }
