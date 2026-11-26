@@ -1420,6 +1420,15 @@ public class Main extends Application {
         }
     }
 
+    /** Nome de verdade da ficha guardada nesse arquivo (o arquivo perde acento e virgula). */
+    private String sheetLabel(String file) {
+        return displayName("F:", file, new int[]{1});
+    }
+
+    private String mobLabel(String file) {
+        return displayName("M:", file, new int[]{1});
+    }
+
     /** Janelinha no alto da mesa: digita, escolhe com as setas e Enter (ou clique) e abre a coisa. */
     private void showGlobalSearch() {
         if (stage == null || stage.getScene() == null) return;
@@ -3542,6 +3551,12 @@ public class Main extends Application {
         characterListView = new ListView<>();
         characterListView.setPlaceholder(emptyHint("Nenhuma ficha ainda.\nCrie com + ou importe um PDF/JSON."));
         characterListView.setPrefHeight(170);
+        characterListView.setCellFactory(lv -> new ListCell<>() {
+            @Override protected void updateItem(String file, boolean empty) {
+                super.updateItem(file, empty);
+                setText(empty || file == null ? null : sheetLabel(file));
+            }
+        });
         refreshCharacterList();
         characterListView.setOnMouseClicked(e -> {
             if (e.getClickCount() == 2) {
@@ -3643,6 +3658,12 @@ public class Main extends Application {
 
         mobListView = new ListView<>();
         mobListView.setPrefHeight(160);
+        mobListView.setCellFactory(lv -> new ListCell<>() {
+            @Override protected void updateItem(String file, boolean empty) {
+                super.updateItem(file, empty);
+                setText(empty || file == null ? null : mobLabel(file));
+            }
+        });
         mobListView.setPlaceholder(emptyHint("Nenhum monstro ainda.\nCrie com + ou importe no Compêndio."));
         refreshMobList();
         mobListView.setOnMouseClicked(e -> {
@@ -4074,7 +4095,9 @@ public class Main extends Application {
         name.setPromptText("nome do módulo");
         List<javafx.scene.control.CheckBox> scenes = checks(mesaService.listMaps());
         List<javafx.scene.control.CheckBox> mobs = checks(mobService.list());
+        mobs.forEach(c -> c.setText(mobLabel((String) c.getUserData())));
         List<javafx.scene.control.CheckBox> chars = checks(characterService.list());
+        chars.forEach(c -> c.setText(sheetLabel((String) c.getUserData())));
         javafx.scene.control.CheckBox handouts = new javafx.scene.control.CheckBox("Diário (todos os textos e imagens)");
         javafx.scene.control.CheckBox camp = new javafx.scene.control.CheckBox(
                 "Campanha: PdMs, aventuras, tesouro e encontros prontos (sem jogadores, sessões e anotações)");
@@ -4129,12 +4152,17 @@ public class Main extends Application {
 
     private static List<javafx.scene.control.CheckBox> checks(List<String> names) {
         List<javafx.scene.control.CheckBox> out = new ArrayList<>();
-        for (String n : names) out.add(new javafx.scene.control.CheckBox(n));
+        for (String n : names) {
+            javafx.scene.control.CheckBox c = new javafx.scene.control.CheckBox(n);
+            c.setUserData(n); // o arquivo (o texto pode virar o nome com acento)
+            out.add(c);
+        }
         return out;
     }
 
     private static List<String> selected(List<javafx.scene.control.CheckBox> boxes) {
-        return boxes.stream().filter(javafx.scene.control.CheckBox::isSelected).map(javafx.scene.control.CheckBox::getText).toList();
+        return boxes.stream().filter(javafx.scene.control.CheckBox::isSelected)
+                .map(c -> c.getUserData() instanceof String f ? f : c.getText()).toList();
     }
 
     /** Titulo + "marcar tudo" + as caixas. */
@@ -4295,10 +4323,19 @@ public class Main extends Application {
             itemsTo.getItems().add(GROUP);
             itemsTo.getItems().addAll(names);
             itemsTo.setValue(GROUP);
+            javafx.util.Callback<ListView<String>, ListCell<String>> sheetCells = lv -> new ListCell<>() {
+                @Override protected void updateItem(String f, boolean empty) {
+                    super.updateItem(f, empty);
+                    setText(empty || f == null ? null : GROUP.equals(f) ? f : sheetLabel(f));
+                }
+            };
+            itemsTo.setCellFactory(sheetCells);
+            itemsTo.setButtonCell(sheetCells.call(null));
             VBox coinBoxes = new VBox(4);
             List<javafx.scene.control.CheckBox> coinChecks = new ArrayList<>();
             for (String n : names) {
-                javafx.scene.control.CheckBox c = new javafx.scene.control.CheckBox(n);
+                javafx.scene.control.CheckBox c = new javafx.scene.control.CheckBox(sheetLabel(n));
+                c.setUserData(n);
                 coinChecks.add(c);
                 coinBoxes.getChildren().add(c);
             }
@@ -4334,7 +4371,7 @@ public class Main extends Application {
                 };
                 var to = target.apply(itemsTo.getValue());
                 List<com.vttcaseiro.service.TreasureService.Target> coins = new ArrayList<>();
-                for (javafx.scene.control.CheckBox c : coinChecks) if (c.isSelected()) coins.add(target.apply(c.getText()));
+                for (javafx.scene.control.CheckBox c : coinChecks) if (c.isSelected()) coins.add(target.apply((String) c.getUserData()));
                 String summary = com.vttcaseiro.service.TreasureService.deliver(campaign, parcel, to, coins,
                         xp.isSelected(), com.vttcaseiro.view.CampaignView.todayText());
                 touched.values().forEach(this::saveSheet);
@@ -8350,7 +8387,7 @@ public class Main extends Application {
 
     private void onRenameCharacter(String name) {
         CharacterSheetView view = openViewFor(name);
-        String current = view != null ? view.getSheet().getName() : name;
+        String current = view != null ? view.getSheet().getName() : sheetLabel(name);
         askNewName("Renomear ficha", current).ifPresent(n -> {
             try {
                 CharacterSheet sheet = characterService.rename(name, n, view != null ? view.getSheet() : null);
@@ -8365,7 +8402,7 @@ public class Main extends Application {
     }
 
     private void onDuplicateCharacter(String name) {
-        askNewName("Duplicar ficha", freeName(name, characterService.list())).ifPresent(n -> {
+        askNewName("Duplicar ficha", freeName(sheetLabel(name), characterService.list())).ifPresent(n -> {
             try {
                 CharacterSheet copy = characterService.duplicate(name, n);
                 refreshCharacterList();
@@ -8377,7 +8414,7 @@ public class Main extends Application {
     }
 
     private void onDeleteCharacter(String name) {
-        if (!confirmDelete("Apagar a ficha \"" + name + "\" desta mesa?\n\nNão dá pra desfazer (os backups "
+        if (!confirmDelete("Apagar a ficha \"" + sheetLabel(name) + "\" desta mesa?\n\nNão dá pra desfazer (os backups "
                 + "automáticos da mesa ainda têm a ficha). Tokens dela continuam no mapa.")) return;
         try {
             CharacterSheetView view = openViewFor(name);
@@ -8486,7 +8523,7 @@ public class Main extends Application {
     }
 
     private void onDuplicateMob(String name) {
-        askNewName("Duplicar monstro", mobService.freeCopyName(name)).ifPresent(n -> {
+        askNewName("Duplicar monstro", mobService.freeCopyName(mobLabel(name))).ifPresent(n -> {
             try {
                 MobSheet copy = mobService.duplicate(name, n);
                 refreshMobList();
@@ -8500,11 +8537,12 @@ public class Main extends Application {
     }
 
     private void onRenameMob(String name) {
-        askNewName("Renomear monstro", name).ifPresent(n -> {
+        String current = mobLabel(name);
+        askNewName("Renomear monstro", current).ifPresent(n -> {
             try {
                 MobSheet mob = mobService.rename(name, n);
                 refreshMobList();
-                logEntries.add(LogEntry.system("Monstro renomeado: " + name + " → " + mob.getName()));
+                logEntries.add(LogEntry.system("Monstro renomeado: " + current + " → " + mob.getName()));
             } catch (IllegalArgumentException | IOException ex) {
                 showError("Não deu pra renomear: " + ex.getMessage());
             }
@@ -8512,7 +8550,7 @@ public class Main extends Application {
     }
 
     private void onDeleteMob(String name) {
-        if (!confirmDelete("Apagar o monstro \"" + name + "\" desta mesa?\n\nNão dá pra desfazer. Tokens dele que já "
+        if (!confirmDelete("Apagar o monstro \"" + mobLabel(name) + "\" desta mesa?\n\nNão dá pra desfazer. Tokens dele que já "
                 + "estão no mapa continuam.")) return;
         try {
             mobService.delete(name);
@@ -8581,10 +8619,12 @@ public class Main extends Application {
     }
 
     private void refreshCharacterList() {
+        searchNames.keySet().removeIf(k -> k.startsWith("F:")); // renomeou/salvou: le os nomes de novo
         characterListView.getItems().setAll(characterService.list());
     }
 
     private void refreshMobList() {
+        searchNames.keySet().removeIf(k -> k.startsWith("M:"));
         mobListView.getItems().setAll(mobService.list());
     }
 
@@ -11896,6 +11936,14 @@ public class Main extends Application {
         });
         ComboBox<String> bestiary = new ComboBox<>(FXCollections.observableArrayList(mobService.list()));
         bestiary.setEditable(false);
+        javafx.util.Callback<ListView<String>, ListCell<String>> mobCells = lv -> new ListCell<>() {
+            @Override protected void updateItem(String f, boolean empty) {
+                super.updateItem(f, empty);
+                setText(empty || f == null ? null : mobLabel(f));
+            }
+        };
+        bestiary.setCellFactory(mobCells);
+        bestiary.setButtonCell(mobCells.call(null));
         bestiary.setPromptText("Monstro do bestiário");
         javafx.scene.control.Spinner<Integer> count = new javafx.scene.control.Spinner<>(1, 30, 1);
         count.setPrefWidth(70);
