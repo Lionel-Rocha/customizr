@@ -6,6 +6,7 @@ vtt-client/compendio-seed/5etools-json/
 vtt-client/src/main/resources/seed/
 # - programas montados e copias (gerados a partir do codigo)
 Customizr/
+instalador/
 Customizr-Ponte/*.jar
 Customizr.lnk
 backup-customizr-main-original.zip

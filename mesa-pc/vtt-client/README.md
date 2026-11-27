@@ -970,6 +970,32 @@ bestiário a partir desta versão guardam o livro, ex.: XMM). As imagens são ba
 pro repositório. O 5etools serve em `.webp`; o programa converte pra PNG. Se o site mudar de endereço, a preferência
 `5etools.imagens` troca a base (padrão `https://5e.tools/img`).
 
+## Instalador (pra mandar pros jogadores)
+
+`criar-instalador.cmd` (dois cliques) gera `mesa-pc\instalador\Customizr-1.0.N.exe` (~65 MB, com o Java embutido).
+Quem recebe dá dois cliques e "Avançar":
+
+- instala na pasta do usuário (`%LOCALAPPDATA%\Customizr`), **sem pedir senha de administrador**;
+- cria atalho no menu Iniciar (pasta Customizr) e, se a pessoa marcar, na área de trabalho;
+- aparece em "Adicionar ou remover programas";
+- **versão nova instala por cima** da antiga (N cresce a cada mudança do programa);
+- desinstalar tira o programa e os atalhos, mas **não apaga mesas, fichas nem registros** (ficam em `.vttcaseiro` e
+  nas pastas das mesas).
+
+Precisa do JDK 25+ e do **WiX Toolset 3.14** (o script procura em `D:\tools\wix314`, na instalação padrão ou no
+PATH). O `criar-launcher.cmd` continua existindo pra quem só quer a pasta com o `Customizr.exe`.
+
+O Windows pode mostrar "aplicativo não reconhecido" na primeira vez (o instalador não tem assinatura digital, que é
+paga): "Mais informações" > "Executar assim mesmo".
+
+## Registros de erro
+
+O programa anota o que acontece em `<pasta do usuário>\.vttcaseiro\registros\customizr-0.log` (até 5 arquivos de
+2 MB; o 0 é o mais novo), inclusive qualquer erro inesperado, com a versão do programa, do Java e do Windows. Quando
+um erro inesperado acontece, aparece um aviso ("Algo deu errado"), a mesa continua aberta e o botão **"Abrir pasta de
+registros"** leva até o arquivo pra mandar. O mesmo botão fica nas configurações da mesa (engrenagem), em "Registros
+de erro".
+
 ## Aviso de versão nova
 
 O `criar-launcher.cmd` grava ao lado do programa qual versão ele é (`versao.txt`: o commit e a data). Ao abrir, o

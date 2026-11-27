@@ -282,6 +282,23 @@ public class Main extends Application {
     @Override
     public void start(Stage stage) {
         this.stage = stage;
+        // erro que ninguem tratou: ja foi gravado no registro (ErrorLog); aqui so avisa, no maximo 1 vez a cada 20 s
+        long[] lastAlert = {0};
+        ErrorLog.setOnUnexpected(error -> Platform.runLater(() -> {
+            long now = System.currentTimeMillis();
+            if (now - lastAlert[0] < 20_000) return;
+            lastAlert[0] = now;
+            Alert a = new Alert(Alert.AlertType.ERROR);
+            if (stage.isShowing()) a.initOwner(stage);
+            a.setTitle("Algo deu errado");
+            a.setHeaderText("Aconteceu um erro inesperado. A mesa continua aberta.");
+            a.setContentText(String.valueOf(error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage())
+                    + "\n\nOs detalhes ficaram anotados no registro. Se repetir, mande o arquivo customizr-0.log "
+                    + "pra quem cuida do programa.");
+            javafx.scene.control.ButtonType open = new javafx.scene.control.ButtonType("Abrir pasta de registros");
+            a.getButtonTypes().setAll(open, javafx.scene.control.ButtonType.CLOSE);
+            a.showAndWait().filter(b -> b == open).ifPresent(b -> openLogsFolder());
+        }));
         Theme.install(); // caixas de dialogo e menus no tema escuro tambem
         new MesaSelectorView(stage, this::onMesaChosen, this::onJoinOnline).show();
     }
@@ -1403,8 +1420,9 @@ public class Main extends Application {
             d.setHeaderText("Saiu uma versão nova do programa (" + when + ").");
             Label last = new Label("Última mudança: " + what);
             last.setWrapText(true);
-            Label how = new Label("Pra atualizar, quem monta o programa: na pasta do projeto, \"git pull\" e depois "
-                    + "\"criar-launcher.cmd\". Jogador: peça o Customizr novo ao mestre.");
+            Label how = new Label("Pra atualizar: instale o Customizr novo por cima (o instalador substitui a versão "
+                    + "antiga e não mexe nas mesas). Quem monta o programa: \"git pull\" e depois \"criar-instalador.cmd\". "
+                    + "Jogador: peça o instalador novo ao mestre.");
             how.setWrapText(true);
             how.getStyleClass().add("label-muted");
             CheckBox keep = new CheckBox("Avisar quando houver versão nova");
@@ -4762,6 +4780,15 @@ public class Main extends Application {
             settings.getChildren().addAll(sectionLabel("Backups automáticos"), backupEvery,
                     new javafx.scene.layout.FlowPane(6, 6, backupNow, restoreButton), backupStatus,
                     new javafx.scene.layout.FlowPane(6, 6, mirrorButton, mirrorOff), mirrorLabel);
+
+            // registros: pra mandar quando algo der errado (o exe nao tem console)
+            Button logsButton = new Button("Abrir pasta de registros", com.vttcaseiro.view.Icons.icon("open", 14));
+            logsButton.setOnAction(e -> openLogsFolder());
+            Label logsHint = new Label("Se algo der errado, o programa anota aqui o que aconteceu. Mande o arquivo "
+                    + "customizr-0.log pra quem cuida do programa. " + ErrorLog.versionText() + ".");
+            logsHint.getStyleClass().add("label-muted");
+            logsHint.setWrapText(true);
+            settings.getChildren().addAll(sectionLabel("Registros de erro"), logsButton, logsHint);
 
             compactHints(settings);
             groupIntoCards(settings, "");
@@ -12731,7 +12758,18 @@ public class Main extends Application {
         System.setProperty("glass.gtk.uiScale", v);
     }
 
+    /** Abre a pasta dos registros no Explorer. */
+    private void openLogsFolder() {
+        try {
+            java.nio.file.Files.createDirectories(ErrorLog.folder());
+            getHostServices().showDocument(ErrorLog.folder().toUri().toString());
+        } catch (IOException | RuntimeException ex) {
+            showError("A pasta dos registros fica em: " + ErrorLog.folder());
+        }
+    }
+
     public static void main(String[] args) {
+        ErrorLog.install(); // registro em arquivo e "pega erro inesperado" antes de tudo
         // O JavaFX reserva so 512 MB de memoria de video por padrao; mapa grande + tokens + troca de cena passavam
         // disso e a tela congelava ("Texture ... is null"). E so um teto: a placa usa o que tiver.
         if (System.getProperty("prism.maxvram") == null) System.setProperty("prism.maxvram", "2G");
